@@ -42,7 +42,11 @@
         return (counts.rs || 0) > 0;
     }
 
-    function isMyClass(classData, currentUserId, appData) {
+    function isMyClass(classData, currentUserId) {
+        const d = domain();
+        if (d && d.essayReportClassIsMine) {
+            return d.essayReportClassIsMine(classData, currentUserId);
+        }
         if (!currentUserId || !classData) {
             return true;
         }
@@ -51,6 +55,27 @@
             return true;
         }
         return teachers.includes(currentUserId);
+    }
+
+    function classScopeOf(filters) {
+        const d = domain();
+        const opts = filters || {};
+        if (d && d.normalizeEssayReportClassScope) {
+            return d.normalizeEssayReportClassScope(opts.classScope, opts.myClassesOnly);
+        }
+        if (opts.classScope === 'mine' || opts.classScope === 'other' || opts.classScope === 'all') {
+            return opts.classScope;
+        }
+        return opts.myClassesOnly ? 'mine' : 'all';
+    }
+
+    function classHasEssaySubject(classData, appData, essaySubject) {
+        const d = domain();
+        if (!essaySubject || !d || !d.listEssayResubmitRows || !d.essayReportSubjectMatches) {
+            return true;
+        }
+        const rows = d.listEssayResubmitRows(appData, { classes: [classData] });
+        return rows.some((row) => d.essayReportSubjectMatches(row && row.essaySubject, essaySubject));
     }
 
     function filterClassesForSummary(classes, appData, filters) {
@@ -75,7 +100,14 @@
             if (opts.subject && normalizeStr(classData.subject) !== normalizeStr(opts.subject)) {
                 return false;
             }
-            if (opts.myClassesOnly && !isMyClass(classData, opts.currentUserId, appData)) {
+            const scope = classScopeOf(opts);
+            if (scope === 'mine' && !isMyClass(classData, opts.currentUserId)) {
+                return false;
+            }
+            if (scope === 'other' && isMyClass(classData, opts.currentUserId)) {
+                return false;
+            }
+            if (opts.essaySubject && !classHasEssaySubject(classData, appData, opts.essaySubject)) {
                 return false;
             }
             if (opts.hasResubmitsOnly && !classHasResubmits(classData, appData)) {
@@ -95,12 +127,23 @@
 
     function filterResubmitRows(rows, options) {
         const opts = options || {};
+        const d = domain();
+        let list = rows || [];
         const selected = opts.selectedClassIds;
-        if (!selected || (selected instanceof Set && !selected.size)) {
-            return rows || [];
+        if (selected instanceof Set) {
+            if (selected.size) {
+                list = list.filter((row) => row && selected.has(row.classId));
+            }
+        } else if (selected) {
+            const idSet = selected instanceof Set ? selected : new Set(selected);
+            list = list.filter((row) => row && idSet.has(row.classId));
         }
-        const idSet = selected instanceof Set ? selected : new Set(selected);
-        return (rows || []).filter((row) => row && idSet.has(row.classId));
+        if (opts.essaySubject && d && d.essayReportSubjectMatches) {
+            list = list.filter((row) =>
+                d.essayReportSubjectMatches(row && row.essaySubject, opts.essaySubject)
+            );
+        }
+        return list;
     }
 
     function groupResubmitRowsByClass(rows) {

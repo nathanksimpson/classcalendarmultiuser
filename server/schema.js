@@ -84,6 +84,7 @@ function migrate(db) {
     migrateCalendarBlobEncryption(db);
     migrateUserNotificationMeta(db);
     migrateUserUiPrefs(db);
+    migrateSoundboardBoard(db);
 }
 
 function migrateUserNotificationMeta(db) {
@@ -100,6 +101,11 @@ function migrateUserNotificationMeta(db) {
         CREATE INDEX IF NOT EXISTS idx_user_notification_meta_calendar
             ON user_notification_meta(calendar_id, user_id);
     `);
+}
+
+function migrateSoundboardBoard(db) {
+    const { CREATE_TABLE_SQL } = require('../shared/soundboard-store.cjs');
+    db.exec(CREATE_TABLE_SQL);
 }
 
 function migrateUserUiPrefs(db) {

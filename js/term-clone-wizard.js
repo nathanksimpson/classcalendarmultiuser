@@ -154,6 +154,13 @@
                     if (e.teacherEvalDueDate) {
                         e.teacherEvalDueDate = shiftIsoDate(e.teacherEvalDueDate, monthShift);
                     }
+                    if (Array.isArray(e.records)) {
+                        e.records.forEach((rec) => {
+                            if (rec && rec.submittedAt) {
+                                rec.submittedAt = shiftIsoDate(rec.submittedAt, monthShift);
+                            }
+                        });
+                    }
                 }
             });
             (cloned.studentPoints || []).forEach((p) => {

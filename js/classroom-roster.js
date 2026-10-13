@@ -40,6 +40,8 @@
     let editorKeyAbort = null;
     /** Prevent overlapping saveStudent from click + shortcut (or stacked keydowns). */
     let saveStudentInFlight = false;
+    /** Groups from planCohortDuplicateMerges for the open Find duplicates dialog. */
+    let dedupPlan = [];
 
     function cleanTmsSyncCohortName(name) {
         const stripped = String(name || '')
@@ -3341,6 +3343,59 @@
         let cohorts = getCohorts();
         const appData = hooks.getAppData ? hooks.getAppData() : {};
         let mergedWorking = null;
+        // #region agent log
+        (function () {
+            const locate = (id) => {
+                const want = String(id || '');
+                let found = false;
+                let cohortId = '';
+                (cohorts || []).some((c) =>
+                    (c && Array.isArray(c.students) ? c.students : []).some((s) => {
+                        if (s && String(s.id) === want) {
+                            found = true;
+                            cohortId = String(c.id || '');
+                            return true;
+                        }
+                        return false;
+                    })
+                );
+                return { found, cohortId };
+            };
+            const merges = [];
+            (tmsSyncPlan || []).forEach((row, rowIdx) => {
+                ((row && row.pendingStudentMerges) || []).forEach((m) => {
+                    const keep = locate(m && m.keepId);
+                    const drop = locate(m && m.dropId);
+                    merges.push({
+                        rowIdx,
+                        keepId: m && m.keepId ? String(m.keepId) : '',
+                        dropId: m && m.dropId ? String(m.dropId) : '',
+                        sameIds: Boolean(
+                            m && m.keepId && m.dropId && String(m.keepId) === String(m.dropId)
+                        ),
+                        keepFound: keep.found,
+                        dropFound: drop.found,
+                        keepCohortId: keep.cohortId,
+                        dropCohortId: drop.cohortId,
+                        sameCohort: Boolean(keep.found && drop.found && keep.cohortId === drop.cohortId)
+                    });
+                });
+            });
+            fetch('http://127.0.0.1:7484/ingest/eb92e151-ce29-4c5a-b17a-e5d8fe9bca1a', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '4702c9' },
+                body: JSON.stringify({
+                    sessionId: '4702c9',
+                    runId: 'pre-fix',
+                    hypothesisId: 'A-B-D-E',
+                    location: 'js/classroom-roster.js:finishTmsSyncApply',
+                    message: 'pending student merges before apply',
+                    data: { mergeCount: merges.length, merges },
+                    timestamp: Date.now()
+                })
+            }).catch(() => {});
+        })();
+        // #endregion
         // Apply queued local duplicate merges before roster plan (TMS map targets keepId).
         if (domain().mergeStudentRecords) {
             let working = Object.assign({}, appData, { cohorts });
@@ -3358,6 +3413,25 @@
                         clearOffRoster: true
                     });
                     if (merged.error) {
+                        // #region agent log
+                        fetch('http://127.0.0.1:7484/ingest/eb92e151-ce29-4c5a-b17a-e5d8fe9bca1a', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '4702c9' },
+                            body: JSON.stringify({
+                                sessionId: '4702c9',
+                                runId: 'pre-fix',
+                                hypothesisId: 'A-B-D-E',
+                                location: 'js/classroom-roster.js:pendingMerge',
+                                message: 'pending merge failed',
+                                data: {
+                                    error: merged.error,
+                                    keepId: String(m.keepId || ''),
+                                    dropId: String(m.dropId || '')
+                                },
+                                timestamp: Date.now()
+                            })
+                        }).catch(() => {});
+                        // #endregion
                         setTmsSyncError(t('studentMergeFailed'));
                         return;
                     }
@@ -3470,6 +3544,22 @@
                         );
                         if (conflictingId) {
                             const baseApp = mergedWorking || (hooks.getAppData ? hooks.getAppData() : {});
+                            const locateCohort = (id) => {
+                                const want = String(id || '');
+                                let cohortId = '';
+                                (cohorts || []).some((c) =>
+                                    (c && Array.isArray(c.students) ? c.students : []).some((s) => {
+                                        if (s && String(s.id) === want) {
+                                            cohortId = String(c.id || '');
+                                            return true;
+                                        }
+                                        return false;
+                                    })
+                                );
+                                return cohortId;
+                            };
+                            const keepCohortId = locateCohort(sid);
+                            const dropCohortId = locateCohort(conflictingId);
                             const merged = domain().mergeStudentRecords(
                                 Object.assign({}, baseApp, { cohorts }),
                                 {
@@ -3479,6 +3569,29 @@
                                     clearOffRoster: true
                                 }
                             );
+                            // #region agent log
+                            fetch('http://127.0.0.1:7484/ingest/eb92e151-ce29-4c5a-b17a-e5d8fe9bca1a', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '4702c9' },
+                                body: JSON.stringify({
+                                    sessionId: '4702c9',
+                                    runId: 'pre-fix',
+                                    hypothesisId: 'C',
+                                    location: 'js/classroom-roster.js:mpidxConflictMerge',
+                                    message: 'tms id conflict merge',
+                                    data: {
+                                        error: merged.error || null,
+                                        keepId: String(sid || ''),
+                                        dropId: String(conflictingId || ''),
+                                        keepCohortId,
+                                        dropCohortId,
+                                        sameCohort: Boolean(keepCohortId && keepCohortId === dropCohortId),
+                                        targetCohortId: String(row.userTargetId || '')
+                                    },
+                                    timestamp: Date.now()
+                                })
+                            }).catch(() => {});
+                            // #endregion
                             if (merged.error) {
                                 setTmsSyncError(t('studentMergeFailed'));
                                 return;
@@ -4912,6 +5025,168 @@
         }
     }
 
+    function mergeSaveFields(appData) {
+        const data = appData || {};
+        const keys = [
+            'cohorts',
+            'attendanceSessions',
+            'homeworkCompletions',
+            'essaySubmissions',
+            'debateBookDistributions',
+            'pendingDebateBookChecks',
+            'studentPoints',
+            'studentTests',
+            'debateScores',
+            'debateTeamSessions',
+            'speakingTestRecords',
+            'dayNotes'
+        ];
+        const fields = {};
+        keys.forEach((key) => {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                fields[key] = data[key];
+            }
+        });
+        return fields;
+    }
+
+    function formatDedupStudent(student) {
+        if (!student) {
+            return '';
+        }
+        const name = student.name || student.id || '';
+        return student.nameEn ? `${name} (${student.nameEn})` : name;
+    }
+
+    function syncDedupButton(panel) {
+        const btn = (panel || document).querySelector('#classroomRosterDedupBtn');
+        if (!btn) {
+            return;
+        }
+        const cohort = getSelectedCohort();
+        btn.disabled = !(canEditRoster() && cohort && !isArchiveCohort(cohort));
+    }
+
+    function renderDedupList() {
+        const listEl = document.getElementById('studentDedupList');
+        const summary = document.getElementById('studentDedupSummary');
+        const confirmBtn = document.getElementById('confirmStudentDedupBtn');
+        if (!listEl || !summary) {
+            return;
+        }
+        if (!dedupPlan.length) {
+            summary.textContent = t('studentDedupEmpty');
+            listEl.innerHTML = '';
+            if (confirmBtn) {
+                confirmBtn.disabled = true;
+            }
+            return;
+        }
+        summary.textContent = t('studentDedupHint');
+        if (confirmBtn) {
+            confirmBtn.disabled = false;
+        }
+        listEl.innerHTML = dedupPlan
+            .map((group, index) => {
+                const keepName = formatDedupStudent(group.keep);
+                const dropNames = (group.students || [])
+                    .filter((student) => student && !student.keep)
+                    .map((student) => formatDedupStudent(student))
+                    .join(', ');
+                const keepLine = t('studentDedupKeepLine').replace('{name}', keepName);
+                const dropLine = t('studentDedupDropLine').replace('{names}', dropNames);
+                return `<div class="form-group"><label class="checkbox-label">
+                    <input type="checkbox" class="student-dedup-group" data-dedup-index="${index}" checked>
+                    <span><strong>${escapeHtml(group.keep && group.keep.name ? group.keep.name : keepName)}</strong><br>
+                    <span class="section-hint">${escapeHtml(keepLine)}</span><br>
+                    <span class="section-hint">${escapeHtml(dropLine)}</span></span>
+                </label></div>`;
+            })
+            .join('');
+    }
+
+    function openDedupModal() {
+        const d = domain();
+        const err = document.getElementById('studentDedupError');
+        if (err) {
+            err.hidden = true;
+            err.textContent = '';
+        }
+        if (!selectedCohortId) {
+            hooks.showToast(t('studentDedupNeedCohort'), true);
+            return;
+        }
+        const cohort = getSelectedCohort();
+        if (!canEditRoster() || !cohort || isArchiveCohort(cohort)) {
+            hooks.showToast(t('classroomRosterReadOnly'), true);
+            return;
+        }
+        if (!d || !d.planCohortDuplicateMerges) {
+            return;
+        }
+        const appData = hooks.getAppData ? hooks.getAppData() : {};
+        dedupPlan = d.planCohortDuplicateMerges(appData, selectedCohortId) || [];
+        renderDedupList();
+        openRosterModal(document.getElementById('studentDedupModal'));
+    }
+
+    function closeDedupModal() {
+        if (isRosterModalGuarded()) {
+            return;
+        }
+        if (hooks && hooks.closeModal) {
+            hooks.closeModal(document.getElementById('studentDedupModal'));
+        }
+    }
+
+    async function confirmDedupMerge() {
+        const d = domain();
+        const errEl = document.getElementById('studentDedupError');
+        const checked = Array.from(document.querySelectorAll('.student-dedup-group:checked')).map((input) =>
+            Number(input.getAttribute('data-dedup-index'))
+        );
+        const groups = checked.map((index) => dedupPlan[index]).filter(Boolean);
+        if (!groups.length) {
+            if (errEl) {
+                errEl.textContent = t('studentDedupNoneChecked');
+                errEl.hidden = false;
+            }
+            return;
+        }
+        if (!d || !d.applyCohortDuplicateMerges) {
+            return;
+        }
+        const appData = hooks.getAppData ? hooks.getAppData() : {};
+        const result = d.applyCohortDuplicateMerges(appData, groups);
+        if (result.error) {
+            if (errEl) {
+                errEl.textContent =
+                    result.error === 'cross_cohort'
+                        ? t('studentMergeCrossCohort')
+                        : t('studentMergeFailed');
+                errEl.hidden = false;
+            }
+            return;
+        }
+        try {
+            await hooks.saveClassroom(mergeSaveFields(result.appData));
+            const keptId = groups[0] && groups[0].keepId;
+            if (keptId) {
+                selectedStudentId = keptId;
+            }
+            closeDedupModal();
+            hooks.showToast(
+                t('studentDedupDone').replace('{count}', String((result.applied || []).length))
+            );
+            render(document.getElementById('panel-students'));
+        } catch (err) {
+            if (errEl) {
+                errEl.textContent = err.message || String(err);
+                errEl.hidden = false;
+            }
+        }
+    }
+
     async function confirmMergeStudent() {
         const d = domain();
         const errEl = document.getElementById('studentMergeError');
@@ -4947,18 +5222,7 @@
             return;
         }
         try {
-            await hooks.saveClassroom({
-                cohorts: result.appData.cohorts,
-                attendanceSessions: result.appData.attendanceSessions,
-                homeworkCompletions: result.appData.homeworkCompletions,
-                essaySubmissions: result.appData.essaySubmissions,
-                studentPoints: result.appData.studentPoints,
-                studentTests: result.appData.studentTests,
-                debateScores: result.appData.debateScores,
-                debateTeamSessions: result.appData.debateTeamSessions,
-                speakingTestRecords: result.appData.speakingTestRecords,
-                dayNotes: result.appData.dayNotes
-            });
+            await hooks.saveClassroom(mergeSaveFields(result.appData));
             selectedStudentId = keepId;
             closeMergeModal();
             hooks.showToast(t('studentMergeDone'));
@@ -5151,6 +5415,14 @@
         document.getElementById('confirmStudentMergeBtn')?.addEventListener('click', () => {
             void confirmMergeStudent();
         });
+        document.getElementById('classroomRosterDedupBtn')?.addEventListener('click', () => {
+            openDedupModal();
+        });
+        document.getElementById('closeStudentDedupModal')?.addEventListener('click', closeDedupModal);
+        document.getElementById('cancelStudentDedupBtn')?.addEventListener('click', closeDedupModal);
+        document.getElementById('confirmStudentDedupBtn')?.addEventListener('click', () => {
+            void confirmDedupMerge();
+        });
     }
 
     function render(panel) {
@@ -5160,6 +5432,7 @@
         renderCohortCombobox(panel);
         renderStudentList(panel);
         renderStudentEditor(panel);
+        syncDedupButton(panel);
 
         panel.querySelector('#classroomRosterAddBtn')?.addEventListener('click', () => {
             selectedStudentId = null;

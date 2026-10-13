@@ -14,6 +14,7 @@
         'submitted',
         'complete',
         'resubmit_required',
+        'demerit',
         'incomplete',
         'exempt'
     ];
@@ -2064,6 +2065,7 @@
         incomplete: 1,
         submitted: 2,
         resubmit_required: 3,
+        demerit: 3,
         complete: 4,
         exempt: 4
     };
@@ -2092,6 +2094,20 @@
         if (!base.submittedRetest && other.submittedRetest) {
             base.submittedRetest = true;
         }
+        if (base.status === 'demerit' && other.status === 'demerit') {
+            if (!base.retestAssigned && other.retestAssigned) {
+                base.retestAssigned = true;
+            }
+            if (base.retestAssigned && !base.retestPassed && other.retestPassed) {
+                base.retestPassed = true;
+            }
+        }
+        if (base.status !== 'demerit') {
+            base.retestAssigned = false;
+            base.retestPassed = false;
+        } else if (!base.retestAssigned) {
+            base.retestPassed = false;
+        }
         if (!base.debateVideoMissing && other.debateVideoMissing) {
             base.debateVideoMissing = true;
         }
@@ -2100,6 +2116,9 @@
         }
         if (!base.overdueDismissed && other.overdueDismissed) {
             base.overdueDismissed = true;
+        }
+        if (!normalizeEssaySubmittedAt(base.submittedAt) && normalizeEssaySubmittedAt(other.submittedAt)) {
+            base.submittedAt = normalizeEssaySubmittedAt(other.submittedAt);
         }
         return base;
     }
@@ -2578,6 +2597,169 @@
             out.push({ reason: 'duplicate_existing', tmsKey: key, students: list });
         });
         return out;
+    }
+
+    /**
+     * Classroom rows tied to one student. Used to choose which duplicate to keep.
+     * Counts attendance, homework, essays, points, and tests.
+     */
+    function countStudentClassroomHistory(appData, studentId) {
+        const sid = normalizeStr(studentId);
+        const data = appData && typeof appData === 'object' ? appData : {};
+        if (!sid) {
+            return 0;
+        }
+        let count = 0;
+        function countRecordLists(collections) {
+            (Array.isArray(collections) ? collections : []).forEach((row) => {
+                const records = row && Array.isArray(row.records) ? row.records : null;
+                if (!records) {
+                    return;
+                }
+                records.forEach((rec) => {
+                    if (rec && normalizeStr(rec.studentId) === sid) {
+                        count += 1;
+                    }
+                });
+            });
+        }
+        countRecordLists(data.attendanceSessions);
+        countRecordLists(data.homeworkCompletions);
+        countRecordLists(data.essaySubmissions);
+        countRecordLists(data.studentTests);
+        (Array.isArray(data.studentPoints) ? data.studentPoints : []).forEach((point) => {
+            if (point && normalizeStr(point.studentId) === sid) {
+                count += 1;
+            }
+        });
+        return count;
+    }
+
+    /**
+     * Keeper sort: TMS id, then more classroom history, then longer English name, then id.
+     * Negative when `a` should be kept ahead of `b`.
+     */
+    function compareDuplicateKeeper(appData, a, b) {
+        const aMp = normalizeStr(a && a.tmsMpidx) ? 1 : 0;
+        const bMp = normalizeStr(b && b.tmsMpidx) ? 1 : 0;
+        if (aMp !== bMp) {
+            return bMp - aMp;
+        }
+        const aHist = countStudentClassroomHistory(appData, a && a.id);
+        const bHist = countStudentClassroomHistory(appData, b && b.id);
+        if (aHist !== bHist) {
+            return bHist - aHist;
+        }
+        const aEn = normalizeStr(a && a.nameEn).length;
+        const bEn = normalizeStr(b && b.nameEn).length;
+        if (aEn !== bEn) {
+            return bEn - aEn;
+        }
+        return normalizeStr(a && a.id).localeCompare(normalizeStr(b && b.id));
+    }
+
+    /**
+     * Duplicate groups in one class. Identity is koreanMatchKey (Hangul + trailing A–D).
+     * 김민수A does not group with 김민수B or with 김민수. Archive classes return no groups.
+     * Same tmsMpidx with a different letter is not grouped here.
+     * @returns {Array<{ cohortId, identityKey, keepId, dropIds, keep, students }>}
+     */
+    function planCohortDuplicateMerges(appData, cohortId) {
+        const data = appData && typeof appData === 'object' ? appData : {};
+        const cid = normalizeStr(cohortId);
+        const cohorts = Array.isArray(data.cohorts) ? data.cohorts : [];
+        const cohort = cohorts.find((c) => c && normalizeStr(c.id) === cid);
+        if (!cohort || isArchiveCohort(cohort)) {
+            return [];
+        }
+        const students = normalizeCohortStudents(cohort).filter((s) => s && s.active !== false);
+        const byKey = new Map();
+        students.forEach((student) => {
+            const key = koreanMatchKey(student.name);
+            if (!key) {
+                return;
+            }
+            if (!byKey.has(key)) {
+                byKey.set(key, []);
+            }
+            byKey.get(key).push(student);
+        });
+        const groups = [];
+        byKey.forEach((list, identityKey) => {
+            if (!list || list.length < 2) {
+                return;
+            }
+            const ranked = list.slice().sort((a, b) => compareDuplicateKeeper(data, a, b));
+            const keep = ranked[0];
+            const drops = ranked.slice(1);
+            groups.push({
+                cohortId: cid,
+                identityKey,
+                keepId: keep.id,
+                dropIds: drops.map((s) => s.id),
+                keep: {
+                    id: keep.id,
+                    name: keep.name || '',
+                    nameEn: keep.nameEn || '',
+                    tmsMpidx: keep.tmsMpidx || ''
+                },
+                students: ranked.map((s) => ({
+                    id: s.id,
+                    name: s.name || '',
+                    nameEn: s.nameEn || '',
+                    tmsMpidx: s.tmsMpidx || '',
+                    keep: s.id === keep.id
+                }))
+            });
+        });
+        groups.sort((a, b) =>
+            String((a.keep && a.keep.name) || '').localeCompare(String((b.keep && b.keep.name) || ''), 'ko')
+        );
+        return groups;
+    }
+
+    /**
+     * Merge each planned group by chaining mergeStudentRecords into keepId.
+     * On failure, appData is the input (nothing from this call is applied).
+     * @param {object} appData
+     * @param {Array<{ keepId: string, dropIds: string[] }>} groups
+     */
+    function applyCohortDuplicateMerges(appData, groups) {
+        const data = appData && typeof appData === 'object' ? appData : {};
+        const list = Array.isArray(groups) ? groups : [];
+        let working = data;
+        const applied = [];
+        for (let i = 0; i < list.length; i += 1) {
+            const group = list[i];
+            if (!group || !normalizeStr(group.keepId) || !Array.isArray(group.dropIds)) {
+                continue;
+            }
+            const keepId = normalizeStr(group.keepId);
+            for (let d = 0; d < group.dropIds.length; d += 1) {
+                const dropId = normalizeStr(group.dropIds[d]);
+                if (!dropId || dropId === keepId) {
+                    continue;
+                }
+                const merged = mergeStudentRecords(working, {
+                    keepId,
+                    dropId,
+                    profileFrom: 'keep',
+                    clearOffRoster: true
+                });
+                if (merged.error) {
+                    return {
+                        error: merged.error,
+                        appData: data,
+                        applied: [],
+                        keepId,
+                        dropId
+                    };
+                }
+                working = merged.appData;
+                applied.push({ keepId, dropId });
+            }
+        }
+        return { error: null, appData: working, applied };
     }
 
     function deleteStudentPermanently(cohorts, studentId, cohortId) {
@@ -3461,6 +3643,7 @@
             return { error: 'invalid_date', classData, row: null, syllabusRowId: '' };
         }
         const id = normalizeStr(opts.id) || newId('syl');
+        const subject = canonicalEssaySubjectName(opts.essaySubject);
         const row = {
             id,
             kind: 'lesson',
@@ -3471,6 +3654,13 @@
             note: '',
             trackEssay: true
         };
+        if (subject) {
+            row.essaySubject = subject;
+        }
+        const listMonth = normalizeEssayListMonth(opts.essayListMonth);
+        if (listMonth) {
+            row.essayListMonth = listMonth;
+        }
         const rows = Array.isArray(classData.syllabusRows) ? classData.syllabusRows.slice() : [];
         rows.push(row);
         rows.sort((a, b) => {
@@ -3571,6 +3761,8 @@
                       planDetail: normalizeStr(row.planDetail),
                       homework: normalizeStr(row.homework),
                       note: normalizeStr(row.note),
+                      essaySubject: normalizeStr(row.essaySubject),
+                      essayListMonth: normalizeEssayListMonth(row.essayListMonth),
                       trackEssay: row.trackEssay !== false
                   })
               )
@@ -3760,14 +3952,18 @@
         }
         const status = normalizeStr(raw.status);
         const validStatus = ESSAY_STATUSES.includes(status) ? status : 'not_submitted';
+        const demeritFlags = essayDemeritFlags(validStatus, raw);
         return {
             studentId: normalizeStr(raw.studentId),
             status: validStatus,
             submittedRetest: Boolean(raw.submittedRetest),
+            retestAssigned: demeritFlags.retestAssigned,
+            retestPassed: demeritFlags.retestPassed,
             debateVideoMissing: Boolean(raw.debateVideoMissing),
             note: normalizeStr(raw.note),
             submissionLate: Boolean(raw.submissionLate),
-            overdueDismissed: Boolean(raw.overdueDismissed)
+            overdueDismissed: Boolean(raw.overdueDismissed),
+            submittedAt: normalizeEssaySubmittedAt(raw.submittedAt)
         };
     }
 
@@ -3827,6 +4023,172 @@
         return submission.records.find((r) => r.studentId === sid) || null;
     }
 
+    /**
+     * Set one student's essay status on one assignment.
+     * Demerit flags stay only while status is demerit, and passed requires assigned retest.
+     * @returns {{ error: string|null, submissions: Array, record: object|null, prevStatus: string }}
+     */
+    function setEssayStudentStatus(submissions, options) {
+        const opts = options || {};
+        const classId = normalizeStr(opts.classId);
+        const syllabusRowId = normalizeStr(opts.syllabusRowId);
+        const studentId = normalizeStr(opts.studentId);
+        const nextStatus = normalizeStr(opts.status);
+        const emptyList = Array.isArray(submissions) ? submissions.slice() : [];
+        if (!classId || !syllabusRowId || !studentId || !ESSAY_STATUSES.includes(nextStatus)) {
+            return { error: 'invalid', submissions: emptyList, record: null, prevStatus: '' };
+        }
+        let submission = findEssaySubmission(emptyList, classId, syllabusRowId);
+        if (!submission) {
+            submission = {
+                id: typeof opts.newSubmissionId === 'function' ? opts.newSubmissionId() : newId('essay'),
+                classId,
+                syllabusRowId,
+                lessonDate: normalizeStr(opts.lessonDate),
+                ssDueDate: normalizeStr(opts.ssDueDate),
+                teacherEvalDueDate: normalizeStr(opts.teacherEvalDueDate),
+                records: [],
+                authorUserId: '',
+                updatedAt: ''
+            };
+        } else {
+            submission = Object.assign({}, submission, {
+                records: Array.isArray(submission.records) ? submission.records.slice() : []
+            });
+        }
+        const prev = getEssayRecordForStudent(submission, studentId);
+        const prevStatus = prev && ESSAY_STATUSES.includes(prev.status) ? prev.status : 'not_submitted';
+        const timing = opts.timing === 'late' ? 'late' : 'on_time';
+        const entering = !isEssayReceivedStatus(prevStatus) && isEssayReceivedStatus(nextStatus);
+        const base = Object.assign(
+            {
+                studentId,
+                status: 'not_submitted',
+                submittedRetest: false,
+                retestAssigned: false,
+                retestPassed: false,
+                debateVideoMissing: false,
+                note: '',
+                submissionLate: false,
+                overdueDismissed: false,
+                submittedAt: ''
+            },
+            prev || {}
+        );
+        base.studentId = studentId;
+        base.status = nextStatus;
+        if (nextStatus !== 'resubmit_required') {
+            base.submittedRetest = false;
+        } else if (opts.submittedRetest != null) {
+            base.submittedRetest = Boolean(opts.submittedRetest);
+        } else if (prevStatus !== 'resubmit_required') {
+            base.submittedRetest = false;
+        }
+        if (nextStatus === 'demerit') {
+            const keepFlags =
+                prevStatus === 'demerit' && opts.retestAssigned == null && opts.retestPassed == null;
+            const assigned =
+                opts.retestAssigned != null
+                    ? Boolean(opts.retestAssigned)
+                    : keepFlags && Boolean(base.retestAssigned);
+            const passed =
+                assigned &&
+                (opts.retestPassed != null
+                    ? Boolean(opts.retestPassed)
+                    : keepFlags && Boolean(base.retestPassed));
+            base.retestAssigned = assigned;
+            base.retestPassed = passed;
+        } else {
+            base.retestAssigned = false;
+            base.retestPassed = false;
+        }
+        if (entering) {
+            base.submissionLate = timing === 'late';
+            if (timing === 'late') {
+                base.overdueDismissed = false;
+            }
+        } else if (!isEssayReceivedStatus(nextStatus)) {
+            base.submissionLate = false;
+        }
+        const record = normalizeEssayRecord(base);
+        const idx = submission.records.findIndex((r) => r && normalizeStr(r.studentId) === studentId);
+        if (idx >= 0) {
+            submission.records[idx] = record;
+        } else {
+            submission.records.push(record);
+        }
+        return {
+            error: null,
+            submissions: upsertEssaySubmission(emptyList, submission),
+            record,
+            prevStatus
+        };
+    }
+
+    /**
+     * Change one student's essay note. Status and the other flags stay as they are.
+     * @returns {{ error: string|null, submissions: Array, record: object|null }}
+     */
+    function setEssayStudentNote(submissions, options) {
+        const opts = options || {};
+        const classId = normalizeStr(opts.classId);
+        const syllabusRowId = normalizeStr(opts.syllabusRowId);
+        const studentId = normalizeStr(opts.studentId);
+        const note = normalizeStr(opts.note);
+        const emptyList = Array.isArray(submissions) ? submissions.slice() : [];
+        if (!classId || !syllabusRowId || !studentId) {
+            return { error: 'invalid', submissions: emptyList, record: null };
+        }
+        let submission = findEssaySubmission(emptyList, classId, syllabusRowId);
+        if (!submission) {
+            submission = {
+                id: typeof opts.newSubmissionId === 'function' ? opts.newSubmissionId() : newId('essay'),
+                classId,
+                syllabusRowId,
+                lessonDate: normalizeStr(opts.lessonDate),
+                ssDueDate: normalizeStr(opts.ssDueDate),
+                teacherEvalDueDate: normalizeStr(opts.teacherEvalDueDate),
+                records: [],
+                authorUserId: '',
+                updatedAt: ''
+            };
+        } else {
+            submission = Object.assign({}, submission, {
+                records: Array.isArray(submission.records) ? submission.records.slice() : []
+            });
+        }
+        const prev = getEssayRecordForStudent(submission, studentId);
+        const base = Object.assign(
+            {
+                studentId,
+                status: 'not_submitted',
+                submittedRetest: false,
+                retestAssigned: false,
+                retestPassed: false,
+                debateVideoMissing: false,
+                note: '',
+                submissionLate: false,
+                overdueDismissed: false,
+                submittedAt: ''
+            },
+            prev || {}
+        );
+        base.studentId = studentId;
+        base.note = note;
+        const record = normalizeEssayRecord(base);
+        const idx = submission.records.findIndex((r) => r && normalizeStr(r.studentId) === studentId);
+        if (idx >= 0) {
+            submission.records[idx] = record;
+        } else {
+            submission.records.push(record);
+        }
+        return {
+            error: null,
+            submissions: upsertEssaySubmission(emptyList, submission),
+            record
+        };
+    }
+
     function ensureEssayRecordsForStudents(submission, studentEntries) {
         const base = submission
             ? Object.assign({}, submission, {
@@ -3844,6 +4206,8 @@
                 studentId: sid,
                 status: 'not_submitted',
                 submittedRetest: false,
+                retestAssigned: false,
+                retestPassed: false,
                 debateVideoMissing: false,
                 note: '',
                 submissionLate: false,
@@ -3875,6 +4239,7 @@
             submitted: 0,
             complete: 0,
             resubmit_required: 0,
+            demerit: 0,
             incomplete: 0,
             exempt: 0
         };
@@ -3943,8 +4308,21 @@
         return days != null && days < 0;
     }
 
+    function essayDemeritFlags(status, raw) {
+        const retestAssigned = status === 'demerit' && Boolean(raw && raw.retestAssigned);
+        return {
+            retestAssigned,
+            retestPassed: retestAssigned && Boolean(raw && raw.retestPassed)
+        };
+    }
+
     function isEssayReceivedStatus(status) {
-        return status === 'submitted' || status === 'complete' || status === 'resubmit_required';
+        return (
+            status === 'submitted' ||
+            status === 'complete' ||
+            status === 'resubmit_required' ||
+            status === 'demerit'
+        );
     }
 
     /** Teacher marked submission late (explicit); not the same as checking after the due date. */
@@ -3961,6 +4339,7 @@
     /**
      * Per-student submission overdue: not_submitted past due, or explicitly late received.
      * Cleared when overdueDismissed; received-on-time is never overdue from due date alone.
+     * A student marked Complete is not overdue, even if the essay was received late.
      * If SS due is not past (future or missing), never overdue — extending the deadline
      * clears OD including prior "received late" until the new due passes.
      */
@@ -3971,10 +4350,13 @@
         if (!isEssaySsOverdueISO(ssDueDate)) {
             return false;
         }
+        const status = ESSAY_STATUSES.includes(record.status) ? record.status : 'not_submitted';
+        if (status === 'complete') {
+            return false;
+        }
         if (isEssayReceivedLate(record)) {
             return true;
         }
-        const status = ESSAY_STATUSES.includes(record.status) ? record.status : 'not_submitted';
         return status === 'not_submitted';
     }
 
@@ -4122,14 +4504,35 @@
         };
     }
 
+    /** YYYY-MM saved on the assignment. Empty when the teacher has not set one. */
+    function normalizeEssayListMonth(value) {
+        const raw = normalizeStr(value);
+        return /^\d{4}-\d{2}$/.test(raw) ? raw : '';
+    }
+
+    /**
+     * Month this assignment uses on the Essays class list.
+     * A teacher-set essayListMonth wins. Otherwise the syllabus assigned date.
+     */
+    function essayAssignmentListMonth(row) {
+        const saved = normalizeEssayListMonth(row && row.essayListMonth);
+        if (saved) {
+            return saved;
+        }
+        return yearMonthKey(row && row.date);
+    }
+
     /**
      * Sum RS/NS/OD/AE/NV across essay syllabus rows for a class.
-     * Optional options.month (YYYY-MM) limits to assignments whose effective SS due
-     * (submission.ssDueDate || row.date) falls in that month. Empty = all rows.
+     * Optional options.month (YYYY-MM) limits to assignments whose class-list month
+     * (essayListMonth, else the syllabus date) matches. Empty = all rows.
+     * allComplete is true only when that scope has graded work and every counted
+     * student on every included assignment is Complete, with no missing debate video.
      */
     function essayAlertCountsForClass(submissions, classData, cohorts, options) {
+        const empty = { rs: 0, as: 0, od: 0, ae: 0, nv: 0, allComplete: false };
         if (!classData || !classData.id) {
-            return { rs: 0, as: 0, od: 0, ae: 0, nv: 0 };
+            return empty;
         }
         const monthFilter = yearMonthKey((options && options.month) || '');
         const students = resolveStudentsForClass(classData, cohorts);
@@ -4142,29 +4545,36 @@
         let od = 0;
         let ae = 0;
         let nv = 0;
+        let sawAssignment = false;
+        let allComplete = true;
         getEssayRowsFromSyllabus(classData.syllabusRows, { classData }).forEach((row) => {
             const syllabusRowId = getSyllabusRowKey(row);
             if (!syllabusRowId) {
                 return;
             }
-            const submission = findEssaySubmission(submissions, classData.id, syllabusRowId);
-            const ssDue = resolveEssayStudentDueDate(row, classData, submission);
-            if (monthFilter && yearMonthKey(ssDue) !== monthFilter) {
+            if (monthFilter && essayAssignmentListMonth(row) !== monthFilter) {
                 return;
             }
+            const submission = findEssaySubmission(submissions, classData.id, syllabusRowId);
+            const ssDue = resolveEssayStudentDueDate(row, classData, submission);
             const alerts = essayAlertCountsForAssignment(
                 submission,
                 ssDue,
                 totalStudents,
                 activeStudentIds
             );
+            sawAssignment = true;
+            const denom = essayProgressDenominator(alerts.counts, totalStudents);
+            if (denom <= 0 || (alerts.counts.complete || 0) !== denom || alerts.nv > 0) {
+                allComplete = false;
+            }
             rs += alerts.rs;
             asCount += alerts.as;
             od += alerts.od;
             ae += alerts.ae;
             nv += alerts.nv;
         });
-        return { rs, as: asCount, od, ae, nv };
+        return { rs, as: asCount, od, ae, nv, allComplete: sawAssignment && allComplete };
     }
 
     function formatEssayClassAlertSuffix(counts) {
@@ -4239,12 +4649,16 @@
     }
 
     /**
-     * Student essay due for a syllabus row: shared homework due (override or next class),
-     * with stored ssDueDate winning unless it is only the legacy lesson-day default.
+     * Student essay due for a syllabus row.
+     * Syllabus homework due is only the seed when the essay has no saved due date yet.
+     * A saved essay-tab ssDueDate is canonical after that, including when it matches the lesson day.
      */
     function resolveEssayStudentDueDate(row, classData, submission) {
         const lesson = normalizeStr(row && row.date);
         const stored = submission && submission.ssDueDate ? normalizeStr(submission.ssDueDate) : '';
+        if (stored) {
+            return stored;
+        }
         let homeworkDue = '';
         const ht = global.CCPHomeworkTab;
         if (ht && typeof ht.resolveHomeworkDueDate === 'function' && classData && row) {
@@ -4261,13 +4675,7 @@
                 homeworkDue = override;
             }
         }
-        if (!stored) {
-            return homeworkDue || lesson;
-        }
-        if (homeworkDue && stored === lesson && stored !== homeworkDue) {
-            return homeworkDue;
-        }
-        return stored;
+        return homeworkDue || lesson;
     }
 
     function listEssayAssignmentsForClass(classData, appData) {
@@ -4301,7 +4709,10 @@
                 classId: classData.id,
                 syllabusRowId,
                 lessonDate: row.date || '',
+                listMonth: essayAssignmentListMonth(row),
                 assignmentLabel: getEssayAssignmentLabel(row),
+                essaySubject: savedEssaySubject(row),
+                displaySubject: displayEssaySubject(row),
                 planTitle: normalizeStr(row.planTitle || row.planDetail || ''),
                 totalStudents,
                 counts: alerts.counts,
@@ -4380,6 +4791,7 @@
                         grade: normalizeStr(classData.grade),
                         levelLabel,
                         subject: normalizeStr(classData.subject),
+                        essaySubject: displayEssaySubject(row),
                         syllabusRowId,
                         assignmentLabel,
                         lessonDate: row.date || '',
@@ -5287,6 +5699,87 @@
         const list = Array.isArray(sessions) ? sessions : [];
         const key = debateTeamSessionKey(classId, date);
         return list.find((s) => s && debateTeamSessionKey(s.classId, s.date) === key) || null;
+    }
+
+    function debateSessionHasGeneratedTeams(session) {
+        const debates =
+            session &&
+            session.sessionState &&
+            Array.isArray(session.sessionState.debates)
+                ? session.sessionState.debates
+                : [];
+        return debates.length > 0;
+    }
+
+    function explicitDebateBookPeriodStarts(classData) {
+        const raw = Array.isArray(classData && classData.debateBookPeriods)
+            ? classData.debateBookPeriods
+            : [];
+        const starts = [];
+        raw.forEach((period) => {
+            const startDate = normalizeStr(period && period.startDate);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(startDate) && !starts.includes(startDate)) {
+                starts.push(startDate);
+            }
+        });
+        starts.sort(compareDateStr);
+        return starts;
+    }
+
+    /**
+     * One debate month: the book period that contains the date, or the teaching
+     * month when the class has no book periods.
+     */
+    function debateTeamPeriodIdentity(classData, dateStr) {
+        const date = normalizeStr(dateStr);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            return '';
+        }
+        const starts = explicitDebateBookPeriodStarts(classData);
+        if (starts.length) {
+            let hit = '';
+            starts.forEach((startDate) => {
+                if (startDate <= date && (!hit || startDate > hit)) {
+                    hit = startDate;
+                }
+            });
+            return hit ? `period:${hit}` : '';
+        }
+        const periodsApi = global.CCPDebatePeriods;
+        if (periodsApi && typeof periodsApi.teachingMonthKeyForDate === 'function') {
+            const month = normalizeStr(periodsApi.teachingMonthKeyForDate(date));
+            if (month) {
+                return `month:${month}`;
+            }
+        }
+        const month = yearMonthKey(date);
+        return month ? `month:${month}` : '';
+    }
+
+    /**
+     * Generated teams for the same debate month as dateStr.
+     * When more than one set was saved, the earliest session date is the source.
+     */
+    function findGeneratedDebateTeamSessionForPeriod(classData, date, sessions) {
+        if (!classData || !classData.id) {
+            return null;
+        }
+        const identity = debateTeamPeriodIdentity(classData, date);
+        if (!identity) {
+            return null;
+        }
+        const classKey = normalizeStr(classData.id);
+        const matches = (Array.isArray(sessions) ? sessions : []).filter((session) => {
+            if (!session || normalizeStr(session.classId) !== classKey) {
+                return false;
+            }
+            if (!debateSessionHasGeneratedTeams(session)) {
+                return false;
+            }
+            return debateTeamPeriodIdentity(classData, session.date) === identity;
+        });
+        matches.sort((a, b) => compareDateStr(a.date, b.date));
+        return matches[0] || null;
     }
 
     function upsertDebateTeamSession(sessions, entry) {
@@ -6598,8 +7091,285 @@
         return b.length >= a.length ? b : a;
     }
 
+    /** Saved subject on an essay assignment. Empty until the teacher chooses one. */
+    function savedEssaySubject(row) {
+        return normalizeStr(row && row.essaySubject);
+    }
+
+    /**
+     * Debate / News (and Korean equivalents) inferred from lesson text.
+     * Used for display only until essaySubject is saved.
+     */
+    function inferEssaySubjectFromText(text) {
+        const lower = String(text || '').toLowerCase();
+        if (!lower.trim()) {
+            return '';
+        }
+        if (lower.includes('debate') || lower.includes('토론')) {
+            return 'Debate';
+        }
+        if (lower.includes('news') || lower.includes('뉴스')) {
+            return 'News';
+        }
+        return '';
+    }
+
+    function displayEssaySubject(row) {
+        const saved = savedEssaySubject(row);
+        if (saved) {
+            return saved;
+        }
+        if (!row) {
+            return '';
+        }
+        return (
+            inferEssaySubjectFromText(row.planTitle) ||
+            inferEssaySubjectFromText(row.planDetail) ||
+            inferEssaySubjectFromText(row.homework) ||
+            ''
+        );
+    }
+
+    /** Stable compare key. Debate/뉴스 collapse onto the builtin names. */
+    function essaySubjectIdentity(name) {
+        const raw = normalizeStr(name);
+        if (!raw) {
+            return '';
+        }
+        const key = normalizeEssayTitleKey(raw);
+        const inferred = inferEssaySubjectFromText(raw);
+        if (inferred === 'Debate' && (key === 'debate' || key === '토론')) {
+            return 'debate';
+        }
+        if (inferred === 'News' && (key === 'news' || key === '뉴스')) {
+            return 'news';
+        }
+        return key;
+    }
+
+    function canonicalEssaySubjectName(value) {
+        const raw = normalizeStr(value);
+        if (!raw) {
+            return '';
+        }
+        const identity = essaySubjectIdentity(raw);
+        if (identity === 'debate') {
+            return 'Debate';
+        }
+        if (identity === 'news') {
+            return 'News';
+        }
+        return raw;
+    }
+
+    /** all | mine | other. A saved "my classes only" checkbox still means mine. */
+    function normalizeEssayReportClassScope(value, legacyMyClassesOnly) {
+        const raw = normalizeStr(value).toLowerCase();
+        if (raw === 'all' || raw === 'mine' || raw === 'other') {
+            return raw;
+        }
+        if (legacyMyClassesOnly === true || legacyMyClassesOnly === '1' || legacyMyClassesOnly === 1) {
+            return 'mine';
+        }
+        return 'all';
+    }
+
+    /**
+     * Same rule as the resubmit report: no signed-in user, or a class with no
+     * teachers, counts as yours. Otherwise you must be in teacherIds.
+     */
+    function essayReportClassIsMine(classData, currentUserId) {
+        if (!currentUserId || !classData) {
+            return true;
+        }
+        const teachers = Array.isArray(classData.teacherIds) ? classData.teacherIds : [];
+        if (!teachers.length) {
+            return true;
+        }
+        return teachers.includes(currentUserId);
+    }
+
+    function essayReportClassMatchesScope(classData, scope, currentUserId) {
+        const mode = normalizeEssayReportClassScope(scope);
+        if (mode === 'all') {
+            return true;
+        }
+        const mine = essayReportClassIsMine(classData, currentUserId);
+        return mode === 'mine' ? mine : !mine;
+    }
+
+    /** Empty filter matches every subject. Debate/토론 and News/뉴스 match their pair. */
+    function essayReportSubjectMatches(displaySubject, filterSubject) {
+        const want = canonicalEssaySubjectName(filterSubject);
+        if (!want) {
+            return true;
+        }
+        return canonicalEssaySubjectName(displaySubject) === want;
+    }
+
+    /**
+     * true / false when the assignment has a saved subject.
+     * null when it does not, so title matching still applies.
+     */
+    function essaySubjectsAgree(rowSubject, tmsTitle) {
+        const saved = canonicalEssaySubjectName(rowSubject);
+        if (!saved) {
+            return null;
+        }
+        const savedId = essaySubjectIdentity(saved);
+        const tmsKnown = inferEssaySubjectFromText(tmsTitle);
+        if (tmsKnown) {
+            return savedId === essaySubjectIdentity(tmsKnown);
+        }
+        const titleKey = normalizeEssayTitleKey(tmsTitle);
+        if (!savedId || !titleKey) {
+            return null;
+        }
+        return savedId === titleKey || titleKey.includes(savedId) || savedId.includes(titleKey);
+    }
+
+    function essayTitleMatchScore(planKey, detailKey, hwKey, titleKey) {
+        if (!titleKey) {
+            return 0;
+        }
+        if (planKey && planKey === titleKey) {
+            return 100;
+        }
+        if (planKey && (planKey.includes(titleKey) || titleKey.includes(planKey))) {
+            return 80;
+        }
+        if (
+            (detailKey && (detailKey.includes(titleKey) || titleKey.includes(detailKey))) ||
+            (hwKey && (hwKey.includes(titleKey) || titleKey.includes(hwKey)))
+        ) {
+            return 50;
+        }
+        return 0;
+    }
+
+    function findEssayAssignmentRow(appData, classId, syllabusRowId) {
+        const cid = normalizeStr(classId);
+        const rid = normalizeStr(syllabusRowId);
+        if (!cid || !rid) {
+            return null;
+        }
+        const classData = (Array.isArray(appData && appData.classes) ? appData.classes : []).find(
+            (c) => c && normalizeStr(c.id) === cid
+        );
+        if (classData) {
+            const row = getEssayRowsFromSyllabus(classData.syllabusRows, { classData }).find(
+                (r) => getSyllabusRowKey(r) === rid
+            );
+            if (row) {
+                return row;
+            }
+        }
+        const group = findEssayGroup(appData, cid);
+        if (!group || !Array.isArray(group.assignments)) {
+            return null;
+        }
+        return group.assignments.find((r) => r && getSyllabusRowKey(r) === rid) || null;
+    }
+
+    function assignmentSubjectAllowsTms(appData, classId, syllabusRowId, tmsTitle) {
+        const row = findEssayAssignmentRow(appData, classId, syllabusRowId);
+        if (!row) {
+            return true;
+        }
+        return essaySubjectsAgree(savedEssaySubject(row), tmsTitle) !== false;
+    }
+
+    function listEssaySubjectChoices(appData, classData) {
+        const names = ['Debate', 'News'];
+        const seen = new Set(names.map((name) => essaySubjectIdentity(name)));
+        const push = (name) => {
+            const canonical = canonicalEssaySubjectName(name);
+            if (!canonical) {
+                return;
+            }
+            const id = essaySubjectIdentity(canonical);
+            if (!id || seen.has(id)) {
+                return;
+            }
+            seen.add(id);
+            names.push(canonical);
+        };
+        const classSubject = resolveClassTypeLabel(classData, appData);
+        if (classSubject && !inferEssaySubjectFromText(classSubject)) {
+            push(classSubject);
+        }
+        const considerRow = (row) => {
+            push(savedEssaySubject(row));
+        };
+        (Array.isArray(appData && appData.classes) ? appData.classes : []).forEach((c) => {
+            getEssayRowsFromSyllabus(c && c.syllabusRows, { classData: c }).forEach(considerRow);
+        });
+        (Array.isArray(appData && appData.essayGroups) ? appData.essayGroups : []).forEach((group) => {
+            const normalized = normalizeEssayGroup(group);
+            (normalized && normalized.assignments ? normalized.assignments : []).forEach(considerRow);
+        });
+        return names;
+    }
+
+    function setEssayAssignmentSubject(classData, syllabusRowId, subject) {
+        const name = canonicalEssaySubjectName(subject);
+        if (!classData || !normalizeStr(classData.id)) {
+            return { error: 'missing_class', classData: classData || null, row: null };
+        }
+        if (!name) {
+            return { error: 'missing_subject', classData, row: null };
+        }
+        const rid = normalizeStr(syllabusRowId);
+        const rows = Array.isArray(classData.syllabusRows) ? classData.syllabusRows.slice() : [];
+        const idx = rows.findIndex((r) => r && getSyllabusRowKey(r) === rid);
+        if (idx < 0) {
+            return { error: 'missing_row', classData, row: null };
+        }
+        const nextRow = Object.assign({}, rows[idx], { essaySubject: name });
+        rows[idx] = nextRow;
+        return {
+            error: null,
+            classData: Object.assign({}, classData, { syllabusRows: rows }),
+            row: nextRow
+        };
+    }
+
+    /**
+     * Set or clear the class-list month on one essay assignment.
+     * An empty month removes the override so the syllabus date is used.
+     */
+    function setEssayAssignmentListMonth(classData, syllabusRowId, month) {
+        const nextMonth = normalizeEssayListMonth(month);
+        if (normalizeStr(month) && !nextMonth) {
+            return { error: 'invalid_month', classData: classData || null, row: null };
+        }
+        if (!classData || !normalizeStr(classData.id)) {
+            return { error: 'missing_class', classData: classData || null, row: null };
+        }
+        const rid = normalizeStr(syllabusRowId);
+        const rows = Array.isArray(classData.syllabusRows) ? classData.syllabusRows.slice() : [];
+        const idx = rows.findIndex((r) => r && getSyllabusRowKey(r) === rid);
+        if (idx < 0) {
+            return { error: 'missing_row', classData, row: null };
+        }
+        const nextRow = Object.assign({}, rows[idx]);
+        if (nextMonth) {
+            nextRow.essayListMonth = nextMonth;
+        } else {
+            delete nextRow.essayListMonth;
+        }
+        rows[idx] = nextRow;
+        return {
+            error: null,
+            classData: Object.assign({}, classData, { syllabusRows: rows }),
+            row: nextRow
+        };
+    }
+
     /**
      * Pick best essay syllabus row for a TMS subject title (+ optional lesson date).
+     * A saved subject that disagrees with the TMS subject is never chosen.
+     * A saved subject that agrees can match even when the titles do not overlap.
      */
     /**
      * @param {{ termStart?: string, termEnd?: string }} [options]
@@ -6629,20 +7399,19 @@
             if (isCustom && !wantMonth) {
                 return;
             }
+            const agreement = essaySubjectsAgree(savedEssaySubject(row), tmsTitle);
+            if (agreement === false) {
+                return;
+            }
             const planKey = normalizeEssayTitleKey(row.planTitle || '');
             const detailKey = normalizeEssayTitleKey(row.planDetail || '');
             const hwKey = normalizeEssayTitleKey(row.homework || '');
-            let score = 0;
-            if (planKey === titleKey) {
-                score = 100;
-            } else if (planKey.includes(titleKey) || titleKey.includes(planKey)) {
-                score = 80;
-            } else if (
-                (detailKey && titleKey && (detailKey.includes(titleKey) || titleKey.includes(detailKey))) ||
-                (hwKey && titleKey && (hwKey.includes(titleKey) || titleKey.includes(hwKey)))
-            ) {
-                score = 50;
-            } else {
+            let score = essayTitleMatchScore(planKey, detailKey, hwKey, titleKey);
+            if (!score && agreement === true) {
+                score = 70;
+            } else if (score && agreement === true) {
+                score += 30;
+            } else if (!score) {
                 return;
             }
             const rowDate = normalizeStr(row.date);
@@ -6675,13 +7444,58 @@
         return scored[0];
     }
 
+    function normalizeEssaySubmittedAt(value) {
+        const at = normalizeStr(value);
+        return /^\d{4}-\d{2}-\d{2}$/.test(at) ? at : '';
+    }
+
     function isEssaySubmissionLate(dueDate, submittedAt) {
         const due = normalizeStr(dueDate);
-        const at = normalizeStr(submittedAt);
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(due) || !/^\d{4}-\d{2}-\d{2}$/.test(at)) {
+        const at = normalizeEssaySubmittedAt(submittedAt);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(due) || !at) {
             return null;
         }
         return compareDateStr(at, due) > 0;
+    }
+
+    /**
+     * Recompute Received late from each row's saved submission day.
+     * Same calendar day as the due date is on time. Rows with no submission day are left alone.
+     */
+    function applyEssayLateForDueDate(submission, dueDate) {
+        if (!submission || !Array.isArray(submission.records)) {
+            return submission;
+        }
+        let changed = false;
+        const records = submission.records.map((rec) => {
+            if (!rec) {
+                return rec;
+            }
+            const at = normalizeEssaySubmittedAt(rec.submittedAt);
+            if (!at || !isEssayReceivedStatus(rec.status)) {
+                return rec;
+            }
+            const late = isEssaySubmissionLate(dueDate, at);
+            if (late == null) {
+                return rec;
+            }
+            if (late) {
+                if (rec.submissionLate && !rec.overdueDismissed) {
+                    return rec;
+                }
+                changed = true;
+                return Object.assign({}, rec, { submissionLate: true, overdueDismissed: false });
+            }
+            if (!rec.submissionLate) {
+                return rec;
+            }
+            changed = true;
+            return Object.assign({}, rec, { submissionLate: false });
+        });
+        if (!changed) {
+            return submission;
+        }
+        return Object.assign({}, submission, { records });
     }
 
     /** Stable key for one TMS Writing assignment (prefer homeworkitemidx). */
@@ -6811,6 +7625,96 @@
         return next;
     }
 
+    /** Drop remembered TMS maps for one essay assignment. Student marks stay. */
+    function clearTmsEssayLinksForAssignment(existingLinks, classId, syllabusRowId) {
+        const links = normalizeTmsEssayLinks(existingLinks);
+        const cid = normalizeStr(classId);
+        const rid = normalizeStr(syllabusRowId);
+        if (!cid || !rid) {
+            return links;
+        }
+        Object.keys(links).forEach((key) => {
+            const entry = links[key];
+            if (
+                entry &&
+                entry.action === 'map' &&
+                normalizeStr(entry.classId) === cid &&
+                normalizeStr(entry.syllabusRowId) === rid
+            ) {
+                delete links[key];
+            }
+        });
+        return links;
+    }
+
+    /**
+     * Reset checked students on one assignment back to Not submitted and forget
+     * TMS sync memory for that assignment. Unchecked students are left alone.
+     * Requires a subject the teacher has saved on the assignment.
+     */
+    function retconEssayCompletions(appData, options) {
+        const opts = options || {};
+        const data = appData || {};
+        const classId = normalizeStr(opts.classId);
+        const syllabusRowId = normalizeStr(opts.syllabusRowId);
+        const studentIds = new Set(
+            (Array.isArray(opts.studentIds) ? opts.studentIds : [])
+                .map((id) => normalizeStr(id))
+                .filter(Boolean)
+        );
+        const empty = {
+            error: 'missing_assignment',
+            essaySubmissions: Array.isArray(data.essaySubmissions) ? data.essaySubmissions.slice() : [],
+            tmsEssayLinks: normalizeTmsEssayLinks(data.tmsEssayLinks),
+            resetCount: 0
+        };
+        if (!classId || !syllabusRowId) {
+            return empty;
+        }
+        if (!studentIds.size) {
+            return Object.assign({}, empty, { error: 'missing_students' });
+        }
+        const row = findEssayAssignmentRow(data, classId, syllabusRowId);
+        if (!row) {
+            return Object.assign({}, empty, { error: 'missing_row' });
+        }
+        if (!savedEssaySubject(row)) {
+            return Object.assign({}, empty, { error: 'missing_subject' });
+        }
+        const submissions = Array.isArray(data.essaySubmissions) ? data.essaySubmissions.slice() : [];
+        const idx = submissions.findIndex(
+            (entry) =>
+                entry &&
+                normalizeStr(entry.classId) === classId &&
+                normalizeStr(entry.syllabusRowId) === syllabusRowId
+        );
+        let resetCount = 0;
+        if (idx >= 0 && Array.isArray(submissions[idx].records)) {
+            const records = submissions[idx].records.map((rec) => {
+                if (!rec || !studentIds.has(normalizeStr(rec.studentId))) {
+                    return rec;
+                }
+                resetCount += 1;
+                return Object.assign({}, rec, {
+                    status: 'not_submitted',
+                    submittedAt: '',
+                    submissionLate: false,
+                    overdueDismissed: false,
+                    submittedRetest: false,
+                    retestAssigned: false,
+                    retestPassed: false
+                });
+            });
+            submissions[idx] = Object.assign({}, submissions[idx], { records });
+        }
+        return {
+            error: null,
+            essaySubmissions: submissions,
+            tmsEssayLinks: clearTmsEssayLinksForAssignment(data.tmsEssayLinks, classId, syllabusRowId),
+            resetCount
+        };
+    }
+
     function listEssayClasses(appData) {
         return (Array.isArray(appData && appData.classes) ? appData.classes : []).filter((c) => {
             if (!c || !c.id) {
@@ -6866,7 +7770,8 @@
             saved.action === 'map' &&
             (!assignedMonth || !yearMonthKey(saved.lessonDate) || yearMonthKey(saved.lessonDate) === assignedMonth) &&
             classExists(saved.classId) &&
-            rowExists(saved.classId, saved.syllabusRowId)
+            rowExists(saved.classId, saved.syllabusRowId) &&
+            assignmentSubjectAllowsTms(data, saved.classId, saved.syllabusRowId, assign && assign.title)
         ) {
             return {
                 key,
@@ -7015,6 +7920,7 @@
         const updates = [];
         const skipped = [];
         const unmatched = [];
+        const dateRefreshes = [];
         const makeId =
             typeof opts.newStudentId === 'function' ? opts.newStudentId : () => newId('stu');
 
@@ -7081,20 +7987,16 @@
                 return;
             }
             const rowAssignedDate = normalizeStr(row.assignedDate || row.lessonDate);
-            if (
-                yearMonthKey(essayRow.date) &&
-                yearMonthKey(rowAssignedDate) &&
-                yearMonthKey(essayRow.date) !== yearMonthKey(rowAssignedDate)
-            ) {
+            if (essaySubjectsAgree(savedEssaySubject(essayRow), row.title) === false) {
                 unmatched.push({
-                    reason: 'assignment_month_mismatch',
+                    reason: 'assignment_subject_mismatch',
                     className: classData.name || row.className || '',
                     title: row.title || '',
                     classId,
                     syllabusRowId,
                     lessonDate: row.lessonDate || '',
                     assignedDate: rowAssignedDate,
-                    assignmentDate: normalizeStr(essayRow.date)
+                    essaySubject: savedEssaySubject(essayRow)
                 });
                 return;
             }
@@ -7104,7 +8006,7 @@
             const primaryCohortId = cohortIds[0] || '';
             const existing = findEssaySubmission(data.essaySubmissions, classId, syllabusRowId);
             const due =
-                (existing && existing.ssDueDate) ||
+                resolveEssayStudentDueDate(essayRow, classData, existing) ||
                 normalizeStr(essayRow.date) ||
                 normalizeStr(row.lessonDate);
             const rememberedResolutions = {};
@@ -7267,8 +8169,20 @@
                         studentName,
                         tmsName: canonicalTmsName,
                         prevStatus,
-                        tmsTitle: row.title
+                        tmsTitle: row.title,
+                        tmsClassId: row.tmsClassId || '',
+                        tmsClassName: row.className || ''
                     });
+                    const submittedAt = normalizeEssaySubmittedAt(stu.submittedAt);
+                    if (submittedAt && isEssayReceivedStatus(prevStatus)) {
+                        dateRefreshes.push({
+                            classId,
+                            syllabusRowId,
+                            studentId,
+                            submittedAt,
+                            prevStatus
+                        });
+                    }
                     return;
                 }
                 const late = isEssaySubmissionLate(due, stu.submittedAt);
@@ -7290,6 +8204,7 @@
                     submissionLate: late === true,
                     tmsTitle: row.title,
                     tmsClassId: row.tmsClassId || '',
+                    tmsClassName: row.className || '',
                     tmsLessonDate: row.lessonDate || '',
                     addStudent: addNew,
                     addCohortId: addNew ? primaryCohortId : '',
@@ -7306,6 +8221,7 @@
             updates,
             skipped,
             unmatched,
+            dateRefreshes,
             summary: {
                 updateCount: updates.length,
                 skipCount: skipped.length,
@@ -7350,6 +8266,124 @@
         const preview = previewTmsEssaySyncPlan(appData, rows);
         preview.planRows = rows;
         return preview;
+    }
+
+    /**
+     * TMS class identity for a scrape row and a sync preview row.
+     * When both sides have a TMS class id, that id is the link from sync settings.
+     * Otherwise the TMS class name is used, not the ClassManager class name.
+     */
+    function essayListRowsShareTmsClass(query, row) {
+        const queryId = normalizeStr(query && query.tmsClassId);
+        const rowId = normalizeStr(row && row.tmsClassId);
+        if (queryId && rowId) {
+            return queryId === rowId;
+        }
+        const queryName = cleanCohortNameForEssayMatch(query && query.className);
+        const rowName = cleanCohortNameForEssayMatch(
+            (row && (row.tmsClassName || row.className)) || ''
+        );
+        return Boolean(queryName) && queryName === rowName;
+    }
+
+    /**
+     * One Essays-list row for a scraped essay, when the preview mapped that student.
+     * Pending new students and ties return null.
+     */
+    function lookupEssayListLink(preview, query) {
+        const studentKey = koreanMatchKey(query && query.studentName);
+        const titleKey = normalizeEssayTitleKey(query && query.title);
+        if (!studentKey || !preview) {
+            return null;
+        }
+        const hits = [];
+        ['updates', 'skipped'].forEach((bucket) => {
+            (Array.isArray(preview[bucket]) ? preview[bucket] : []).forEach((row) => {
+                if (!row) {
+                    return;
+                }
+                const studentId = normalizeStr(row.studentId);
+                const classId = normalizeStr(row.classId);
+                const syllabusRowId = normalizeStr(row.syllabusRowId);
+                if (!classId || !syllabusRowId || !studentId || studentId.indexOf('pending_add_') === 0) {
+                    return;
+                }
+                const rowStudent = koreanMatchKey(row.tmsName || row.studentName);
+                const rowTitle = normalizeEssayTitleKey(row.tmsTitle || row.title || row.assignmentLabel);
+                if (rowStudent !== studentKey || rowTitle !== titleKey || !essayListRowsShareTmsClass(query, row)) {
+                    return;
+                }
+                hits.push({ classId, syllabusRowId, studentId });
+            });
+        });
+        if (!hits.length) {
+            return null;
+        }
+        const first = hits[0];
+        const unique = hits.every(
+            (hit) =>
+                hit.classId === first.classId &&
+                hit.syllabusRowId === first.syllabusRowId &&
+                hit.studentId === first.studentId
+        );
+        return unique ? first : null;
+    }
+
+    /**
+     * Match one pasted or unlinked editor card to a single Essays-list row.
+     * Zero matches and ties both return null.
+     */
+    function findUniqueEssayListLink(appData, query) {
+        const q = query || {};
+        const wantClass = cleanCohortNameForEssayMatch(q.className);
+        const wantStudent = koreanMatchKey(q.studentName);
+        if (!wantClass || !wantStudent || !appData) {
+            return null;
+        }
+        const classes = (Array.isArray(appData.classes) ? appData.classes : []).filter(
+            (cls) => cls && cls.id && cleanCohortNameForEssayMatch(cls.name) === wantClass
+        );
+        if (classes.length !== 1) {
+            return null;
+        }
+        const classData = classes[0];
+        const essayRows = getEssayRowsFromSyllabus(classData.syllabusRows, { classData });
+        let row = null;
+        if (normalizeStr(q.title)) {
+            const matched = matchEssayAssignmentRow(classData, q.title, q.lessonDate || '', {});
+            row = matched && matched.row ? matched.row : null;
+        } else if (essayRows.length === 1) {
+            row = essayRows[0];
+        }
+        if (!row) {
+            return null;
+        }
+        const syllabusRowId = getSyllabusRowKey(row);
+        if (!syllabusRowId) {
+            return null;
+        }
+        const roster = resolveStudentsForClass(classData, appData.cohorts)
+            .map((entry) => entry && entry.student)
+            .filter(Boolean);
+        const student = findStudentInCohortByKoreanName({ students: roster }, q.studentName);
+        if (!student || !normalizeStr(student.id)) {
+            return null;
+        }
+        const submission = findEssaySubmission(appData.essaySubmissions, classData.id, syllabusRowId);
+        const rec = getEssayRecordForStudent(submission, student.id);
+        const status = rec && ESSAY_STATUSES.includes(rec.status) ? rec.status : 'not_submitted';
+        return {
+            classId: classData.id,
+            syllabusRowId,
+            studentId: student.id,
+            status,
+            retestAssigned: status === 'demerit' && Boolean(rec && rec.retestAssigned),
+            retestPassed: status === 'demerit' && Boolean(rec && rec.retestPassed),
+            submittedRetest: status === 'resubmit_required' && Boolean(rec && rec.submittedRetest),
+            submissionLate: Boolean(rec && rec.submissionLate),
+            overdueDismissed: Boolean(rec && rec.overdueDismissed),
+            ssDueDate: submission ? normalizeStr(submission.ssDueDate) : ''
+        };
     }
 
     /**
@@ -7556,9 +8590,12 @@
                     studentId: u.studentId,
                     status: 'submitted',
                     submittedRetest: false,
+                    retestAssigned: false,
+                    retestPassed: false,
                     debateVideoMissing: prev ? Boolean(prev.debateVideoMissing) : false,
                     submissionLate: Boolean(u.submissionLate),
-                    overdueDismissed: prev ? Boolean(prev.overdueDismissed) : false
+                    overdueDismissed: prev ? Boolean(prev.overdueDismissed) : false,
+                    submittedAt: normalizeEssaySubmittedAt(u.submittedAt)
                 });
                 if (idx >= 0) {
                     submission.records[idx] = next;
@@ -7571,12 +8608,102 @@
             list = upsertEssaySubmission(list, submission);
         });
 
+        const dateRefreshes = Array.isArray(plan && plan.dateRefreshes) ? plan.dateRefreshes : [];
+        const refreshed = [];
+        const refreshByKey = new Map();
+        dateRefreshes.forEach((u) => {
+            const at = normalizeEssaySubmittedAt(u && u.submittedAt);
+            if (!u || !u.classId || !u.syllabusRowId || !u.studentId || !at) {
+                return;
+            }
+            const key = `${normalizeStr(u.classId)}\0${normalizeStr(u.syllabusRowId)}`;
+            if (!refreshByKey.has(key)) {
+                refreshByKey.set(key, []);
+            }
+            refreshByKey.get(key).push(Object.assign({}, u, { submittedAt: at }));
+        });
+        refreshByKey.forEach((rows, key) => {
+            const parts = key.split('\0');
+            const classId = parts[0];
+            const syllabusRowId = parts[1];
+            const submission = findEssaySubmission(list, classId, syllabusRowId);
+            if (!submission || !Array.isArray(submission.records)) {
+                return;
+            }
+            const originalById = new Map();
+            submission.records.forEach((rec) => {
+                if (rec && rec.studentId) {
+                    originalById.set(normalizeStr(rec.studentId), rec);
+                }
+            });
+            const records = submission.records.slice();
+            const touched = [];
+            rows.forEach((u) => {
+                const sid = normalizeStr(u.studentId);
+                const idx = records.findIndex((r) => r && normalizeStr(r.studentId) === sid);
+                if (idx < 0) {
+                    return;
+                }
+                const prev = records[idx];
+                if (!isEssayReceivedStatus(prev.status)) {
+                    return;
+                }
+                records[idx] = Object.assign({}, prev, { submittedAt: u.submittedAt });
+                touched.push(sid);
+            });
+            if (!touched.length) {
+                return;
+            }
+            const classData = (Array.isArray(data.classes) ? data.classes : []).find(
+                (c) => c && normalizeStr(c.id) === classId
+            );
+            const row =
+                classData &&
+                getEssayRowsFromSyllabus(classData.syllabusRows, { classData }).find(
+                    (r) => getSyllabusRowKey(r) === syllabusRowId
+                );
+            const withDates = Object.assign({}, submission, { records });
+            const due =
+                resolveEssayStudentDueDate(row, classData, withDates) ||
+                normalizeStr(withDates.ssDueDate);
+            const recalced = applyEssayLateForDueDate(withDates, due);
+            let anyChanged = false;
+            touched.forEach((sid) => {
+                const before = originalById.get(sid);
+                const after = (recalced.records || []).find(
+                    (r) => r && normalizeStr(r.studentId) === sid
+                );
+                if (!before || !after) {
+                    return;
+                }
+                const sameAt =
+                    normalizeEssaySubmittedAt(before.submittedAt) ===
+                    normalizeEssaySubmittedAt(after.submittedAt);
+                const sameLate = Boolean(before.submissionLate) === Boolean(after.submissionLate);
+                const sameDismissed =
+                    Boolean(before.overdueDismissed) === Boolean(after.overdueDismissed);
+                if (sameAt && sameLate && sameDismissed) {
+                    return;
+                }
+                anyChanged = true;
+                refreshed.push(rows.find((u) => normalizeStr(u.studentId) === sid) || { studentId: sid });
+            });
+            if (anyChanged) {
+                list = upsertEssaySubmission(list, recalced);
+            }
+        });
+
         return {
             essaySubmissions: list,
             cohorts,
             applied,
             ignored,
-            summary: { appliedCount: applied.length, ignoredCount: ignored.length }
+            refreshed,
+            summary: {
+                appliedCount: applied.length,
+                ignoredCount: ignored.length,
+                refreshedCount: refreshed.length
+            }
         };
     }
 
@@ -8313,6 +9440,20 @@
         previewTmsEssaySync,
         applyTmsEssaySync,
         matchEssayAssignmentRow,
+        savedEssaySubject,
+        displayEssaySubject,
+        canonicalEssaySubjectName,
+        normalizeEssayReportClassScope,
+        essayReportClassIsMine,
+        essayReportClassMatchesScope,
+        essayReportSubjectMatches,
+        essaySubjectsAgree,
+        listEssaySubjectChoices,
+        setEssayAssignmentSubject,
+        essayAssignmentListMonth,
+        setEssayAssignmentListMonth,
+        clearTmsEssayLinksForAssignment,
+        retconEssayCompletions,
         normalizeEssayTitleKey,
         normalizeTmsEssayAssignmentKey,
         normalizeTmsEssayLinks,
@@ -8339,6 +9480,8 @@
         purgeStudentRecords,
         mergeStudentRecords,
         listSuspectedDuplicateStudents,
+        planCohortDuplicateMerges,
+        applyCohortDuplicateMerges,
         preferLongerNameEn,
         findStudentByTmsMpidx,
         isPastArchiveRetention,
@@ -8379,6 +9522,10 @@
         findEssaySubmission,
         upsertEssaySubmission,
         getEssayRecordForStudent,
+        setEssayStudentStatus,
+        setEssayStudentNote,
+        lookupEssayListLink,
+        findUniqueEssayListLink,
         ensureEssayRecordsForStudents,
         countEssayByStatus,
         emptyEssayStatusCounts,
@@ -8391,6 +9538,8 @@
         isEssayReceivedStatus,
         isEssayReceivedLate,
         isEssaySubmissionOverdue,
+        applyEssayLateForDueDate,
+        normalizeEssaySubmittedAt,
         isEssayAwaitingSubmission,
         isEssaySyllabusRow,
         isEssayAssignmentRow,
@@ -8461,6 +9610,7 @@
         normalizeDebateTeamSession,
         normalizeDebateCustomFormat,
         findDebateTeamSession,
+        findGeneratedDebateTeamSessionForPeriod,
         upsertDebateTeamSession,
         buildDebateRoleMapFromTeamSession,
         formatDebateScoreRoleLabel,

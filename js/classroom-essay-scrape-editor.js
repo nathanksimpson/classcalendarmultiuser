@@ -20,6 +20,7 @@
         teachers: new Set(),
         evaluators: new Set(),
         evaluations: new Set(),
+        month: '',
         fromDate: '',
         toDate: ''
     };
@@ -424,6 +425,34 @@
         }
     }
 
+    let filterChipQuery = '';
+
+    function applyChipSearch() {
+        const query = filterChipQuery.trim().toLowerCase();
+        const groups = document.querySelectorAll('#essayScrapeFilters .essay-scrape-filter-group');
+        let anyVisible = false;
+        groups.forEach((section) => {
+            const chips = section.querySelectorAll('.selection-chip');
+            let visible = 0;
+            chips.forEach((chip) => {
+                const label = String(chip.textContent || '').toLowerCase();
+                const show = !query || label.includes(query);
+                chip.hidden = !show;
+                if (show) {
+                    visible += 1;
+                }
+            });
+            section.hidden = chips.length > 0 && visible === 0;
+            if (visible > 0) {
+                anyVisible = true;
+            }
+        });
+        const empty = document.getElementById('essayScrapeFilterSearchEmpty');
+        if (empty) {
+            empty.hidden = !query || anyVisible || groups.length === 0;
+        }
+    }
+
     function uniqueValues(rows, field) {
         const set = new Set();
         rows.forEach((r) => {
@@ -464,6 +493,56 @@
         });
     }
 
+    function submissionMonthKey(row) {
+        const d = String((row && row.submittedAt) || '').trim();
+        return /^\d{4}-\d{2}/.test(d) ? d.slice(0, 7) : '';
+    }
+
+    function listSubmissionMonths(rows) {
+        const months = new Set();
+        (Array.isArray(rows) ? rows : []).forEach((row) => {
+            const month = submissionMonthKey(row);
+            if (month) {
+                months.add(month);
+            }
+        });
+        return Array.from(months).sort((a, b) => b.localeCompare(a));
+    }
+
+    function formatSubmissionMonthLabel(monthKey) {
+        const match = /^(\d{4})-(\d{2})$/.exec(String(monthKey || ''));
+        if (!match) {
+            return String(monthKey || '');
+        }
+        const names = t('monthNames');
+        const idx = Number(match[2]) - 1;
+        if (Array.isArray(names) && names[idx]) {
+            return `${names[idx]} ${match[1]}`;
+        }
+        return String(monthKey);
+    }
+
+    function rebuildMonthFilter() {
+        const monthEl = document.getElementById('essayScrapeMonth');
+        if (!monthEl) {
+            return;
+        }
+        const months = listSubmissionMonths(allRows);
+        const prev = String(filterState.month || '');
+        const parts = [
+            `<option value="">${escapeHtml(t('classroomEssayScrapeFilterAllMonths'))}</option>`
+        ];
+        months.forEach((month) => {
+            parts.push(
+                `<option value="${escapeHtml(month)}">${escapeHtml(formatSubmissionMonthLabel(month))}</option>`
+            );
+        });
+        monthEl.innerHTML = parts.join('');
+        const valid = !prev || months.includes(prev);
+        monthEl.value = valid ? prev : '';
+        filterState.month = monthEl.value || '';
+    }
+
     function rebuildFilterUi() {
         renderFilterGroup('essayScrapeFilterClass', 'classes', uniqueValues(allRows, 'className'));
         renderFilterGroup('essayScrapeFilterTitle', 'titles', uniqueValues(allRows, 'title'));
@@ -478,6 +557,7 @@
             'evaluations',
             uniqueValues(allRows, 'correct')
         );
+        rebuildMonthFilter();
         const fromEl = document.getElementById('essayScrapeFromDate');
         const toEl = document.getElementById('essayScrapeToDate');
         if (fromEl) {
@@ -486,6 +566,7 @@
         if (toEl) {
             toEl.value = filterState.toDate || '';
         }
+        applyChipSearch();
     }
 
     function passesFilterSet(set, value) {
@@ -499,6 +580,7 @@
     function applyFilters() {
         const from = filterState.fromDate;
         const to = filterState.toDate;
+        const month = String(filterState.month || '').trim();
         filteredRows = allRows.filter((r) => {
             if (!passesFilterSet(filterState.classes, r.className)) {
                 return false;
@@ -513,6 +595,9 @@
                 return false;
             }
             if (!passesFilterSet(filterState.evaluations, r.correct)) {
+                return false;
+            }
+            if (month && submissionMonthKey(r) !== month) {
                 return false;
             }
             if (from || to) {
@@ -540,9 +625,15 @@
             teachers: new Set(),
             evaluators: new Set(),
             evaluations: new Set(),
+            month: '',
             fromDate: '',
             toDate: ''
         };
+        filterChipQuery = '';
+        const searchEl = document.getElementById('essayScrapeFilterSearch');
+        if (searchEl) {
+            searchEl.value = '';
+        }
         rebuildFilterUi();
         applyFilters();
     }
@@ -738,6 +829,7 @@
                 teachers: new Set(),
                 evaluators: new Set(),
                 evaluations: new Set(),
+                month: '',
                 fromDate: '',
                 toDate: ''
             };
@@ -970,23 +1062,67 @@
         }
     }
 
+    /**
+     * Map each scraped essay to one Essays-list row when the class, assignment, and student are unique.
+     * @returns {Map<string, { classId: string, syllabusRowId: string, studentId: string }>}
+     */
+    function essayListLinksForRows(rows) {
+        const links = new Map();
+        const d = domain();
+        const data = hooks && typeof hooks.getAppData === 'function' ? hooks.getAppData() : null;
+        if (
+            !d ||
+            !data ||
+            typeof d.previewTmsEssaySync !== 'function' ||
+            typeof d.lookupEssayListLink !== 'function'
+        ) {
+            return links;
+        }
+        let preview = null;
+        try {
+            preview = d.previewTmsEssaySync(data, { assignments: groupRowsIntoAssignments(rows) });
+        } catch (_) {
+            return links;
+        }
+        (Array.isArray(rows) ? rows : []).forEach((row) => {
+            if (!row) {
+                return;
+            }
+            const link = d.lookupEssayListLink(preview, {
+                studentName: row.name || row.displayName,
+                className: row.className,
+                title: row.title,
+                tmsClassId: row.tmsClassId
+            });
+            if (link) {
+                links.set(row.key || rowKey(row), link);
+            }
+        });
+        return links;
+    }
+
     function openBatchEditor() {
         const selected = allRows.filter((r) => selectedKeys.has(r.key) && r.bodyOk && r.body);
         if (!selected.length) {
             setError(t('classroomEssayScrapeNeedBodies'));
             return;
         }
+        const listLinks = essayListLinksForRows(selected);
         const byType = new Map();
         selected.forEach((r) => {
             const typ = mapEssayType(r.title);
             if (!byType.has(typ)) {
                 byType.set(typ, []);
             }
+            const link = listLinks.get(r.key) || null;
             byType.get(typ).push({
                 studentName: r.displayName || r.name,
                 className: r.className,
                 essayText: r.body,
-                title: r.title
+                title: r.title,
+                classId: link ? link.classId : '',
+                syllabusRowId: link ? link.syllabusRowId : '',
+                studentId: link ? link.studentId : ''
             });
         });
         const types = Array.from(byType.keys());
@@ -995,23 +1131,28 @@
         const savedAt = new Date().toISOString();
         types.forEach((essayType) => {
             const essays = byType.get(essayType) || [];
-            const payload = { essayType, essays, savedAt };
+            const batchId =
+                (global.crypto && typeof global.crypto.randomUUID === 'function'
+                    ? global.crypto.randomUUID()
+                    : `batch-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
+            const payload = { essayType, essays, savedAt, batchId };
             const payloadJson = JSON.stringify(payload);
-            const storageKey = `${SESSION_BATCH_KEY}_${essayType}`;
+            const storageKey = `${SESSION_BATCH_KEY}_${batchId}`;
             try {
-                // Per-type keys so multiple editor tabs do not race on one payload.
+                // One key per open so a second scrape cannot overwrite a tab that is still loading.
                 localStorage.setItem(storageKey, payloadJson);
-                sessionStorage.setItem(storageKey, payloadJson);
             } catch (err) {
                 blocked.push(essayType);
                 return;
             }
-            const editorUrl = `${location.origin}/tools/essay-batch-editor.html?batchType=${encodeURIComponent(
-                essayType
-            )}`;
+            const editorUrl =
+                `${location.origin}/tools/essay-batch-editor.html?v=20261007-essay-note-no-ai` +
+                `&batchType=${encodeURIComponent(essayType)}` +
+                `&batchId=${encodeURIComponent(batchId)}`;
             let win = null;
             try {
-                win = window.open(editorUrl, `ccmuEssayBatchEditor_${essayType}`);
+                // _blank always opens a new tab. A named window would reuse the last scrape.
+                win = window.open(editorUrl, '_blank');
             } catch (_) {
                 win = null;
             }
@@ -1147,6 +1288,10 @@
         document.getElementById('essayScrapeBridgeTestBtn')?.addEventListener('click', () => {
             window.open('http://127.0.0.1:8080/api/tms/bridge/ping', '_blank', 'noopener,noreferrer');
         });
+        document.getElementById('essayScrapeMonth')?.addEventListener('change', (e) => {
+            filterState.month = e.target.value || '';
+            applyFilters();
+        });
         document.getElementById('essayScrapeFromDate')?.addEventListener('change', (e) => {
             filterState.fromDate = e.target.value || '';
             applyFilters();
@@ -1154,6 +1299,10 @@
         document.getElementById('essayScrapeToDate')?.addEventListener('change', (e) => {
             filterState.toDate = e.target.value || '';
             applyFilters();
+        });
+        document.getElementById('essayScrapeFilterSearch')?.addEventListener('input', (e) => {
+            filterChipQuery = e.target.value || '';
+            applyChipSearch();
         });
     }
 

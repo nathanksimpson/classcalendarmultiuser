@@ -37,6 +37,7 @@ import {
 } from './login-context.js';
 import { scryptSync, timingSafeEqual } from 'node:crypto';
 import { dbOne, dbAll, dbRun, rowsChanged, nowIso } from './db.js';
+import * as Soundboard from './soundboard.js';
 import * as Lock from './lock.js';
 import * as CalendarMeta from './calendar-meta.js';
 import * as CalendarMutations from '../../shared/calendar-mutations.cjs';
@@ -927,23 +928,28 @@ function escapeHtmlAttr(value) {
 
 function passwordLoginSuccessHtml(returnTo) {
     const safeUrl = escapeHtmlAttr(returnTo);
-    const safeJsUrl = String(returnTo)
-        .replace(/\\/g, '\\\\')
-        .replace(/'/g, "\\'")
-        .replace(/</g, '\\u003c');
+    // 200 HTML on the form POST URL (no password fields, no auto-redirect).
+    // Desktop Chrome often needs the user to stay here to accept "Save password".
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Signed in</title>
+<title>Signed in — ClassManager</title>
+<link rel="stylesheet" href="styles.css?v=20260629-classmanager-redesign">
+<style>
+.signed-in-page{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;background:var(--bg-main);color:var(--text-primary)}
+.signed-in-card{max-width:420px;width:100%;background:var(--bg-card);border:1px solid var(--border-color);border-radius:12px;padding:2rem;box-shadow:var(--shadow-lg);text-align:center}
+.signed-in-card h1{margin:0 0 .5rem;font-size:1.35rem}
+.signed-in-card p{margin:0 0 1rem;color:var(--text-muted);font-size:.95rem}
+</style>
 </head>
 <body>
-<p>Signed in successfully.</p>
-<p><a id="continueLink" href="${safeUrl}">Continue to calendar</a></p>
-<script>
-location.replace('${safeJsUrl}');
-</script>
+<div class="signed-in-page"><div class="signed-in-card">
+<h1>Signed in</h1>
+<p>If your browser offers to save your password, you can accept it now.</p>
+<p><a class="btn btn-primary" href="${safeUrl}">Continue to ClassManager</a></p>
+</div></div>
 </body>
 </html>`;
 }
@@ -968,7 +974,11 @@ async function handlePasswordLogin(request, env, secure, htmlSuccess) {
     let loginBody;
     const requestPath = new URL(request.url).pathname;
     const errorLoginPage =
-        requestPath === '/password-login.html' ? '/password-login.html' : '/login.html';
+        requestPath === '/password-login.html' ||
+        requestPath === '/login' ||
+        requestPath === '/api/login'
+            ? '/password-login.html'
+            : '/login.html';
     try {
         loginBody = await readPasswordLoginBody(request);
         const limited = await rateLimitOr429(env, request, 'auth_password', 25, RATE_AUTH_WINDOW_MS);
@@ -1008,11 +1018,9 @@ async function handlePasswordLogin(request, env, secure, htmlSuccess) {
         const session = await createLoginSession(env, matched.id, loginBody.device);
         const cookie = sessionCookie(session.token, secure, session.maxAgeSec);
         const dest = await loginRedirectAfterAuth(env, matched, loginBody.returnTo);
-        if (htmlSuccess) {
-            return redirectWithCookie(dest, cookie);
-        }
-        if (loginBody.wantsRedirect) {
-            return redirectWithCookie(dest, cookie);
+        // 200 HTML on the POST URL (not 302) — password managers key off a successful form document
+        if (htmlSuccess || loginBody.wantsRedirect) {
+            return passwordLoginSuccessResponse(dest, cookie);
         }
         return json(
             {
@@ -1571,6 +1579,24 @@ export default {
         if (path === '/api/calendars' && request.method === 'GET') {
             const rows = await CalAccess.listCalendarsForUser(env, user);
             return json(rows);
+        }
+
+        if (path === '/api/soundboard' && request.method === 'GET') {
+            return json(await Soundboard.getBoard(env));
+        }
+
+        if (path === '/api/soundboard' && request.method === 'PUT') {
+            const blocked = rejectViewAsJson();
+            if (blocked) {
+                return blocked;
+            }
+            try {
+                const body = await readJson(request, 1000000);
+                return json(await Soundboard.saveBoard(env, body && body.board, user.id));
+            } catch (err) {
+                const status = err && err.status ? err.status : 500;
+                return json({ error: (err && err.message) || 'Could not save the sound board' }, status);
+            }
         }
 
         if (path === '/api/tms/roster/preview' && request.method === 'POST') {

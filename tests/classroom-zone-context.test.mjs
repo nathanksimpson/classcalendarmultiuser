@@ -111,6 +111,7 @@ function loadZone() {
                 classroomEssayAlertAe: 'AE:{count}',
                 classroomEssayAlertAs: 'NS:{count}',
                 classroomEssayAlertNv: 'NV:{count}',
+                classroomEssayAlertDone: 'All complete',
                 classroomEssayDebateVideoMissing: 'Missing debate video'
             };
             return map[key] || key;
@@ -152,6 +153,29 @@ function loadZone() {
     assert(html.includes('classroom-essay-alert-od'), 'OD pill present');
     assert(html.includes('OD:1'), 'OD count rendered');
     assert(!html.includes('AE:'), 'zero AE omitted');
+    assert(!html.includes('All complete'), 'warns hide the all-complete pill');
+    const done = sandbox.CCPClassroomZoneContext.buildEssayAlertBadgesHtml({
+        rs: 0,
+        as: 0,
+        od: 0,
+        ae: 0,
+        nv: 0,
+        allComplete: true
+    });
+    assert(done.includes('classroom-essay-alert-done'), 'all-complete pill present');
+    assert(done.includes('All complete'), 'all-complete label rendered');
+    assert(!done.includes('RS:'), 'all-complete pill has no warn codes');
+    const lateDone = sandbox.CCPClassroomZoneContext.buildEssayAlertBadgesHtml({
+        rs: 0,
+        as: 0,
+        od: 1,
+        ae: 0,
+        nv: 0,
+        allComplete: true
+    });
+    assert(lateDone.includes('classroom-essay-alert-od'), 'late OD pill still present');
+    assert(lateDone.includes('OD:1'), 'late OD count rendered');
+    assert(lateDone.includes('All complete'), 'all complete shows beside late OD');
 }
 
 {

@@ -255,13 +255,30 @@
         return member;
     }
 
-    function makeMember(name, role) {
+    function studentEntry(nameOrEntry, studentId) {
+        if (nameOrEntry && typeof nameOrEntry === 'object') {
+            return {
+                name: String(nameOrEntry.name || '').trim(),
+                studentId: String(nameOrEntry.studentId || studentId || '').trim()
+            };
+        }
+        return {
+            name: String(nameOrEntry || '').trim(),
+            studentId: String(studentId || '').trim()
+        };
+    }
+
+    function makeMember(nameOrEntry, role) {
+        const entry = studentEntry(nameOrEntry);
         const member = {
-            name,
+            name: entry.name,
             role: role ? Object.assign({}, role) : null,
             present: '',
             rebut: ''
         };
+        if (entry.studentId) {
+            member.studentId = entry.studentId;
+        }
         return applyRoleDefaultDuties(member);
     }
 
@@ -320,8 +337,15 @@
         topic: '',
         sheetTemplate: 'garam',
         purpleMode: false,
-        debates: []
+        debates: [],
+        studentIds: []
     };
+
+    function rosterEntries() {
+        return state.students.map((name, index) =>
+            studentEntry(name, state.studentIds && state.studentIds[index])
+        );
+    }
 
     function effectiveFormatId() {
         return state.purpleMode ? 'purple' : state.formatId;
@@ -718,7 +742,7 @@
 
     function assignDebates() {
         const f = fmt();
-        const shuffled = shuffle(state.students);
+        const shuffled = shuffle(rosterEntries());
         return f.fourTeam ? genFour(shuffled, f) : genTwo(shuffled, f);
     }
 
@@ -1522,6 +1546,7 @@
                     }
                     const st = data.settings || {};
                     state.students = Array.isArray(data.students) ? data.students : [];
+                    state.studentIds = [];
                     state.formatId = FORMATS[st.formatId] ? st.formatId : 'ap';
                     state.includeReply = !!st.includeReply;
                     state.maxTeamSize = st.maxTeamSize || 3;
@@ -1545,6 +1570,7 @@
     function applyV2Payload(data) {
         normalizePurpleSession(data);
         state.students = Array.isArray(data.students) ? data.students.slice() : [];
+        state.studentIds = Array.isArray(data.studentIds) ? data.studentIds.slice() : [];
         state.formatId = FORMATS[data.formatId] ? data.formatId : 'ap';
         state.purpleMode = !!data.purpleMode;
         state.includeReply = !!data.includeReply;
@@ -2087,6 +2113,7 @@
                     }
                     if (confirm(t('classroomDebateConfirmClearStudents') || 'Remove all students?')) {
                         state.students = [];
+                        state.studentIds = [];
                         state.debates = [];
                         notifyStudentsEdited();
                         render();
@@ -2141,6 +2168,9 @@
                     const idx = Number(removeBtn.getAttribute('data-remove-idx'));
                     if (Number.isFinite(idx) && idx >= 0 && idx < state.students.length) {
                         state.students.splice(idx, 1);
+                        if (Array.isArray(state.studentIds)) {
+                            state.studentIds.splice(idx, 1);
+                        }
                         clearDebatesOnStudentChange();
                         notifyStudentsEdited();
                         render();
@@ -2521,6 +2551,7 @@
         if (migrated) {
             normalizePurpleSession(migrated);
             state.students = migrated.students || [];
+            state.studentIds = Array.isArray(migrated.studentIds) ? migrated.studentIds.slice() : [];
             state.formatId = FORMATS[migrated.formatId] ? migrated.formatId : 'ap';
             state.purpleMode = !!migrated.purpleMode;
             state.includeReply = !!migrated.includeReply;
@@ -2538,6 +2569,7 @@
         return {
             version: 2,
             students: state.students.slice(),
+            studentIds: (state.studentIds || []).slice(),
             formatId: state.formatId,
             purpleMode: state.purpleMode,
             includeReply: state.includeReply,
@@ -2552,12 +2584,18 @@
 
     function importRoster(names, options) {
         options = options || {};
-        const list = (Array.isArray(names) ? names : []).filter(Boolean);
+        const list = (Array.isArray(names) ? names : [])
+            .map((item) => studentEntry(item))
+            .filter((item) => item.name);
         if (!list.length) {
             return { ok: false, reason: 'empty', count: 0, debatesCleared: false };
         }
         const unchanged =
-            list.length === state.students.length && list.every((name, idx) => name === state.students[idx]);
+            list.length === state.students.length &&
+            list.every((item, idx) => {
+                const currentId = (state.studentIds && state.studentIds[idx]) || '';
+                return item.name === state.students[idx] && item.studentId === currentId;
+            });
         if (unchanged) {
             const clearDebates = options.clearDebates !== false;
             if (clearDebates && state.debates.length > 0) {
@@ -2575,7 +2613,8 @@
         }
         const clearDebates = options.clearDebates !== false;
         const hadDebates = state.debates.length > 0;
-        state.students = list.slice();
+        state.students = list.map((item) => item.name);
+        state.studentIds = list.map((item) => item.studentId);
         let debatesCleared = false;
         if (clearDebates && hadDebates) {
             state.debates = [];
@@ -2604,19 +2643,31 @@
         formatDefaultClassData = classData || null;
         formatDefaultDebateBook =
             options.debateBook != null ? String(options.debateBook) : '';
-        // Never re-force on stored sessions (onlyIfPristine: false). Brand-new /
-        // pristine sessions only — so a saved purpleMode:false always wins.
-        if (options.onlyIfPristine === false) {
+        // forceForNewSession: first homework create for a month. The engine may
+        // still hold another class's format, so reset the knobs and apply level.
+        // Never reshapes a session that already has teams.
+        if (options.forceForNewSession === true) {
+            if (state.debates.length > 0) {
+                return;
+            }
+            state.purpleMode = false;
+            state.formatId = 'ap';
+            state.includeReply = false;
+            state.maxTeamSize = 3;
+            state.sheetTemplate = 'garam';
+        } else if (options.onlyIfPristine === false) {
+            // Never re-force on stored sessions. A saved purpleMode:false always wins.
             return;
-        }
-        const pristine =
-            state.debates.length === 0 &&
-            !state.purpleMode &&
-            state.formatId === 'ap' &&
-            !state.includeReply &&
-            state.sheetTemplate === 'garam';
-        if (!pristine) {
-            return;
+        } else {
+            const pristine =
+                state.debates.length === 0 &&
+                !state.purpleMode &&
+                state.formatId === 'ap' &&
+                !state.includeReply &&
+                state.sheetTemplate === 'garam';
+            if (!pristine) {
+                return;
+            }
         }
         if (isPurpleDebateClass(classData, options.debateBook)) {
             state.purpleMode = true;

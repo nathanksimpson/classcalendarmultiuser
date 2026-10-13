@@ -2481,6 +2481,43 @@ function applyCurriculumClassDefaultsToForm(curriculumId, presetId, levelFromPic
     return true;
 }
 
+function getMainCurriculumBookIdFromForm() {
+    const bookSel = document.getElementById('classCurriculumBook');
+    return (bookSel && bookSel.value) ? bookSel.value.trim() : '';
+}
+
+/** Label for Default book (fallback) from the main curriculum menu. Empty for no curriculum / no book. */
+function getDefaultBookLabelForCurriculum(curriculumId, levelFromPicker) {
+    const editor = window.CCPBooksEditor;
+    const id = (curriculumId || '').trim();
+    if (!editor || !id || editor.isNoCurriculum(id) || editor.isNoBookCurriculum(id)) {
+        return '';
+    }
+    const levelTrim = (levelFromPicker != null ? levelFromPicker : getClassFormCurriculumLevel() || '').trim();
+    const presetId = levelTrim
+        ? (editor.resolvePresetFromLevelAndBook(levelTrim, id, appData) || '')
+        : '';
+    const merged = editor.buildMergedClassDefaults(id, presetId, appData, levelTrim);
+    return (merged && merged.defaultBook) || editor.getCurriculumDisplayName(id, appData) || '';
+}
+
+/**
+ * Main curriculum menu is the source of truth: every teacher curriculum select
+ * and the default-book fallback follow it. Not used while rebuilding the book list.
+ */
+function syncLinkedCurriculumFromMainMenu() {
+    const curriculumId = getMainCurriculumBookIdFromForm();
+    document.querySelectorAll('.class-teacher-row-curriculum').forEach((sel) => {
+        fillTeacherRowCurriculumSelect(sel, curriculumId);
+    });
+    if (elements.classBook) {
+        elements.classBook.value = getDefaultBookLabelForCurriculum(
+            curriculumId,
+            getClassFormCurriculumLevel()
+        );
+    }
+}
+
 function handleApplyCurriculumToClass() {
     const level = getClassFormCurriculumLevel();
     const curriculumId = (document.getElementById('classCurriculumBook')?.value || '').trim();
@@ -2498,7 +2535,9 @@ function handleApplyCurriculumToClass() {
         return;
     }
     applyCurriculumClassDefaultsToForm(curriculumId, presetId, level);
+    syncLinkedCurriculumFromMainMenu();
     const link = resolveClassCurriculumLinkFromForm({ includeTeacherFields: false });
+    link.book = elements.classBook ? (elements.classBook.value || '') : '';
     const hidden = document.getElementById('classTypeIdHidden');
     if (hidden) {
         hidden.value = link.classTypeId;
@@ -2523,11 +2562,13 @@ function handleApplyCurriculumToClass() {
             draft.id = classId;
             draft.syllabusRows = saved.syllabusRows;
             if (confirm(t('applyCurriculumSyllabusConfirm'))) {
-                const pushResult = pushCurriculumToClassSyllabus(draft, {
-                    skipConfirm: true,
-                    force: true,
-                    confirmMessage: t('applyCurriculumSyllabusConfirm')
-                });
+                const pushResult = editor.isDebateCurriculum(curriculumId)
+                    ? applyDebateCurriculumSyllabus(classId)
+                    : pushCurriculumToClassSyllabus(draft, {
+                        skipConfirm: true,
+                        force: true,
+                        confirmMessage: t('applyCurriculumSyllabusConfirm')
+                    });
                 if (pushResult.ok && pushResult.rows && elements.syllabusTableBody
                     && elements.classId && elements.classId.value === classId) {
                     renderSyllabusEditorTable(pushResult.rows);
@@ -2542,6 +2583,88 @@ function handleApplyCurriculumToClass() {
     }
     setAppStatusMessage(t('applyCurriculumToClass') + ': ' + label, false);
     syncClassCurriculumApplyState();
+}
+
+/**
+ * Debate apply, including a copied debate book: one Day 1–4 cycle per book period,
+ * auto-compressed from that book's start date through the end of the term.
+ */
+function bookPeriodsForDebateApply() {
+    const start = elements.classStartDate ? elements.classStartDate.value : '';
+    const end = elements.classEndDate ? elements.classEndDate.value : '';
+    const book = elements.classBook ? (elements.classBook.value || '') : '';
+    const periods = collectBookPeriodsForClassSave(start, end);
+    const debateApi = getCCPDebatePeriods();
+    if (!debateApi || !start || !end || typeof debateApi.suggestPeriodsFromCalendarMonths !== 'function') {
+        return periods;
+    }
+    const suggested = debateApi.suggestPeriodsFromCalendarMonths(start, end, book);
+    if (!periods.length) {
+        renderDebateBookPeriodRows(suggested);
+        return suggested;
+    }
+    const covered = new Set(periods.map((p) => String(p.startDate || '').slice(0, 7)));
+    let added = false;
+    suggested.forEach((row) => {
+        const key = String(row.startDate || '').slice(0, 7);
+        if (!key || covered.has(key)) {
+            return;
+        }
+        periods.push(row);
+        covered.add(key);
+        added = true;
+    });
+    if (added) {
+        periods.sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)));
+        renderDebateBookPeriodRows(periods);
+    }
+    return periods;
+}
+
+function applyDebateCurriculumSyllabus(classId) {
+    const index = appData.classes.findIndex((c) => c.id === classId);
+    if (index === -1) {
+        return { ok: false, applied: 0, rows: null, cancelled: false };
+    }
+    const periods = bookPeriodsForDebateApply();
+    const draft = buildClassDraftFromForm();
+    draft.id = classId;
+    draft.scheduleModel = SCHEDULE_MODEL_DEBATE_MONTHLY;
+    draft.compressionMode = 'autoWhenNeeded';
+    draft.compressionMerges = [];
+    draft.debateBookPeriods = periods;
+    draft.debateBookPeriodsMigrated = true;
+    draft.booksByMonth = booksByMonthFromPeriods(periods);
+    invalidateScheduleCache();
+    const rows = buildGeneratedSyllabusRows(draft);
+    const debateApi = getCCPDebatePeriods();
+    if (debateApi && typeof debateApi.getBookForDate === 'function') {
+        rows.forEach((row) => {
+            if (!row || !row.date || row.kind === 'note') {
+                return;
+            }
+            const bookName = debateApi.getBookForDate(draft, row.date);
+            if (bookName) {
+                row.book = bookName;
+            }
+        });
+    }
+    const saved = appData.classes[index];
+    saved.syllabusRows = rows;
+    saved.scheduleModel = SCHEDULE_MODEL_DEBATE_MONTHLY;
+    saved.compressionMode = 'autoWhenNeeded';
+    saved.compressionMerges = [];
+    saved.debateBookPeriods = periods;
+    saved.debateBookPeriodsMigrated = true;
+    saved.booksByMonth = draft.booksByMonth;
+    const notes = getCurriculumGeneralNotesForClass(draft);
+    if (notes) {
+        saved.syllabusGeneralNotes = notes;
+    }
+    saveData();
+    invalidateScheduleCache();
+    const lessonCount = rows.filter((row) => (row.kind || 'lesson') === 'lesson' && row.date).length;
+    return { ok: lessonCount > 0, applied: lessonCount, rows, cancelled: false };
 }
 
 function refreshCurriculumTabList() {
@@ -2665,7 +2788,10 @@ function setupClassCurriculumControls() {
     }
     if (bookSel && bookSel.dataset.bound !== '1') {
         bookSel.dataset.bound = '1';
-        bookSel.addEventListener('change', syncClassCurriculumApplyState);
+        bookSel.addEventListener('change', () => {
+            syncClassCurriculumApplyState();
+            syncLinkedCurriculumFromMainMenu();
+        });
     }
     if (applyBtn && applyBtn.dataset.bound !== '1') {
         applyBtn.dataset.bound = '1';
@@ -5321,8 +5447,12 @@ function syncAppChromeStickyTop() {
 
 const VIEWPORT_BP_PHONE = 640;
 const VIEWPORT_BP_TABLET = 1024;
+const VIEWPORT_BP_NARROW_HEADER = 900;
+const VIEWPORT_TIER_HEAVY_DEBOUNCE_MS = 120;
 const APP_SETUP_PHONE_TAB_IDS = ['cohorts', 'teachers', 'curriculum', 'syllabus', 'events', 'data'];
 let viewportTierResizeBound = false;
+let lastAppliedViewportTier = null;
+let viewportTierHeavyTimer = null;
 
 function isViewportPhone() {
     return typeof window !== 'undefined'
@@ -5340,7 +5470,7 @@ function isViewportTabletOrBelow() {
 function isViewportNarrowHeader() {
     return typeof window !== 'undefined'
         && window.matchMedia
-        && window.matchMedia('(max-width: 900px)').matches;
+        && window.matchMedia(`(max-width: ${VIEWPORT_BP_NARROW_HEADER}px)`).matches;
 }
 
 function getPhoneSafeBootTab(tabId) {
@@ -5380,19 +5510,36 @@ function enforceDesktopCalendarViewMode() {
     return false;
 }
 
-function syncViewportTier() {
-    if (typeof document === 'undefined') {
+/** Resolve current viewport tier without side effects. */
+function resolveViewportTier() {
+    if (typeof document === 'undefined' || !window.matchMedia) {
         return 'desktop';
     }
-    let tier = 'desktop';
     if (window.matchMedia(`(max-width: ${VIEWPORT_BP_PHONE}px)`).matches) {
-        tier = 'phone';
-    } else if (window.matchMedia('(max-width: 900px)').matches) {
-        tier = 'tablet-sm';
-    } else if (window.matchMedia(`(max-width: ${VIEWPORT_BP_TABLET}px)`).matches) {
-        tier = 'tablet';
+        return 'phone';
+    }
+    if (window.matchMedia(`(max-width: ${VIEWPORT_BP_NARROW_HEADER}px)`).matches) {
+        return 'tablet-sm';
+    }
+    if (window.matchMedia(`(max-width: ${VIEWPORT_BP_TABLET}px)`).matches) {
+        return 'tablet';
+    }
+    return 'desktop';
+}
+
+/** Cheap: keep html[data-viewport] in sync for CSS. */
+function setViewportTierAttr(tier) {
+    if (typeof document === 'undefined') {
+        return;
     }
     document.documentElement.dataset.viewport = tier;
+}
+
+/**
+ * Heavy work that should run only when the tier changes (or on forced init).
+ * Zone-nav width sync stays on its own resize listener.
+ */
+function applyViewportTierSideEffects() {
     const calendarViewReset = enforceDesktopCalendarViewMode();
     applyMobileUiDefaults();
     syncCalendarViewModeDom();
@@ -5414,15 +5561,60 @@ function syncViewportTier() {
         CCPTeacherManagement.refreshTeachersTabPreview();
     }
     scheduleAppTabNavShellWidthSync();
+}
+
+/**
+ * Sync viewport tier. Pass { force: true } on boot.
+ * Same-tier resizes only refresh the data-viewport attribute (no redraws).
+ */
+function syncViewportTier(options) {
+    const force = !!(options && options.force);
+    const tier = resolveViewportTier();
+    setViewportTierAttr(tier);
+    if (!force && tier === lastAppliedViewportTier) {
+        return tier;
+    }
+    lastAppliedViewportTier = tier;
+    applyViewportTierSideEffects();
     return tier;
 }
 
+/** Resize path: update CSS attr immediately; debounce heavy work until tier settles. */
+function scheduleViewportTierSyncFromResize() {
+    const tier = resolveViewportTier();
+    setViewportTierAttr(tier);
+    if (tier === lastAppliedViewportTier) {
+        if (viewportTierHeavyTimer) {
+            clearTimeout(viewportTierHeavyTimer);
+            viewportTierHeavyTimer = null;
+        }
+        return;
+    }
+    if (viewportTierHeavyTimer) {
+        clearTimeout(viewportTierHeavyTimer);
+    }
+    viewportTierHeavyTimer = setTimeout(() => {
+        viewportTierHeavyTimer = null;
+        // No force: if width bounced back, skip heavy work.
+        syncViewportTier();
+    }, VIEWPORT_TIER_HEAVY_DEBOUNCE_MS);
+}
+
 function initViewportTier() {
-    syncViewportTier();
+    // Main app owns resize; drop the lightweight page-chrome listener if present.
+    if (typeof CCPPageChrome !== 'undefined' && typeof CCPPageChrome.claimViewportOwnership === 'function') {
+        CCPPageChrome.claimViewportOwnership();
+    }
+    syncViewportTier({ force: true });
     if (!viewportTierResizeBound) {
         viewportTierResizeBound = true;
-        window.addEventListener('resize', syncViewportTier);
+        window.addEventListener('resize', scheduleViewportTierSyncFromResize);
     }
+}
+
+// Claim before DOMContentLoaded so page-chrome's auto-init does not bind a second resize listener.
+if (typeof CCPPageChrome !== 'undefined' && typeof CCPPageChrome.claimViewportOwnership === 'function') {
+    CCPPageChrome.claimViewportOwnership();
 }
 
 function applyMobileUiDefaults() {
@@ -8886,9 +9078,9 @@ function renderNowClassPopup(options = {}) {
 
     const nextMeetingAnchor = parseISODateLocal(ctx.dateStr) || new Date();
     const nextDateStr = resolveNextMeetingDateStr(ctx.classData, nextMeetingAnchor);
-    const nextNote = nextDateStr
-        ? findMostRecentDayNoteForCategory(ctx.classId, nextDateStr, 'next-class-notes')
-        : null;
+    // Prep notes are dated on today's meeting (same as Homework "From last class"),
+    // not on the upcoming meeting date. nextDateStr is label-only.
+    const nextNote = findMostRecentDayNoteForCategory(ctx.classId, ctx.dateStr, 'next-class-notes');
     const nextText = nextNote && nextNote.text ? String(nextNote.text) : '';
 
     const homework = buildNowClassPopupHomeworkDisplay(ctx.classData, ctx.dateStr);
@@ -9016,8 +9208,7 @@ function renderNowClassPopup(options = {}) {
     addNextBtn.className = 'btn btn-primary btn-small';
     addNextBtn.textContent = t('nowClassPopupAddNextNote');
     addNextBtn.addEventListener('click', () => {
-        const dateStr = nextDateStr || ctx.dateStr;
-        openClassDayNoteModal(ctx.classId, dateStr);
+        openClassDayNoteModal(ctx.classId, ctx.dateStr);
         const sel = document.getElementById('classDayNoteCategory');
         setSelectValueIfPresent(sel, 'next-class-notes');
     });
@@ -13377,7 +13568,7 @@ function refreshBookRowsForTermRange() {
     if (!start || !end) {
         return;
     }
-    const oldPeriods = collectDebateBookPeriodsFromForm();
+    const oldPeriods = readDebateBookPeriodRowsFromForm();
     const formMerges = collectCompressionMergesByPeriodFromForm('classForm');
     const classId = elements.classId ? elements.classId.value : '';
     const existingClass = classId ? appData.classes.find(c => c.id === classId) : null;
@@ -13390,7 +13581,7 @@ function refreshBookRowsForTermRange() {
     const existing = oldPeriods.filter(p => p.startDate >= start && p.startDate <= end);
     if (existing.length > 0) {
         renderDebateBookPeriodRows(existing);
-    } else {
+    } else if (oldPeriods.length > 0) {
         const debateApi = getCCPDebatePeriods();
         if (debateApi) {
             renderDebateBookPeriodRows(
@@ -13650,12 +13841,13 @@ function collectClassCompressionForSave({ isDebateSchedule, isCustomSchedule, su
     };
 }
 
-function collectDebateBookPeriodsFromForm() {
+function readDebateBookPeriodRowsFromForm() {
     const periods = [];
-    if (!elements.debateBookPeriodRows) {
+    const root = elements.debateBookPeriodRows;
+    if (!root) {
         return periods;
     }
-    elements.debateBookPeriodRows.querySelectorAll('.debate-book-period-row').forEach(row => {
+    root.querySelectorAll('.debate-book-period-row').forEach(row => {
         const dateIn = row.querySelector('input.book-period-start');
         const bookIn = row.querySelector('input.debate-book-period-title');
         const idIn = row.querySelector('input.book-period-id');
@@ -13672,6 +13864,55 @@ function collectDebateBookPeriodsFromForm() {
             book: (bookIn.value || '').trim()
         });
     });
+    return periods;
+}
+
+function booksByMonthFromPeriods(periods) {
+    const map = {};
+    const debateApi = getCCPDebatePeriods();
+    (Array.isArray(periods) ? periods : []).forEach(p => {
+        if (!p || !p.startDate) {
+            return;
+        }
+        const key = debateApi && typeof debateApi.teachingMonthKeyForDate === 'function'
+            ? (debateApi.teachingMonthKeyForDate(p.startDate) || p.startDate.slice(0, 7))
+            : p.startDate.slice(0, 7);
+        if (key) {
+            map[key] = p.book;
+        }
+    });
+    return map;
+}
+
+/** Dated book-period rows inside the term. Does not invent a single default row when the form is empty. */
+function collectBookPeriodsForClassSave(startDate, endDate) {
+    const raw = readDebateBookPeriodRowsFromForm();
+    const inRange = raw.filter((p) => {
+        if (startDate && p.startDate < startDate) {
+            return false;
+        }
+        if (endDate && p.startDate > endDate) {
+            return false;
+        }
+        return true;
+    });
+    if (!inRange.length) {
+        return [];
+    }
+    const debateApi = getCCPDebatePeriods();
+    if (!debateApi) {
+        return inRange;
+    }
+    return debateApi.normalizeDebateBookPeriods({
+        startDate: startDate || '',
+        endDate: endDate || '',
+        book: elements.classBook ? elements.classBook.value : '',
+        debateBookPeriods: inRange
+    });
+}
+
+function collectDebateBookPeriodsFromForm() {
+    const periods = readDebateBookPeriodRowsFromForm();
     const draft = {
         startDate: elements.classStartDate ? elements.classStartDate.value : '',
         endDate: elements.classEndDate ? elements.classEndDate.value : '',
@@ -13741,6 +13982,21 @@ function renderDebateBookPeriodRows(periods) {
         return;
     }
     list.forEach(p => addBookPeriodRow(p));
+}
+
+function renderClassBookPeriodRows(classData) {
+    const savedPeriods = classData && Array.isArray(classData.debateBookPeriods)
+        ? classData.debateBookPeriods
+        : [];
+    if (savedPeriods.length) {
+        renderDebateBookPeriodRows(savedPeriods);
+        return;
+    }
+    if (classUsesDebateCompression(classData)) {
+        renderDebateBookPeriodRows([]);
+        return;
+    }
+    renderBooksByMonthRows((classData && classData.booksByMonth) || {});
 }
 
 function renderBooksByMonthRows(booksByMonthOrPeriods) {
@@ -13922,7 +14178,8 @@ const APP_TEACHING_ONLY_TAB_IDS = [
     'debate-teams',
     'debate-scores',
     'debate-books',
-    'speaking-test'
+    'speaking-test',
+    'soundboard'
 ];
 const APP_SETUP_ONLY_TAB_IDS = ['cohorts', 'teachers', 'curriculum', 'syllabus', 'data'];
 /** Setup subtabs that require head-teacher / manage_calendar_access (cohorts, setup hub & teachers only). */
@@ -13966,7 +14223,8 @@ const ZONE_SEGMENT_TO_TAB = {
         'debate-teams': 'debate-teams',
         'debate-scores': 'debate-scores',
         'debate-books': 'debate-books',
-        'speaking-test': 'speaking-test'
+        'speaking-test': 'speaking-test',
+        soundboard: 'soundboard'
     },
     more: { data: 'data' }
 };
@@ -14508,6 +14766,7 @@ const LEGACY_TAB_ZONE_REDIRECT = {
     'debate-scores': { zone: APP_ZONE_TOOLS, segment: 'debate-scores' },
     'debate-books': { zone: APP_ZONE_TOOLS, segment: 'debate-books' },
     'speaking-test': { zone: APP_ZONE_TOOLS, segment: 'speaking-test' },
+    soundboard: { zone: APP_ZONE_TOOLS, segment: 'soundboard' },
     curriculum: { zone: APP_ZONE_CLASSES, segment: 'curriculum' },
     syllabus: { zone: APP_ZONE_CLASSES, segment: 'syllabus' },
     events: { zone: APP_ZONE_SCHEDULE, segment: 'events' },
@@ -16955,6 +17214,9 @@ function initHomeworkReferenceDatePopover() {
     if (miniCal && miniCal.dataset.homeworkInit !== '1') {
         miniCal.dataset.homeworkInit = '1';
         miniCal.addEventListener('click', (e) => {
+            // Keep popover open on month nav: re-render detaches the button so the
+            // document outside-click listener would otherwise treat it as outside.
+            e.stopPropagation();
             const dayBtn = e.target.closest('button[data-date]');
             if (dayBtn && dayBtn.dataset.date) {
                 setHomeworkReferenceDate(dayBtn.dataset.date);
@@ -17708,7 +17970,7 @@ function saveHomeworkDetailToSyllabus(classData, rowId, planDetail) {
 /**
  * Persist optional homework due override on the assign syllabus row.
  * Empty string clears the override (automatic next-class due).
- * Syncs matching essaySubmissions.ssDueDate when present (unless syncEssay: false).
+ * Seeds a matching essay due only when that essay has no due date yet.
  */
 function saveHomeworkDueDateToSyllabus(classData, rowId, homeworkDueDate, options) {
     const opts = options || {};
@@ -17748,7 +18010,10 @@ function saveHomeworkDueDateToSyllabus(classData, rowId, homeworkDueDate, option
     return true;
 }
 
-/** Keep Tools → Essays student due aligned with homework due for the same syllabus row. */
+/**
+ * Seed Tools → Essays student due from the syllabus the first time only.
+ * Once ssDueDate is saved on the essay, later syllabus edits leave it alone.
+ */
 function syncEssaySubmissionDueFromHomeworkRow(classData, rowId, effectiveDueDate) {
     if (!classData || !rowId || !appData) {
         return;
@@ -17758,14 +18023,14 @@ function syncEssaySubmissionDueFromHomeworkRow(classData, rowId, effectiveDueDat
         return;
     }
     const existing = domainApi.findEssaySubmission(appData.essaySubmissions, classData.id, rowId);
-    if (!existing) {
+    if (!existing || String(existing.ssDueDate || '').trim()) {
         return;
     }
     const due = String(effectiveDueDate || '').trim();
     const autoTe = due && typeof domainApi.addDaysISO === 'function'
         ? domainApi.addDaysISO(due, 2)
         : '';
-    const next = Object.assign({}, existing, {
+    let next = Object.assign({}, existing, {
         ssDueDate: due,
         teacherEvalDueDate: existing.teacherEvalDueDate || autoTe || existing.teacherEvalDueDate || ''
     });
@@ -17782,6 +18047,9 @@ function syncEssaySubmissionDueFromHomeworkRow(classData, rowId, effectiveDueDat
         if (!prevTe || prevTe === prevAutoTe) {
             next.teacherEvalDueDate = autoTe;
         }
+    }
+    if (typeof domainApi.applyEssayLateForDueDate === 'function') {
+        next = domainApi.applyEssayLateForDueDate(next, due);
     }
     appData.essaySubmissions = domainApi.upsertEssaySubmission(appData.essaySubmissions, next);
     void saveClassroomPartial({ essaySubmissions: appData.essaySubmissions });
@@ -17813,6 +18081,107 @@ function persistHomeworkDueDateFromUi(options) {
     setAppStatusMessage(t('homeworkTabSaved'), false);
     renderHomeworkEditor();
     return true;
+}
+
+const HOMEWORK_ESSAY_WARN_DISMISS_KEY = 'ccmuHomeworkEssayWarnDismissed';
+
+function homeworkEssayWarnDismissId(classId, lessonDate) {
+    const id = String(classId || '').trim();
+    const date = String(lessonDate || '').trim();
+    if (!id || !date) {
+        return '';
+    }
+    return id + ':' + date;
+}
+
+function readHomeworkEssayWarnDismissed() {
+    try {
+        const raw = localStorage.getItem(HOMEWORK_ESSAY_WARN_DISMISS_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string') : [];
+    } catch (err) {
+        return [];
+    }
+}
+
+function isHomeworkEssayWarnDismissed(classId, lessonDate) {
+    const key = homeworkEssayWarnDismissId(classId, lessonDate);
+    if (!key) {
+        return false;
+    }
+    return readHomeworkEssayWarnDismissed().indexOf(key) !== -1;
+}
+
+function dismissHomeworkEssayWarn(classId, lessonDate) {
+    const key = homeworkEssayWarnDismissId(classId, lessonDate);
+    if (!key) {
+        return;
+    }
+    const list = readHomeworkEssayWarnDismissed();
+    if (list.indexOf(key) !== -1) {
+        return;
+    }
+    list.push(key);
+    try {
+        localStorage.setItem(HOMEWORK_ESSAY_WARN_DISMISS_KEY, JSON.stringify(list));
+    } catch (err) {
+        /* This browser could not store the dismissal. The banner stays hidden until reload. */
+    }
+}
+
+function updateHomeworkDutiesCopyOption(classData) {
+    const mod = getHomeworkTabModule();
+    const isDebate =
+        mod && typeof mod.isDebateHomeworkClass === 'function'
+            ? mod.isDebateHomeworkClass(classData)
+            : !!(classData && String(classData.scheduleModel || '').trim() === 'debateMonthly');
+    [
+        'homeworkCopyAssignDutiesLabel',
+        'homeworkCopyGenerateFilesLabel',
+        'homeworkCopySyncStudentsLabel'
+    ].forEach((id) => {
+        const label = document.getElementById(id);
+        if (label) {
+            label.hidden = !isDebate;
+        }
+    });
+}
+
+function homeworkDebateCopyOptionChecked(labelId, inputId) {
+    const label = document.getElementById(labelId);
+    const box = document.getElementById(inputId);
+    if (!label || label.hidden || !box) {
+        return false;
+    }
+    return box.checked === true;
+}
+
+function homeworkCopyAssignIncludesDuties() {
+    return homeworkDebateCopyOptionChecked('homeworkCopyAssignDutiesLabel', 'homeworkCopyAssignDuties');
+}
+
+function homeworkCopyAssignGeneratesFiles() {
+    return homeworkDebateCopyOptionChecked('homeworkCopyGenerateFilesLabel', 'homeworkCopyGenerateFiles');
+}
+
+function homeworkCopyAssignSyncsStudents() {
+    return homeworkDebateCopyOptionChecked('homeworkCopySyncStudentsLabel', 'homeworkCopySyncStudents');
+}
+
+function updateHomeworkAssignEssayWarn(packet) {
+    const el = document.getElementById('homeworkAssignEssayWarn');
+    const textEl = document.getElementById('homeworkAssignEssayWarnText');
+    if (!el) {
+        return;
+    }
+    const classId = (homeworkEditorState && homeworkEditorState.classId) || getHomeworkTabSelectedClassId();
+    const lessonDate = packet && packet.targetLessonDate ? String(packet.targetLessonDate) : '';
+    const show = Boolean(packet && packet.assignNeedsEssayCheck)
+        && !isHomeworkEssayWarnDismissed(classId, lessonDate);
+    el.hidden = !show;
+    if (show && textEl) {
+        textEl.textContent = t('homeworkTabAssignEssayWarn');
+    }
 }
 
 function updateHomeworkDueDateControls(packet) {
@@ -18051,6 +18420,19 @@ function renderHomeworkDueDateSkips(packet) {
     container.appendChild(list);
 }
 
+/** Last class id we scrolled the Homework copy pane for (undefined = never). */
+let lastHomeworkEditorScrolledClassId = undefined;
+
+function scrollHomeworkCopyPaneToTop() {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    ['homeworkGradingText', 'homeworkAssignText'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.scrollTop = 0;
+        }
+    });
+}
+
 function renderHomeworkEditor() {
     const empty = document.getElementById('homeworkEditorEmpty');
     const content = document.getElementById('homeworkEditorContent');
@@ -18064,15 +18446,22 @@ function renderHomeworkEditor() {
     }
     ensureUiState();
     const classId = getHomeworkTabSelectedClassId();
+    const classChanged = classId !== lastHomeworkEditorScrolledClassId;
     const classData = classId ? appData.classes.find((c) => c.id === classId) : null;
     if (!classData) {
         empty.hidden = false;
         content.hidden = true;
         renderHomeworkLastClassNotes(null, null);
         updateHomeworkDueDateControls(null);
+        updateHomeworkAssignEssayWarn(null);
+        updateHomeworkDutiesCopyOption(null);
         const queueEl = document.getElementById('homeworkClassQueue');
         if (queueEl) {
             queueEl.hidden = true;
+        }
+        if (classChanged) {
+            lastHomeworkEditorScrolledClassId = classId || null;
+            scrollHomeworkCopyPaneToTop();
         }
         return;
     }
@@ -18112,6 +18501,8 @@ function renderHomeworkEditor() {
     }
     updateHomeworkSourceHints(packet);
     updateHomeworkDueDateControls(packet);
+    updateHomeworkAssignEssayWarn(packet);
+    updateHomeworkDutiesCopyOption(classData);
     renderHomeworkDueDateSkips(packet);
     renderHomeworkLastClassNotes(classData, packet);
     if (msgEl) {
@@ -18122,6 +18513,10 @@ function renderHomeworkEditor() {
             msgEl.hidden = true;
             msgEl.textContent = '';
         }
+    }
+    if (classChanged) {
+        lastHomeworkEditorScrolledClassId = classId;
+        scrollHomeworkCopyPaneToTop();
     }
 }
 
@@ -18848,11 +19243,11 @@ function showHomeworkCopyStatus(ok) {
 }
 
 /**
- * Optional TMS roster sync confirm used by Day 3 / duties homework copy.
+ * TMS roster sync for Day 3 / duties homework copy.
+ * Runs only when the Sync students checkbox is on.
  */
 async function maybeSyncHomeworkDebateRoster() {
-    const wantSync = window.confirm(t('homeworkDebateDay3SyncRosterConfirm'));
-    if (!wantSync) {
+    if (!homeworkCopyAssignSyncsStudents()) {
         return;
     }
     if (typeof CCPTabScripts !== 'undefined' && CCPTabScripts.ensureTabScripts) {
@@ -19005,37 +19400,40 @@ async function copyHomeworkAssignWithSpeakingDuties() {
     const formatted =
         classData && packet ? formatHomeworkPasteBlock(body, classData, packet, 'assign') : body;
     const copied = await copyTextToClipboard(formatted);
+    const wantFiles = homeworkCopyAssignGeneratesFiles();
 
     let sheetOk = false;
     let pptOk = false;
-    try {
-        const exp =
-            typeof CCPDebateScoresheetExport !== 'undefined' ? CCPDebateScoresheetExport : null;
-        if (exp && eng && sessionState && typeof eng.buildExportContextFromSession === 'function') {
-            const exportOpts = eng.buildExportContextFromSession(sessionState);
-            const ctx = exp.buildExportContext(exportOpts);
-            await exp.exportWord(ctx);
-            sheetOk = true;
+    if (wantFiles) {
+        try {
+            const exp =
+                typeof CCPDebateScoresheetExport !== 'undefined' ? CCPDebateScoresheetExport : null;
+            if (exp && eng && sessionState && typeof eng.buildExportContextFromSession === 'function') {
+                const exportOpts = eng.buildExportContextFromSession(sessionState);
+                const ctx = exp.buildExportContext(exportOpts);
+                await exp.exportWord(ctx);
+                sheetOk = true;
+            }
+        } catch (err) {
+            console.error('Duties copy score sheet export failed', err);
         }
-    } catch (err) {
-        console.error('Duties copy score sheet export failed', err);
-    }
 
-    try {
-        if (typeof CCPTabScripts !== 'undefined' && CCPTabScripts.ensureDebatePptxScripts) {
-            await CCPTabScripts.ensureDebatePptxScripts();
+        try {
+            if (typeof CCPTabScripts !== 'undefined' && CCPTabScripts.ensureDebatePptxScripts) {
+                await CCPTabScripts.ensureDebatePptxScripts();
+            }
+            const pptApi =
+                typeof CCPDebateDutiesPptx !== 'undefined' ? CCPDebateDutiesPptx : null;
+            if (pptApi && sessionState && typeof pptApi.exportDutiesPptx === 'function') {
+                await pptApi.exportDutiesPptx(
+                    sessionState,
+                    homeworkDebateExportMeta(classData, packet, sessionState)
+                );
+                pptOk = true;
+            }
+        } catch (err) {
+            console.error('Duties PPT export failed', err);
         }
-        const pptApi =
-            typeof CCPDebateDutiesPptx !== 'undefined' ? CCPDebateDutiesPptx : null;
-        if (pptApi && sessionState && typeof pptApi.exportDutiesPptx === 'function') {
-            await pptApi.exportDutiesPptx(
-                sessionState,
-                homeworkDebateExportMeta(classData, packet, sessionState)
-            );
-            pptOk = true;
-        }
-    } catch (err) {
-        console.error('Duties PPT export failed', err);
     }
 
     if (!copied) {
@@ -19146,40 +19544,50 @@ async function copyHomeworkAssignWithDebateDay3Automation() {
 
     const formatted = formatHomeworkPasteBlock(body, classData, packet, 'assign');
     const copied = await copyTextToClipboard(formatted);
+    const wantFiles = homeworkCopyAssignGeneratesFiles();
 
     let sheetOk = false;
-    try {
-        const exp =
-            typeof CCPDebateScoresheetExport !== 'undefined' ? CCPDebateScoresheetExport : null;
-        if (exp && eng && typeof eng.buildExportContextFromSession === 'function') {
-            const exportOpts = eng.buildExportContextFromSession(sessionStateForExport);
-            const ctx = exp.buildExportContext(exportOpts);
-            await exp.exportWord(ctx);
-            sheetOk = true;
-        }
-    } catch (err) {
-        console.error('Day 3 score sheet export failed', err);
-    }
-
     let pptOk = false;
-    try {
-        if (typeof CCPTabScripts !== 'undefined' && CCPTabScripts.ensureDebatePptxScripts) {
-            await CCPTabScripts.ensureDebatePptxScripts();
+    if (wantFiles) {
+        try {
+            const exp =
+                typeof CCPDebateScoresheetExport !== 'undefined' ? CCPDebateScoresheetExport : null;
+            if (exp && eng && typeof eng.buildExportContextFromSession === 'function') {
+                const exportOpts = eng.buildExportContextFromSession(sessionStateForExport);
+                const ctx = exp.buildExportContext(exportOpts);
+                await exp.exportWord(ctx);
+                sheetOk = true;
+            }
+        } catch (err) {
+            console.error('Day 3 score sheet export failed', err);
         }
-        const pptApi =
-            typeof CCPDebateDutiesPptx !== 'undefined' ? CCPDebateDutiesPptx : null;
-        if (pptApi && sessionStateForExport && typeof pptApi.exportRolesPptx === 'function') {
-            await pptApi.exportRolesPptx(
-                sessionStateForExport,
-                homeworkDebateExportMeta(classData, packet, sessionStateForExport)
-            );
-            pptOk = true;
+
+        try {
+            if (typeof CCPTabScripts !== 'undefined' && CCPTabScripts.ensureDebatePptxScripts) {
+                await CCPTabScripts.ensureDebatePptxScripts();
+            }
+            const pptApi =
+                typeof CCPDebateDutiesPptx !== 'undefined' ? CCPDebateDutiesPptx : null;
+            if (pptApi && sessionStateForExport && typeof pptApi.exportRolesPptx === 'function') {
+                await pptApi.exportRolesPptx(
+                    sessionStateForExport,
+                    homeworkDebateExportMeta(classData, packet, sessionStateForExport)
+                );
+                pptOk = true;
+            }
+        } catch (err) {
+            console.error('Day 3 roles PPT export failed', err);
         }
-    } catch (err) {
-        console.error('Day 3 roles PPT export failed', err);
     }
 
-    if (copied && sheetOk && pptOk) {
+    if (copied && !wantFiles) {
+        setAppStatusMessage(
+            built.reused
+                ? t('homeworkDebateDay3CopyReuseNoFiles')
+                : t('homeworkDebateDay3CopyNoFiles'),
+            false
+        );
+    } else if (copied && sheetOk && pptOk) {
         setAppStatusMessage(
             built.reused
                 ? t('homeworkDebateDay3CopyReuseSuccessPpt')
@@ -20267,8 +20675,10 @@ function collectClassTeachersFromForm() {
             }
         }
         const category = categorySel ? (categorySel.value || '').trim() : '';
-        const curriculumSel = rowEl.querySelector('.class-teacher-row-curriculum');
-        const curriculumId = curriculumSel ? (curriculumSel.value || '').trim() : '';
+        const mainBookSel = document.getElementById('classCurriculumBook');
+        const curriculumId = mainBookSel
+            ? (mainBookSel.value || '').trim()
+            : '';
         if (!userId && !name && !curriculumId) {
             return;
         }
@@ -20278,7 +20688,7 @@ function collectClassTeachersFromForm() {
         const rowId = rowEl.dataset.rowId || generateId();
         rowEl.dataset.rowId = rowId;
         const scheduleFields = collectTeacherRowScheduleFields(rowEl);
-        rows.push(enrichTeacherRowForSave({
+        const enriched = enrichTeacherRowForSave({
             id: rowId,
             userId,
             name,
@@ -20289,7 +20699,11 @@ function collectClassTeachersFromForm() {
             periodByWeekday: scheduleFields.periodByWeekday,
             placements: scheduleFields.placements,
             scheduleBlock: scheduleFields.scheduleBlock
-        }));
+        });
+        if (elements.classBook) {
+            enriched.book = elements.classBook.value || '';
+        }
+        rows.push(enriched);
     });
     return rows;
 }
@@ -20306,8 +20720,9 @@ function collectClassTeacherFieldsForSave() {
         classTypeId: '',
         book: ''
     };
-    const primaryCurriculumId = first.curriculumId
-        || (document.getElementById('classCurriculumBook')?.value || '').trim();
+    const mainCurriculumId = getMainCurriculumBookIdFromForm();
+    const primaryCurriculumId = mainCurriculumId || first.curriculumId || '';
+    const fallbackBook = elements.classBook ? (elements.classBook.value || '') : (first.book || '');
     return {
         classTeachers,
         assignedTeacherUserId: classTeachers.length ? first.userId : '',
@@ -20315,7 +20730,7 @@ function collectClassTeacherFieldsForSave() {
         teacherCategory: classTeachers.length ? first.category : '',
         curriculumId: primaryCurriculumId,
         classTypeId: classTeachers.length ? (first.classTypeId || '') : '',
-        book: classTeachers.length ? (first.book || '') : '',
+        book: fallbackBook,
         cohortId: cohortSel ? (cohortSel.value || '').trim() : '',
         scheduleBlock: blockSel && blockSel.value === 'secondary' ? 'secondary' : 'primary'
     };
@@ -21275,6 +21690,8 @@ async function saveClassroomPartial(fields, options) {
     if (fieldBag && Object.prototype.hasOwnProperty.call(fieldBag, 'mutations')) {
         delete fieldBag.mutations;
     }
+    let dayNotesTouched = false;
+    let dayNotesRollback = null;
 
     if (fieldBag) {
         if (Object.prototype.hasOwnProperty.call(fieldBag, 'cohorts')) {
@@ -21344,6 +21761,16 @@ async function saveClassroomPartial(fields, options) {
             Object.assign(appData.ui, fieldBag.ui);
             saveUiStateToLocalStorage();
         }
+        if (Object.prototype.hasOwnProperty.call(fieldBag, 'dayNotes')) {
+            dayNotesRollback = Array.isArray(appData.dayNotes) ? appData.dayNotes.slice() : [];
+            const notes = Array.isArray(fieldBag.dayNotes) ? fieldBag.dayNotes : [];
+            if (typeof appStore !== 'undefined' && appStore) {
+                appStore.dispatch({ type: 'dayNotes/mutate', dayNotes: notes });
+            } else {
+                appData.dayNotes = notes;
+            }
+            dayNotesTouched = true;
+        }
     }
     if (explicitMutations && explicitMutations.length && typeof CCPCalendarMutations !== 'undefined') {
         const applied = CCPCalendarMutations.applyCalendarMutations(appData, explicitMutations);
@@ -21371,17 +21798,18 @@ async function saveClassroomPartial(fields, options) {
         });
     }
     saveDataToLocalCache();
+    const notesPromise = dayNotesTouched ? enqueueDayNotesPersist(dayNotesRollback) : null;
     if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
-        return null;
+        return notesPromise;
     }
     const activeCalId =
         typeof CalendarSync.getActiveCalendarId === 'function' ? CalendarSync.getActiveCalendarId() : '';
     if (!activeCalId) {
         // Local cache already written — allow offline / no-calendar testing.
-        return null;
+        return notesPromise;
     }
     if (typeof TeamAuth !== 'undefined' && TeamAuth.isSignedIn && !TeamAuth.isSignedIn()) {
-        return null;
+        return notesPromise;
     }
 
     const task = async () => {
@@ -21400,6 +21828,9 @@ async function saveClassroomPartial(fields, options) {
                 mergeClassroomFieldsFromServer(doc.data, opts);
                 saveDataToLocalCache();
             }
+            if (notesPromise) {
+                await notesPromise;
+            }
             return doc;
         } catch (err) {
             // Local write already succeeded. Keep it when team sync is unavailable or fails
@@ -21408,6 +21839,9 @@ async function saveClassroomPartial(fields, options) {
                 throw err;
             }
             console.warn('Classroom team sync failed after local save', err);
+            if (notesPromise) {
+                await notesPromise;
+            }
             return null;
         }
     };
@@ -23488,18 +23922,34 @@ function initTimetablePeriodSchedule() {
     };
 
     openBtn.addEventListener('click', () => {
+        const openTimetablePeriodModal = () => {
+            const api = getTimetablePeriodsApi();
+            if (!api) {
+                return;
+            }
+            draftSlots = api.getSortedTimeSlots(appData);
+            draftMap = Object.assign({}, appData.periodSlotMap || api.getDefaultMap());
+            renderRows();
+            modal.style.display = 'flex';
+        };
         if (isTeamCalendarViewOnly()) {
+            if (isTeamAutoLockOnLoginPending()) {
+                return;
+            }
+            if (canQuietAcquireScheduleLock()) {
+                void ensureQuietScheduleLock().then((ok) => {
+                    if (ok) {
+                        openTimetablePeriodModal();
+                    } else {
+                        notifyTeamLockRequiredForEdit();
+                    }
+                });
+                return;
+            }
             notifyTeamLockRequiredForEdit();
             return;
         }
-        const api = getTimetablePeriodsApi();
-        if (!api) {
-            return;
-        }
-        draftSlots = api.getSortedTimeSlots(appData);
-        draftMap = Object.assign({}, appData.periodSlotMap || api.getDefaultMap());
-        renderRows();
-        modal.style.display = 'flex';
+        openTimetablePeriodModal();
     });
 
     document.getElementById('timetablePeriodModalClose')?.addEventListener('click', closeModal);
@@ -23778,6 +24228,17 @@ function initHomeworkTabListeners() {
         gradingTa.addEventListener('input', () => debouncedSaveHomeworkGrading());
         gradingTa.addEventListener('blur', () => persistHomeworkTextareaToSyllabus('grading'));
     }
+    const essayWarnDismiss = document.getElementById('homeworkAssignEssayWarnDismiss');
+    if (essayWarnDismiss && !essayWarnDismiss.dataset.homeworkInit) {
+        essayWarnDismiss.dataset.homeworkInit = '1';
+        essayWarnDismiss.addEventListener('click', () => {
+            const state = homeworkEditorState;
+            const classId = (state && state.classId) || getHomeworkTabSelectedClassId();
+            const lessonDate = state && state.packet ? state.packet.targetLessonDate : '';
+            dismissHomeworkEssayWarn(classId, lessonDate);
+            updateHomeworkAssignEssayWarn(state && state.packet);
+        });
+    }
     const assignTa = document.getElementById('homeworkAssignText');
     if (assignTa && !assignTa.dataset.homeworkInit) {
         assignTa.dataset.homeworkInit = '1';
@@ -23813,14 +24274,11 @@ function initHomeworkTabListeners() {
     if (copyAssign && !copyAssign.dataset.homeworkInit) {
         copyAssign.dataset.homeworkInit = '1';
         copyAssign.addEventListener('click', async () => {
-            await copyHomeworkAssignWithDebateDay3Automation();
-        });
-    }
-    const copyAssignDuties = document.getElementById('homeworkCopyAssignDutiesBtn');
-    if (copyAssignDuties && !copyAssignDuties.dataset.homeworkInit) {
-        copyAssignDuties.dataset.homeworkInit = '1';
-        copyAssignDuties.addEventListener('click', async () => {
-            await copyHomeworkAssignWithSpeakingDuties();
+            if (homeworkCopyAssignIncludesDuties()) {
+                await copyHomeworkAssignWithSpeakingDuties();
+            } else {
+                await copyHomeworkAssignWithDebateDay3Automation();
+            }
         });
     }
     const copyBoth = document.getElementById('homeworkCopyBothBtn');
@@ -23903,19 +24361,32 @@ function openNewClassForCohort(cohortId) {
 }
 
 function openClassEditor(classData, context, options = {}) {
+    const proceed = () => {
+        void ensureExtensionScriptsLoaded()
+            .then(() => openClassEditorAfterLoad(classData, context, options))
+            .catch((err) => {
+                console.error(err);
+                showSyncToast(t('syllabusModuleMissing'), true);
+            });
+    };
     if (isTeamCalendarViewOnly() && !classData) {
         if (isTeamAutoLockOnLoginPending()) {
+            return;
+        }
+        if (canQuietAcquireScheduleLock()) {
+            void ensureQuietScheduleLock().then((ok) => {
+                if (ok) {
+                    proceed();
+                } else {
+                    notifyTeamLockRequiredForEdit();
+                }
+            });
             return;
         }
         notifyTeamLockRequiredForEdit();
         return;
     }
-    void ensureExtensionScriptsLoaded()
-        .then(() => openClassEditorAfterLoad(classData, context, options))
-        .catch((err) => {
-            console.error(err);
-            showSyncToast(t('syllabusModuleMissing'), true);
-        });
+    proceed();
 }
 
 function openClassEditorAfterLoad(classData, context, options = {}) {
@@ -23933,24 +24404,37 @@ function openClassEditorAfterLoad(classData, context, options = {}) {
 }
 
 function openEventEditor(holidayData, context, options = {}) {
+    const proceed = () => {
+        const ctx = context || 'tab';
+        populateHolidayForm(holidayData, options);
+        if (ctx === 'tab') {
+            navigateToTab('events');
+            mountHolidayForm('tab');
+            updateEventEditorEmptyState();
+            renderEventList();
+        } else {
+            mountHolidayForm('modal');
+            openModal(elements.holidayModal);
+        }
+    };
     if (isTeamCalendarViewOnly() && !holidayData) {
         if (isTeamAutoLockOnLoginPending()) {
+            return;
+        }
+        if (canQuietAcquireScheduleLock()) {
+            void ensureQuietScheduleLock().then((ok) => {
+                if (ok) {
+                    proceed();
+                } else {
+                    notifyTeamLockRequiredForEdit();
+                }
+            });
             return;
         }
         notifyTeamLockRequiredForEdit();
         return;
     }
-    const ctx = context || 'tab';
-    populateHolidayForm(holidayData, options);
-    if (ctx === 'tab') {
-        navigateToTab('events');
-        mountHolidayForm('tab');
-        updateEventEditorEmptyState();
-        renderEventList();
-    } else {
-        mountHolidayForm('modal');
-        openModal(elements.holidayModal);
-    }
+    proceed();
 }
 
 // ============================================
@@ -26535,6 +27019,26 @@ function persistCurriculumLinkToSavedClass(classId, link) {
     if (link.level && getSimsonLevelById(link.level)) {
         appData.classes[index].levelPreset = link.level;
     }
+    if (link.book != null) {
+        appData.classes[index].book = link.book;
+    }
+    const teachers = appData.classes[index].classTeachers;
+    if (Array.isArray(teachers)) {
+        teachers.forEach((row) => {
+            if (!row || typeof row !== 'object') {
+                return;
+            }
+            if (curriculumId) {
+                row.curriculumId = curriculumId;
+            }
+            if (link.classTypeId) {
+                row.classTypeId = link.classTypeId;
+            }
+            if (link.book != null) {
+                row.book = link.book;
+            }
+        });
+    }
     saveData();
 }
 
@@ -27149,6 +27653,12 @@ function renderSyllabusEditorTable(rows) {
         if (row.date) {
             tr.dataset.rowDate = row.date;
         }
+        if (row.book) {
+            tr.dataset.rowBook = row.book;
+        }
+        if (row.periodId) {
+            tr.dataset.periodId = row.periodId;
+        }
         if (row.monthKey) {
             tr.dataset.rowMonthKey = row.monthKey;
         }
@@ -27163,6 +27673,9 @@ function renderSyllabusEditorTable(rows) {
         }
         if (row.overflowIntro === true) {
             tr.dataset.overflowIntro = '1';
+        }
+        if (row.essaySubject) {
+            tr.dataset.essaySubject = row.essaySubject;
         }
         const weekDisplay = row.weekLabel || (row.date && mod ? mod.getSchoolWeekLabel(row.date) : '');
         const isNote = row.kind === 'note';
@@ -27257,6 +27770,8 @@ function collectSyllabusRowsFromForm() {
             kind,
             date: tr.dataset.rowDate || '',
             monthKey: tr.dataset.rowMonthKey || (tr.dataset.rowDate ? tr.dataset.rowDate.slice(0, 7) : ''),
+            book: tr.dataset.rowBook || '',
+            periodId: tr.dataset.periodId || '',
             weekLabel: (tr.querySelector('.syllabus-ed-week')?.textContent || '').trim(),
             sessionNumber: Number.isNaN(sessionNumber) ? 0 : sessionNumber,
             planTitle,
@@ -27285,6 +27800,9 @@ function collectSyllabusRowsFromForm() {
         const essayCb = tr.querySelector('.syllabus-ed-track-essay');
         if (essayCb) {
             row.trackEssay = essayCb.checked === true;
+        }
+        if (tr.dataset.essaySubject) {
+            row.essaySubject = tr.dataset.essaySubject;
         }
         return row;
     });
@@ -27975,12 +28493,7 @@ function populateClassForm(classData = null, options = {}) {
     syncClassCurriculumLevelFromClassLevel();
     syncClassCurriculumPickersFromClass(classData);
     syncDeleteCustomClassTypeButtonVisibility();
-
-        if (classUsesDebateCompression(classData)) {
-            renderDebateBookPeriodRows(classData.debateBookPeriods || []);
-        } else {
-            renderBooksByMonthRows(classData.booksByMonth || {});
-        }
+    renderClassBookPeriodRows(classData);
 
         // Handle custom schedule
         const hasCustom = classData.customSchedule && classData.customSchedule.enabled;
@@ -28553,9 +29066,9 @@ function selectClassSuggestion(classId) {
             const draft = { ...existingClass };
             if (classUsesDebateCompression(draft)) {
                 ensureDebatePeriodsOnClass(draft);
-                renderDebateBookPeriodRows(draft.debateBookPeriods || []);
+                renderClassBookPeriodRows(draft);
             } else {
-                renderBooksByMonthRows(existingClass.booksByMonth || {});
+                renderClassBookPeriodRows(existingClass);
             }
         }
         populateClassTypeSelect();
@@ -28700,7 +29213,7 @@ function handleClassSubmit(e) {
     }
     const normalizedMeetings = isCustomSchedule ? [] : normalizeMeetingDaysArray(meetingDays);
     const singleDow = normalizedMeetings.length === 1 ? normalizedMeetings[0] : null;
-    const link = resolveClassCurriculumLinkFromForm();
+    const link = resolveClassCurriculumLinkFromForm({ includeTeacherFields: false });
     let curriculumId = link.curriculumId;
     let classTypeId = link.classTypeId;
     const hiddenType = document.getElementById('classTypeIdHidden');
@@ -28711,21 +29224,23 @@ function handleClassSubmit(e) {
         elements.classTypeSelect.value = classTypeId;
     }
     const { period, periodByWeekday } = collectPeriodFieldsForSave();
+    document.querySelectorAll('.class-teacher-row-curriculum').forEach((sel) => {
+        fillTeacherRowCurriculumSelect(sel, getMainCurriculumBookIdFromForm());
+    });
     const teacherFields = collectClassTeacherFieldsForSave();
     const formCohortIds = getClassCohortIdsFromForm();
     const savedWithoutCohort = canAccessTeachersTab()
         && !formCohortIds.length
         && !normalizeStr(teacherFields.cohortId);
-    if (teacherFields.book) {
-        elements.classBook.value = teacherFields.book;
-    }
+    const fallbackBook = elements.classBook ? (elements.classBook.value || '') : '';
     const existingId = elements.classId.value;
     const existingClass = existingId ? appData.classes.find((c) => c.id === existingId) : null;
     const curriculumLinkChanged = classCurriculumLinkChanged(existingClass, {
         curriculumId,
         classTypeId
     });
-    const debateBookPeriods = isDebateSchedule ? collectDebateBookPeriodsFromForm() : [];
+    const debateBookPeriods = collectBookPeriodsForClassSave(startDate, endDate);
+    const booksByMonth = booksByMonthFromPeriods(debateBookPeriods);
     const compressionMergesByPeriod = isDebateSchedule
         ? compressionFields.compressionMergesByPeriod
         : (existingClass?.compressionMergesByPeriod || {});
@@ -28760,7 +29275,7 @@ function handleClassSubmit(e) {
         levelCustom: levelCustom,
         level: levelDisplay,
         grade: (elements.classGrade.value || '').trim(),
-        book: elements.classBook.value,
+        book: fallbackBook,
         compressionMode: compressionMode,
         notes: elements.classNotes.value,
         termCalendarMonths: termCalendarMonths,
@@ -28778,12 +29293,10 @@ function handleClassSubmit(e) {
         textColor: elements.classTextColor.value || deriveClassTextColorForSave(elements.classColor.value),
         compressionMerges: compressionMergesFinal,
         skippedLessons: skippedLessonsFinal,
-        ...(isDebateSchedule ? {
-            debateBookPeriods,
-            debateBookPeriodsMigrated: true,
-            compressionMergesByPeriod,
-            booksByMonth: collectBooksByMonthFromForm()
-        } : {}),
+        debateBookPeriods,
+        debateBookPeriodsMigrated: true,
+        compressionMergesByPeriod,
+        booksByMonth,
         customSchedule: isCustomSchedule ? {
             enabled: true,
             days: getCustomLessonDatesFromInputs(totalLessons)
@@ -28799,7 +29312,10 @@ function handleClassSubmit(e) {
             : resolveSyllabusRowsForSave(),
         lessonLabelMode: getLessonLabelModeForSave(),
         homeworkImportMode: getHomeworkImportModeForSave(),
-        ...teacherFields
+        ...teacherFields,
+        book: fallbackBook,
+        curriculumId: curriculumId || '',
+        classTypeId: classTypeId || ''
     };
     
     applyClassCohortLinksFromForm(classData, existingClass);
@@ -33751,7 +34267,7 @@ function isTeamAutoLockOnLoginPending() {
     return teamAutoLockOnLoginInProgress;
 }
 
-/** Team sync: editing requires holding the lock (even when no one else holds it). */
+/** Team sync: schedule edits need the lock (classroom/notes bypass separately). */
 function requiresExplicitLockForEdit() {
     if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
         return false;
@@ -33767,7 +34283,67 @@ function requiresExplicitLockForEdit() {
 }
 
 /**
- * Blocking popup when the user tries to edit without holding the collaborative lock.
+ * True when we can silently acquire: lock free, or same account on another device.
+ * False when another teacher holds the lock (or view-as / no permission).
+ */
+function canQuietAcquireScheduleLock() {
+    if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
+        return false;
+    }
+    if (!CalendarSync.getActiveCalendarId()) {
+        return false;
+    }
+    if (CalendarSync.state.canEdit === false || CalendarSync.state.permissionReadOnly) {
+        return false;
+    }
+    if (typeof TeamAuth !== 'undefined' && TeamAuth.isViewAsMode && TeamAuth.isViewAsMode()) {
+        return false;
+    }
+    if (CalendarSync.state.holdsLock) {
+        return true;
+    }
+    return !isLockHeldByOtherUser();
+}
+
+/**
+ * Silently acquire the schedule lock when free or held by this user on another session.
+ * @returns {Promise<boolean>} true when this session holds the lock afterward
+ */
+async function ensureQuietScheduleLock() {
+    if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
+        return true;
+    }
+    if (CalendarSync.state.holdsLock) {
+        return true;
+    }
+    if (CalendarSync.state.canEdit === false || CalendarSync.state.permissionReadOnly) {
+        return false;
+    }
+    if (typeof TeamAuth !== 'undefined' && TeamAuth.isViewAsMode && TeamAuth.isViewAsMode()) {
+        return false;
+    }
+    if (isLockHeldByOtherUser()) {
+        return false;
+    }
+    return maybeAutoAcquireFreeLock();
+}
+
+function scheduleTeamCalendarSaveFromAppData() {
+    if (!teamSyncEnabled || typeof CalendarSync === 'undefined') {
+        return;
+    }
+    CalendarSync.scheduleSave(() => {
+        saveDataToLocalCache();
+        const payload = JSON.parse(JSON.stringify(appData));
+        if (payload && payload.ui) {
+            delete payload.ui;
+        }
+        return payload;
+    });
+}
+
+/**
+ * Blocking popup when another teacher holds the lock (not for free / same-user quiet acquire).
  * Rate-limited so rapid field changes do not spam alerts.
  * @returns {boolean} true when edit should be blocked
  */
@@ -33778,18 +34354,17 @@ function warnEditRequiresLockOnce() {
     if (!requiresExplicitLockForEdit()) {
         return false;
     }
+    // Quiet path handles free lock and same-user other session — no alert.
+    if (canQuietAcquireScheduleLock()) {
+        return true;
+    }
     const now = Date.now();
     if (now - lastEditRequiresLockWarnAt < EDIT_REQUIRES_LOCK_WARN_COOLDOWN_MS) {
         return true;
     }
     lastEditRequiresLockWarnAt = now;
     const lock = CalendarSync.state && CalendarSync.state.lock;
-    const me = typeof TeamAuth !== 'undefined' && TeamAuth.getUser && TeamAuth.getUser();
-    const heldByOther =
-        lock &&
-        lock.holderUserId &&
-        (!me || String(lock.holderUserId) !== String(me.id));
-    const msg = heldByOther
+    const msg = isLockHeldByOtherUser()
         ? t('teamLockedByFlash').replace('{name}', formatLockParty(lock))
         : t('teamNeedLockToSave');
     window.alert(msg);
@@ -33886,7 +34461,14 @@ function getEffectiveTeamReadOnly(lockState) {
             ? lockState.permissionReadOnly
             : typeof CalendarSync !== 'undefined' && CalendarSync.state && CalendarSync.state.canEdit === false
     );
+    if (permissionReadOnly) {
+        return true;
+    }
     const readOnly = Boolean(lockState && lockState.readOnly) || permissionReadOnly;
+    // Free lock or same-user other session: allow editing; quiet acquire runs on save.
+    if (canQuietAcquireScheduleLock()) {
+        return false;
+    }
     if (requiresExplicitLockForEdit()) {
         return true;
     }
@@ -34288,6 +34870,7 @@ function getTeamLockInteractionState(lockState) {
         holdsLock,
         readOnly
     })) {
+        // Same account elsewhere — editable via quiet takeover; chip stays informational.
         mode = 'blocked';
         summaryText = t('teamLockStatusOtherDevice');
         actionLabel = t('teamLockActionAcquire');
@@ -34394,11 +34977,10 @@ function updateTeamLockRoster(lockState) {
         lineEditing.hidden = false;
         lineEditing.textContent = t('teamLockLineEditing').replace('{name}', formatLockParty(lock));
     } else if (holdsLock && !pending) {
-        lineEditing.hidden = false;
-        lineEditing.textContent = t('teamLockStatusHeld');
+        // Quiet held state — no redundant "you are editing" drawer line.
+        lineEditing.hidden = true;
     } else if (!lock && !readOnly) {
-        lineEditing.hidden = false;
-        lineEditing.textContent = t('teamLockStatusFree');
+        lineEditing.hidden = true;
     } else {
         lineEditing.hidden = true;
     }
@@ -34445,18 +35027,7 @@ function applyTeamLockAccessState(lockState) {
             ? lockState.permissionReadOnly
             : typeof CalendarSync !== 'undefined' && CalendarSync.state && CalendarSync.state.canEdit === false
     );
-    const accessLevel =
-        (lockState && lockState.accessLevel) ||
-        (typeof CalendarSync !== 'undefined' && CalendarSync.state && CalendarSync.state.accessLevel) ||
-        'editor';
-    const readOnly = Boolean(lockState && lockState.readOnly) || permissionReadOnly;
-    const lock = lockState && lockState.lock;
-    const holdsLock = Boolean(lockState && lockState.holdsLock);
-    const pendingEditRequest = Boolean(
-        lockState && lockState.pendingEditRequest != null
-            ? lockState.pendingEditRequest
-            : typeof CalendarSync !== 'undefined' && CalendarSync.state.pendingEditRequest
-    );
+    const effectiveReadOnly = getEffectiveTeamReadOnly(lockState);
     const main = document.getElementById('appMain');
     const statusBar = document.getElementById('teamLockStatus');
     const btn = document.getElementById('teamLockStatusBtn');
@@ -34465,7 +35036,7 @@ function applyTeamLockAccessState(lockState) {
     const dismissBtn = document.getElementById('teamLockDismissBtn');
 
     if (main) {
-        main.classList.toggle('app-main--team-readonly', readOnly);
+        main.classList.toggle('app-main--team-readonly', effectiveReadOnly);
         main.removeAttribute('inert');
     }
 
@@ -36360,22 +36931,37 @@ function saveData() {
         if (isTeamAutoLockOnLoginPending()) {
             return;
         }
+        if (canQuietAcquireScheduleLock()) {
+            void ensureQuietScheduleLock().then((ok) => {
+                if (ok) {
+                    scheduleTeamCalendarSaveFromAppData();
+                    scheduleTabWarningsRefresh();
+                } else {
+                    notifyTeamLockRequiredForEdit();
+                }
+            });
+            return;
+        }
         notifyTeamLockRequiredForEdit();
         return;
     }
     if (teamSyncEnabled && typeof CalendarSync !== 'undefined' && CalendarSync.isReadOnly()) {
+        if (canQuietAcquireScheduleLock()) {
+            void ensureQuietScheduleLock().then((ok) => {
+                if (ok) {
+                    scheduleTeamCalendarSaveFromAppData();
+                    scheduleTabWarningsRefresh();
+                } else {
+                    notifyTeamLockRequiredForEdit({ isError: true, alert: false });
+                }
+            });
+            return;
+        }
         notifyTeamLockRequiredForEdit({ isError: true, alert: false });
         return;
     }
     if (teamSyncEnabled && typeof CalendarSync !== 'undefined') {
-        CalendarSync.scheduleSave(() => {
-            saveDataToLocalCache();
-            const payload = JSON.parse(JSON.stringify(appData));
-            if (payload && payload.ui) {
-                delete payload.ui;
-            }
-            return payload;
-        });
+        scheduleTeamCalendarSaveFromAppData();
     }
     scheduleTabWarningsRefresh();
 }

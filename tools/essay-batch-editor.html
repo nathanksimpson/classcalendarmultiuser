@@ -99,6 +99,36 @@
             .header-nav-track { gap: 0.5rem; }
         }
 
+        /* Copy options panel is position:fixed and moved to body when open so header overflow does not clip it */
+        #copyOptionsMenu > summary { list-style: none; }
+        #copyOptionsMenu > summary::-webkit-details-marker,
+        #copyOptionsMenu > summary::marker { display: none; }
+        #copyOptionsPanel {
+            display: none;
+            position: fixed;
+            z-index: 80;
+            width: 18.5rem;
+            max-width: calc(100vw - 1rem);
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.15), 0 8px 10px -6px rgba(15, 23, 42, 0.1);
+            padding: 0.75rem;
+        }
+        #copyOptionsPanel .copy-opt-label {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+            padding: 0.35rem 0.25rem;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: #334155;
+            cursor: pointer;
+            border-radius: 0.375rem;
+        }
+        #copyOptionsPanel .copy-opt-label:hover { background: #f8fafc; }
+        #copyOptionsPanel .copy-opt-label input { margin-top: 0.15rem; }
+
         #statsBar { top: var(--app-header-h, 4rem); }
         #outputToolbar.sticky {
             top: calc(var(--app-header-h, 4rem) + var(--stats-bar-h, 0px) + 0.5rem);
@@ -263,6 +293,26 @@
                         <span id="apiProviderBadge" class="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">—</span>
                     </button>
                     <span id="graderCalendarBadge" class="flex-shrink-0 max-w-[10rem] sm:max-w-[14rem] truncate text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded bg-slate-100 text-slate-500" title="Active ClassManager calendar for shared rules/prompts">Calendar: —</span>
+                    <details id="copyOptionsMenu" class="flex-shrink-0">
+                        <summary class="flex items-center gap-1.5 px-2 sm:px-3 py-2 text-sm font-medium text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap cursor-pointer" title="Choose what each Copy button includes. Applies to every student until you change it.">
+                            <i data-lucide="clipboard-copy" class="h-4 w-4 flex-shrink-0"></i>
+                            <span id="copyOptionsSummaryLabel">Copy: Full report</span>
+                            <i data-lucide="chevron-down" class="h-3.5 w-3.5 flex-shrink-0 text-slate-400"></i>
+                        </summary>
+                        <div id="copyOptionsPanel" role="group" aria-label="Copy options">
+                            <p class="text-[11px] text-slate-500 mb-2 leading-snug">Applies to every Copy button until you change it.</p>
+                            <div class="flex gap-2 mb-2">
+                                <button type="button" id="copyPresetFullBtn" class="flex-1 text-[11px] font-bold px-2 py-1.5 rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors">Full report</button>
+                                <button type="button" id="copyPresetTmsBtn" class="flex-1 text-[11px] font-bold px-2 py-1.5 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">TMS paste</button>
+                            </div>
+                            <label class="copy-opt-label"><input type="checkbox" id="copyOptName" class="rounded text-blue-600 focus:ring-blue-500 border-gray-300"> Student name / class</label>
+                            <label class="copy-opt-label"><input type="checkbox" id="copyOptCorrections" class="rounded text-blue-600 focus:ring-blue-500 border-gray-300"> Corrections</label>
+                            <label class="copy-opt-label"><input type="checkbox" id="copyOptCleaned" class="rounded text-blue-600 focus:ring-blue-500 border-gray-300"> Cleaned essay</label>
+                            <label class="copy-opt-label"><input type="checkbox" id="copyOptEvaluation" class="rounded text-blue-600 focus:ring-blue-500 border-gray-300"> Evaluation</label>
+                            <label class="copy-opt-label"><input type="checkbox" id="copyOptFeedback" class="rounded text-blue-600 focus:ring-blue-500 border-gray-300"> Teacher feedback</label>
+                            <label class="copy-opt-label"><input type="checkbox" id="copyOptPlainText" class="rounded text-blue-600 focus:ring-blue-500 border-gray-300"> Plain text (for TMS)</label>
+                        </div>
+                    </details>
                     <div class="flex-shrink-0 h-6 w-px bg-slate-200 mx-0.5 sm:mx-1" aria-hidden="true"></div>
                     <button id="exportSessionBtn" class="flex-shrink-0 flex items-center gap-1.5 px-2 sm:px-3 py-2 text-sm font-medium text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap">
                         <i data-lucide="save" class="h-4 w-4 flex-shrink-0"></i> Save
@@ -315,6 +365,15 @@
                     <span class="font-medium text-xs uppercase tracking-wide text-slate-400">To Do</span>
                     <span id="statRemaining" class="font-bold text-slate-800 text-base">0</span>
                 </div>
+
+                <!-- API Failures -->
+                <div class="flex items-center gap-2 text-slate-600">
+                    <div class="p-1 bg-red-50 rounded shadow-sm border border-red-100">
+                        <i data-lucide="alert-triangle" class="h-3.5 w-3.5 text-red-600"></i>
+                    </div>
+                    <span class="font-medium text-xs uppercase tracking-wide text-slate-400">API Fail</span>
+                    <span id="statFailed" class="font-bold text-slate-800 text-base">0</span>
+                </div>
             </div>
 
             <!-- Average Score -->
@@ -343,7 +402,7 @@
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
                 <div>
                     <h2 class="text-lg font-bold text-slate-800">Input Essays</h2>
-                    <p class="text-sm text-slate-500">Paste text below or upload PDF/Text files.</p>
+                    <p class="text-sm text-slate-500">Paste text below or upload PDF/Text files. End each essay with <span class="font-mono">-.-.</span> on its own line.</p>
                 </div>
                 <div class="flex items-center gap-3 w-full md:w-auto">
                     <select id="essayType" class="w-full md:w-auto bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
@@ -370,7 +429,7 @@
             </div>
 
             <div class="relative">
-                <textarea id="batchEssayText" class="w-full h-64 p-4 bg-slate-50 border border-slate-200 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-y" placeholder="Student Name&#10;Class Name (e.g., Leo, Pavo)&#10;[Essay Content Here...]&#10;---&#10;Next Student..."></textarea>
+                <textarea id="batchEssayText" class="w-full h-64 p-4 bg-slate-50 border border-slate-200 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-y" placeholder="Student Name&#10;Class Name (e.g., Leo, Pavo)&#10;[Essay Content Here...]&#10;-.-.&#10;Next Student..."></textarea>
                 <div class="absolute bottom-4 right-4 text-xs text-slate-400 bg-white px-2 py-1 rounded border shadow-sm">
                     <span id="essayCountBadge">0</span> Essays Detected
                 </div>
@@ -414,6 +473,7 @@
                         <option value="open">Open</option>
                         <option value="done">Done</option>
                         <option value="resubmit">Resubmit</option>
+                        <option value="failed">API failure</option>
                     </select>
                     <select id="outputSortSelect" class="sm:w-48 bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2">
                         <option value="batchOrder">Batch order</option>
@@ -498,11 +558,17 @@
                     <div>
                         <label class="block text-xs font-bold text-slate-500 uppercase mb-1" for="openaiModelSelect">Model</label>
                         <select id="openaiModelSelect" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-emerald-500 outline-none">
+                            <option value="gpt-6-astra">gpt-6-astra</option>
+                            <option value="gpt-6.1-sol">gpt-6.1-sol</option>
+                            <option value="gpt-6-luna">gpt-6-luna</option>
+                            <option value="gpt-5.4">gpt-5.4</option>
+                            <option value="gpt-5.4-mini">gpt-5.4-mini</option>
                             <option value="gpt-4o-mini">gpt-4o-mini (recommended)</option>
                             <option value="gpt-4o">gpt-4o</option>
                             <option value="gpt-4.1-mini">gpt-4.1-mini</option>
                             <option value="gpt-4.1">gpt-4.1</option>
                         </select>
+                        <p class="text-xs text-slate-400 mt-1">The models at the top cost more and are slower on a full class. gpt-4o-mini stays the default.</p>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-500 uppercase mb-1" for="openaiApiBaseInput">API Base URL (optional)</label>
@@ -760,7 +826,13 @@
                     </div>
 
                     <div class="overflow-x-auto min-w-0">
-                        <h4 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Corrections</h4>
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                            <h4 class="text-sm font-bold text-slate-400 uppercase tracking-wider">Corrections</h4>
+                            <label class="flex items-center gap-2 text-xs font-bold text-slate-500 cursor-pointer select-none" title="When on, deleted text stays red with a strikethrough, and new text is red and bold.">
+                                <input type="checkbox" data-role="trackChangesToggle" class="w-3.5 h-3.5 rounded text-red-600 focus:ring-red-500 border-gray-300">
+                                Track changes
+                            </label>
+                        </div>
                         <div data-role="correctionsEditor" class="bg-white min-w-0"></div>
                     </div>
                     
@@ -774,6 +846,16 @@
                 <div class="lg:col-span-4 border-t lg:border-t-0 lg:border-l border-slate-100 pt-6 lg:pt-0 lg:pl-8 min-w-0">
                     <!-- Actions -->
                     <div class="flex flex-wrap justify-end gap-2 mb-4">
+                        <div data-role="listStatusGroup" class="w-full flex flex-wrap items-center justify-end gap-2">
+                            <span class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Essays list</span>
+                            <div data-role="listStatusChips" class="flex flex-wrap gap-1"></div>
+                            <span data-role="listStatusNote" class="hidden text-[10px] font-semibold text-slate-400">Not linked to the Essays list</span>
+                            <div data-role="demeritFlags" class="hidden basis-full flex flex-wrap justify-end gap-2"></div>
+                        </div>
+                        <label class="basis-full block text-left">
+                            <span class="block text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1">Notes</span>
+                            <textarea data-role="listNote" rows="2" placeholder="A sentence or two" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-slate-400 resize-y disabled:bg-slate-50 disabled:text-slate-400"></textarea>
+                        </label>
                         <label class="flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer select-none border border-transparent has-[:checked]:bg-green-100 has-[:checked]:text-green-800 has-[:checked]:border-green-200">
                             <input type="checkbox" data-role="doneCheckbox" class="w-3.5 h-3.5 rounded text-green-600 focus:ring-green-500 border-gray-300">
                             <span>Done</span>
@@ -785,15 +867,8 @@
                          <button data-role="toggleLockBtn" class="text-xs font-bold px-3 py-1.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors flex items-center gap-1">
                             <i data-lucide="lock" class="h-3 w-3"></i> Lock
                         </button>
-                        <label class="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors cursor-pointer ml-2 mr-1" title="Include cleaned essay text without markup in the copied report">
-                            <input type="checkbox" data-role="includeCleanCheckbox" class="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 border-gray-300">
-                            <span>Clean</span>
-                        </label>
-                        <button data-role="copyBtn" class="text-xs font-bold px-3 py-1.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors flex items-center gap-1" title="Copy full report">
+                        <button data-role="copyBtn" class="text-xs font-bold px-3 py-1.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors flex items-center gap-1" title="Copy using the header Copy options">
                             <i data-lucide="copy" class="h-3 w-3"></i> Copy
-                        </button>
-                        <button data-role="copyTmsBtn" class="text-xs font-bold px-3 py-1.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors flex items-center gap-1" title="Copy corrected essay and feedback for manual paste into TMS">
-                            <i data-lucide="clipboard-check" class="h-3 w-3"></i> Copy for TMS
                         </button>
                     </div>
 
@@ -829,25 +904,28 @@
         </div>
     </template>
 
-    <script src="js/utils.js?v=20260606-clipboard-dash"></script>
-    <script src="js/storage-prune.js?v=20260604-session-prune"></script>
-    <script src="js/session-restore.js?v=20260608-notes-app"></script>
-    <script src="js/team-auth.js?v=20260601-role-palette"></script>
-    <script src="js/calendar-mutations.js?v=20260903-essay-grader"></script>
-    <script src="js/calendar-sync.js?v=20260903-essay-grader"></script>
-    <script src="js/essay-batch-grader-calendar.js?v=20260903-essay-grader"></script>
+    <script src="/js/utils.js?v=20260606-clipboard-dash"></script>
+    <script src="/js/storage-prune.js?v=20260604-session-prune"></script>
+    <script src="/js/session-restore.js?v=20260608-notes-app"></script>
+    <script src="/js/team-auth.js?v=20260601-role-palette"></script>
+    <script src="/js/calendar-mutations.js?v=20261006-essay-list-chips"></script>
+    <script src="/js/conflict-merge.js?v=20261006-essay-status-sync"></script>
+    <script src="/js/calendar-sync.js?v=20261006-essay-list-chips"></script>
+    <script src="/js/classroom-domain.js?v=20261007-essay-note-sync"></script>
+    <script src="/js/essay-batch-grader-calendar.js?v=20261006-essay-status-sync"></script>
     <script>
         // ==========================================
         // CONFIG
         // ==========================================
-        const CONCURRENCY_LIMIT = 3;
+        const CONCURRENCY_LIMIT = 2;
         const MAX_RETRIES = 5;
         const TIMEOUT_MS = 120000;
-        // Lower temperature = more literal, minimal edits (especially corrections).
+        // Corrections and audit are warm enough to catch capitalization and nonsense words.
+        // Grading stays steadier. gpt-6-astra and gpt-6.1-sol ignore temperature.
         const AI_TEMPERATURE = {
             grading: 0.45,
-            corrections: 0.12,
-            audit: 0.15,
+            corrections: 0.2,
+            audit: 0.30,
             rule: 0.4
         };
 
@@ -1124,17 +1202,81 @@
         if (storedModelEssays && storedModelVersion !== String(MODEL_ESSAYS_VERSION)) {
             needsGradingDefaultsMigration = true;
         }
+        function readFreshBatchId() {
+            try {
+                return String(new URLSearchParams(location.search || '').get('batchId') || '').trim();
+            } catch (_) {
+                return '';
+            }
+        }
+
+        const freshBatchId = readFreshBatchId();
+        const FRESH_BATCH_SESSION_KEY = freshBatchId ? `ccmu_fresh_${freshBatchId}` : '';
+
+        function readIsolatedSession() {
+            if (!FRESH_BATCH_SESSION_KEY) {
+                return null;
+            }
+            try {
+                const raw = sessionStorage.getItem(FRESH_BATCH_SESSION_KEY);
+                return raw ? JSON.parse(raw) : null;
+            } catch (_) {
+                return null;
+            }
+        }
+
+        function writeIsolatedSession() {
+            if (!FRESH_BATCH_SESSION_KEY) {
+                return;
+            }
+            try {
+                sessionStorage.setItem(
+                    FRESH_BATCH_SESSION_KEY,
+                    JSON.stringify({
+                        textInput: appState.textInput || '',
+                        results: appState.results || [],
+                        listLinks: appState.listLinks || [],
+                        batchTeachingNotes: appState.batchTeachingNotes || null,
+                        essayType: appState.essayType || ''
+                    })
+                );
+            } catch (_) {
+                /* quota */
+            }
+        }
+
+        const isolatedSession = readIsolatedSession();
         let appState = {
             essays: [],
-            results: loadResultsFromStorage(),
+            results: freshBatchId
+                ? (isolatedSession && Array.isArray(isolatedSession.results) ? isolatedSession.results : [])
+                : loadResultsFromStorage(),
             rules: parsedRules,
             modelEssays: parsedModels,
-            essayType: localStorage.getItem('bg_essayType') || 'news-response',
-            textInput: localStorage.getItem('bg_textInput') || '',
+            essayType: freshBatchId
+                ? (isolatedSession && isolatedSession.essayType) || 'news-response'
+                : localStorage.getItem('bg_essayType') || 'news-response',
+            textInput: freshBatchId
+                ? (isolatedSession && isolatedSession.textInput) || ''
+                : localStorage.getItem('bg_textInput') || '',
             speechTemplate: localStorage.getItem('bg_speechTemplate') || '',
-            batchTeachingNotes: safeJsonParse('bg_batchTeachingNotes', null),
+            batchTeachingNotes: freshBatchId
+                ? (isolatedSession && isolatedSession.batchTeachingNotes) || null
+                : safeJsonParse('bg_batchTeachingNotes', null),
+            listLinks: freshBatchId && isolatedSession && Array.isArray(isolatedSession.listLinks)
+                ? isolatedSession.listLinks
+                : [],
             isAnalyzing: false
         };
+
+        let listStatusCalendarReady = false;
+        const ESSAY_STATUS_PING_KEY = 'ccp-essay-status-ping';
+        const LIST_STATUS_CHIPS = [
+            { id: 'submitted', label: 'Received', on: 'bg-blue-500 text-white border-blue-500', off: 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50' },
+            { id: 'complete', label: 'Complete', on: 'bg-emerald-500 text-white border-emerald-500', off: 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50' },
+            { id: 'resubmit_required', label: 'Resubmit', on: 'bg-red-600 text-white border-red-600', off: 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50' },
+            { id: 'demerit', label: 'Demerit', on: 'bg-orange-500 text-white border-orange-500', off: 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50' }
+        ];
 
         let lastAppliedSortKey = null;
         
@@ -1159,6 +1301,160 @@
 
         function saveViewState() {
             try { localStorage.setItem('bg_outputView', JSON.stringify(viewState)); } catch (e) {}
+        }
+
+        const COPY_OPTION_KEYS = ['includeName', 'includeCorrections', 'includeCleaned', 'includeEvaluation', 'includeFeedback', 'plainText'];
+        const COPY_OPTION_DEFAULTS = {
+            includeName: true,
+            includeCorrections: true,
+            includeCleaned: false,
+            includeEvaluation: true,
+            includeFeedback: true,
+            plainText: false
+        };
+        const COPY_PRESET_TMS = {
+            includeName: false,
+            includeCorrections: false,
+            includeCleaned: true,
+            includeEvaluation: false,
+            includeFeedback: true,
+            plainText: true
+        };
+        const COPY_OPTION_CHECKBOX_IDS = {
+            includeName: 'copyOptName',
+            includeCorrections: 'copyOptCorrections',
+            includeCleaned: 'copyOptCleaned',
+            includeEvaluation: 'copyOptEvaluation',
+            includeFeedback: 'copyOptFeedback',
+            plainText: 'copyOptPlainText'
+        };
+
+        function normalizeCopyOptions(raw) {
+            const opts = { ...COPY_OPTION_DEFAULTS };
+            if (raw && typeof raw === 'object') {
+                COPY_OPTION_KEYS.forEach((key) => {
+                    if (typeof raw[key] === 'boolean') opts[key] = raw[key];
+                });
+            }
+            return opts;
+        }
+
+        function loadCopyOptionsFromStorage() {
+            try {
+                const stored = localStorage.getItem('bg_copyOptions');
+                if (stored) return normalizeCopyOptions(JSON.parse(stored));
+            } catch (e) {}
+            return { ...COPY_OPTION_DEFAULTS };
+        }
+
+        let copyOptions = loadCopyOptionsFromStorage();
+
+        function saveCopyOptions() {
+            try { localStorage.setItem('bg_copyOptions', JSON.stringify(copyOptions)); } catch (e) {}
+        }
+
+        function copyOptionsMatch(a, b) {
+            return COPY_OPTION_KEYS.every((key) => !!a[key] === !!b[key]);
+        }
+
+        function countCopyParts(opts = copyOptions) {
+            return ['includeName', 'includeCorrections', 'includeCleaned', 'includeEvaluation', 'includeFeedback']
+                .filter((key) => opts[key]).length;
+        }
+
+        function hasCopyContent(opts = copyOptions) {
+            return countCopyParts(opts) > 0;
+        }
+
+        function getCopyOptionsSummary(opts = copyOptions) {
+            if (copyOptionsMatch(opts, COPY_PRESET_TMS)) return 'Copy: TMS';
+            if (copyOptionsMatch(opts, COPY_OPTION_DEFAULTS)) return 'Copy: Full report';
+            const n = countCopyParts(opts);
+            return n === 1 ? 'Copy: 1 part' : `Copy: ${n} parts`;
+        }
+
+        function syncCopyOptionsUI() {
+            COPY_OPTION_KEYS.forEach((key) => {
+                const el = document.getElementById(COPY_OPTION_CHECKBOX_IDS[key]);
+                if (el) el.checked = !!copyOptions[key];
+            });
+            const summaryLabel = document.getElementById('copyOptionsSummaryLabel');
+            if (summaryLabel) summaryLabel.textContent = getCopyOptionsSummary();
+        }
+
+        function readCopyOptionsFromUI() {
+            const next = {};
+            COPY_OPTION_KEYS.forEach((key) => {
+                next[key] = !!document.getElementById(COPY_OPTION_CHECKBOX_IDS[key])?.checked;
+            });
+            copyOptions = normalizeCopyOptions(next);
+            saveCopyOptions();
+            syncCopyOptionsUI();
+        }
+
+        function applyCopyPreset(preset) {
+            copyOptions = normalizeCopyOptions(preset);
+            saveCopyOptions();
+            syncCopyOptionsUI();
+        }
+
+        function positionCopyOptionsPanel() {
+            const details = document.getElementById('copyOptionsMenu');
+            const panel = document.getElementById('copyOptionsPanel');
+            const summary = details?.querySelector('summary');
+            if (!details || !panel || !summary) return;
+            if (!details.open) {
+                panel.style.display = 'none';
+                return;
+            }
+            if (panel.parentElement !== document.body) document.body.appendChild(panel);
+            panel.style.display = 'block';
+            const rect = summary.getBoundingClientRect();
+            panel.style.top = `${Math.round(rect.bottom + 6)}px`;
+            const panelWidth = panel.offsetWidth || 296;
+            let left = rect.right - panelWidth;
+            if (left < 8) left = 8;
+            if (left + panelWidth > window.innerWidth - 8) left = window.innerWidth - panelWidth - 8;
+            panel.style.left = `${Math.round(left)}px`;
+            panel.style.right = 'auto';
+        }
+
+        function bindCopyOptionsMenu() {
+            const details = document.getElementById('copyOptionsMenu');
+            const panel = document.getElementById('copyOptionsPanel');
+            if (!details || !panel) return;
+            panel.style.display = 'none';
+            syncCopyOptionsUI();
+            details.addEventListener('toggle', () => {
+                positionCopyOptionsPanel();
+            });
+            window.addEventListener('resize', () => {
+                if (details.open) positionCopyOptionsPanel();
+            });
+            document.querySelector('.header-nav-scroll')?.addEventListener('scroll', () => {
+                if (details.open) positionCopyOptionsPanel();
+            });
+            document.addEventListener('click', (e) => {
+                if (!details.open) return;
+                if (details.contains(e.target) || panel.contains(e.target)) return;
+                details.open = false;
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && details.open) details.open = false;
+            });
+            panel.addEventListener('click', (e) => e.stopPropagation());
+            COPY_OPTION_KEYS.forEach((key) => {
+                const el = document.getElementById(COPY_OPTION_CHECKBOX_IDS[key]);
+                if (el) el.addEventListener('change', readCopyOptionsFromUI);
+            });
+            document.getElementById('copyPresetFullBtn')?.addEventListener('click', (e) => {
+                e.preventDefault();
+                applyCopyPreset(COPY_OPTION_DEFAULTS);
+            });
+            document.getElementById('copyPresetTmsBtn')?.addEventListener('click', (e) => {
+                e.preventDefault();
+                applyCopyPreset(COPY_PRESET_TMS);
+            });
         }
 
         function migrateResults(results) {
@@ -1209,9 +1505,10 @@
             return getValidResults().filter(r => {
                 if (viewState.filterClass !== 'all' && r.className !== viewState.filterClass) return false;
                 const status = viewState.filterStatus || 'all';
-                if (status === 'open' && (r.isDone || r.isResubmit)) return false;
+                if (status === 'open' && (r.isDone || r.isResubmit || r.isFailed)) return false;
                 if (status === 'done' && !r.isDone) return false;
                 if (status === 'resubmit' && !r.isResubmit) return false;
+                if (status === 'failed' && !r.isFailed) return false;
                 return resultMatchesSearch(r, viewState.searchQuery);
             });
         }
@@ -1375,7 +1672,71 @@
             return result;
         }
 
-        function saveState() {
+        function rememberListLink(essay) {
+            if (!essay || !essay.classId || !essay.syllabusRowId || !essay.studentId) {
+                return;
+            }
+            if (!Array.isArray(appState.listLinks)) {
+                appState.listLinks = [];
+            }
+            const studentName = essay.studentName || '';
+            const className = essay.className || '';
+            const title = essay.title || essay.essayTitle || '';
+            const existing = appState.listLinks.find((link) =>
+                link && link.studentName === studentName && link.className === className && (link.title || '') === title
+            );
+            const entry = {
+                studentName,
+                className,
+                title,
+                classId: essay.classId,
+                syllabusRowId: essay.syllabusRowId,
+                studentId: essay.studentId
+            };
+            if (existing) {
+                Object.assign(existing, entry);
+            } else {
+                appState.listLinks.push(entry);
+            }
+        }
+
+        function findStoredListLink(studentName, className) {
+            const hits = (appState.listLinks || []).filter((link) =>
+                link &&
+                link.studentName === studentName &&
+                link.className === className &&
+                link.classId &&
+                link.syllabusRowId &&
+                link.studentId
+            );
+            return hits.length === 1 ? hits[0] : null;
+        }
+
+        function copyListLinkFields(target, source) {
+            if (!target || !source) {
+                return target;
+            }
+            ['classId', 'syllabusRowId', 'studentId'].forEach((key) => {
+                if (source[key]) {
+                    target[key] = source[key];
+                }
+            });
+            if (source.essayTitle || source.title) {
+                target.essayTitle = source.essayTitle || source.title;
+            }
+            if (source.listStatus) {
+                target.listStatus = source.listStatus;
+            }
+            if (source.retestAssigned != null) {
+                target.retestAssigned = Boolean(source.retestAssigned);
+            }
+            if (source.retestPassed != null) {
+                target.retestPassed = Boolean(source.retestPassed);
+            }
+            return target;
+        }
+
+        function saveState(options) {
             try {
                 // Explicitly pull exact real-time DOM states to prevent missing changes before an unexpected reload
                 if (elements.textarea && elements.textarea.value !== undefined) {
@@ -1389,17 +1750,24 @@
                 }
                 
                 localStorage.setItem('bg_rules', JSON.stringify(appState.rules));
-                localStorage.setItem('bg_results', JSON.stringify(appState.results));
                 localStorage.setItem('bg_essayType', appState.essayType);
-                localStorage.setItem('bg_textInput', appState.textInput);
                 localStorage.setItem('bg_speechTemplate', appState.speechTemplate || '');
                 localStorage.setItem('bg_modelEssays', JSON.stringify(appState.modelEssays));
-                if (appState.batchTeachingNotes) {
-                    localStorage.setItem('bg_batchTeachingNotes', JSON.stringify(appState.batchTeachingNotes));
+                if (freshBatchId) {
+                    // This tab keeps its own essays and grades. Do not overwrite another scrape tab.
+                    writeIsolatedSession();
                 } else {
-                    localStorage.removeItem('bg_batchTeachingNotes');
+                    localStorage.setItem('bg_results', JSON.stringify(appState.results));
+                    localStorage.setItem('bg_textInput', appState.textInput);
+                    if (appState.batchTeachingNotes) {
+                        localStorage.setItem('bg_batchTeachingNotes', JSON.stringify(appState.batchTeachingNotes));
+                    } else {
+                        localStorage.removeItem('bg_batchTeachingNotes');
+                    }
                 }
-                scheduleGraderCalendarSave();
+                if (options && options.syncGrader) {
+                    scheduleGraderCalendarSave();
+                }
             } catch (e) {
                 console.warn('Auto-save failed:', e);
                 if (e.name === 'QuotaExceededError') {
@@ -1483,10 +1851,31 @@
             return (String(text || '').trim().match(/\S+/g) || []).length;
         }
 
+        // End-of-essay marker. A line of dashes is too easy for students to type by accident.
+        const ESSAY_END_MARKER = '-.-.';
+        const ESSAY_END_LINE_RE = /^[ \t]*-\.-\.[ \t]*$/;
+
+        function isEssayEndMarkerLine(line) {
+            return ESSAY_END_LINE_RE.test(line);
+        }
+
+        function splitEssayBlocks(text) {
+            const blocks = [];
+            let current = [];
+            String(text || '').split(/\r?\n/).forEach((line) => {
+                if (isEssayEndMarkerLine(line)) {
+                    blocks.push(current.join('\n'));
+                    current = [];
+                } else {
+                    current.push(line);
+                }
+            });
+            blocks.push(current.join('\n'));
+            return blocks;
+        }
+
         function countEssayBlocks(text) {
-            const trimmed = (text || '').trim();
-            if (!trimmed) return 0;
-            return (trimmed.match(/^---+\s*$/gm) || []).length + 1;
+            return splitEssayBlocks(text).filter((block) => block.trim()).length;
         }
 
         function getLetterGrade(totalScore) {
@@ -1599,7 +1988,8 @@
             const total = validResults.length;
             const doneCount = validResults.filter(r => r.isDone).length;
             const resubmitCount = validResults.filter(r => r.isResubmit).length;
-            const remaining = Math.max(0, total - doneCount - resubmitCount);
+            const failedCount = validResults.filter(r => r.isFailed).length;
+            const remaining = Math.max(0, total - doneCount - resubmitCount - failedCount);
 
             let totalScore = 0;
             avgPool.forEach(r => { totalScore += getTotalScore(r); });
@@ -1609,6 +1999,7 @@
             if(elements.statGraded) elements.statGraded.textContent = doneCount;
             if(elements.statResubmit) elements.statResubmit.textContent = resubmitCount;
             if(elements.statRemaining) elements.statRemaining.textContent = remaining;
+            if(elements.statFailed) elements.statFailed.textContent = failedCount;
             if(elements.statAverage) elements.statAverage.textContent = avg;
 
             const bar = document.getElementById('statsBar');
@@ -1631,12 +2022,16 @@
             const textarea = document.getElementById('batchEssayText');
             if(textarea) {
                 appState.textInput = textarea.value;
-                try { localStorage.setItem('bg_textInput', appState.textInput); } catch(e) {} // Fast sync save for main text input
+                if (freshBatchId) {
+                    writeIsolatedSession();
+                } else {
+                    try { localStorage.setItem('bg_textInput', appState.textInput); } catch(e) {} // Fast sync save for main text input
+                }
             }
         }
 
         function parseInput(text) {
-            return text.split(/---+\n?/).map(b => {
+            return splitEssayBlocks(text).map(b => {
                 const lines = b.trim().split(/\r?\n/);
                 if (lines.length < 3) return null;
                 return {
@@ -1659,6 +2054,94 @@
             if(bar) bar.style.width = `${(total / 20) * 100}%`;
             
             updateStats();
+        }
+
+        function htmlToPlainText(html) {
+            const temp = document.createElement('div');
+            temp.innerHTML = html || '';
+            const text = temp.innerText || temp.textContent || '';
+            return text.replace(/\u00a0/g, ' ').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+        }
+
+        async function copyCardWithOptions(card, data, correctionsQuill, feedbackQuill, rubric) {
+            if (data.isFailed) {
+                notify('Cannot copy failed analysis', 'error');
+                return false;
+            }
+            if (!hasCopyContent(copyOptions)) {
+                notify('Choose at least one part in Copy options', 'error');
+                return false;
+            }
+
+            const grade = card.querySelector('[data-role="finalGrade"]')?.innerText || '';
+            const totalScore = card.querySelector('[data-role="totalScore"]')?.innerText || '0';
+            const correctionsHtml = correctionsQuill.root.innerHTML;
+            const cleanedHtml = buildCleanEssayHtml(correctionsHtml);
+            const feedbackHtml = feedbackQuill.root.innerHTML;
+            const evaluationHtml = rubric.scores.map((s) => `<b>${s.label}:</b> ${data.analysis[s.id] || 0}/${s.max}<br>`).join('');
+            const evaluationPlain = rubric.scores.map((s) => `${s.label}: ${data.analysis[s.id] || 0}/${s.max}`).join('\n')
+                + `\nTotal: ${totalScore}/20\nFinal Grade: ${grade}`;
+            const isTmsPreset = copyOptionsMatch(copyOptions, COPY_PRESET_TMS);
+
+            if (copyOptions.plainText) {
+                const parts = [];
+                if (copyOptions.includeName) parts.push(`${data.studentName} (${data.className})`);
+                if (copyOptions.includeCorrections) {
+                    parts.push('CORRECTIONS');
+                    parts.push(htmlToPlainText(correctionsHtml));
+                }
+                if (copyOptions.includeCleaned) {
+                    const cleanText = htmlToPlainText(cleanedHtml);
+                    if (isTmsPreset) parts.push(cleanText);
+                    else {
+                        parts.push('CLEANED ESSAY');
+                        parts.push(cleanText);
+                    }
+                }
+                if (copyOptions.includeEvaluation) {
+                    parts.push('EVALUATION');
+                    parts.push(evaluationPlain);
+                }
+                if (copyOptions.includeFeedback) {
+                    const feedbackText = feedbackQuill.getText().trim();
+                    if (isTmsPreset) {
+                        if (feedbackText) parts.push(`--- Teacher feedback ---\n${feedbackText}`);
+                    } else {
+                        parts.push('TEACHER FEEDBACK');
+                        parts.push(feedbackText);
+                    }
+                }
+                const plain = parts.filter((part) => part !== '').join('\n\n').trim();
+                try {
+                    await navigator.clipboard.writeText(plain);
+                    return true;
+                } catch (e) {
+                    return copyRichText(`<div>${escapeHtml(plain).replace(/\n/g, '<br>')}</div>`);
+                }
+            }
+
+            const htmlParts = [];
+            if (copyOptions.includeName) {
+                htmlParts.push(`<p style="font-size: 14pt; font-weight: bold;">${escapeHtml(data.studentName)} (${escapeHtml(data.className)})</p>`);
+            }
+            if (copyOptions.includeCorrections) {
+                htmlParts.push(`<p style="font-size: 14pt; font-weight: bold;">CORRECTIONS</p>
+                    <div style="border: 1px solid #cccccc; padding: 10px; border-radius: 5px;">${correctionsHtml}</div>`);
+            }
+            if (copyOptions.includeCleaned) {
+                htmlParts.push(`<p style="font-size: 14pt; font-weight: bold;">CLEANED ESSAY</p>
+                    <div style="border: 1px solid #cccccc; padding: 10px; border-radius: 5px; background-color: #f8fafc;">${cleanedHtml}</div>`);
+            }
+            if (copyOptions.includeEvaluation) {
+                htmlParts.push(`<p style="font-size: 14pt; font-weight: bold;">EVALUATION</p>
+                    <p>${evaluationHtml}<br><b>Total:</b> ${totalScore}/20<br><b>Final Grade:</b> ${grade}</p>`);
+            }
+            if (copyOptions.includeFeedback) {
+                htmlParts.push(`<p style="font-size: 14pt; font-weight: bold;">TEACHER FEEDBACK</p>
+                    <div>${feedbackHtml}</div>`);
+            }
+            const reportHtml = `<div style="font-family: sans-serif; font-size: 11pt; line-height: 1.5;">${htmlParts.join('<br>')}</div>`;
+            return copyRichText(reportHtml);
         }
 
         function copyRichText(htmlContent) {
@@ -1916,7 +2399,7 @@ MINIMAL EDIT RULE (CRITICAL):
 - Prefer narrow <del>old</del><ins>new</ins> spans (one word or short phrase) over rewriting whole clauses or sentences.
 - Keep the student's original wording wherever it is grammatically acceptable.
 - Do NOT paraphrase, restructure, or rewrite sentences for style, fluency, or "better English."
-- Only replace a full sentence when the entire sentence is unintelligible.
+- Replace a longer stretch only when the sentence is ungrammatical. Never do it for style, tone, or smoother English.
 
 MARKUP RULE (CRITICAL):
 - For EVERY wording change you MUST use <del>old</del><ins>new</ins>.
@@ -2109,26 +2592,33 @@ Base Context: {{baseRubric}}
         async function bootstrapGraderCalendar() {
             if (!globalThis.CCPEssayBatchGraderCalendar) {
                 updateGraderCalendarBadge('Calendar sync script missing', true);
+                listStatusCalendarReady = true;
+                refreshAllListStatus();
                 return;
             }
-            await CCPEssayBatchGraderCalendar.bootstrap({
-                onStatus: (msg, isError) => {
-                    updateGraderCalendarBadge(msg, isError);
-                    if (msg) notify(msg, isError ? 'error' : 'info');
-                },
-                getLocalFallback: () => ({
-                    rules: safeJsonParse('bg_rules', null),
-                    promptBlocks: safeJsonParse('bg_promptBlocks', null),
-                    modelEssays: safeJsonParse('bg_modelEssays', null),
-                    speechTemplate: localStorage.getItem('bg_speechTemplate') || ''
-                }),
-                applySettings: applyEssayGraderSettings,
-                getSettingsToSave: buildEssayGraderSettingsBlob
-            });
-            syncSpeechTemplatePanel();
-            if (typeof renderRulesList === 'function') renderRulesList();
-            if (typeof renderModelEssaysList === 'function') renderModelEssaysList();
-            updateRulesModelsMatchStatus();
+            try {
+                await CCPEssayBatchGraderCalendar.bootstrap({
+                    onStatus: (msg, isError) => {
+                        updateGraderCalendarBadge(msg, isError);
+                        if (msg) notify(msg, isError ? 'error' : 'info');
+                    },
+                    getLocalFallback: () => ({
+                        rules: safeJsonParse('bg_rules', null),
+                        promptBlocks: safeJsonParse('bg_promptBlocks', null),
+                        modelEssays: safeJsonParse('bg_modelEssays', null),
+                        speechTemplate: localStorage.getItem('bg_speechTemplate') || ''
+                    }),
+                    applySettings: applyEssayGraderSettings,
+                    getSettingsToSave: buildEssayGraderSettingsBlob
+                });
+                syncSpeechTemplatePanel();
+                if (typeof renderRulesList === 'function') renderRulesList();
+                if (typeof renderModelEssaysList === 'function') renderModelEssaysList();
+                updateRulesModelsMatchStatus();
+            } finally {
+                listStatusCalendarReady = true;
+                refreshAllListStatus();
+            }
         }
 
         function getSpeechTemplateProtectionBlock(essayType) {
@@ -2478,14 +2968,218 @@ Copy any template wording that appears in the student speech exactly. Only corre
             return { likelyChanged, marked, ok: !likelyChanged || marked };
         }
 
-        async function redoCorrectionsWithMarks(originalEssay, previousCorrectedHtml, essayType) {
-            const system = `You fix ESL essay corrections so EVERY wording change uses bare <del>/<ins> tags.
+        const CORRECTIONS_COVERAGE_EXTRA = `
+
+INLINE EDITS ONLY (this overrides any urge to rewrite):
+- Copy the student's sentences. Change only the broken piece.
+- A normal fix is one word or a short phrase: spelling, a capital letter, an article, a verb ending, punctuation, or a nonsense word.
+- You may replace a longer stretch only when grammar or sentence structure is wrong (word order, a missing subject, or a verb form that makes the sentence ungrammatical). Do not do that for style, tone, or "better English."
+- If the sentence is already grammatical, leave the student's wording even if a native speaker would phrase it differently.
+- Do not add ideas, examples, or new sentences.
+- Never drop the original word. A replacement is always <del>original</del><ins>new</ins>.
+Example: "she go to home" becomes "she <del>go</del><ins>goes</ins> <del>to home</del><ins>home</ins>". Do not replace that with a newly written sentence.`;
+
+        const FEEDBACK_BEFORE_EDITS = `
+
+THIS REQUEST IS SCORES AND TEACHER FEEDBACK ONLY.
+The wording edits are already decided. They are listed in the user message as plain "original → corrected" lines.
+- teacherFeedback must agree with that edit list. Mention the same mistakes and the same fixes.
+- Do not invent extra wording changes that are not in the list.
+- Quote the student's original wrong words and the corrected form in normal sentences. Example: You wrote "cat" — say "cats".
+- Never put <del>, <ins>, or other edit marks in teacherFeedback.
+- Scores still judge the original essay, before those edits.
+- Set correctedEssay to an empty string.`;
+
+        function escapeHtmlText(text) {
+            return String(text || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        function tokenizeForDiff(text) {
+            return String(text || '').match(/\s+|\S+/g) || [];
+        }
+
+        function diffTokens(before, after) {
+            const n = before.length;
+            const m = after.length;
+            const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+            for (let i = n - 1; i >= 0; i--) {
+                for (let j = m - 1; j >= 0; j--) {
+                    dp[i][j] = before[i] === after[j]
+                        ? dp[i + 1][j + 1] + 1
+                        : Math.max(dp[i + 1][j], dp[i][j + 1]);
+                }
+            }
+            const ops = [];
+            let i = 0;
+            let j = 0;
+            while (i < n && j < m) {
+                if (before[i] === after[j]) {
+                    ops.push({ type: 'eq', text: before[i] });
+                    i++;
+                    j++;
+                } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+                    ops.push({ type: 'del', text: before[i] });
+                    i++;
+                } else {
+                    ops.push({ type: 'ins', text: after[j] });
+                    j++;
+                }
+            }
+            while (i < n) ops.push({ type: 'del', text: before[i++] });
+            while (j < m) ops.push({ type: 'ins', text: after[j++] });
+            return ops;
+        }
+
+        function renderTokenDiff(beforeText, afterText) {
+            let html = '';
+            diffTokens(tokenizeForDiff(beforeText), tokenizeForDiff(afterText)).forEach(op => {
+                const text = escapeHtmlText(op.text);
+                if (op.type === 'del' && /\S/.test(op.text)) html += `<del>${text}</del>`;
+                else if (op.type === 'ins' && /\S/.test(op.text)) html += `<ins>${text}</ins>`;
+                else html += text;
+            });
+            return html;
+        }
+
+        function finalTextFromEditHtml(html) {
+            const wrap = document.createElement('div');
+            wrap.innerHTML = html || '';
+            wrap.querySelectorAll('del, s, strike').forEach(el => el.remove());
+            wrap.querySelectorAll('ins').forEach(el => {
+                el.replaceWith(document.createTextNode(el.textContent || ''));
+            });
+            return (wrap.textContent || '').replace(/\u00a0/g, ' ');
+        }
+
+        function splitEssayParagraphs(essay) {
+            const text = String(essay || '').replace(/\r\n/g, '\n').trim();
+            if (!text) return [];
+            const blank = text.split(/\n\s*\n/).map(p => p.replace(/\s*\n\s*/g, ' ').trim()).filter(Boolean);
+            if (blank.length > 1) return blank;
+            const lines = text.split(/\n/).map(p => p.trim()).filter(Boolean);
+            return lines.length ? lines : [text];
+        }
+
+        function correctedParagraphTexts(html) {
+            const temp = document.createElement('div');
+            temp.innerHTML = html || '';
+            const nodes = [...temp.querySelectorAll('p')];
+            if (!nodes.length) return [finalTextFromEditHtml(html)];
+            return nodes.map(node => finalTextFromEditHtml(node.innerHTML));
+        }
+
+        function alignEssayParagraphs(originalEssay, correctedHtml) {
+            let origParas = splitEssayParagraphs(originalEssay);
+            let finals = correctedParagraphTexts(correctedHtml);
+            const lines = String(originalEssay || '').replace(/\r\n/g, '\n').trim().split(/\n/).map(p => p.trim()).filter(Boolean);
+            if (origParas.length !== finals.length && lines.length === finals.length) origParas = lines;
+            if (origParas.length !== finals.length) {
+                origParas = [origParas.join(' ')];
+                finals = [finals.join(' ')];
+            }
+            return { origParas, finals };
+        }
+
+        function restoreDeletionMarksFromOriginal(originalEssay, correctedHtml) {
+            if (!originalEssay || !correctedHtml) return correctedHtml;
+            const { origParas, finals } = alignEssayParagraphs(originalEssay, correctedHtml);
+            const out = [];
+            for (let i = 0; i < origParas.length; i++) {
+                const orig = origParas[i] || '';
+                const finalText = finals[i] || '';
+                if (!orig && finalText) out.push(`<p><ins>${escapeHtmlText(finalText)}</ins></p>`);
+                else if (orig && !finalText) out.push(`<p><del>${escapeHtmlText(orig)}</del></p>`);
+                else out.push(`<p>${renderTokenDiff(orig, finalText)}</p>`);
+            }
+            return out.join('');
+        }
+
+        function correctionChangeRatio(originalEssay, correctedHtml) {
+            const changes = summarizeEditMarks(correctedHtml);
+            const origWords = Math.max(1, (String(originalEssay || '').match(/\S+/g) || []).length);
+            let changed = 0;
+            let longSpan = false;
+            changes.forEach(change => {
+                const fromW = (String(change.from || '').match(/\S+/g) || []).length;
+                const toW = (String(change.to || '').match(/\S+/g) || []).length;
+                changed += Math.max(fromW, toW);
+                if (Math.max(fromW, toW) >= 14) longSpan = true;
+            });
+            return { ratio: changed / origWords, longSpan };
+        }
+
+        function correctionLooksRewritten(originalEssay, correctedHtml) {
+            const stats = correctionChangeRatio(originalEssay, correctedHtml);
+            return stats.longSpan || stats.ratio > 0.4;
+        }
+
+        function summarizeEditMarks(html) {
+            const temp = document.createElement('div');
+            temp.innerHTML = html || '';
+            const changes = [];
+            let fromParts = [];
+            let toParts = [];
+            const flush = () => {
+                const from = fromParts.join(' ').replace(/\s+/g, ' ').trim();
+                const to = toParts.join(' ').replace(/\s+/g, ' ').trim();
+                if (from || to) changes.push({ from, to });
+                fromParts = [];
+                toParts = [];
+            };
+            temp.querySelectorAll('del, ins').forEach(el => {
+                const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
+                if (!text) return;
+                if (el.tagName.toLowerCase() === 'del') {
+                    if (toParts.length) flush();
+                    fromParts.push(text);
+                } else {
+                    toParts.push(text);
+                }
+            });
+            flush();
+            return changes;
+        }
+
+        function formatEditAgreementList(html) {
+            const changes = summarizeEditMarks(html);
+            if (!changes.length) return 'No wording changes. Leave the wording as the student wrote it.';
+            const shown = changes.slice(0, 40).map((change, index) => {
+                if (change.from && change.to) return `${index + 1}. "${change.from}" → "${change.to}"`;
+                if (change.from) return `${index + 1}. Removed "${change.from}"`;
+                return `${index + 1}. Added "${change.to}"`;
+            });
+            if (changes.length > 40) shown.push(`... and ${changes.length - 40} more edits of the same kind.`);
+            return shown.join('\n');
+        }
+
+        function prepareCorrectedEssayHtml(rawHtml, essayText, essayType) {
+            let html = restoreDeletionMarksFromOriginal(essayText, normalizeEditMarkupHtml(rawHtml));
+            html = preserveMotionInCorrectedEssay(essayText, html);
+            html = preserveSpeechTemplateInCorrectedEssay(essayText, html, essayType);
+            const ap = applyApStyleMarkedFixes(html, essayText, essayType);
+            return { html: ap.html, chips: ap.chips || [] };
+        }
+
+        async function redoCorrectionsWithMarks(originalEssay, previousCorrectedHtml, essayType, mode) {
+            const shrink = mode === 'shrink';
+            const system = shrink
+                ? `The previous correction rewrote too much of the essay. Shrink it to small inline grammar edits.
+Keep every student sentence. Change one word or a short phrase at a time.
+Replace a longer stretch only when the sentence is ungrammatical, not to improve style.
+Use <del>original</del><ins>new</ins> for every change. Preserve paragraphs as <p> tags.
+${AP_STYLE_CORRECTIONS_BLOCK}
+Return JSON only.${CORRECTIONS_COVERAGE_EXTRA}`
+                : `You fix ESL essay corrections so EVERY wording change uses bare <del>/<ins> tags.
 Use the SMALLEST possible edit for each error (usually one word or short phrase). Do NOT rewrite whole sentences.
+Replace a longer stretch only when the sentence is ungrammatical, not for style.
 ${AP_STYLE_CORRECTIONS_BLOCK}
 Preserve original paragraph boundaries as separate <p> tags.
 Do not change debate motion wording for debate essays.
-Return JSON only.`;
-            const user = `ORIGINAL ESSAY:\n${originalEssay}\n\nCURRENT CORRECTED HTML (may be missing edit marks):\n${previousCorrectedHtml || ''}\n\nReturn { "correctedEssay": "..." } with <del>old</del><ins>new</ins> around every change. Essay type: ${essayType}.`;
+Return JSON only.${CORRECTIONS_COVERAGE_EXTRA}`;
+            const user = `ORIGINAL ESSAY:\n${originalEssay}\n\nCURRENT CORRECTED HTML (may be missing edit marks):\n${previousCorrectedHtml || ''}\n\nReturn { "correctedEssay": "..." } with <del>old</del><ins>new</ins> around every real grammar change. Essay type: ${essayType}.`;
             const resp = await callAIAPI(user, system, true, 'corrections');
             return typeof resp === 'object' ? resp : safeParseJSON(String(resp || '{}'));
         }
@@ -2821,6 +3515,10 @@ Output MUST strictly match the requested JSON schema. Do not exceed the maximum 
             return localStorage.getItem('bg_openaiModel') || 'gpt-4o-mini';
         }
 
+        function openAIModelOmitsTemperature(model) {
+            return model === 'gpt-6-astra' || model === 'gpt-6.1-sol';
+        }
+
         function getOpenAIApiBase() {
             return (localStorage.getItem('bg_openaiApiBase') || 'https://api.openai.com/v1').replace(/\/$/, '');
         }
@@ -2961,9 +3659,10 @@ Output MUST strictly match the requested JSON schema. Do not exceed the maximum 
                 systemContent = `${systemContent}\n\nYou must respond with valid JSON only. ${OPENAI_JSON_SCHEMA_HINTS[schemaType] || ''}`.trim();
             }
 
+            const model = getOpenAIModel();
             const body = {
-                model: getOpenAIModel(),
-                temperature: getAITemperature(schemaType),
+                model,
+                ...(openAIModelOmitsTemperature(model) ? {} : { temperature: getAITemperature(schemaType) }),
                 messages: [
                     ...(systemContent ? [{ role: 'system', content: systemContent }] : []),
                     { role: 'user', content: userText }
@@ -3192,6 +3891,7 @@ Output MUST strictly match the requested JSON schema. Do not exceed the maximum 
                 /\bruleResults\b/gi
             ];
             chipPatterns.forEach(re => { fb = fb.replace(re, ''); });
+            fb = fb.replace(/<\s*\/?\s*(del|ins|s|strike)\b[^>]*>/gi, '');
             fb = fb.replace(/\s{2,}/g, ' ').replace(/\s+([,.!?;:])/g, '$1').trim();
             analysis.teacherFeedback = fb;
         }
@@ -3199,7 +3899,8 @@ Output MUST strictly match the requested JSON schema. Do not exceed the maximum 
         async function generateCorrectedEssayWithMarks(originalEssay, essayType) {
             const apStyle = promptBlocks.apStyle || AP_STYLE_CORRECTIONS_BLOCK;
             const system = (promptBlocks.correctionsSystem || DEFAULT_CORRECTIONS_SYSTEM)
-                .replace(/\{\{apStyle\}\}/g, apStyle);
+                .replace(/\{\{apStyle\}\}/g, apStyle)
+                + CORRECTIONS_COVERAGE_EXTRA;
 
             const user = `Essay type: ${essayType}
 
@@ -3228,57 +3929,77 @@ ${originalEssay}`.trim();
                 }
             }
 
-            const userContent = [
-                `Student: ${studentName}`,
-                `Class: ${className}`,
-                '',
-                metricsBlock,
-                openGrammarBlock ? `\n${openGrammarBlock}` : '',
-                '',
-                `Essay:\n${essayText}`
-            ].join('\n');
-
             try {
-                const analysis = await callAIAPI(userContent, prompt, true, 'grading');
-                if (openGrammarIssues.length) mergeOpenGrammarIntoAnalysis(analysis, openGrammarIssues);
-                // Corrections-only pass (Quill-first): generate correctedEssay separately
+                let correctedEssay = '';
+                let apStyleChips = [];
+                let correctionMarkStatus = 'missing-delins';
+                const correctionAuditIssues = [];
                 try {
                     const corr = await generateCorrectedEssayWithMarks(essayText, essayType);
                     if (corr && corr.correctedEssay) {
-                        analysis.correctedEssay = normalizeEditMarkupHtml(corr.correctedEssay);
-                        analysis.correctedEssay = preserveMotionInCorrectedEssay(essayText, analysis.correctedEssay);
-                        analysis.correctedEssay = preserveSpeechTemplateInCorrectedEssay(
-                            essayText,
-                            analysis.correctedEssay,
-                            essayType
-                        );
-                        const ap = applyApStyleMarkedFixes(analysis.correctedEssay, essayText, essayType);
-                        analysis.correctedEssay = ap.html;
-                        analysis.apStyleChips = ap.chips;
+                        const prepared = prepareCorrectedEssayHtml(corr.correctedEssay, essayText, essayType);
+                        correctedEssay = prepared.html;
+                        apStyleChips = prepared.chips;
 
-                        // Validate marks, retry once if missing
-                        let markCheck = validateEditMarks(essayText, analysis.correctedEssay);
-                        if (!markCheck.ok) {
-                            const redone = await redoCorrectionsWithMarks(essayText, analysis.correctedEssay, essayType);
-                            if (redone && redone.correctedEssay) {
-                                analysis.correctedEssay = normalizeEditMarkupHtml(redone.correctedEssay);
-                                analysis.correctedEssay = preserveMotionInCorrectedEssay(essayText, analysis.correctedEssay);
-                                analysis.correctedEssay = preserveSpeechTemplateInCorrectedEssay(
-                                    essayText,
-                                    analysis.correctedEssay,
-                                    essayType
-                                );
-                                const ap2 = applyApStyleMarkedFixes(analysis.correctedEssay, essayText, essayType);
-                                analysis.correctedEssay = ap2.html;
-                                analysis.apStyleChips = [...new Set([...(analysis.apStyleChips || []), ...ap2.chips])];
+                        if (correctionLooksRewritten(essayText, correctedEssay)) {
+                            const shrunk = await redoCorrectionsWithMarks(essayText, correctedEssay, essayType, 'shrink');
+                            if (shrunk && shrunk.correctedEssay) {
+                                const preparedShrink = prepareCorrectedEssayHtml(shrunk.correctedEssay, essayText, essayType);
+                                const before = correctionChangeRatio(essayText, correctedEssay).ratio;
+                                const after = correctionChangeRatio(essayText, preparedShrink.html).ratio;
+                                if (after <= before) {
+                                    correctedEssay = preparedShrink.html;
+                                    apStyleChips = [...new Set([...apStyleChips, ...preparedShrink.chips])];
+                                }
                             }
-                            markCheck = validateEditMarks(essayText, analysis.correctedEssay);
                         }
-                        analysis.correctionMarkStatus = markCheck.ok ? 'ok' : 'missing-delins';
+
+                        let markCheck = validateEditMarks(essayText, correctedEssay);
+                        if (!markCheck.ok) {
+                            const redone = await redoCorrectionsWithMarks(essayText, correctedEssay, essayType);
+                            if (redone && redone.correctedEssay) {
+                                const preparedAgain = prepareCorrectedEssayHtml(redone.correctedEssay, essayText, essayType);
+                                correctedEssay = preparedAgain.html;
+                                apStyleChips = [...new Set([...apStyleChips, ...preparedAgain.chips])];
+                            }
+                            markCheck = validateEditMarks(essayText, correctedEssay);
+                        }
+                        correctionMarkStatus = markCheck.ok ? 'ok' : 'missing-delins';
                     }
                 } catch (e) {
-                    analysis.correctionAuditIssues = [...new Set([...(analysis.correctionAuditIssues || []), 'Corrections pass failed'])];
+                    correctionAuditIssues.push('Corrections pass failed');
                 }
+
+                const userContent = [
+                    `Student: ${studentName}`,
+                    `Class: ${className}`,
+                    '',
+                    metricsBlock,
+                    openGrammarBlock ? `\n${openGrammarBlock}` : '',
+                    '',
+                    `Essay:\n${essayText}`,
+                    '',
+                    'EDITS ALREADY MADE (agree with these; do not use edit marks in teacherFeedback):',
+                    formatEditAgreementList(correctedEssay)
+                ].join('\n');
+
+                let analysis;
+                try {
+                    analysis = await callAIAPI(userContent, `${prompt}${FEEDBACK_BEFORE_EDITS}`, true, 'grading');
+                } catch (feedbackErr) {
+                    analysis = {
+                        teacherFeedback: `Feedback could not be written. The corrections are still usable. ${feedbackErr.message}`,
+                        contentScore: 0, structureScore: 0, grammarScore: 0,
+                        grammarIssues: [], evidenceCount: 0, structureValid: false,
+                        checklistIssues: [], ruleResults: []
+                    };
+                }
+                if (!analysis || typeof analysis !== 'object') analysis = {};
+                if (openGrammarIssues.length) mergeOpenGrammarIntoAnalysis(analysis, openGrammarIssues);
+                analysis.correctedEssay = correctedEssay;
+                analysis.apStyleChips = apStyleChips;
+                analysis.correctionMarkStatus = correctionMarkStatus;
+                analysis.correctionAuditIssues = [...new Set([...(analysis.correctionAuditIssues || []), ...correctionAuditIssues])];
 
                 // Audit stays as warnings only (do not patch correctedEssay)
                 await maybeAuditCorrections(analysis, essayText, essayType, className);
@@ -3425,6 +4146,7 @@ Requirement: "${ruleDescription}"`;
                 if(elements.progressStatus) elements.progressStatus.innerText = `Analyzing ${essay.studentName}...`;
 
                 const result = await analyzeEssay(essay.essayText, essay.studentName, essay.className, essayType);
+                copyListLinkFields(result, essay);
                 ensureResultMetadata(result, essay.batchId, essay.batchOrder, essay.batchCreatedAt, essay.resultId);
 
                 const idx = appState.results.findIndex(r => r && r.resultId === essay.resultId);
@@ -3508,7 +4230,7 @@ Requirement: "${ruleDescription}"`;
             }
 
             function persistStatusAndRefresh() {
-                saveState();
+                debouncedSaveState();
                 updateStats();
                 if (viewState.filterStatus && viewState.filterStatus !== 'all') applyOutputView();
             }
@@ -3535,6 +4257,637 @@ Requirement: "${ruleDescription}"`;
 
             if (!data.isDone && !data.isResubmit && !data.isFailed) card.classList.add('bg-white', 'border-slate-200');
             updateStatusVisuals();
+            const noteBox = card.querySelector('[data-role="listNote"]');
+            if (noteBox) {
+                noteBox.addEventListener('input', () => {
+                    data.listNoteDirty = true;
+                    scheduleListNoteSave(data, noteBox);
+                });
+            }
+            bindListStatus(card, data);
+        }
+
+        function calendarEssayData() {
+            const api = globalThis.CCPEssayBatchGraderCalendar;
+            return api && typeof api.getCalendarData === 'function' ? api.getCalendarData() : null;
+        }
+
+        function resolveCardListLink(data) {
+            if (data && data.classId && data.syllabusRowId && data.studentId) {
+                return data;
+            }
+            const stored = data ? findStoredListLink(data.studentName, data.className) : null;
+            if (stored) {
+                data.classId = stored.classId;
+                data.syllabusRowId = stored.syllabusRowId;
+                data.studentId = stored.studentId;
+                if (!data.essayTitle && stored.title) {
+                    data.essayTitle = stored.title;
+                }
+                return stored;
+            }
+            const calendar = calendarEssayData();
+            const domainApi = globalThis.CCPClassroomDomain;
+            if (!listStatusCalendarReady || !calendar || !domainApi || typeof domainApi.findUniqueEssayListLink !== 'function' || !data) {
+                return null;
+            }
+            const found = domainApi.findUniqueEssayListLink(calendar, {
+                studentName: data.studentName,
+                className: data.className,
+                title: data.essayTitle || ''
+            });
+            if (!found) {
+                return null;
+            }
+            data.classId = found.classId;
+            data.syllabusRowId = found.syllabusRowId;
+            data.studentId = found.studentId;
+            data.ssDueDate = found.ssDueDate || '';
+            return found;
+        }
+
+        function readSavedListStatus(link) {
+            const calendar = calendarEssayData();
+            const domainApi = globalThis.CCPClassroomDomain;
+            if (!calendar || !domainApi || !link) {
+                return null;
+            }
+            const submission = domainApi.findEssaySubmission(calendar.essaySubmissions, link.classId, link.syllabusRowId);
+            const record = domainApi.getEssayRecordForStudent(submission, link.studentId);
+            const status = record && record.status ? record.status : 'not_submitted';
+            return {
+                status,
+                retestAssigned: status === 'demerit' && Boolean(record && record.retestAssigned),
+                retestPassed: status === 'demerit' && Boolean(record && record.retestPassed),
+                submissionLate: Boolean(record && record.submissionLate),
+                overdueDismissed: Boolean(record && record.overdueDismissed),
+                ssDueDate: submission && submission.ssDueDate ? submission.ssDueDate : '',
+                note: record && record.note ? String(record.note).trim() : ''
+            };
+        }
+
+        function hydrateListStatus(data) {
+            const link = resolveCardListLink(data);
+            if (!link || !calendarEssayData()) {
+                return link;
+            }
+            if (!data.listStatusHydrated) {
+                const saved = readSavedListStatus(link);
+                if (saved) {
+                    data.listStatus = saved.status;
+                    data.retestAssigned = saved.retestAssigned;
+                    data.retestPassed = saved.retestPassed;
+                    data.submissionLate = saved.submissionLate;
+                    data.overdueDismissed = saved.overdueDismissed;
+                    data.ssDueDate = saved.ssDueDate;
+                }
+                data.listStatusHydrated = true;
+            }
+            overlayRemoteListStatus(data);
+            return link;
+        }
+
+        const remoteListStatus = new Map();
+
+        function remoteListStatusKey(classId, syllabusRowId, studentId) {
+            return `${classId}\n${syllabusRowId}\n${studentId}`;
+        }
+
+        function overlayRemoteListStatus(data) {
+            if (!data || !data.classId || !data.syllabusRowId || !data.studentId) {
+                return;
+            }
+            const ping = remoteListStatus.get(remoteListStatusKey(data.classId, data.syllabusRowId, data.studentId));
+            if (!ping || (data.remoteStatusAt && ping.at <= data.remoteStatusAt)) {
+                return;
+            }
+            data.listStatus = ping.status;
+            data.retestAssigned = ping.status === 'demerit' && Boolean(ping.retestAssigned);
+            data.retestPassed = ping.status === 'demerit' && Boolean(ping.retestPassed);
+            data.submissionLate = Boolean(ping.submissionLate);
+            if (ping.overdueDismissed != null) {
+                data.overdueDismissed = Boolean(ping.overdueDismissed);
+            }
+            data.remoteStatusAt = ping.at;
+            data.listStatusHydrated = true;
+        }
+
+        function rememberRemoteListStatus(ping) {
+            if (!ping || !ping.classId || !ping.syllabusRowId || !ping.studentId || !ping.status) {
+                return;
+            }
+            remoteListStatus.set(remoteListStatusKey(ping.classId, ping.syllabusRowId, ping.studentId), ping);
+            const calendar = calendarEssayData();
+            const domainApi = globalThis.CCPClassroomDomain;
+            const calendarApi = globalThis.CCPEssayBatchGraderCalendar;
+            if (calendar && domainApi && typeof domainApi.setEssayStudentStatus === 'function') {
+                const result = domainApi.setEssayStudentStatus(calendar.essaySubmissions || [], {
+                    classId: ping.classId,
+                    syllabusRowId: ping.syllabusRowId,
+                    studentId: ping.studentId,
+                    status: ping.status,
+                    timing: ping.submissionLate ? 'late' : 'on_time',
+                    retestAssigned: ping.retestAssigned,
+                    retestPassed: ping.retestPassed,
+                    submittedRetest: ping.submittedRetest
+                });
+                if (!result.error && calendarApi && typeof calendarApi.setEssaySubmissions === 'function') {
+                    calendarApi.setEssaySubmissions(result.submissions);
+                }
+            }
+            if (ping.noteUpdated && calendar && domainApi && typeof domainApi.setEssayStudentNote === 'function') {
+                const noted = domainApi.setEssayStudentNote(calendar.essaySubmissions || [], {
+                    classId: ping.classId,
+                    syllabusRowId: ping.syllabusRowId,
+                    studentId: ping.studentId,
+                    note: ping.note
+                });
+                if (!noted.error && calendarApi && typeof calendarApi.setEssaySubmissions === 'function') {
+                    calendarApi.setEssaySubmissions(noted.submissions);
+                }
+            }
+            document.querySelectorAll('.result-card').forEach((card) => {
+                const resultId = card.dataset.resultId;
+                const data = (appState.results || []).find((row) => row && row.resultId === resultId);
+                if (!data) {
+                    return;
+                }
+                const link = resolveCardListLink(data);
+                if (!link || link.classId !== ping.classId || link.syllabusRowId !== ping.syllabusRowId || link.studentId !== ping.studentId) {
+                    return;
+                }
+                if (ping.noteUpdated) {
+                    applyRemoteListNote(card, data, ping.note);
+                }
+                data.listStatusHydrated = false;
+                bindListStatus(card, data);
+            });
+        }
+
+        function normalizeNoteText(value) {
+            return String(value || '')
+                .replace(/<br\s*\/?>/gi, '\n')
+                .replace(/<\/p>/gi, '\n')
+                .replace(/<[^>]+>/g, ' ')
+                .replace(/&nbsp;/gi, ' ')
+                .replace(/&amp;/gi, '&')
+                .replace(/&lt;/gi, '<')
+                .replace(/&gt;/gi, '>')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        function noteIsAiFeedback(data, note) {
+            const feedback = normalizeNoteText(data && data.analysis && data.analysis.teacherFeedback);
+            const text = normalizeNoteText(note);
+            return Boolean(feedback) && text === feedback;
+        }
+
+        function applyRemoteListNote(card, data, note) {
+            const box = card && card.querySelector('[data-role="listNote"]');
+            if (!box || !data || document.activeElement === box) {
+                return;
+            }
+            const next = noteIsAiFeedback(data, note) ? '' : String(note == null ? '' : note).trim();
+            box.value = next;
+            data.listNoteSaved = next;
+            data.listNoteDirty = false;
+        }
+
+        function syncListNoteBox(card, data, link) {
+            const box = card && card.querySelector('[data-role="listNote"]');
+            if (!box) {
+                return;
+            }
+            const linked = Boolean(link && calendarEssayData());
+            box.disabled = !linked;
+            if (!linked || data.listNoteDirty || document.activeElement === box) {
+                return;
+            }
+            const saved = readSavedListStatus(link);
+            let next = saved && saved.note ? String(saved.note).trim() : '';
+            if (noteIsAiFeedback(data, next)) {
+                if (box.value) {
+                    box.value = '';
+                }
+                if (!data.listNoteAiClearing) {
+                    data.listNoteAiClearing = true;
+                    data.listNoteSaved = null;
+                    void saveListNote(data, '').finally(() => {
+                        data.listNoteAiClearing = false;
+                    });
+                }
+                return;
+            }
+            if (box.value.trim() !== next) {
+                box.value = next;
+            }
+            data.listNoteSaved = next;
+        }
+
+        const listNoteTimers = new Map();
+
+        function scheduleListNoteSave(data, box) {
+            const key = String((data && (data.resultId || data.studentId)) || '');
+            const existing = listNoteTimers.get(key);
+            if (existing) {
+                clearTimeout(existing);
+            }
+            listNoteTimers.set(key, setTimeout(() => {
+                listNoteTimers.delete(key);
+                const text = box ? box.value : '';
+                void saveListNote(data, text).then(() => {
+                    if (box && box.value.trim() === String(data.listNoteSaved || '')) {
+                        data.listNoteDirty = false;
+                    }
+                });
+            }, 500));
+        }
+
+        async function saveListNote(data, noteText) {
+            const domainApi = globalThis.CCPClassroomDomain;
+            const calendarApi = globalThis.CCPEssayBatchGraderCalendar;
+            const link = resolveCardListLink(data);
+            const calendar = calendarEssayData();
+            if (!domainApi || typeof domainApi.setEssayStudentNote !== 'function' || !calendarApi || !link || !calendar || typeof globalThis.CalendarSync === 'undefined') {
+                return;
+            }
+            const text = String(noteText || '').trim();
+            if (data.listNoteSaved === text) {
+                data.listNoteDirty = false;
+                return;
+            }
+            const result = domainApi.setEssayStudentNote(calendar.essaySubmissions || [], {
+                classId: link.classId,
+                syllabusRowId: link.syllabusRowId,
+                studentId: link.studentId,
+                note: text
+            });
+            if (result.error || !result.record) {
+                return;
+            }
+            const submission = (result.submissions || []).find((row) =>
+                row && row.classId === link.classId && row.syllabusRowId === link.syllabusRowId
+            );
+            if (!submission) {
+                return;
+            }
+            if (typeof calendarApi.setEssaySubmissions === 'function') {
+                calendarApi.setEssaySubmissions(result.submissions);
+            }
+            data.listNoteSaved = result.record.note;
+            pingEssayListStatus(link, result.record, { noteUpdated: true, note: result.record.note });
+            try {
+                await globalThis.CalendarSync.saveClassroomData({
+                    essaySubmissions: [Object.assign({}, submission, { touchedStudentIds: [link.studentId] })]
+                });
+            } catch (err) {
+                notify((err && err.message) || 'Could not save this note to the Essays list', 'error');
+            }
+        }
+
+        window.addEventListener('storage', (event) => {
+            if (!event || event.key !== ESSAY_STATUS_PING_KEY || !event.newValue) {
+                return;
+            }
+            try {
+                rememberRemoteListStatus(JSON.parse(event.newValue));
+            } catch (_) {
+                /* ignore */
+            }
+        });
+
+        function promptListReceiveTiming() {
+            return new Promise((resolve) => {
+                const overlay = document.createElement('div');
+                overlay.className = 'modal-overlay active';
+                overlay.innerHTML = `
+                    <div class="modal-content w-full max-w-sm p-6 mx-4" role="dialog" aria-modal="true">
+                        <h2 class="text-xl font-bold text-slate-800">Was this essay on time?</h2>
+                        <p class="text-slate-600 mt-1 text-sm">The due date has passed. Choose On time or Late before saving this status.</p>
+                        <div class="flex flex-wrap justify-end gap-2 mt-6">
+                            <button type="button" data-timing="cancel" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium">Cancel</button>
+                            <button type="button" data-timing="on_time" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-medium">On time</button>
+                            <button type="button" data-timing="late" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium">Late</button>
+                        </div>
+                    </div>`;
+                let settled = false;
+                const finish = (value) => {
+                    if (settled) {
+                        return;
+                    }
+                    settled = true;
+                    overlay.remove();
+                    resolve(value);
+                };
+                overlay.addEventListener('click', (event) => {
+                    const choice = event.target.closest('[data-timing]');
+                    if (!choice) {
+                        return;
+                    }
+                    const timing = choice.getAttribute('data-timing');
+                    finish(timing === 'on_time' || timing === 'late' ? timing : null);
+                });
+                document.body.appendChild(overlay);
+            });
+        }
+
+        function pingEssayListStatus(link, record, extra) {
+            try {
+                const payload = {
+                    classId: link.classId,
+                    syllabusRowId: link.syllabusRowId,
+                    studentId: link.studentId,
+                    status: record.status,
+                    retestAssigned: record.retestAssigned,
+                    retestPassed: record.retestPassed,
+                    submittedRetest: record.submittedRetest,
+                    submissionLate: record.submissionLate,
+                    overdueDismissed: record.overdueDismissed,
+                    at: Date.now()
+                };
+                if (extra && extra.noteUpdated) {
+                    payload.noteUpdated = true;
+                    payload.note = extra.note == null ? '' : String(extra.note);
+                }
+                localStorage.setItem(ESSAY_STATUS_PING_KEY, JSON.stringify(payload));
+            } catch (_) {
+                /* ignore */
+            }
+        }
+
+        function listStatusStillCurrent(data, generation) {
+            return generation == null || data.listStatusGeneration === generation;
+        }
+
+        async function saveListStatus(data, nextStatus, flags, generation) {
+            const domainApi = globalThis.CCPClassroomDomain;
+            const calendarApi = globalThis.CCPEssayBatchGraderCalendar;
+            const link = resolveCardListLink(data);
+            const calendar = calendarEssayData();
+            if (!domainApi || !calendarApi || !link || !calendar || typeof globalThis.CalendarSync === 'undefined') {
+                return { ok: false, reason: 'unlinked' };
+            }
+            const saved = readSavedListStatus(link) || {
+                status: 'not_submitted',
+                ssDueDate: data.ssDueDate || ''
+            };
+            const prev = saved.status || 'not_submitted';
+            const received = ['submitted', 'complete', 'resubmit_required', 'demerit'];
+            const entering = received.indexOf(prev) < 0 && received.indexOf(nextStatus) >= 0;
+            let timing = 'on_time';
+            if (entering && typeof domainApi.isEssaySsOverdueISO === 'function' && domainApi.isEssaySsOverdueISO(saved.ssDueDate || data.ssDueDate || '')) {
+                timing = await promptListReceiveTiming();
+                if (!timing) {
+                    return { ok: false, reason: 'cancelled' };
+                }
+            }
+            if (!listStatusStillCurrent(data, generation)) {
+                return { ok: false, reason: 'stale' };
+            }
+            const sourceList = calendar.essaySubmissions || [];
+            const result = domainApi.setEssayStudentStatus(sourceList, {
+                classId: link.classId,
+                syllabusRowId: link.syllabusRowId,
+                studentId: link.studentId,
+                status: nextStatus,
+                timing,
+                retestAssigned: flags ? flags.retestAssigned : undefined,
+                retestPassed: flags ? flags.retestPassed : undefined
+            });
+            if (result.error) {
+                return { ok: false, reason: result.error };
+            }
+            const submission = (result.submissions || []).find((row) =>
+                row && row.classId === link.classId && row.syllabusRowId === link.syllabusRowId
+            );
+            if (!submission) {
+                return { ok: false, reason: 'missing' };
+            }
+            if (typeof calendarApi.setEssaySubmissions === 'function') {
+                calendarApi.setEssaySubmissions(result.submissions);
+            }
+            if (!listStatusStillCurrent(data, generation)) {
+                return { ok: false, reason: 'stale' };
+            }
+            await globalThis.CalendarSync.saveClassroomData({
+                essaySubmissions: [Object.assign({}, submission, { touchedStudentIds: [link.studentId] })]
+            });
+            if (!listStatusStillCurrent(data, generation)) {
+                return { ok: false, reason: 'stale' };
+            }
+            data.listStatus = result.record.status;
+            data.retestAssigned = result.record.retestAssigned;
+            data.retestPassed = result.record.retestPassed;
+            data.submissionLate = result.record.submissionLate;
+            data.overdueDismissed = result.record.overdueDismissed;
+            data.ssDueDate = saved.ssDueDate || data.ssDueDate || '';
+            data.classId = link.classId;
+            data.syllabusRowId = link.syllabusRowId;
+            data.studentId = link.studentId;
+            data.remoteStatusAt = Date.now();
+            pingEssayListStatus(link, result.record);
+            saveState();
+            return { ok: true };
+        }
+
+        function buildDemeritFlag(label, checked, disabled, onChange) {
+            const wrap = document.createElement('label');
+            wrap.className = disabled
+                ? 'flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded border select-none opacity-50 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200'
+                : 'flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded border select-none cursor-pointer bg-orange-50 text-orange-800 border-orange-200';
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.className = 'w-3.5 h-3.5 rounded text-orange-600 focus:ring-orange-500 border-gray-300';
+            input.checked = checked;
+            input.disabled = disabled;
+            input.addEventListener('change', () => onChange(input.checked));
+            const text = document.createElement('span');
+            text.textContent = label;
+            wrap.appendChild(input);
+            wrap.appendChild(text);
+            return wrap;
+        }
+
+        function setLocalChecklistBox(card, role, checked) {
+            const box = card && card.querySelector(`[data-role="${role}"]`);
+            if (!box || box.disabled || box.checked === checked) {
+                return;
+            }
+            box.checked = checked;
+            box.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        function syncLocalChecklist(card, status) {
+            if (!card) {
+                return;
+            }
+            if (status === 'submitted') {
+                setLocalChecklistBox(card, 'doneCheckbox', false);
+                setLocalChecklistBox(card, 'resubmitCheckbox', false);
+                return;
+            }
+            const role = status === 'resubmit_required'
+                ? 'resubmitCheckbox'
+                : (status === 'complete' || status === 'demerit' ? 'doneCheckbox' : '');
+            if (!role) {
+                return;
+            }
+            setLocalChecklistBox(card, role, true);
+        }
+
+        function bindListStatus(card, data) {
+            const chipsEl = card.querySelector('[data-role="listStatusChips"]');
+            const noteEl = card.querySelector('[data-role="listStatusNote"]');
+            const flagsEl = card.querySelector('[data-role="demeritFlags"]');
+            if (!chipsEl || !flagsEl) {
+                return;
+            }
+            const link = hydrateListStatus(data);
+            const linked = Boolean(link && calendarEssayData());
+            const unlinked = listStatusCalendarReady && !linked;
+            chipsEl.replaceChildren();
+            flagsEl.replaceChildren();
+            if (noteEl) {
+                const chipSelected = LIST_STATUS_CHIPS.some((chip) => chip.id === data.listStatus);
+                if (unlinked) {
+                    noteEl.textContent = 'Not linked to the Essays list';
+                    noteEl.classList.remove('hidden');
+                } else if (linked && data.listStatus && !chipSelected && data.listStatus !== 'not_submitted') {
+                    noteEl.textContent = 'Updated from the Essays list';
+                    noteEl.classList.remove('hidden');
+                } else {
+                    noteEl.classList.add('hidden');
+                }
+            }
+            LIST_STATUS_CHIPS.forEach((chip) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.textContent = chip.label;
+                const selected = data.listStatus === chip.id;
+                button.className = `text-xs font-bold px-3 py-1.5 rounded border ${selected ? chip.on : chip.off}`;
+                button.disabled = !linked;
+                if (!linked) {
+                    button.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+                button.addEventListener('click', () => {
+                    if (!linked) {
+                        return;
+                    }
+                    if (data.listStatus === chip.id) {
+                        syncLocalChecklist(card, chip.id);
+                        return;
+                    }
+                    void applyListStatusChoice(card, data, chip.id, null);
+                });
+                chipsEl.appendChild(button);
+            });
+            if (linked && data.listStatus === 'demerit') {
+                flagsEl.classList.remove('hidden');
+                flagsEl.appendChild(buildDemeritFlag('Assigned retest', Boolean(data.retestAssigned), false, (checked) => {
+                    void applyListStatusChoice(card, data, 'demerit', {
+                        retestAssigned: checked,
+                        retestPassed: checked ? Boolean(data.retestPassed) : false
+                    });
+                }));
+                flagsEl.appendChild(buildDemeritFlag('Marked as passed', Boolean(data.retestPassed), !data.retestAssigned, (checked) => {
+                    if (!data.retestAssigned) {
+                        return;
+                    }
+                    void applyListStatusChoice(card, data, 'demerit', {
+                        retestAssigned: true,
+                        retestPassed: checked
+                    });
+                }));
+            } else {
+                flagsEl.classList.add('hidden');
+            }
+            syncListNoteBox(card, data, linked ? link : null);
+        }
+
+        function snapshotListStatus(data) {
+            return {
+                listStatus: data.listStatus,
+                retestAssigned: data.retestAssigned,
+                retestPassed: data.retestPassed,
+                submissionLate: data.submissionLate,
+                overdueDismissed: data.overdueDismissed,
+                isDone: data.isDone,
+                isResubmit: data.isResubmit
+            };
+        }
+
+        function restoreListStatusSnapshot(card, data, snap) {
+            data.listStatus = snap.listStatus;
+            data.retestAssigned = snap.retestAssigned;
+            data.retestPassed = snap.retestPassed;
+            data.submissionLate = snap.submissionLate;
+            data.overdueDismissed = snap.overdueDismissed;
+            data.isDone = snap.isDone;
+            data.isResubmit = snap.isResubmit;
+            bindListStatus(card, data);
+            setLocalChecklistBox(card, 'doneCheckbox', Boolean(snap.isDone));
+            setLocalChecklistBox(card, 'resubmitCheckbox', Boolean(snap.isResubmit));
+        }
+
+        async function applyListStatusChoice(card, data, status, flags) {
+            const snap = snapshotListStatus(data);
+            const generation = (data.listStatusGeneration || 0) + 1;
+            data.listStatusGeneration = generation;
+            data.listStatus = status;
+            if (flags) {
+                data.retestAssigned = Boolean(flags.retestAssigned);
+                data.retestPassed = Boolean(flags.retestPassed);
+            } else if (status !== 'demerit') {
+                data.retestAssigned = false;
+                data.retestPassed = false;
+            }
+            bindListStatus(card, data);
+            if (!flags) {
+                syncLocalChecklist(card, status);
+            }
+            const stillThisClick = () => listStatusStillCurrent(data, generation);
+            try {
+                const saved = await saveListStatus(data, status, flags, generation);
+                if (!stillThisClick() || (saved && saved.reason === 'stale')) {
+                    return;
+                }
+                if (!saved.ok) {
+                    restoreListStatusSnapshot(card, data, snap);
+                    if (saved.reason !== 'cancelled') {
+                        notify(
+                            saved.reason === 'unlinked'
+                                ? 'Not linked to the Essays list'
+                                : 'Could not save this status to the Essays list',
+                            'error'
+                        );
+                    }
+                }
+            } catch (err) {
+                if (!stillThisClick()) {
+                    return;
+                }
+                restoreListStatusSnapshot(card, data, snap);
+                const conflict = err && (err.status === 409 || /conflict/i.test(String(err.message || '')));
+                notify(
+                    conflict
+                        ? 'The Essays list was saved in the other window. Click the chip again.'
+                        : ((err && err.message) || 'Could not save this status to the Essays list'),
+                    'error'
+                );
+            }
+        }
+
+        function refreshAllListStatus() {
+            document.querySelectorAll('.result-card').forEach((card) => {
+                const resultId = card.dataset.resultId;
+                const data = (appState.results || []).find((row) => row && row.resultId === resultId);
+                if (!data) {
+                    return;
+                }
+                data.listStatusHydrated = false;
+                bindListStatus(card, data);
+            });
         }
 
         function setupCardStatsAndWarnings(card, data) {
@@ -3614,6 +4967,135 @@ Requirement: "${ruleDescription}"`;
             }
         }
 
+        const TRACK_CHANGES_KEY = 'bg_trackChanges';
+        const TRACK_RED = '#dc2626';
+
+        function isTrackChangesOn() {
+            return localStorage.getItem(TRACK_CHANGES_KEY) === 'true';
+        }
+
+        function setTrackChangesOn(on) {
+            localStorage.setItem(TRACK_CHANGES_KEY, on ? 'true' : 'false');
+            document.querySelectorAll('[data-role="trackChangesToggle"]').forEach(el => {
+                el.checked = !!on;
+            });
+        }
+
+        function isTrackRed(color) {
+            if (!color) return false;
+            const c = String(color).replace(/\s/g, '').toLowerCase();
+            return c === '#dc2626' || c === 'rgb(220,38,38)';
+        }
+
+        function isTrackInsertion(attrs) {
+            return !!(attrs && attrs.bold && isTrackRed(attrs.color) && !attrs.strike);
+        }
+
+        function isTrackDeletion(attrs) {
+            return !!(attrs && attrs.strike && isTrackRed(attrs.color));
+        }
+
+        function sliceDocumentText(delta, index, length) {
+            const ops = (delta && delta.ops) || [];
+            let pos = 0;
+            const out = [];
+            for (const op of ops) {
+                if (op.insert == null) continue;
+                const opLen = typeof op.insert === 'string' ? op.insert.length : 1;
+                const start = Math.max(index, pos);
+                const end = Math.min(index + length, pos + opLen);
+                if (start < end && typeof op.insert === 'string') {
+                    out.push({
+                        text: op.insert.slice(start - pos, end - pos),
+                        attributes: Object.assign({}, op.attributes)
+                    });
+                }
+                pos += opLen;
+                if (pos >= index + length) break;
+            }
+            return out;
+        }
+
+        function collectTrackEdits(delta, oldDelta) {
+            let oldIndex = 0;
+            let newIndex = 0;
+            const insertions = [];
+            const restorations = [];
+            for (const op of (delta && delta.ops) || []) {
+                if (op.retain != null) {
+                    const n = typeof op.retain === 'number' ? op.retain : 1;
+                    oldIndex += n;
+                    newIndex += n;
+                } else if (op.insert != null) {
+                    const len = typeof op.insert === 'string' ? op.insert.length : 1;
+                    if (typeof op.insert === 'string' && len > 0) insertions.push({ index: newIndex, length: len });
+                    newIndex += len;
+                } else if (op.delete) {
+                    const chunks = [];
+                    sliceDocumentText(oldDelta, oldIndex, op.delete).forEach(slice => {
+                        if (!slice.text) return;
+                        if (isTrackInsertion(slice.attributes) || isTrackDeletion(slice.attributes)) return;
+                        chunks.push(slice);
+                    });
+                    if (chunks.length) restorations.push({ index: newIndex, chunks });
+                    oldIndex += op.delete;
+                }
+            }
+            return { insertions, restorations };
+        }
+
+        function restorationLength(rest) {
+            return rest.chunks.reduce((n, chunk) => n + chunk.text.length, 0);
+        }
+
+        function sealCorrectionsHistory(quill) {
+            if (quill && quill.history) quill.history.clear();
+        }
+
+        function applyTrackChanges(quill, delta, oldDelta, source) {
+            if (quill.history && quill.history.ignoreChange) return;
+            if (source !== 'user' || !isTrackChangesOn() || quill.__trackLock) return;
+            const edits = collectTrackEdits(delta, oldDelta);
+            if (!edits.insertions.length && !edits.restorations.length) return;
+
+            const trackKey = quill.__trackKey || null;
+            quill.__trackKey = null;
+            quill.__trackLock = true;
+            try {
+                edits.insertions.forEach(ins => {
+                    quill.formatText(ins.index, ins.length, { bold: true, color: TRACK_RED, strike: false }, 'user');
+                });
+                edits.restorations.slice().sort((a, b) => b.index - a.index).forEach(rest => {
+                    let at = rest.index;
+                    rest.chunks.forEach(chunk => {
+                        quill.insertText(at, chunk.text, Object.assign({}, chunk.attributes, {
+                            bold: false,
+                            strike: true,
+                            color: TRACK_RED
+                        }), 'user');
+                        at += chunk.text.length;
+                    });
+                });
+
+                if (edits.insertions.length) {
+                    const last = edits.insertions[edits.insertions.length - 1];
+                    const shift = edits.restorations.reduce((n, rest) => (
+                        rest.index <= last.index ? n + restorationLength(rest) : n
+                    ), 0);
+                    quill.setSelection(last.index + shift + last.length, 0, 'api');
+                } else {
+                    const earliest = edits.restorations.reduce((min, rest) => Math.min(min, rest.index), edits.restorations[0].index);
+                    const len = edits.restorations.reduce((n, rest) => (
+                        rest.index === earliest ? n + restorationLength(rest) : n
+                    ), 0);
+                    const placeAfter = trackKey && trackKey.collapsed && trackKey.key === 'Delete';
+                    quill.setSelection(placeAfter ? earliest + len : earliest, 0, 'api');
+                }
+            } finally {
+                quill.__trackLock = false;
+            }
+        }
+
         function setupCardEditors(card, data) {
             const toggleDeletion = (quill) => {
                 const format = quill.getFormat();
@@ -3650,14 +5132,35 @@ Requirement: "${ruleDescription}"`;
             if (addBtn) addBtn.title = "Add (Alt+2)";
             
             setQuillContentWithParagraphs(correctionsQuill, data.analysis.correctedEssay);
-            correctionsQuill.on('text-change', () => { data.analysis.correctedEssay = correctionsQuill.root.innerHTML; debouncedSaveState(); });
+            sealCorrectionsHistory(correctionsQuill);
+            const trackToggle = card.querySelector('[data-role="trackChangesToggle"]');
+            if (trackToggle) {
+                trackToggle.checked = isTrackChangesOn();
+                trackToggle.addEventListener('change', () => setTrackChangesOn(trackToggle.checked));
+            }
+            correctionsQuill.root.addEventListener('keydown', (event) => {
+                if (event.key === 'Backspace' || event.key === 'Delete') {
+                    const range = correctionsQuill.getSelection();
+                    correctionsQuill.__trackKey = { key: event.key, collapsed: !range || range.length === 0 };
+                } else {
+                    correctionsQuill.__trackKey = null;
+                }
+            });
+            correctionsQuill.on('text-change', (delta, oldDelta, source) => {
+                applyTrackChanges(correctionsQuill, delta, oldDelta, source);
+                data.analysis.correctedEssay = correctionsQuill.root.innerHTML;
+                debouncedSaveState();
+            });
 
             const feedbackContainer = card.querySelector('[data-role="feedbackEditor"]');
             feedbackContainer.setAttribute('data-editable-zone', 'true');
             const feedbackQuill = new Quill(feedbackContainer, quillOptions);
             bindEditorSelectionGuard(feedbackQuill);
             setQuillContentWithParagraphs(feedbackQuill, data.analysis.teacherFeedback);
-            feedbackQuill.on('text-change', () => { data.analysis.teacherFeedback = feedbackQuill.root.innerHTML; debouncedSaveState(); });
+            feedbackQuill.on('text-change', () => {
+                data.analysis.teacherFeedback = feedbackQuill.root.innerHTML;
+                debouncedSaveState();
+            });
 
             return { correctionsQuill, feedbackQuill };
         }
@@ -3720,59 +5223,14 @@ Requirement: "${ruleDescription}"`;
         }
 
         function setupCardActions(card, data, resultId, correctionsQuill, feedbackQuill, rubric) {
-            card.querySelector('[data-role="copyBtn"]').addEventListener('click', () => {
-                if(data.isFailed) return notify('Cannot copy failed analysis', 'error');
+            card.querySelector('[data-role="copyBtn"]').addEventListener('click', async () => {
                 const copyButton = card.querySelector('[data-role="copyBtn"]');
-                const includeClean = card.querySelector('[data-role="includeCleanCheckbox"]').checked;
-                const grade = card.querySelector('[data-role="finalGrade"]').innerText;
-                const totalScore = card.querySelector('[data-role="totalScore"]').innerText;
-                
-                let evaluationText = '';
-                rubric.scores.forEach(s => { evaluationText += `<b>${s.label}:</b> ${data.analysis[s.id] || 0}/${s.max}<br>`; });
-
-                let cleanSectionHtml = '';
-                if (includeClean) {
-                    cleanSectionHtml = `<br><p style="font-size: 14pt; font-weight: bold;">CLEANED ESSAY</p>
-                                        <div style="border: 1px solid #cccccc; padding: 10px; border-radius: 5px; background-color: #f8fafc;">${buildCleanEssayHtml(correctionsQuill.root.innerHTML)}</div>`;
-                }
-
-                const reportHtml = `
-                    <div style="font-family: sans-serif; font-size: 11pt; line-height: 1.5;">
-                        <p style="font-size: 14pt; font-weight: bold;">${data.studentName} (${data.className})</p><br>
-                        <p style="font-size: 14pt; font-weight: bold;">CORRECTIONS</p>
-                        <div style="border: 1px solid #cccccc; padding: 10px; border-radius: 5px;">${correctionsQuill.root.innerHTML}</div>
-                        ${cleanSectionHtml}<br>
-                        <p style="font-size: 14pt; font-weight: bold;">EVALUATION</p>
-                        <p>${evaluationText}<br><b>Total:</b> ${totalScore}/20<br><b>Final Grade:</b> ${grade}</p><br>
-                        <p style="font-size: 14pt; font-weight: bold;">TEACHER FEEDBACK</p>
-                        <div>${feedbackQuill.root.innerHTML}</div>
-                    </div>`;
-
-                const success = copyRichText(reportHtml);
+                const success = await copyCardWithOptions(card, data, correctionsQuill, feedbackQuill, rubric);
+                if (data.isFailed || !hasCopyContent(copyOptions)) return;
                 const originalHTML = copyButton.innerHTML;
                 copyButton.innerHTML = success ? '<span>Copied!</span>' : '<span>Failed!</span>';
                 setTimeout(() => { copyButton.innerHTML = originalHTML; scheduleIconRefresh(); }, 2000);
             });
-
-            const copyTmsBtn = card.querySelector('[data-role="copyTmsBtn"]');
-            if (copyTmsBtn) {
-                copyTmsBtn.addEventListener('click', async () => {
-                    if (data.isFailed) return notify('Cannot copy failed analysis', 'error');
-                    const cleanHtml = buildCleanEssayHtml(correctionsQuill.root.innerHTML);
-                    const cleanText = cleanHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-                    const feedbackText = feedbackQuill.getText().trim();
-                    const plain = [cleanText, feedbackText ? `\n\n--- Teacher feedback ---\n${feedbackText}` : '']
-                        .join('')
-                        .trim();
-                    try {
-                        await navigator.clipboard.writeText(plain);
-                        notify('Copied for TMS — paste into TMS yourself', 'success');
-                    } catch (e) {
-                        const ok = copyRichText(`<div>${cleanHtml}<br><br><p><strong>Teacher feedback</strong></p><div>${feedbackQuill.root.innerHTML}</div></div>`);
-                        notify(ok ? 'Copied for TMS (rich text)' : 'Could not copy', ok ? 'success' : 'error');
-                    }
-                });
-            }
 
             card.querySelector('[data-role="deleteBtn"]').addEventListener('click', () => {
                 const wrapper = card.closest('[id^="result-wrapper-"]');
@@ -3806,6 +5264,7 @@ Requirement: "${ruleDescription}"`;
                     
                     // Re-render card content
                     setQuillContentWithParagraphs(correctionsQuill, data.analysis.correctedEssay);
+                    sealCorrectionsHistory(correctionsQuill);
                     setQuillContentWithParagraphs(feedbackQuill, data.analysis.teacherFeedback);
                     card.querySelectorAll('.score-input').forEach(input => {
                         input.value = data.analysis[input.dataset.scoreId] || 0;
@@ -4247,7 +5706,7 @@ Requirement: "${ruleDescription}"`;
                 elements.rulesList.appendChild(div);
             });
             scheduleIconRefresh();
-            saveState();
+            saveState({ syncGrader: true });
             updateRulesModelsMatchStatus();
         }
 
@@ -4317,7 +5776,7 @@ Requirement: "${ruleDescription}"`;
                 elements.modelEssaysList.appendChild(div);
             });
             scheduleIconRefresh();
-            saveState();
+            saveState({ syncGrader: true });
             updateRulesModelsMatchStatus();
         }
 
@@ -4373,7 +5832,14 @@ Requirement: "${ruleDescription}"`;
 
             for (let i = essays.length - 1; i >= 0; i--) {
                 const resultId = generateId();
-                appState.results.unshift({
+                const storedLink = findStoredListLink(essays[i].studentName, essays[i].className);
+                if (storedLink) {
+                    essays[i].classId = storedLink.classId;
+                    essays[i].syllabusRowId = storedLink.syllabusRowId;
+                    essays[i].studentId = storedLink.studentId;
+                    essays[i].title = storedLink.title || essays[i].title || '';
+                }
+                const pending = {
                     resultId,
                     batchId,
                     batchOrder: i,
@@ -4382,7 +5848,9 @@ Requirement: "${ruleDescription}"`;
                     className: essays[i].className,
                     essayText: essays[i].essayText,
                     _pending: true
-                });
+                };
+                copyListLinkFields(pending, essays[i]);
+                appState.results.unshift(pending);
 
                 const wrapper = createPlaceholderWrapper(resultId, essays[i].studentName);
                 if (elements.resultsContainer.firstChild) {
@@ -4421,13 +5889,18 @@ Requirement: "${ruleDescription}"`;
                 if(elements.textarea) elements.textarea.value = '';
                 if(elements.resultsContainer) elements.resultsContainer.innerHTML = '';
                 appState.results = []; appState.textInput = '';
+                appState.listLinks = [];
                 appState.batchTeachingNotes = null;
                 const notesCard = document.getElementById('batchTeachingNotesCard');
                 if (notesCard) notesCard.classList.add('hidden');
                 updateEssayCount();
                 if(elements.downloadContainer) elements.downloadContainer.classList.add('hidden');
                 if(elements.outputToolbar) elements.outputToolbar.classList.add('hidden');
-                localStorage.removeItem('bg_results'); localStorage.removeItem('bg_textInput'); localStorage.removeItem('bg_batchTeachingNotes');
+                if (freshBatchId) {
+                    writeIsolatedSession();
+                } else {
+                    localStorage.removeItem('bg_results'); localStorage.removeItem('bg_textInput'); localStorage.removeItem('bg_batchTeachingNotes');
+                }
                 saveState(); notify('All data cleared.', 'success');
             });
         }
@@ -4563,7 +6036,7 @@ Requirement: "${ruleDescription}"`;
                     else if (file.type === "text/plain") text = await file.text();
                     else continue;
                     
-                    newContent += `${name}\nUnknown Class\n${text.replace(/\s+/g, ' ').trim()}\n---\n`;
+                    newContent += `${name}\nUnknown Class\n${text.replace(/\s+/g, ' ').trim()}\n${ESSAY_END_MARKER}\n`;
                     processedCount++;
                 } catch (err) { notify(`Failed to read ${file.name}`, 'error'); }
             }
@@ -4635,9 +6108,8 @@ Requirement: "${ruleDescription}"`;
                     RUBRICS[result.essayType].scores.forEach(s => scoreHtml += `<div><span style="color: #64748b; font-size: 10pt; font-weight: 500;">${s.label}:</span> <span style="font-weight: bold; font-size: 12pt; color: #334155;">${result.analysis[s.id] || 0}/${s.max}</span></div>`);
                     scoreHtml += `<div><span style="color: #64748b; font-size: 10pt; font-weight: 500;">Total:</span> <span style="font-weight: 800; font-size: 12pt; color: #2563eb;">${totalScore}/20 (${grade})</span></div></div>`;
 
-                    const globalCleanEl = document.getElementById('globalIncludeClean');
                     let cleanSectionHtml = '';
-                    if (globalCleanEl && globalCleanEl.checked) {
+                    if (copyOptions.includeCleaned) {
                         cleanSectionHtml = `<div style="margin-bottom: 25px;"><h3 style="font-size: 11pt; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">Cleaned Essay</h3><div style="font-size: 11pt; line-height: 1.8; border: 1px solid #f1f5f9; padding: 15px; border-radius: 8px; background-color: #f8fafc;">${buildCleanEssayHtml(result.analysis.correctedEssay)}</div></div>`;
                     }
 
@@ -4781,7 +6253,8 @@ Requirement: "${ruleDescription}"`;
                 downloadContainer: document.getElementById('downloadContainer'), essayCountBadge: document.getElementById('essayCountBadge'),
                 statTotal: document.getElementById('statTotal'), statGraded: document.getElementById('statGraded'),
                 statResubmit: document.getElementById('statResubmit'),
-                statRemaining: document.getElementById('statRemaining'), statAverage: document.getElementById('statAverage'),
+                statRemaining: document.getElementById('statRemaining'), statFailed: document.getElementById('statFailed'),
+                statAverage: document.getElementById('statAverage'),
                 confirmModal: document.getElementById('confirmModal'), confirmModalTitle: document.getElementById('confirmModalTitle'),
                 confirmModalText: document.getElementById('confirmModalText'), confirmCancelBtn: document.getElementById('confirmCancelButton'),
                 confirmActionBtn: document.getElementById('confirmActionButton'), saveModal: document.getElementById('saveModal'),
@@ -4813,12 +6286,13 @@ Requirement: "${ruleDescription}"`;
                 batchTeachingNotesCard: document.getElementById('batchTeachingNotesCard')
             };
 
+            bindCopyOptionsMenu();
             refreshApiSettingsUI();
             if (!isGeminiHost() && resolveAIProvider() === 'openai' && !getOpenAIApiKey()) {
                 notify('Open API in the header and paste your OpenAI key. Analyze uses this site’s proxy (not a local-only setup).', 'info');
             }
             if (needsGradingDefaultsMigration) {
-                saveState();
+                saveState({ syncGrader: true });
                 notify('Grading rules and reference essays updated. Re-run Analyze for fairer scores.', 'info');
             }
             if(elements.textarea) elements.textarea.value = appState.textInput;
@@ -4882,7 +6356,7 @@ Requirement: "${ruleDescription}"`;
                 elements.speechTemplateInput.value = appState.speechTemplate || '';
                 elements.speechTemplateInput.addEventListener('input', () => {
                     appState.speechTemplate = elements.speechTemplateInput.value || '';
-                    debouncedSaveState();
+                    debouncedSaveState({ syncGrader: true });
                 });
             }
             syncSpeechTemplatePanel();
@@ -5021,42 +6495,64 @@ Requirement: "${ruleDescription}"`;
 
             try {
                 let batchType = '';
+                let batchId = '';
                 try {
-                    batchType = String(
-                        new URLSearchParams(location.search || '').get('batchType') || ''
-                    ).trim();
+                    const params = new URLSearchParams(location.search || '');
+                    batchType = String(params.get('batchType') || '').trim();
+                    batchId = String(params.get('batchId') || '').trim();
                 } catch (_) {
                     batchType = '';
+                    batchId = '';
                 }
-                const typedKey = batchType ? `ccmu_essay_batch_${batchType}` : '';
-                const payloadRaw =
-                    (typedKey && localStorage.getItem(typedKey)) ||
-                    (typedKey && sessionStorage.getItem(typedKey)) ||
-                    localStorage.getItem('ccmu_essay_batch') ||
-                    sessionStorage.getItem('ccmu_essay_batch');
+                // A scrape tab already restored from this tab's own session. Do not pull another batch.
+                const skipPayload = Boolean(freshBatchId && isolatedSession);
+                const storageKey = batchId ? `ccmu_essay_batch_${batchId}` : '';
+                const payloadRaw = skipPayload
+                    ? ''
+                    : batchId
+                      ? (localStorage.getItem(storageKey) || sessionStorage.getItem(storageKey) || '')
+                      : (
+                            (batchType && localStorage.getItem(`ccmu_essay_batch_${batchType}`)) ||
+                            (batchType && sessionStorage.getItem(`ccmu_essay_batch_${batchType}`)) ||
+                            localStorage.getItem('ccmu_essay_batch') ||
+                            sessionStorage.getItem('ccmu_essay_batch') ||
+                            ''
+                        );
                 if (payloadRaw) {
                     const payload = JSON.parse(payloadRaw);
                     if (payload && Array.isArray(payload.essays) && payload.essays.length) {
+                        appState.listLinks = [];
+                        payload.essays.forEach((essay) => rememberListLink(essay));
                         const blocks = payload.essays
                             .filter((e) => e && e.essayText)
-                            .map((e) => `${e.studentName || ''}\n${e.className || ''}\n${e.essayText}\n---`)
+                            .map((e) => `${e.studentName || ''}\n${e.className || ''}\n${e.essayText}\n${ESSAY_END_MARKER}`)
                             .join('\n');
                         if (blocks && elements.textarea) {
                             elements.textarea.value = blocks;
                             appState.textInput = blocks;
-                            try {
-                                localStorage.setItem('bg_textInput', blocks);
-                            } catch (_) {
-                                /* ignore */
+                            appState.results = [];
+                            appState.batchTeachingNotes = null;
+                            if (freshBatchId) {
+                                writeIsolatedSession();
+                            } else {
+                                try {
+                                    localStorage.setItem('bg_textInput', blocks);
+                                } catch (_) {
+                                    /* ignore */
+                                }
                             }
                             const resolvedType = payload.essayType || batchType;
                             if (resolvedType && elements.essayTypeSelect) {
                                 elements.essayTypeSelect.value = resolvedType;
                                 appState.essayType = resolvedType;
-                                try {
-                                    localStorage.setItem('bg_essayType', resolvedType);
-                                } catch (_) {
-                                    /* ignore */
+                                if (!freshBatchId) {
+                                    try {
+                                        localStorage.setItem('bg_essayType', resolvedType);
+                                    } catch (_) {
+                                        /* ignore */
+                                    }
+                                } else {
+                                    writeIsolatedSession();
                                 }
                             }
                             updateEssayCount();
@@ -5067,12 +6563,17 @@ Requirement: "${ruleDescription}"`;
                             );
                         }
                     }
-                    const keysToClear = ['ccmu_essay_batch'];
-                    if (typedKey) {
-                        keysToClear.push(typedKey);
-                    }
-                    if (payload && payload.essayType) {
-                        keysToClear.push(`ccmu_essay_batch_${payload.essayType}`);
+                    const keysToClear = [];
+                    if (batchId && storageKey) {
+                        keysToClear.push(storageKey);
+                    } else {
+                        keysToClear.push('ccmu_essay_batch');
+                        if (batchType) {
+                            keysToClear.push(`ccmu_essay_batch_${batchType}`);
+                        }
+                        if (payload && payload.essayType) {
+                            keysToClear.push(`ccmu_essay_batch_${payload.essayType}`);
+                        }
                     }
                     keysToClear.forEach((k) => {
                         try {

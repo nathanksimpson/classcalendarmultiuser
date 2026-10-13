@@ -208,7 +208,8 @@ html.ccp-auth-boot body {
     --essay-status-not: #b6c0cf;
     --essay-status-received: #3b82f6;
     --essay-status-complete: var(--primary);
-    --essay-status-resubmit: #e0863b;
+    --essay-status-resubmit: var(--danger);
+    --essay-status-demerit: #e0863b;
     --essay-status-incomplete: #64748b;
     --essay-status-exempt: #8b9aab;
     --essay-incomplete-tint-bg: #eef1f5;
@@ -226,9 +227,12 @@ html.ccp-auth-boot body {
     --essay-context-bg: #f2f7f5;
     --essay-context-border: #dbe8e2;
     --essay-toolbar-bg: #fafbfc;
-    --essay-resubmit-tint-bg: #fdf1e5;
-    --essay-resubmit-tint-border: #f2d6b8;
-    --essay-resubmit-tint-text: #b45309;
+    --essay-resubmit-tint-bg: var(--status-error-bg);
+    --essay-resubmit-tint-border: var(--status-error-border);
+    --essay-resubmit-tint-text: var(--status-error-color);
+    --essay-demerit-tint-bg: #fdf1e5;
+    --essay-demerit-tint-border: #f2d6b8;
+    --essay-demerit-tint-text: #b45309;
     --essay-submitted-tint-bg: #eef4ff;
     --essay-submitted-tint-border: #c9dbfb;
     --essay-submitted-tint-text: #1d4ed8;
@@ -2715,6 +2719,12 @@ form {
 form.modal-body,
 .modal-content > form:not(.modal-header form) {
     padding: var(--pad-overlay);
+}
+
+form.credential-form,
+.modal-content > form.credential-form {
+    padding: 0;
+    margin: 0;
 }
 
 .form-group {
@@ -9203,6 +9213,23 @@ html[data-viewport="phone"] .command-center-mobile-tabs {
     font-size: 0.9rem;
 }
 
+.homework-assign-essay-warn:not([hidden]) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.homework-assign-essay-warn-text {
+    margin: 0;
+    flex: 1;
+    min-width: 0;
+}
+
+.homework-assign-essay-warn .btn {
+    flex-shrink: 0;
+}
+
 /* ============================================
    Super admin role palette (effective signed-in user)
    ============================================ */
@@ -9326,6 +9353,9 @@ html.role-super-admin:not([data-theme="dark"]) {
 
     --badge-warn-bg: #422006;
     --badge-warn-color: #fcd34d;
+    --essay-demerit-tint-bg: #422006;
+    --essay-demerit-tint-border: #b45309;
+    --essay-demerit-tint-text: #fcd34d;
 
     --lock-btn-bg: #1e293b;
     --lock-btn-border: #475569;
@@ -12946,6 +12976,12 @@ html[data-viewport="tablet"] .btn-compact {
     min-height: var(--touch-min);
 }
 
+html[data-viewport="phone"] .selection-chip,
+html[data-viewport="tablet-sm"] .selection-chip,
+html[data-viewport="tablet"] .selection-chip {
+    min-height: var(--touch-min);
+}
+
 html[data-viewport="phone"] .app-top-bar-toggle,
 html[data-viewport="tablet-sm"] .app-top-bar-toggle,
 html[data-viewport="tablet"] .app-top-bar-toggle {
@@ -16211,6 +16247,12 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
     border: 1px solid var(--essay-submitted-tint-border);
 }
 
+.classroom-essay-alert-done {
+    color: var(--essay-status-complete);
+    background: color-mix(in srgb, var(--essay-status-complete) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--essay-status-complete) 35%, transparent);
+}
+
 .classroom-debate-book-alert-badges {
     display: flex;
     flex-wrap: wrap;
@@ -16464,6 +16506,22 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
     vertical-align: middle;
 }
 
+.classroom-sheet--essays .classroom-sheet-col-submitted {
+    width: 112px;
+    min-width: 96px;
+}
+
+.classroom-sheet--essays td.classroom-sheet-col-submitted {
+    text-align: center;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+}
+
+.classroom-essay-submitted-empty {
+    color: var(--text-muted);
+}
+
 .classroom-sheet--essays .classroom-sheet-col-feedback {
     width: auto;
     min-width: 180px;
@@ -16507,6 +16565,11 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
 
 .classroom-essay-context-field--grow {
     flex: 1 1 240px;
+}
+
+.classroom-essay-context-field--subject {
+    flex: 0 0 auto;
+    min-width: 160px;
 }
 
 .classroom-essay-assignment-row {
@@ -16940,6 +17003,12 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
     color: var(--essay-resubmit-tint-text);
 }
 
+.classroom-essay-batch-status-btn.essay-status--demerit {
+    border-color: var(--essay-demerit-tint-border);
+    background: var(--essay-demerit-tint-bg);
+    color: var(--essay-demerit-tint-text);
+}
+
 .classroom-essay-batch-status-btn.essay-status--incomplete {
     border-color: var(--essay-incomplete-tint-border);
     background: var(--essay-incomplete-tint-bg);
@@ -16980,6 +17049,10 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
 
 .classroom-sheet-row--status-essay-resubmit {
     --classroom-row-rail: var(--essay-status-resubmit);
+}
+
+.classroom-sheet-row--status-essay-demerit {
+    --classroom-row-rail: var(--essay-status-demerit);
 }
 
 .classroom-sheet-row--status-essay-incomplete {
@@ -17101,6 +17174,12 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
     color: var(--bg-card);
 }
 
+.classroom-essay-stage--active.essay-status--demerit {
+    background: var(--essay-status-demerit);
+    border-color: var(--essay-status-demerit);
+    color: var(--bg-card);
+}
+
 .classroom-essay-stage--active.essay-status--incomplete {
     background: var(--essay-status-incomplete);
     border-color: var(--essay-status-incomplete);
@@ -17171,6 +17250,12 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
     background: var(--essay-resubmit-tint-bg);
     color: var(--essay-resubmit-tint-text);
     border-color: var(--essay-resubmit-tint-border);
+}
+
+.classroom-essay-due-pill--demerit {
+    background: var(--essay-demerit-tint-bg);
+    color: var(--essay-demerit-tint-text);
+    border-color: var(--essay-demerit-tint-border);
 }
 
 .classroom-essay-due-pill--incomplete {
@@ -17258,6 +17343,8 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
 }
 
 .classroom-essay-retest-toggle input.classroom-essay-retest,
+.classroom-essay-retest-toggle input.classroom-essay-retest-assigned,
+.classroom-essay-retest-toggle input.classroom-essay-retest-passed,
 .classroom-essay-retest-toggle input.classroom-essay-debate-video {
     position: absolute;
     width: 1px;
@@ -17294,6 +17381,19 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
 
 .classroom-essay-retest-toggle input:checked + .classroom-essay-retest-toggle__box .classroom-essay-retest-toggle__check {
     display: block;
+}
+
+.classroom-essay-demerit-toggle {
+    color: var(--essay-demerit-tint-text);
+}
+
+.classroom-essay-demerit-toggle .classroom-essay-retest-toggle__box {
+    border-color: var(--essay-status-demerit);
+}
+
+.classroom-essay-demerit-toggle input:checked + .classroom-essay-retest-toggle__box {
+    background: var(--essay-status-demerit);
+    border-color: var(--essay-status-demerit);
 }
 
 .classroom-essay-clear-filter {
@@ -17402,6 +17502,10 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
     background: var(--essay-status-resubmit);
 }
 
+.classroom-essay-stats-segment.essay-status--demerit {
+    background: var(--essay-status-demerit);
+}
+
 .classroom-essay-stats-segment.essay-status--incomplete {
     background: var(--essay-status-incomplete);
 }
@@ -17469,6 +17573,10 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
 
 .classroom-essay-filter-chip.essay-status--resubmit .classroom-essay-filter-dot {
     background: var(--essay-status-resubmit);
+}
+
+.classroom-essay-filter-chip.essay-status--demerit .classroom-essay-filter-dot {
+    background: var(--essay-status-demerit);
 }
 
 .classroom-essay-filter-chip.essay-status--incomplete .classroom-essay-filter-dot {
@@ -17779,6 +17887,10 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
     --classroom-row-rail: var(--essay-status-resubmit);
 }
 
+.classroom-sheet-row--status-essay-demerit {
+    --classroom-row-rail: var(--essay-status-demerit);
+}
+
 .classroom-sheet-row--status-essay-incomplete {
     --classroom-row-rail: var(--essay-status-incomplete);
 }
@@ -17864,6 +17976,11 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
 
 .classroom-essay-eval-segments .classroom-essay-eval-btn.is-active[data-status="resubmit_required"] {
     background: var(--essay-status-resubmit);
+    color: var(--text-on-primary);
+}
+
+.classroom-essay-eval-segments .classroom-essay-eval-btn.is-active[data-status="demerit"] {
+    background: var(--essay-status-demerit);
     color: var(--text-on-primary);
 }
 
@@ -18149,6 +18266,71 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
+}
+
+.essay-scrape-filters {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.essay-scrape-filter-bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+    gap: var(--space-3);
+    align-items: end;
+}
+
+.essay-scrape-filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+    margin: 0;
+    font-size: var(--text-body-sm);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.essay-scrape-filter-search {
+    display: block;
+    margin: 0;
+}
+
+.essay-scrape-filter-group[hidden] {
+    display: none;
+}
+
+.essay-scrape-filter-groups {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3) var(--space-4);
+}
+
+.essay-scrape-chip-grid {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: var(--space-2);
+    max-height: calc(var(--space-7) * 3);
+    overflow: auto;
+}
+
+.essay-scrape-chip-grid .selection-chip {
+    width: auto;
+    flex: 0 1 auto;
+}
+
+@media (max-width: 768px) {
+    .essay-scrape-filter-bar,
+    .essay-scrape-filter-groups {
+        grid-template-columns: 1fr;
+    }
+
+    .essay-scrape-filter-bar .btn {
+        justify-self: start;
+    }
 }
 
 .roster-import-table {
@@ -18571,20 +18753,19 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
     }
 
     .classroom-sheet .selection-chip {
-        min-height: 36px;
-        padding: var(--pad-control-y) var(--pad-control-x);
-    }
-}
-
-@media (max-width: 900px) {
-    .classroom-sheet .selection-chip {
         min-height: var(--touch-min, 44px);
-        font-size: var(--text-body-sm, 0.8125rem);
+        padding: var(--pad-control-y) var(--pad-control-x);
     }
 
     #zoneSegments-classroom .app-zone-segment-btn {
         min-height: var(--touch-min, 44px);
         padding: var(--space-2) var(--space-3);
+    }
+}
+
+@media (max-width: 900px) {
+    .classroom-sheet .selection-chip {
+        font-size: var(--text-body-sm, 0.8125rem);
     }
 }
 
@@ -19659,6 +19840,15 @@ html[data-viewport="tablet"] .app-header-unified__tools-collapsible .btn-help {
     justify-content: flex-start;
 }
 
+/* Icon-only theme control: center glyph in the full-width overflow row */
+html[data-viewport="phone"] .app-header-unified__tools-collapsible .header-tool-theme,
+html[data-viewport="tablet-sm"] .app-header-unified__tools-collapsible .header-tool-theme,
+html[data-viewport="tablet"] .app-header-unified__tools-collapsible .header-tool-theme {
+    justify-content: center;
+    text-align: center;
+    min-width: 0;
+}
+
 html[data-viewport="phone"] .team-lock-sync-bar.team-lock-sync-bar--inline,
 html[data-viewport="tablet-sm"] .team-lock-sync-bar.team-lock-sync-bar--inline,
 html[data-viewport="tablet"] .team-lock-sync-bar.team-lock-sync-bar--inline {
@@ -19804,6 +19994,12 @@ html[data-viewport="tablet"] .nav-tabs-collapse-toggle::before {
     .app-header-unified__tools-collapsible .btn-help {
         width: 100%;
         justify-content: flex-start;
+    }
+
+    .app-header-unified__tools-collapsible .header-tool-theme {
+        justify-content: center;
+        text-align: center;
+        min-width: 0;
     }
 
     .team-lock-sync-bar.team-lock-sync-bar--inline {

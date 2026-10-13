@@ -835,6 +835,9 @@
             if (lesson.__debateTemplateKey) {
                 lessonRow.debateTemplateKey = lesson.__debateTemplateKey;
             }
+            if (lesson.book) {
+                lessonRow.book = lesson.book;
+            }
             if (lesson.periodId) {
                 lessonRow.periodId = lesson.periodId;
             }
@@ -1386,6 +1389,8 @@
                 trackEssay: typeof prev.trackEssay === 'boolean'
                     ? prev.trackEssay
                     : (typeof gen.trackEssay === 'boolean' ? gen.trackEssay : undefined),
+                essaySubject: prev.essaySubject || gen.essaySubject || '',
+                essayListMonth: prev.essayListMonth || gen.essayListMonth || '',
                 homeworkDueDate: (prev.homeworkDueDate || '').trim()
                     ? String(prev.homeworkDueDate).trim()
                     : (gen.homeworkDueDate || undefined)
@@ -1454,7 +1459,11 @@
             source: r.source || 'generated',
             rowBg: r.rowBg || '',
             rowColor: r.rowColor || '',
-            eventType: r.eventType || ''
+            eventType: r.eventType || '',
+            essaySubject: r.essaySubject || '',
+            essayListMonth: /^\d{4}-\d{2}$/.test(r.essayListMonth || '') ? r.essayListMonth : '',
+            book: r.book || '',
+            periodId: r.periodId || ''
         }));
     }
 

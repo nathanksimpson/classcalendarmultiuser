@@ -384,6 +384,7 @@
                 dueSessionNumber: 0,
                 skippedClassDates: [],
                 hasSyllabusLessons: false,
+                assignNeedsEssayCheck: false,
                 messageKey: 'homeworkTabNoLessons'
             };
         }
@@ -463,6 +464,11 @@
             dueSessionNumber,
             skippedClassDates,
             hasSyllabusLessons: true,
+            assignNeedsEssayCheck: assignNeedsEssayCheck({
+                title: assignRow ? assignRow.planTitle : '',
+                text: assignText,
+                trackEssay: assignRow ? assignRow.trackEssay : undefined
+            }),
             messageKey
         };
     }
@@ -525,6 +531,28 @@
             return true;
         }
         return /\bday\s*3\b/.test(title);
+    }
+
+    /**
+     * True when Assign now should warn to select Essay in the TMS homework area.
+     * Day 4 titles always warn. Other lessons warn when they are essay assignments
+     * (trackEssay on, or essay text while the checkbox is not explicitly off).
+     * @param {{ title?: string, text?: string, trackEssay?: boolean }} [opts]
+     */
+    function assignNeedsEssayCheck(opts) {
+        const o = opts || {};
+        const title = String(o.title || '');
+        if (/day\s*4\b/i.test(title)) {
+            return true;
+        }
+        if (o.trackEssay === true) {
+            return true;
+        }
+        if (o.trackEssay === false) {
+            return false;
+        }
+        const hay = `${title} ${o.text || ''}`.toLowerCase();
+        return hay.includes('essay') || hay.includes('에세이');
     }
 
     function isDebateHomeworkClass(classData) {
@@ -606,6 +634,7 @@
         DEBATE_TEAMS_BLOCK_START,
         DEBATE_TEAMS_BLOCK_END,
         textIncludesDebateDay3,
+        assignNeedsEssayCheck,
         isDebateHomeworkClass,
         assignHomeworkIncludesDebateDay3,
         stripDebateTeamsBlock,

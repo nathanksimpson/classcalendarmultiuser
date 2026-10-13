@@ -204,7 +204,8 @@ html.ccp-auth-boot body {
     --essay-status-not: #b6c0cf;
     --essay-status-received: #3b82f6;
     --essay-status-complete: var(--primary);
-    --essay-status-resubmit: #e0863b;
+    --essay-status-resubmit: var(--danger);
+    --essay-status-demerit: #e0863b;
     --essay-status-incomplete: #64748b;
     --essay-status-exempt: #8b9aab;
     --essay-incomplete-tint-bg: #eef1f5;
@@ -222,9 +223,12 @@ html.ccp-auth-boot body {
     --essay-context-bg: #f2f7f5;
     --essay-context-border: #dbe8e2;
     --essay-toolbar-bg: #fafbfc;
-    --essay-resubmit-tint-bg: #fdf1e5;
-    --essay-resubmit-tint-border: #f2d6b8;
-    --essay-resubmit-tint-text: #b45309;
+    --essay-resubmit-tint-bg: var(--status-error-bg);
+    --essay-resubmit-tint-border: var(--status-error-border);
+    --essay-resubmit-tint-text: var(--status-error-color);
+    --essay-demerit-tint-bg: #fdf1e5;
+    --essay-demerit-tint-border: #f2d6b8;
+    --essay-demerit-tint-text: #b45309;
     --essay-submitted-tint-bg: #eef4ff;
     --essay-submitted-tint-border: #c9dbfb;
     --essay-submitted-tint-text: #1d4ed8;

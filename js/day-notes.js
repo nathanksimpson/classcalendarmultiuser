@@ -479,6 +479,8 @@
 
     /**
      * Prep notes left at the previous class meeting (category next-class-notes).
+     * Also includes notes dated on the HW anchor day (legacy Now Class popup saved
+     * next-class-notes on the upcoming meeting date instead of the prior one).
      * @param {Array} dayNotes
      * @param {string} classId
      * @param {string} beforeDateStr anchor ISO date (exclusive when finding prior meeting)
@@ -494,10 +496,24 @@
         if (!previousMeetingDate) {
             return { previousMeetingDate: '', notes: [] };
         }
-        const notes = getNotesForClassOnDate(dayNotes, classId, previousMeetingDate).filter(
-            (note) => normalizeCategoryId(note.categoryId) === NEXT_CLASS_NOTES_CATEGORY_ID
-        );
-        return { previousMeetingDate, notes };
+        const isPrepNote = (note) => normalizeCategoryId(note.categoryId) === NEXT_CLASS_NOTES_CATEGORY_ID;
+        const fromPrior = getNotesForClassOnDate(dayNotes, classId, previousMeetingDate).filter(isPrepNote);
+        const fromAnchor = beforeDateStr && beforeDateStr !== previousMeetingDate
+            ? getNotesForClassOnDate(dayNotes, classId, beforeDateStr).filter(isPrepNote)
+            : [];
+        if (!fromAnchor.length) {
+            return { previousMeetingDate, notes: fromPrior };
+        }
+        const seen = new Set(fromPrior.map((n) => n && n.id).filter(Boolean));
+        const merged = fromPrior.slice();
+        fromAnchor.forEach((note) => {
+            if (!note || !note.id || seen.has(note.id)) {
+                return;
+            }
+            seen.add(note.id);
+            merged.push(note);
+        });
+        return { previousMeetingDate, notes: merged };
     }
 
     function formatTimeLabel(iso, locale) {

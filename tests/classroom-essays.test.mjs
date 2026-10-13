@@ -54,6 +54,8 @@ const { CCPClassroomEssays } = sandbox.window;
 
     assert(CCPClassroomEssays.isReceivedStatus('resubmit_required'), 'resubmit is received');
 
+    assert(CCPClassroomEssays.isReceivedStatus('demerit'), 'demerit is received');
+
     assert(!CCPClassroomEssays.isReceivedStatus('not_submitted'), 'not_submitted is not received');
 
 }
@@ -222,7 +224,7 @@ const { CCPClassroomEssays } = sandbox.window;
 
     });
 
-    assert(segments.length === 6, 'six segments');
+    assert(segments.length === 7, 'seven segments');
 
     assert(segments[0].flex === 3 && segments[2].flex === 5, 'proportional flex');
 
@@ -568,8 +570,8 @@ const { CCPClassroomEssays } = sandbox.window;
 
     const legacyStored = { ssDueDate: '2026-05-04' };
     assert(
-        D.resolveEssayStudentDueDate(row, classData, legacyStored) === '2026-05-06',
-        'legacy lesson-day ssDueDate upgrades to homework next-class due'
+        D.resolveEssayStudentDueDate(row, classData, legacyStored) === '2026-05-04',
+        'saved essay due stays, even when it is the lesson day'
     );
 
     const customStored = { ssDueDate: '2026-05-15' };
@@ -577,6 +579,35 @@ const { CCPClassroomEssays } = sandbox.window;
         D.resolveEssayStudentDueDate(row, classData, customStored) === '2026-05-15',
         'explicit custom ssDueDate still wins'
     );
+}
+
+{
+    const cleared = CCPClassroomEssays.applyStagedBatchToRecord(
+        { studentId: 's1', status: 'demerit', retestAssigned: true, retestPassed: true, note: '' },
+        'evaluation',
+        'complete',
+        null
+    );
+    assert(cleared.status === 'complete', 'leaving demerit sets complete');
+    assert(cleared.retestAssigned === false, 'leaving demerit clears assigned retest');
+    assert(cleared.retestPassed === false, 'leaving demerit clears passed');
+
+    const kept = CCPClassroomEssays.applyStagedBatchToRecord(
+        { studentId: 's1', status: 'demerit', retestAssigned: true, retestPassed: true, note: '' },
+        'evaluation',
+        'demerit',
+        null
+    );
+    assert(kept.retestAssigned === true && kept.retestPassed === true, 'staying on demerit keeps flags');
+
+    const entered = CCPClassroomEssays.applyStagedBatchToRecord(
+        { studentId: 's1', status: 'submitted', retestAssigned: true, retestPassed: true, note: '' },
+        'evaluation',
+        'demerit',
+        null
+    );
+    assert(entered.status === 'demerit', 'evaluation can set demerit');
+    assert(entered.retestAssigned === false && entered.retestPassed === false, 'entering demerit starts unchecked');
 }
 
 console.log('classroom-essays.test.mjs: all passed');

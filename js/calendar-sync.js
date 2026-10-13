@@ -308,8 +308,8 @@
             state.readOnly = true;
         }
         state.lock = (json && json.lock) || null;
-        // Trust server holdsLock (session-scoped). Do not infer from holderUserId —
-        // same user on another device must stay view-only until Start editing / save takeover.
+        // Trust server holdsLock (session-scoped). Do not infer from holderUserId.
+        // Same user on another device is view-only until quiet acquire / save takeover.
         if (json && typeof json.holdsLock === 'boolean') {
             state.holdsLock = json.holdsLock;
         } else {
@@ -375,6 +375,51 @@
         }
         json._lockDebugSource = source;
         return json;
+    }
+
+    /**
+     * Quietly acquire when lock is free or held by this user on another session,
+     * so schedule saves can proceed without an explicit Start editing click.
+     * @returns {Promise<boolean>} true when this session may write schedule data
+     */
+    async function ensureLockForScheduleWrite() {
+        if (state.permissionReadOnly || state.canEdit === false) {
+            return false;
+        }
+        if (!state.readOnly && state.holdsLock) {
+            return true;
+        }
+        if (isViewAsMode()) {
+            return !state.readOnly;
+        }
+        const me =
+            typeof TeamAuth !== 'undefined' && TeamAuth.getUser ? TeamAuth.getUser() : null;
+        const lock = state.lock;
+        const heldByOther =
+            lock &&
+            lock.holderUserId &&
+            (!me || String(lock.holderUserId) !== String(me.id));
+        if (heldByOther) {
+            return false;
+        }
+        const id = CalendarSync.getActiveCalendarId();
+        if (!id) {
+            return false;
+        }
+        try {
+            debugLog('api', 'Quiet acquire before schedule write', {
+                calendarId: id,
+                hadLock: Boolean(lock && lock.holderUserId),
+                holdsLock: state.holdsLock
+            });
+            const result = await CalendarSync.acquireLock(id);
+            return Boolean(result && (result.acquired || state.holdsLock) && !state.readOnly);
+        } catch (err) {
+            debugLog('error', 'Quiet acquire before schedule write failed', {
+                message: err && err.message
+            });
+            return false;
+        }
     }
 
     function setStatus(status, detail) {
@@ -711,8 +756,14 @@
             }
             const fn = state.pendingGetData;
             state.pendingGetData = null;
-            if (!CalendarSync.getActiveCalendarId() || state.readOnly) {
+            if (!CalendarSync.getActiveCalendarId()) {
                 return;
+            }
+            if (state.readOnly) {
+                const acquired = await ensureLockForScheduleWrite();
+                if (!acquired || state.readOnly) {
+                    return;
+                }
             }
             if (CalendarSync.hasPendingMutations()) {
                 await CalendarSync.saveCalendarMutations();
@@ -1327,13 +1378,16 @@
                 throw err;
             }
             if (state.readOnly) {
-                const err = new Error(
-                    state.permissionReadOnly
-                        ? 'You do not have edit access to this calendar'
-                        : 'Calendar is locked by another teacher'
-                );
-                err.status = state.permissionReadOnly ? 403 : 423;
-                throw err;
+                const acquired = await ensureLockForScheduleWrite();
+                if (!acquired) {
+                    const err = new Error(
+                        state.permissionReadOnly
+                            ? 'You do not have edit access to this calendar'
+                            : 'Calendar is locked by another teacher'
+                    );
+                    err.status = state.permissionReadOnly ? 403 : 423;
+                    throw err;
+                }
             }
             const id = CalendarSync.getActiveCalendarId();
             if (!id) {
@@ -1484,13 +1538,16 @@
                 throw err;
             }
             if (state.readOnly) {
-                const err = new Error(
-                    state.permissionReadOnly
-                        ? 'You do not have edit access to this calendar'
-                        : 'Calendar is locked by another teacher'
-                );
-                err.status = state.permissionReadOnly ? 403 : 423;
-                throw err;
+                const acquired = await ensureLockForScheduleWrite();
+                if (!acquired) {
+                    const err = new Error(
+                        state.permissionReadOnly
+                            ? 'You do not have edit access to this calendar'
+                            : 'Calendar is locked by another teacher'
+                    );
+                    err.status = state.permissionReadOnly ? 403 : 423;
+                    throw err;
+                }
             }
             const id = CalendarSync.getActiveCalendarId();
             if (!id) {
@@ -1551,7 +1608,7 @@
             if (typeof TeamAuth !== 'undefined' && TeamAuth.isSignedIn && !TeamAuth.isSignedIn()) {
                 return;
             }
-            if (state.readOnly || state.canEdit === false) {
+            if (state.canEdit === false) {
                 return;
             }
             state.pendingGetData = getDataFn;
@@ -1561,8 +1618,14 @@
             state.saveTimer = setTimeout(async () => {
                 state.saveTimer = null;
                 const fn = state.pendingGetData;
-                if (!fn || !CalendarSync.getActiveCalendarId() || state.readOnly) {
+                if (!fn || !CalendarSync.getActiveCalendarId()) {
                     return;
+                }
+                if (state.readOnly) {
+                    const acquired = await ensureLockForScheduleWrite();
+                    if (!acquired || state.readOnly) {
+                        return;
+                    }
                 }
                 try {
                     if (CalendarSync.hasPendingMutations()) {
