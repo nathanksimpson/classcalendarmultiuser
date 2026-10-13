@@ -93,12 +93,18 @@
                 const outstandingStudentCount =
                     (counts.not_submitted || 0) + (counts.resubmit_required || 0);
                 const isPastDueStrict = isOverdueISO(ssDue);
+                const listMonth = d.essayAssignmentListMonth
+                    ? d.essayAssignmentListMonth(row)
+                    : String(row.date || '').slice(0, 7);
                 assignments.push({
                     key,
                     classId: classData.id,
                     className: classData.name || classData.id,
+                    teacherIds: Array.isArray(classData.teacherIds) ? classData.teacherIds.slice() : [],
                     syllabusRowId,
                     lessonDate: row.date || '',
+                    listMonth,
+                    displaySubject: d.displayEssaySubject ? d.displayEssaySubject(row) : '',
                     assignmentLabel: getAssignmentLabel(row),
                     totalStudents,
                     counts,
@@ -142,6 +148,34 @@
         const outstandingOnly = opts.outstandingOnly || opts.pendingOnly;
         if (outstandingOnly) {
             list = list.filter((row) => row.hasOutstandingStudents && row.isPastDueStrict);
+        }
+        const d = domain();
+        const essaySubject = opts.essaySubject || '';
+        const classScope = opts.classScope || 'all';
+        const currentUserId = opts.currentUserId || '';
+        if (d && (essaySubject || classScope === 'mine' || classScope === 'other')) {
+            list = list.filter((row) => {
+                if (!row) {
+                    return false;
+                }
+                if (
+                    d.essayReportSubjectMatches &&
+                    !d.essayReportSubjectMatches(row.displaySubject, essaySubject)
+                ) {
+                    return false;
+                }
+                if (
+                    d.essayReportClassMatchesScope &&
+                    !d.essayReportClassMatchesScope(
+                        { teacherIds: row.teacherIds },
+                        classScope,
+                        currentUserId
+                    )
+                ) {
+                    return false;
+                }
+                return true;
+            });
         }
         return list;
     }

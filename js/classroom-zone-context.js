@@ -96,14 +96,12 @@
         };
     }
 
-    /** Distinct YYYY-MM keys from essay SS due dates across accessible classes (newest first). */
+    /** Distinct class-list months (teacher month, else syllabus date) across accessible classes. */
     function listEssayWarnMonthOptions() {
         const d = domain();
         if (!d || !d.getEssayRowsFromSyllabus || !d.yearMonthKey) {
             return [];
         }
-        const data = getAppData();
-        const submissions = getEssayAlertSubmissions();
         const months = new Set();
         getBaseAccessibleClasses().forEach((classData) => {
             if (!classData || !classData.id) {
@@ -116,12 +114,9 @@
                 if (!syllabusRowId) {
                     return;
                 }
-                const submission =
-                    d.findEssaySubmission &&
-                    d.findEssaySubmission(submissions, classData.id, syllabusRowId);
-                const ssDue =
-                    submission && submission.ssDueDate ? submission.ssDueDate : (row && row.date) || '';
-                const month = d.yearMonthKey(ssDue);
+                const month = d.essayAssignmentListMonth
+                    ? d.essayAssignmentListMonth(row)
+                    : d.yearMonthKey(row && row.date);
                 if (month) {
                     months.add(month);
                 }
@@ -246,7 +241,7 @@
 
     function getEssayAlertCounts(classData) {
         if (!classData || !domain() || !domain().essayAlertCountsForClass) {
-            return { rs: 0, as: 0, od: 0, ae: 0, nv: 0 };
+            return { rs: 0, as: 0, od: 0, ae: 0, nv: 0, allComplete: false };
         }
         const data = getAppData();
         const month = getUiToggles().essayWarnMonth || '';
@@ -285,6 +280,11 @@
         if (c.nv > 0) {
             parts.push(
                 `<span class="classroom-essay-alert-badge classroom-essay-alert-nv" title="${escapeAttr(t('classroomEssayDebateVideoMissing'))}">${escapeHtml(tf('classroomEssayAlertNv', { count: c.nv }))}</span>`
+            );
+        }
+        if (c.allComplete) {
+            parts.push(
+                `<span class="classroom-essay-alert-badge classroom-essay-alert-done">${escapeHtml(t('classroomEssayAlertDone'))}</span>`
             );
         }
         return parts.length

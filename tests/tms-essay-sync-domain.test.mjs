@@ -463,7 +463,7 @@ function sampleApp() {
 }
 
 {
-    // Preview blocks cross-month map before any Received update is generated
+    // An explicit pick may map a TMS assignment onto an essay row in another month
     const app = sampleApp();
     app.classes[0].syllabusRows = [
         { id: 'row-jul', kind: 'lesson', date: '2026-07-10', planTitle: '7월 에세이', trackEssay: true },
@@ -482,11 +482,75 @@ function sampleApp() {
             userSyllabusRowId: 'row-jul'
         }
     ]);
-    assert(preview.updates.length === 0, 'cross-month preview blocked');
+    assert(preview.updates.length === 1, 'explicit cross-month map is allowed');
+    assert(preview.updates[0].syllabusRowId === 'row-jul', 'mapped the chosen July row');
     assert(
-        preview.unmatched.some((u) => u.reason === 'assignment_month_mismatch'),
-        'month mismatch reported'
+        !preview.unmatched.some((u) => u.reason === 'assignment_month_mismatch'),
+        'explicit pick is not a month mismatch'
     );
+}
+
+{
+    // Hand-added assignment outside the TMS month can still be chosen and marked Received
+    const app = sampleApp();
+    app.classes[0].syllabusRows = [
+        {
+            id: 'row-oct-custom',
+            kind: 'lesson',
+            date: '2026-10-02',
+            planTitle: 'Debate draft',
+            essaySubject: 'Debate',
+            trackEssay: true
+        }
+    ];
+    const preview = D.previewTmsEssaySyncPlan(app, [
+        {
+            className: 'Purple T',
+            title: 'Debate',
+            lessonDate: '2026-09-17',
+            assignedDate: '2026-09-17',
+            studentCount: 1,
+            students: [{ name: '박욱바S', submitted: true, submittedAt: '2026-09-20' }],
+            userAction: 'map',
+            userClassId: 'cls1',
+            userSyllabusRowId: 'row-oct-custom'
+        }
+    ]);
+    assert(preview.updates.length === 1, 'explicit other-month custom maps');
+    assert(preview.updates[0].syllabusRowId === 'row-oct-custom', 'mapped the hand-added row');
+    const applied = D.applyTmsEssaySync(app.essaySubmissions, preview, { appData: app });
+    const rec = D.getEssayRecordForStudent(
+        D.findEssaySubmission(applied.essaySubmissions, 'cls1', 'row-oct-custom'),
+        'stu1'
+    );
+    assert(rec && rec.status === 'submitted', 'hand-added assignment marked received');
+}
+
+{
+    // Auto-suggest still stays in the TMS month when a later hand-added row exists
+    const app = sampleApp();
+    app.classes[0].syllabusRows = [
+        {
+            id: 'row-sep',
+            kind: 'lesson',
+            date: '2026-09-10',
+            planTitle: 'September debate',
+            essaySubject: 'Debate',
+            trackEssay: true
+        },
+        {
+            id: 'row-oct',
+            kind: 'lesson',
+            date: '2026-10-02',
+            planTitle: 'October debate',
+            essaySubject: 'Debate',
+            trackEssay: true
+        }
+    ];
+    const hit = D.matchEssayAssignmentRow(app.classes[0], 'Debate', '2026-09-17', {
+        assignedDate: '2026-09-17'
+    });
+    assert(hit && hit.syllabusRowId === 'row-sep', `suggest stays in month ${hit && hit.syllabusRowId}`);
 }
 
 {
@@ -804,6 +868,345 @@ function sampleApp() {
     );
     const suspects = D.listSuspectedDuplicateStudents(result.appData.cohorts[0]);
     assert(suspects.length === 0, 'no suspects after merge');
+}
+
+{
+    const app = sampleApp();
+    app.classes[0].syllabusRows[0].homeworkDueDate = '2026-08-01';
+    app.essaySubmissions[0].ssDueDate = '2026-07-28';
+    const preview = D.previewTmsEssaySyncPlan(app, [
+        {
+            userAction: 'map',
+            userClassId: 'cls1',
+            userSyllabusRowId: 'row-debate',
+            className: '여울T^2606',
+            title: 'Debate',
+            lessonDate: today,
+            students: [{ name: '박욱바S', submitted: true, submittedAt: '2026-07-28' }]
+        }
+    ]);
+    assert(preview.updates.length === 1, 'same-day essay due still updates');
+    assert(preview.updates[0].submissionLate === false, 'submitted on the essay due date is on time');
+    assert(preview.updates[0].submittedAt === '2026-07-28', 'preview keeps submittedAt');
+    const applied = D.applyTmsEssaySync(app.essaySubmissions, preview, { appData: app });
+    const rec = D.getEssayRecordForStudent(
+        D.findEssaySubmission(applied.essaySubmissions, 'cls1', 'row-debate'),
+        'stu1'
+    );
+    assert(rec.status === 'submitted', 'new receive stored');
+    assert(rec.submittedAt === '2026-07-28', 'new receive stores submittedAt');
+    assert(rec.submissionLate === false, 'stored late flag matches same-day due');
+}
+
+{
+    const app = sampleApp();
+    app.essaySubmissions[0].records.push({
+        studentId: 'stu1',
+        status: 'complete',
+        submittedRetest: false,
+        note: 'keep',
+        submissionLate: true,
+        overdueDismissed: false
+    });
+    const preview = D.previewTmsEssaySyncPlan(app, [
+        {
+            userAction: 'map',
+            userClassId: 'cls1',
+            userSyllabusRowId: 'row-debate',
+            className: '여울T^2606',
+            title: 'Debate',
+            lessonDate: today,
+            students: [{ name: '박욱바S', submitted: true, submittedAt: today }]
+        }
+    ]);
+    assert(preview.updates.length === 0, 'already received is not a new mark');
+    assert(preview.dateRefreshes.length === 1, 'already received still refreshes the date');
+    assert(preview.skipped.some((s) => s.reason === 'already_set' && s.studentId === 'stu1'), 'still skipped as already set');
+    const applied = D.applyTmsEssaySync(app.essaySubmissions, preview, { appData: app });
+    assert(applied.summary.appliedCount === 0, 'refresh is not a mark-received count');
+    assert(applied.summary.refreshedCount === 1, 'date refresh counted');
+    const rec = D.getEssayRecordForStudent(
+        D.findEssaySubmission(applied.essaySubmissions, 'cls1', 'row-debate'),
+        'stu1'
+    );
+    assert(rec.status === 'complete', 'status stays complete');
+    assert(rec.note === 'keep', 'note stays');
+    assert(rec.submittedAt === today, 'submittedAt backfilled');
+    assert(rec.submissionLate === false, 'same-day refresh clears received late');
+}
+
+{
+    // Same month, two subjects: each TMS subject hits its own assignment.
+    const app = sampleApp();
+    app.classes[0].syllabusRows = [
+        {
+            id: 'row-debate',
+            kind: 'lesson',
+            date: '2026-07-10',
+            planTitle: 'Monthly writing',
+            essaySubject: 'Debate',
+            trackEssay: true
+        },
+        {
+            id: 'row-news',
+            kind: 'lesson',
+            date: '2026-07-18',
+            planTitle: 'Monthly writing',
+            essaySubject: 'News',
+            trackEssay: true
+        }
+    ];
+    const debateHit = D.matchEssayAssignmentRow(app.classes[0], 'Debate', '2026-07-21');
+    const newsHit = D.matchEssayAssignmentRow(app.classes[0], '뉴스', '2026-07-22');
+    assert(debateHit && debateHit.syllabusRowId === 'row-debate', 'Debate subject match');
+    assert(newsHit && newsHit.syllabusRowId === 'row-news', 'News subject match');
+    const speechHit = D.matchEssayAssignmentRow(app.classes[0], 'Speech', '2026-07-21');
+    assert(speechHit === null, 'unrelated subject does not take a Debate or News row');
+}
+
+{
+    // Saved subject matches even when the assignment title does not mention it.
+    const app = sampleApp();
+    app.classes[0].syllabusRows = [
+        {
+            id: 'row-speech',
+            kind: 'lesson',
+            date: '2026-07-12',
+            planTitle: 'March writing',
+            essaySubject: 'Speech',
+            trackEssay: true
+        }
+    ];
+    const hit = D.matchEssayAssignmentRow(app.classes[0], 'Speech', '2026-07-20');
+    assert(hit && hit.syllabusRowId === 'row-speech', 'custom subject matches by name');
+}
+
+{
+    // A remembered link to the wrong subject is ignored.
+    const app = sampleApp();
+    app.classes[0].syllabusRows[0].essaySubject = 'Debate';
+    app.classes[0].syllabusRows[1].essaySubject = 'News';
+    app.tmsEssayLinks = {
+        'hw:news-item': {
+            action: 'map',
+            classId: 'cls1',
+            syllabusRowId: 'row-debate',
+            title: 'News',
+            lessonDate: today,
+            homeworkItemIdx: 'news-item'
+        }
+    };
+    const built = D.buildTmsEssaySyncPlan(app, {
+        assignments: [
+            {
+                tmsClassId: '31040',
+                className: '여울T^2606',
+                title: 'News',
+                lessonDate: today,
+                homeworkItemIdx: 'news-item',
+                students: [{ name: '박욱바S', submitted: true, submittedAt: today }]
+            }
+        ]
+    });
+    assert(built.rows[0].remembered === false, 'wrong-subject remembered link ignored');
+    assert(built.rows[0].suggestedSyllabusRowId === 'row-news', 'suggested the News assignment');
+}
+
+{
+    // Preview refuses to mark Received on a different subject.
+    const app = sampleApp();
+    app.classes[0].syllabusRows[0].essaySubject = 'Debate';
+    const preview = D.previewTmsEssaySyncPlan(app, [
+        {
+            className: '여울T^2606',
+            title: 'News',
+            lessonDate: today,
+            assignedDate: today,
+            studentCount: 1,
+            students: [{ name: '박욱바S', submitted: true, submittedAt: today }],
+            userAction: 'map',
+            userClassId: 'cls1',
+            userSyllabusRowId: 'row-debate'
+        }
+    ]);
+    assert(preview.updates.length === 0, 'subject mismatch blocks updates');
+    assert(
+        preview.unmatched.some((u) => u.reason === 'assignment_subject_mismatch'),
+        'subject mismatch reported'
+    );
+}
+
+{
+    // A title that is only the word essay must not match every assignment.
+    const app = sampleApp();
+    app.classes[0].syllabusRows = [
+        {
+            id: 'row-plain',
+            kind: 'lesson',
+            date: '2026-07-10',
+            planTitle: 'Essay',
+            trackEssay: true
+        }
+    ];
+    const hit = D.matchEssayAssignmentRow(app.classes[0], 'Debate', '2026-07-15');
+    assert(hit === null, 'blank title key does not match every subject');
+}
+
+{
+    // Retcon resets only checked students and drops this assignment's TMS memory.
+    const app = sampleApp();
+    app.classes[0].syllabusRows[0].essaySubject = 'Debate';
+    app.essaySubmissions[0].records = [
+        {
+            studentId: 'stu1',
+            status: 'complete',
+            submittedAt: '2026-07-20',
+            submissionLate: true,
+            overdueDismissed: true,
+            submittedRetest: true,
+            note: 'keep me'
+        },
+        {
+            studentId: 'stu2',
+            status: 'submitted',
+            submittedAt: '2026-07-19',
+            submissionLate: false,
+            submittedRetest: false,
+            note: 'other'
+        }
+    ];
+    app.tmsEssayLinks = {
+        'hw:deb': {
+            action: 'map',
+            classId: 'cls1',
+            syllabusRowId: 'row-debate',
+            title: 'Debate',
+            lessonDate: today,
+            homeworkItemIdx: 'deb'
+        },
+        'hw:other': {
+            action: 'map',
+            classId: 'cls1',
+            syllabusRowId: 'row-news',
+            title: 'News',
+            lessonDate: today,
+            homeworkItemIdx: 'other'
+        }
+    };
+    const blocked = D.retconEssayCompletions(app, {
+        classId: 'cls1',
+        syllabusRowId: 'row-news',
+        studentIds: ['stu1']
+    });
+    assert(blocked.error === 'missing_subject', 'retcon requires a saved subject');
+    const result = D.retconEssayCompletions(app, {
+        classId: 'cls1',
+        syllabusRowId: 'row-debate',
+        studentIds: ['stu1']
+    });
+    assert(!result.error, 'retcon ok');
+    assert(result.resetCount === 1, 'one student reset');
+    const reset = D.getEssayRecordForStudent(
+        D.findEssaySubmission(result.essaySubmissions, 'cls1', 'row-debate'),
+        'stu1'
+    );
+    const kept = D.getEssayRecordForStudent(
+        D.findEssaySubmission(result.essaySubmissions, 'cls1', 'row-debate'),
+        'stu2'
+    );
+    assert(reset.status === 'not_submitted', 'checked student cleared');
+    assert(reset.submittedAt === '', 'submission day cleared');
+    assert(reset.submissionLate === false, 'late cleared');
+    assert(reset.submittedRetest === false, 'retest cleared');
+    assert(reset.note === 'keep me', 'note kept');
+    assert(kept.status === 'submitted', 'unchecked student unchanged');
+    assert(!result.tmsEssayLinks['hw:deb'], 'this assignment link removed');
+    assert(result.tmsEssayLinks['hw:other'], 'other assignment link kept');
+}
+
+{
+    const choices = D.listEssaySubjectChoices(sampleApp(), sampleApp().classes[0]);
+    assert(choices[0] === 'Debate' && choices[1] === 'News', 'builtin subjects stay first');
+    const created = D.createCustomEssayAssignment(
+        { id: 'cls-sub', syllabusRows: [] },
+        { title: 'Speech draft', date: today, essaySubject: 'Speech', id: 'syl-speech' }
+    );
+    assert(created.row.essaySubject === 'Speech', 'custom subject stored');
+    const named = D.createCustomEssayAssignment(
+        { id: 'cls-sub2', syllabusRows: [] },
+        { title: '토론 글', date: today, essaySubject: '토론' }
+    );
+    assert(named.row.essaySubject === 'Debate', 'Korean debate name canonicalizes');
+}
+
+{
+    assert(D.koreanMatchKey('김민수A') !== D.koreanMatchKey('김민수B'), 'suffix A is not suffix B');
+    assert(D.koreanMatchKey('김민수A') !== D.koreanMatchKey('김민수'), 'suffix A is not unmarked');
+    const app = {
+        cohorts: [
+            {
+                id: 'coh1',
+                name: 'Yellow',
+                students: [
+                    { id: 'a1', name: '김민수A', nameEn: 'Ann', tags: [], tmsMpidx: '' },
+                    { id: 'a2', name: '김민수A', nameEn: 'A', tags: [], tmsMpidx: '999' },
+                    { id: 'a3', name: '김민수A', nameEn: '', tags: ['off_roster'], tmsMpidx: '' },
+                    { id: 'a_off', name: '김민수A', tags: [], active: false },
+                    { id: 'b1', name: '김민수B', tags: [], tmsMpidx: '111' },
+                    { id: 'plain', name: '김민수', tags: [], tmsMpidx: '111' }
+                ]
+            },
+            {
+                id: D.ARCHIVE_COHORT_ID,
+                isArchiveCohort: true,
+                students: [
+                    { id: 'arch1', name: '김민수A', tags: [] },
+                    { id: 'arch2', name: '김민수A', tags: [] }
+                ]
+            }
+        ],
+        attendanceSessions: [
+            {
+                id: 'att1',
+                classId: 'cls1',
+                date: today,
+                records: [
+                    { studentId: 'a1', status: 'late', sessionNote: 'from copy' },
+                    { studentId: 'b1', status: 'present', sessionNote: 'bee' }
+                ]
+            }
+        ],
+        homeworkCompletions: [],
+        essaySubmissions: [],
+        studentPoints: [],
+        studentTests: [],
+        dayNotes: [{ id: 'n1', taggedStudentIds: ['a3', 'b1'] }]
+    };
+    assert(D.planCohortDuplicateMerges(app, D.ARCHIVE_COHORT_ID).length === 0, 'archive is not scanned');
+    const groups = D.planCohortDuplicateMerges(app, 'coh1');
+    assert(groups.length === 1, 'only the A copies are one group');
+    assert(groups[0].keepId === 'a2', 'row with a TMS id is kept');
+    assert(groups[0].dropIds.length === 2, 'two extra A copies');
+    assert(!groups[0].dropIds.includes('b1'), 'B is not in the A group');
+    assert(!groups[0].dropIds.includes('plain'), 'unmarked name is not in the A group');
+    assert(!groups[0].dropIds.includes('a_off'), 'inactive copy is not grouped');
+    const applied = D.applyCohortDuplicateMerges(app, groups);
+    assert(!applied.error, `dedup apply error ${applied.error}`);
+    assert(applied.applied.length === 2, 'both extra copies merged');
+    const students = applied.appData.cohorts[0].students;
+    const aRows = students.filter((s) => s && s.name === '김민수A' && s.active !== false);
+    assert(aRows.length === 1 && aRows[0].id === 'a2', 'one active 김민수A left');
+    assert(students.some((s) => s && s.id === 'b1'), '김민수B stays');
+    assert(students.some((s) => s && s.id === 'plain'), 'plain 김민수 stays');
+    assert(aRows[0].tmsMpidx === '999', 'kept TMS id');
+    assert(!aRows[0].tags.includes('off_roster'), 'off roster cleared on merge');
+    const att = applied.appData.attendanceSessions[0].records;
+    assert(att.some((r) => r.studentId === 'a2' && r.sessionNote === 'from copy'), 'attendance moved to kept id');
+    assert(att.some((r) => r.studentId === 'b1' && r.sessionNote === 'bee'), 'other student attendance unchanged');
+    assert(
+        applied.appData.dayNotes[0].taggedStudentIds.join(',') === 'a2,b1',
+        'day note tag moved onto kept id'
+    );
 }
 
 console.log('tms-essay-sync-domain.test.mjs: ok');

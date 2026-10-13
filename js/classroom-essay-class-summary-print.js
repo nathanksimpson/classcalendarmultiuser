@@ -25,6 +25,7 @@
             submitted: 'essay-status--submitted',
             complete: 'essay-status--complete',
             resubmit_required: 'essay-status--resubmit',
+            demerit: 'essay-status--demerit',
             incomplete: 'essay-status--incomplete',
             exempt: 'essay-status--exempt'
         };
@@ -179,7 +180,8 @@
 .essay-class-summary-status-chip.essay-status--not { background: #b6c0cf; border-color: #b6c0cf; }
 .essay-class-summary-status-chip.essay-status--submitted { background: #3b82f6; border-color: #3b82f6; }
 .essay-class-summary-status-chip.essay-status--complete { background: #14b98f; border-color: #14b98f; }
-.essay-class-summary-status-chip.essay-status--resubmit { background: #e0863b; border-color: #e0863b; }
+.essay-class-summary-status-chip.essay-status--resubmit { background: #dc2626; border-color: #dc2626; }
+.essay-class-summary-status-chip.essay-status--demerit { background: #e0863b; border-color: #e0863b; }
 .essay-class-summary-status-chip.essay-status--incomplete { background: #64748b; border-color: #64748b; }
 .essay-class-summary-status-chip.essay-status--exempt { background: #8b9aab; border-color: #8b9aab; }
 .essay-class-summary-overdue { color: #c92a2a; font-weight: 600; }

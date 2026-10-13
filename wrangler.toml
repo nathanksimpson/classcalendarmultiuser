@@ -10,10 +10,21 @@ workers_dev = true
 command = "npm run build"
 
 # Serves index.html, app.js, etc. API routes are handled in worker/src/index.js.
+# run_worker_first: without this, POST to *.html / SPA paths returns 405 from the
+# assets layer and never reaches password-login handlers in the Worker.
 [assets]
 directory = "dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
+run_worker_first = [
+    "/api/*",
+    "/login",
+    "/login.html",
+    "/password-login",
+    "/password-login.html",
+    "/kakao-login.html",
+    "/signed-in.html"
+]
 
 # D1: calendar-team (Cloudflare dashboard)
 [[d1_databases]]

@@ -4,7 +4,7 @@
  * Credentials (prefer request override; never store in calendar JSON):
  *   options.username / options.password from Sync modal POST body
  *   Local fallback: TMS_USERNAME, TMS_PASSWORD in process.env (.env)
- *   TMS_BASE_URL=http://tms.esimson.com
+ *   TMS_BASE_URL=https://tms.esimson.com (http:// is upgraded; TMS 302s HTTP→HTTPS)
  *   TMS_ROSTER_URLS=comma-separated absolute or path URLs (optional fallback only)
  *
  * Primary path: login → class_Main_New_PopUp.aspx sidebar (.class_select + Hsubclass)
@@ -15,8 +15,40 @@
  */
 'use strict';
 
-const DEFAULT_BASE = 'http://tms.esimson.com';
+const DEFAULT_BASE = 'https://tms.esimson.com';
 const LOGIN_PATH = '/member/login.aspx';
+/** Optional undici Agent from the Node server when TMS TLS needs system CAs. */
+let fetchDispatcher = null;
+
+function setFetchDispatcher(dispatcher) {
+    fetchDispatcher = dispatcher || null;
+}
+
+/**
+ * TMS now redirects HTTP→HTTPS and often strips the path (Location: https://tms.esimson.com).
+ * Always talk to tms.esimson.com over HTTPS so login POST is not converted to a GET.
+ */
+function normalizeTmsBaseUrl(raw) {
+    const fallback = DEFAULT_BASE;
+    const trimmed = String(raw || fallback)
+        .trim()
+        .replace(/\/$/, '');
+    if (!trimmed) {
+        return fallback;
+    }
+    try {
+        const u = new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`);
+        const host = String(u.hostname || '')
+            .replace(/^www\./i, '')
+            .toLowerCase();
+        if (host === 'tms.esimson.com' && u.protocol === 'http:') {
+            u.protocol = 'https:';
+        }
+        return u.origin;
+    } catch (_) {
+        return trimmed || fallback;
+    }
+}
 const CLASS_POPUP_PATH = '/class/class_Main_New_PopUp.aspx';
 const WRITING_LIST_PATH = '/lms/Writing_list.aspx';
 /**
@@ -182,9 +214,7 @@ const SKIP_NAME_WORDS = new Set([
 ]);
 
 function getConfig() {
-    const baseUrl = String(envGet('TMS_BASE_URL') || DEFAULT_BASE)
-        .trim()
-        .replace(/\/$/, '');
+    const baseUrl = normalizeTmsBaseUrl(envGet('TMS_BASE_URL') || DEFAULT_BASE);
     const username = String(envGet('TMS_USERNAME') || '').trim();
     const password = String(envGet('TMS_PASSWORD') || '');
     const rosterUrls = String(envGet('TMS_ROSTER_URLS') || '')
@@ -270,13 +300,17 @@ function request(urlStr, options) {
         timer = setTimeout(() => controller.abort(), timeoutMs);
     }
 
-    return fetch(urlStr, {
+    const fetchOpts = {
         method: opts.method || 'GET',
         headers,
         body: body != null ? body : undefined,
         redirect: 'manual',
         signal: controller ? controller.signal : undefined
-    })
+    };
+    if (fetchDispatcher) {
+        fetchOpts.dispatcher = fetchDispatcher;
+    }
+    return fetch(urlStr, fetchOpts)
         .then(async (res) => {
             if (timer) {
                 clearTimeout(timer);
@@ -316,6 +350,33 @@ function request(urlStr, options) {
         });
 }
 
+function isHttpToHttpsUpgrade(fromUrl, toUrl) {
+    try {
+        const from = new URL(fromUrl);
+        const to = new URL(toUrl);
+        return (
+            from.protocol === 'http:' &&
+            to.protocol === 'https:' &&
+            from.hostname.toLowerCase() === to.hostname.toLowerCase()
+        );
+    } catch (_) {
+        return false;
+    }
+}
+
+function resolveTmsRedirectUrl(currentUrl, location) {
+    const next = new URL(location, currentUrl);
+    if (isHttpToHttpsUpgrade(currentUrl, next.href)) {
+        const pathMissing = next.pathname === '/' || next.pathname === '';
+        const cur = new URL(currentUrl);
+        if (pathMissing && cur.pathname && cur.pathname !== '/') {
+            next.pathname = cur.pathname;
+            next.search = cur.search;
+        }
+    }
+    return next.href;
+}
+
 async function requestFollow(urlStr, options, maxRedirects) {
     let url = urlStr;
     let method = (options && options.method) || 'GET';
@@ -324,9 +385,14 @@ async function requestFollow(urlStr, options, maxRedirects) {
     for (let i = 0; i <= limit; i += 1) {
         const res = await request(url, Object.assign({}, options, { method, body }));
         if (res.status >= 300 && res.status < 400 && res.headers.location) {
-            url = new URL(res.headers.location, url).href;
-            method = 'GET';
-            body = null;
+            const nextUrl = resolveTmsRedirectUrl(url, res.headers.location);
+            const upgrade = isHttpToHttpsUpgrade(url, nextUrl);
+            url = nextUrl;
+            // IIS HTTPS redirects drop POST bodies if we follow as GET.
+            if (!upgrade) {
+                method = 'GET';
+                body = null;
+            }
             continue;
         }
         return Object.assign({}, res, { finalUrl: url });
@@ -1452,25 +1518,25 @@ function stillOnLoginPage(html, finalUrl) {
 }
 
 async function login(cfg, jar) {
-    const loginUrl = `${cfg.baseUrl}${LOGIN_PATH}`;
+    const baseUrl = normalizeTmsBaseUrl(cfg && cfg.baseUrl);
+    const loginUrl = `${baseUrl}${LOGIN_PATH}`;
     const page = await requestFollow(loginUrl, { method: 'GET', jar });
-    const viewState = extractHidden(page.text, '__VIEWSTATE');
-    const viewStateGen = extractHidden(page.text, '__VIEWSTATEGENERATOR');
-    const eventValidation = extractHidden(page.text, '__EVENTVALIDATION');
-    const body = encodeForm({
-        __VIEWSTATE: viewState,
-        __VIEWSTATEGENERATOR: viewStateGen,
-        __EVENTVALIDATION: eventValidation,
-        returnURL: '',
-        txtid: cfg.username,
-        txtpass: cfg.password,
-        cmdLogin: '로그인'
-    });
-    const posted = await requestFollow(loginUrl, {
+    const postUrl =
+        stillOnLoginPage(page.text, page.finalUrl) && page.finalUrl ? page.finalUrl : loginUrl;
+    const hidden = extractHiddenInputs(page.text);
+    const body = encodeForm(
+        Object.assign({}, hidden, {
+            returnURL: hidden.returnURL || '',
+            txtid: cfg.username,
+            txtpass: cfg.password,
+            cmdLogin: '로그인'
+        })
+    );
+    const posted = await requestFollow(postUrl, {
         method: 'POST',
         jar,
         body,
-        headers: { Referer: loginUrl }
+        headers: { Referer: postUrl, Origin: baseUrl }
     });
     if (stillOnLoginPage(posted.text, posted.finalUrl)) {
         const err = new Error('TMS login failed');
@@ -2151,6 +2217,7 @@ async function fetchEssayDetail(jar, cfg, row, urlTemplate) {
  */
 async function scrapeEssayContents(options) {
     const cfg = Object.assign({}, getConfig(), options || {});
+    cfg.baseUrl = normalizeTmsBaseUrl(cfg.baseUrl);
     const rowsIn = Array.isArray(options && options.rows) ? options.rows : [];
     if (!rowsIn.length) {
         return { essays: [], meta: { fetched: 0, failed: 0 } };
@@ -2396,6 +2463,7 @@ function collectWritingFormFields(html) {
  */
 async function scrapeEssaySubmissions(options) {
     const cfg = Object.assign({}, getConfig(), options || {});
+    cfg.baseUrl = normalizeTmsBaseUrl(cfg.baseUrl);
     if (!credentialsConfigured(cfg)) {
         const err = new Error('TMS credentials not configured');
         err.code = 'TMS_CREDS_MISSING';
@@ -2496,6 +2564,7 @@ async function scrapeEssaySubmissions(options) {
 
 async function scrapeRosters(options) {
     const cfg = Object.assign({}, getConfig(), options || {});
+    cfg.baseUrl = normalizeTmsBaseUrl(cfg.baseUrl);
     if (!credentialsConfigured(cfg)) {
         const err = new Error('TMS credentials not configured');
         err.code = 'TMS_CREDS_MISSING';
@@ -2798,6 +2867,7 @@ async function scrapeHomeworkChecks(options) {
 
 async function probe(options) {
     const cfg = Object.assign({}, getConfig(), options || {});
+    cfg.baseUrl = normalizeTmsBaseUrl(cfg.baseUrl);
     if (!credentialsConfigured(cfg)) {
         const err = new Error('TMS credentials not configured');
         err.code = 'TMS_CREDS_MISSING';
@@ -2826,6 +2896,9 @@ async function probe(options) {
 
 module.exports = {
     getConfig,
+    normalizeTmsBaseUrl,
+    resolveTmsRedirectUrl,
+    setFetchDispatcher,
     credentialsConfigured,
     login,
     fetchPage,

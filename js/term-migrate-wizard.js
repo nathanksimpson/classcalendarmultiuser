@@ -760,16 +760,18 @@
                     <input type="checkbox" id="termMigrateCopyEvents" checked />
                     <span>${escapeHtml(t('dataTermMigrateCopyEvents'))}</span>
                 </label>
-                <div class="form-row">
-                    <label class="form-group" for="termMigrateTmsUser">
-                        <span>${escapeHtml(t('rosterTmsUsernameLabel') || 'TMS username')}</span>
-                        <input type="text" id="termMigrateTmsUser" class="field-input field-control" autocomplete="username" />
-                    </label>
-                    <label class="form-group" for="termMigrateTmsPass">
-                        <span>${escapeHtml(t('rosterTmsPasswordLabel') || 'TMS password')}</span>
-                        <input type="password" id="termMigrateTmsPass" class="field-input field-control" autocomplete="current-password" />
-                    </label>
-                </div>
+                <form class="credential-form" autocomplete="on" onsubmit="return false">
+                    <div class="form-row">
+                        <label class="form-group" for="termMigrateTmsUser">
+                            <span>${escapeHtml(t('rosterTmsUsernameLabel') || 'TMS username')}</span>
+                            <input type="text" id="termMigrateTmsUser" class="field-input field-control" autocomplete="off" />
+                        </label>
+                        <label class="form-group" for="termMigrateTmsPass">
+                            <span>${escapeHtml(t('rosterTmsPasswordLabel') || 'TMS password')}</span>
+                            <input type="password" id="termMigrateTmsPass" class="field-input field-control" autocomplete="off" />
+                        </label>
+                    </div>
+                </form>
                 <label class="form-group" for="termMigrateTermCodeFilter">
                     <span>${escapeHtml(t('dataTermMigrateTermCodeLabel'))}</span>
                     <input type="text" id="termMigrateTermCodeFilter" class="field-input field-control" autocomplete="off" placeholder="2606" />

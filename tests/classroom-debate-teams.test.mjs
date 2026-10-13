@@ -505,6 +505,87 @@ function loadDebateEngine(options = {}) {
     const { api } = loadDebateEngine();
     api.loadState({
         version: 2,
+        students: [],
+        formatId: 'bp',
+        purpleMode: false,
+        includeReply: true,
+        maxTeamSize: 4,
+        classTitle: 'Leftover',
+        hrTeacher: '',
+        topic: '',
+        sheetTemplate: 'yeoul',
+        debates: []
+    });
+    api.applyClassFormatDefaults(
+        { levelPreset: 'Purple' },
+        { debateBook: 'Debate Purple', forceForNewSession: true }
+    );
+    let forced = api.collectState();
+    assert(forced.purpleMode, 'forceForNewSession applies purple mode on a dirty engine');
+    assert(forced.maxTeamSize === 1, 'forceForNewSession sets purple team size');
+    assert(forced.sheetTemplate === 'yeoul', 'forceForNewSession sets the yeoul sheet for Purple');
+    assert(!forced.includeReply, 'forceForNewSession clears a leftover reply setting');
+
+    api.loadState({
+        version: 2,
+        students: [],
+        formatId: 'bp',
+        purpleMode: true,
+        includeReply: false,
+        maxTeamSize: 1,
+        sheetTemplate: 'yeoul',
+        debates: []
+    });
+    api.applyClassFormatDefaults(
+        { levelPreset: 'Yeoul' },
+        { debateBook: 'Yeoul Debate', forceForNewSession: true }
+    );
+    forced = api.collectState();
+    assert(!forced.purpleMode, 'Yeoul force path does not enable purple mode');
+    assert(forced.formatId === 'ap', 'Yeoul force path uses AP teams');
+    assert(forced.sheetTemplate === 'yeoul', 'Yeoul force path uses the yeoul sheet');
+
+    api.loadState({
+        version: 2,
+        students: [],
+        formatId: 'bp',
+        purpleMode: true,
+        includeReply: false,
+        maxTeamSize: 1,
+        sheetTemplate: 'yeoul',
+        debates: []
+    });
+    api.applyClassFormatDefaults(
+        { levelPreset: 'Garam' },
+        { debateBook: 'Garam Debate', forceForNewSession: true }
+    );
+    forced = api.collectState();
+    assert(!forced.purpleMode, 'Garam force path stays off purple mode');
+    assert(forced.sheetTemplate === 'garam', 'Garam force path uses the garam sheet');
+
+    api.loadState({
+        version: 2,
+        students: ['Ann', 'Ben'],
+        formatId: 'ap',
+        purpleMode: false,
+        includeReply: false,
+        maxTeamSize: 3,
+        sheetTemplate: 'garam',
+        debates: [{ number: 1, benches: [] }]
+    });
+    api.applyClassFormatDefaults(
+        { levelPreset: 'Purple' },
+        { debateBook: 'Debate Purple', forceForNewSession: true }
+    );
+    forced = api.collectState();
+    assert(!forced.purpleMode, 'forceForNewSession does not reshape a session that already has teams');
+    assert(forced.debates.length === 1, 'existing debates stay in place');
+}
+
+{
+    const { api } = loadDebateEngine();
+    api.loadState({
+        version: 2,
         students: ['Ann', 'Ben', 'Cal', 'Dan'],
         formatId: 'ap',
         purpleMode: false,
@@ -974,6 +1055,159 @@ function loadDebateEngine(options = {}) {
     assert(duties.includes('Ann - PM - Introduce topic'), 'duties paste is name-first for PM');
     assert(duties.includes('Ben - LO - Rebut Pro, Opp point'), 'duties paste is name-first for LO');
     assert(!/PM \(Ann\)/.test(duties), 'duties paste no longer uses ROLE (Name)');
+}
+
+function loadDebateTeamsModule() {
+    const code = readFileSync(path.join(root, 'js', 'classroom-debate-teams.js'), 'utf8');
+    const sandbox = { window: {}, globalThis: {}, console };
+    sandbox.window = sandbox;
+    sandbox.globalThis = sandbox;
+    vm.createContext(sandbox);
+    vm.runInContext(code, sandbox, { filename: 'classroom-debate-teams.js' });
+    return sandbox.CCPClassroomDebateTeams;
+}
+
+{
+    const api = loadDebateTeamsModule();
+    const roster = [
+        { id: 's-minsu', name: '김민수', nameEn: 'Minsu' },
+        { id: 's-ann', name: '박서연', nameEn: 'Ann' },
+        { id: 's-minsu-2', name: '이민수', nameEn: 'Minsu' }
+    ];
+    assert(api.formatDebateStudentLabel(roster[0]) === 'Minsu (김민수)', 'label is English (Korean)');
+    assert(api.formatDebateStudentLabel({ id: 'x', name: '박지훈', nameEn: '' }) === '박지훈', 'Korean-only label stays Korean');
+
+    const session = {
+        version: 2,
+        students: ['Minsu', 'Ann', 'Minsu'],
+        debates: [
+            {
+                number: 1,
+                formatId: 'ap',
+                order: ['PM', 'LO'],
+                notes: 'keep me',
+                benches: [
+                    {
+                        id: 'gov',
+                        label: 'Proposition',
+                        members: [
+                            {
+                                name: 'Ann',
+                                role: { abbr: 'PM', name: 'Prime Minister' },
+                                present: 'Open',
+                                rebut: ''
+                            }
+                        ]
+                    },
+                    {
+                        id: 'opp',
+                        label: 'Opposition',
+                        members: [
+                            {
+                                name: 'Minsu',
+                                role: { abbr: 'LO', name: 'Leader of Opposition' },
+                                present: 'Reply',
+                                rebut: 'Point'
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    };
+    const renamed = api.applyDisambiguatedNames(session, roster);
+    assert(renamed.changed === true, 'unique names are updated');
+    assert(renamed.sessionState.students[1] === 'Ann (박서연)', 'student list keeps order and adds Korean for Ann');
+    assert(renamed.sessionState.students[0] === 'Minsu (김민수)', 'first shared English name gets the first Korean name');
+    assert(renamed.sessionState.students[2] === 'Minsu (이민수)', 'second shared English name gets the second Korean name');
+    const pm = renamed.sessionState.debates[0].benches[0].members[0];
+    const lo = renamed.sessionState.debates[0].benches[1].members[0];
+    assert(pm.name === 'Ann (박서연)', 'assigned PM name gains Korean');
+    assert(pm.role.abbr === 'PM' && pm.present === 'Open', 'PM role and duty stay');
+    assert(pm.studentId === 's-ann', 'unique name stamps the matching student id');
+    assert(lo.name === 'Minsu', 'one seat named Minsu is not given both Korean names');
+    assert(lo.role.abbr === 'LO' && lo.present === 'Reply' && lo.rebut === 'Point', 'shared-name seat keeps its role and duties');
+    assert(!lo.studentId, 'one ambiguous seat is not assigned a guessed student id');
+    assert(renamed.sessionState.debates[0].notes === 'keep me', 'debate notes stay');
+    assert(session.debates[0].benches[0].members[0].name === 'Ann', 'source session is not mutated');
+
+    const again = api.applyDisambiguatedNames(renamed.sessionState, roster);
+    assert(again.changed === false, 'a second pass does not rewrite names that already include Korean');
+
+    const kais = [
+        { id: 'kai-1', name: '김익파', nameEn: 'Kai' },
+        { id: 'kai-2', name: '유엽라', nameEn: 'Kai' }
+    ];
+    const kaiSession = {
+        students: ['Kai', 'Kai'],
+        debates: [
+            {
+                number: 1,
+                benches: [
+                    {
+                        label: 'Proposition',
+                        members: [
+                            {
+                                name: 'Kai',
+                                studentId: 'kai-2',
+                                role: { abbr: 'PM', name: 'Prime Minister' },
+                                present: 'Open',
+                                rebut: ''
+                            }
+                        ]
+                    },
+                    {
+                        label: 'Opposition',
+                        members: [
+                            {
+                                name: 'Kai',
+                                studentId: 'kai-1',
+                                role: { abbr: 'LO', name: 'Leader of Opposition' },
+                                present: 'Reply',
+                                rebut: ''
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    };
+    const kaiNamed = api.applyDisambiguatedNames(kaiSession, kais);
+    assert(kaiNamed.sessionState.students[0] === 'Kai (김익파)', 'Kai list follows class order');
+    assert(kaiNamed.sessionState.students[1] === 'Kai (유엽라)', 'second Kai list entry gets the other Korean name');
+    const kaiPm = kaiNamed.sessionState.debates[0].benches[0].members[0];
+    const kaiLo = kaiNamed.sessionState.debates[0].benches[1].members[0];
+    assert(kaiPm.name === 'Kai (유엽라)' && kaiPm.role.abbr === 'PM', 'saved student id keeps the PM Kai');
+    assert(kaiLo.name === 'Kai (김익파)' && kaiLo.role.abbr === 'LO', 'saved student id keeps the LO Kai');
+    assert(kaiPm.present === 'Open' && kaiLo.present === 'Reply', 'Kai duties stay on the same seats');
+    assert(!String(kaiPm.name).includes('·') && !String(kaiLo.name).includes('·'), 'each Kai role has one Korean name');
+
+    const unlabeled = {
+        students: ['Kai', 'Kai'],
+        debates: [
+            {
+                benches: [
+                    {
+                        members: [
+                            { name: 'Kai', role: { abbr: 'PM', name: 'Prime Minister' }, present: 'A', rebut: '' }
+                        ]
+                    },
+                    {
+                        members: [
+                            { name: 'Kai', role: { abbr: 'LO', name: 'Leader of Opposition' }, present: 'B', rebut: '' }
+                        ]
+                    }
+                ]
+            }
+        ]
+    };
+    const paired = api.applyDisambiguatedNames(unlabeled, kais);
+    const pairedPm = paired.sessionState.debates[0].benches[0].members[0];
+    const pairedLo = paired.sessionState.debates[0].benches[1].members[0];
+    assert(pairedPm.name === 'Kai (김익파)' && pairedPm.studentId === 'kai-1', 'first Kai seat gets the first student id');
+    assert(pairedLo.name === 'Kai (유엽라)' && pairedLo.studentId === 'kai-2', 'second Kai seat gets the second student id');
+    assert(pairedPm.role.abbr === 'PM' && pairedPm.present === 'A', 'first Kai keeps the PM role');
+    assert(pairedLo.role.abbr === 'LO' && pairedLo.present === 'B', 'second Kai keeps the LO role');
 }
 
 console.log('classroom-debate-teams.test.mjs: all passed');

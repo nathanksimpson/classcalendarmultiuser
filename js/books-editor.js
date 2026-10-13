@@ -506,7 +506,9 @@
             const levels = Array.isArray(raw.applicableLevels)
                 ? raw.applicableLevels.filter(Boolean)
                 : (Array.isArray(raw.levels) ? raw.levels.filter(Boolean) : []);
-            const applicable = getStoredApplicableLevels(id, appData, levels, false);
+            const debateIdentity = inferStoredDebateIdentity(raw, curricula, byKey);
+            const isStoredDebate = debateIdentity.programTrack === 'debate' || !!debateIdentity.debateBand;
+            const applicable = getStoredApplicableLevels(id, appData, levels, isStoredDebate);
             const shippedFactoryRows = [];
             const hasOverride = sessions.length
                 && sessionsDifferFromBaseline(sessions, id, appData, shippedFactoryRows);
@@ -528,7 +530,8 @@
                     ? raw.classDefaults.defaultTotalLessons
                     : (sessions.length || 4),
                 lessonLabelMode: (raw.classDefaults && raw.classDefaults.lessonLabelMode) || '',
-                programTrack: '',
+                programTrack: debateIdentity.programTrack,
+                debateBand: debateIdentity.debateBand,
                 sessionCount: sessions.length,
                 factorySessionCount: 0,
                 baselineSessionCount,
@@ -678,6 +681,12 @@
             types: {},
             updatedAt: new Date().toISOString()
         };
+        if (patch && patch.programTrack === 'debate') {
+            curricula[id].programTrack = 'debate';
+        }
+        if (patch && patch.debateBand) {
+            curricula[id].debateBand = patch.debateBand;
+        }
         hooks.saveData();
         hooks.onBooksSaved();
         return id;
@@ -805,7 +814,9 @@
             bookTitle: newTitle,
             sessions,
             applicableLevels,
-            classDefaults
+            classDefaults,
+            programTrack: isDebate ? 'debate' : '',
+            debateBand: isDebate ? (book.debateBand || '') : ''
         }, data);
         if (newId) {
             const rec = ensureCurriculumOverrides(data)[newId];
@@ -850,6 +861,40 @@
 
     function isDebateBookRecord(book) {
         return !!(book && (book.programTrack === 'debate' || book.debateBand));
+    }
+
+    /**
+     * Debate flag on a saved custom curriculum, or copied from the book it was duplicated from.
+     * Read-only: does not write the calendar.
+     */
+    function inferStoredDebateIdentity(raw, curricula, byKey, seen) {
+        const visited = seen || new Set();
+        if (!raw || typeof raw !== 'object') {
+            return { programTrack: '', debateBand: '' };
+        }
+        if (raw.programTrack === 'debate' || raw.debateBand) {
+            return {
+                programTrack: 'debate',
+                debateBand: raw.debateBand || ''
+            };
+        }
+        const fromId = String(raw.duplicatedFrom || '').trim();
+        if (!fromId || visited.has(fromId)) {
+            return { programTrack: '', debateBand: '' };
+        }
+        visited.add(fromId);
+        const factory = byKey && byKey.get(fromId);
+        if (factory && (factory.programTrack === 'debate' || factory.debateBand)) {
+            return {
+                programTrack: 'debate',
+                debateBand: factory.debateBand || ''
+            };
+        }
+        const parent = curricula && curricula[fromId];
+        if (parent && parent !== raw) {
+            return inferStoredDebateIdentity(parent, curricula, byKey, visited);
+        }
+        return { programTrack: '', debateBand: '' };
     }
 
     function getCurriculumDisplayName(curriculumId, appData) {
@@ -1242,6 +1287,10 @@
             const presetId = resolveDebatePresetIdForLevel(levelTrim);
             if (!presetId) {
                 return null;
+            }
+            const isCustomDebate = !!(debateBook && debateBook.isCustom && isDebateBookRecord(debateBook));
+            if (isCustomDebate) {
+                return presetId;
             }
             const expectedBookId = deriveBookKey(getFactoryPresetById(presetId));
             const normalizedCid = normalizeDebateCurriculumId(cid, levelTrim, appData);

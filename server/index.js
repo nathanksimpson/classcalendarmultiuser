@@ -28,6 +28,7 @@ const {
     tmsBridgeAllowedOrigin
 } = require('./tms-bridge-security');
 const { getDb } = require('./schema');
+const soundboardStore = require('./soundboard');
 
 const PORT = Number(process.env.PORT) || 8080;
 const PUBLIC_URL = (process.env.PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
@@ -675,23 +676,28 @@ function escapeHtmlAttr(value) {
 
 function passwordLoginSuccessHtml(returnTo) {
     const safeUrl = escapeHtmlAttr(returnTo);
-    const safeJsUrl = String(returnTo)
-        .replace(/\\/g, '\\\\')
-        .replace(/'/g, "\\'")
-        .replace(/</g, '\\u003c');
+    // 200 HTML on the form POST URL (no password fields, no auto-redirect).
+    // Desktop Chrome often needs the user to stay here to accept "Save password".
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Signed in</title>
+<title>Signed in — ClassManager</title>
+<link rel="stylesheet" href="styles.css?v=20260629-classmanager-redesign">
+<style>
+.signed-in-page{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;background:var(--bg-main);color:var(--text-primary)}
+.signed-in-card{max-width:420px;width:100%;background:var(--bg-card);border:1px solid var(--border-color);border-radius:12px;padding:2rem;box-shadow:var(--shadow-lg);text-align:center}
+.signed-in-card h1{margin:0 0 .5rem;font-size:1.35rem}
+.signed-in-card p{margin:0 0 1rem;color:var(--text-muted);font-size:.95rem}
+</style>
 </head>
 <body>
-<p>Signed in successfully.</p>
-<p><a id="continueLink" href="${safeUrl}">Continue to calendar</a></p>
-<script>
-location.replace('${safeJsUrl}');
-</script>
+<div class="signed-in-page"><div class="signed-in-card">
+<h1>Signed in</h1>
+<p>If your browser offers to save your password, you can accept it now.</p>
+<p><a class="btn btn-primary" href="${safeUrl}">Continue to ClassManager</a></p>
+</div></div>
 </body>
 </html>`;
 }
@@ -711,7 +717,10 @@ function handlePasswordLogin(req, res, options) {
     const device = loginContext.sanitizeLoginContext(req.body.device || req.body.loginContext);
     const email = req.body.email || req.body.username;
     const password = req.body.password;
-    const errorLoginPage = req.path === '/password-login.html' ? '/password-login.html' : '/login.html';
+    const errorLoginPage =
+        req.path === '/password-login.html' || req.path === '/login' || req.path === '/api/login'
+            ? '/password-login.html'
+            : '/login.html';
     if (users.activeUserHasNoPassword(email)) {
         if (redirect) {
             passwordLoginErrorRedirect(res, returnTo, 'password_not_set', errorLoginPage);
@@ -735,12 +744,9 @@ function handlePasswordLogin(req, res, options) {
     const session = users.createLoginSession(user.id, device);
     setSessionCookie(res, session.token, session.maxAgeSec);
     const dest = loginRedirectAfterAuth(user, returnTo);
-    if (htmlSuccess) {
-        res.redirect(302, dest);
-        return;
-    }
-    if (redirect) {
-        res.redirect(302, dest);
+    // 200 HTML on the POST URL (not 302) — password managers key off a successful form document
+    if (htmlSuccess || redirect) {
+        res.status(200).type('html').send(passwordLoginSuccessHtml(dest));
         return;
     }
     res.json({
@@ -1624,6 +1630,28 @@ app.get('/api/calendars', requireUser, (req, res) => {
     res.json(CalAccess.listCalendarsForUser(req.user));
 });
 
+app.get('/api/soundboard', requireUser, (req, res) => {
+    try {
+        res.json(soundboardStore.getBoard());
+    } catch (err) {
+        console.error('Soundboard load failed:', err);
+        res.status(500).json({ error: 'Could not load the sound board' });
+    }
+});
+
+app.put('/api/soundboard', requireUser, rejectViewAsWrites, (req, res) => {
+    try {
+        const board = req.body && req.body.board;
+        res.json(soundboardStore.saveBoard(board, req.user && req.user.id));
+    } catch (err) {
+        const status = err && err.status ? err.status : 500;
+        if (status >= 500) {
+            console.error('Soundboard save failed:', err);
+        }
+        res.status(status).json({ error: err.message || 'Could not save the sound board' });
+    }
+});
+
 app.get('/api/calendars/:id/meta', requireUser, (req, res) => {
     if (!CalAccess.canAccessCalendar(req.user, req.params.id)) {
         res.status(404).json({ error: 'Calendar not found' });
@@ -2181,6 +2209,9 @@ app.delete('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => 
 });
 
 const staticRoot = path.join(__dirname, '..');
+app.get(['/soundboard', '/soundboard/'], (req, res) => {
+    res.sendFile(path.join(staticRoot, 'soundboard', 'index.html'));
+});
 app.get('/essay-batch-editor.html', (req, res) => {
     res.sendFile(path.join(staticRoot, 'tools', 'essay-batch-editor.html'));
 });

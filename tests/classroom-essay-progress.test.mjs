@@ -209,4 +209,87 @@ const futureDate = d.addDaysISO(today, 10);
     assert(studentRows[0].studentId === 'a4', 'remaining outstanding is not_submitted');
 }
 
+{
+    const appData = {
+        classes: [
+            {
+                id: 'mine',
+                name: 'Mine',
+                teacherIds: ['u1'],
+                cohortIds: ['coh1'],
+                syllabusRows: [
+                    {
+                        id: 'news',
+                        kind: 'lesson',
+                        date: pastDate,
+                        planTitle: 'March news',
+                        homework: 'essay',
+                        essaySubject: 'News',
+                        trackEssay: true
+                    },
+                    {
+                        id: 'debate',
+                        kind: 'lesson',
+                        date: pastDate,
+                        planTitle: '토론',
+                        homework: 'essay',
+                        trackEssay: true
+                    }
+                ]
+            },
+            {
+                id: 'other',
+                name: 'Other',
+                teacherIds: ['u2'],
+                cohortIds: ['coh1'],
+                syllabusRows: [
+                    {
+                        id: 'speech',
+                        kind: 'lesson',
+                        date: pastDate,
+                        planTitle: 'Speech',
+                        homework: 'essay',
+                        essaySubject: 'Speech',
+                        trackEssay: true
+                    }
+                ]
+            }
+        ],
+        cohorts: [
+            {
+                id: 'coh1',
+                students: [{ id: 's1', name: 'Amy', sortOrder: 0, active: true }]
+            }
+        ],
+        essaySubmissions: []
+    };
+    const rows = CCPClassroomEssayProgress.listEssayAssignments(appData, {
+        classes: appData.classes
+    });
+    const news = rows.find((row) => row.syllabusRowId === 'news');
+    const debate = rows.find((row) => row.syllabusRowId === 'debate');
+    assert(news && news.displaySubject === 'News', 'saved News subject is on the assignment');
+    assert(debate && debate.displaySubject === 'Debate', '토론 in the title counts as Debate');
+    const onlyNews = CCPClassroomEssayProgress.filterAssignments(rows, {
+        essaySubject: 'News',
+        currentUserId: 'u1'
+    });
+    assert(onlyNews.length === 1 && onlyNews[0].syllabusRowId === 'news', 'subject filter keeps News');
+    const debateKo = CCPClassroomEssayProgress.filterAssignments(rows, { essaySubject: '토론' });
+    assert(
+        debateKo.length === 1 && debateKo[0].syllabusRowId === 'debate',
+        '토론 filter matches Debate'
+    );
+    const mine = CCPClassroomEssayProgress.filterAssignments(rows, {
+        classScope: 'mine',
+        currentUserId: 'u1'
+    });
+    assert(mine.length === 2 && mine.every((row) => row.classId === 'mine'), 'my classes only');
+    const other = CCPClassroomEssayProgress.filterAssignments(rows, {
+        classScope: 'other',
+        currentUserId: 'u1'
+    });
+    assert(other.length === 1 && other[0].classId === 'other', 'other classes only');
+}
+
 console.log('classroom-essay-progress.test.mjs: all passed');

@@ -298,7 +298,10 @@
 
     const VIEWPORT_BP_PHONE = 640;
     const VIEWPORT_BP_TABLET = 1024;
+    const VIEWPORT_BP_NARROW_HEADER = 900;
     let viewportTierResizeBound = false;
+    let viewportTierOwnedExternally = false;
+    let viewportTierResizeHandler = null;
 
     function syncViewportTier() {
         if (typeof document === 'undefined') {
@@ -307,7 +310,7 @@
         let tier = 'desktop';
         if (window.matchMedia && window.matchMedia(`(max-width: ${VIEWPORT_BP_PHONE}px)`).matches) {
             tier = 'phone';
-        } else if (window.matchMedia && window.matchMedia('(max-width: 900px)').matches) {
+        } else if (window.matchMedia && window.matchMedia(`(max-width: ${VIEWPORT_BP_NARROW_HEADER}px)`).matches) {
             tier = 'tablet-sm';
         } else if (window.matchMedia && window.matchMedia(`(max-width: ${VIEWPORT_BP_TABLET}px)`).matches) {
             tier = 'tablet';
@@ -316,11 +319,32 @@
         return tier;
     }
 
+    function unbindViewportTierResize() {
+        if (viewportTierResizeBound && viewportTierResizeHandler && typeof window !== 'undefined') {
+            window.removeEventListener('resize', viewportTierResizeHandler);
+        }
+        viewportTierResizeBound = false;
+        viewportTierResizeHandler = null;
+    }
+
+    /**
+     * Main app claims ownership so satellite pages keep this listener,
+     * but index.html does not run two resize writers.
+     */
+    function claimViewportOwnership() {
+        viewportTierOwnedExternally = true;
+        unbindViewportTierResize();
+    }
+
     function initViewportTier() {
         syncViewportTier();
+        if (viewportTierOwnedExternally) {
+            return;
+        }
         if (!viewportTierResizeBound && typeof window !== 'undefined') {
             viewportTierResizeBound = true;
-            window.addEventListener('resize', syncViewportTier);
+            viewportTierResizeHandler = syncViewportTier;
+            window.addEventListener('resize', viewportTierResizeHandler);
         }
     }
 
@@ -358,6 +382,7 @@
         initPageShell,
         syncViewportTier,
         initViewportTier,
+        claimViewportOwnership,
         NOTICE_PRIORITY,
         NOTICE_DURATIONS
     };

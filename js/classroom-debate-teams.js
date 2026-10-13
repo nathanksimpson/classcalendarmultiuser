@@ -215,41 +215,231 @@
         return entry && entry.student ? entry.student : entry;
     }
 
-    function studentDisplayName(studentOrEntry) {
-        const student = unwrapStudentEntry(studentOrEntry);
-        if (!student) {
+    /**
+     * English name, with Korean in parentheses when both exist.
+     * Example: Minsu (김민수). Used so duplicate English names can be told apart.
+     */
+    function formatDebateStudentLabel(student) {
+        const source = unwrapStudentEntry(student);
+        if (!source) {
             return '';
         }
-        const en = String(student.nameEn || '').trim();
-        const ko = String(student.name || '').trim();
+        const en = String(source.nameEn || '').trim();
+        const ko = String(source.name || '').trim();
+        if (en && ko && en !== ko) {
+            return `${en} (${ko})`;
+        }
         return en || ko;
+    }
+
+    function studentDisplayName(studentOrEntry) {
+        return formatDebateStudentLabel(studentOrEntry);
+    }
+
+    function rosterRecordFromStudent(student) {
+        const source = unwrapStudentEntry(student);
+        if (!source || !source.id) {
+            return null;
+        }
+        const en = String(source.nameEn || '').trim();
+        const ko = String(source.name || '').trim();
+        const display = formatDebateStudentLabel(source);
+        if (!display) {
+            return null;
+        }
+        return {
+            id: String(source.id),
+            en,
+            ko,
+            display,
+            alt: en && ko && en !== ko ? `${ko} (${en})` : ''
+        };
+    }
+
+    function rosterRecordsFromStudents(students) {
+        return (Array.isArray(students) ? students : []).map(rosterRecordFromStudent).filter(Boolean);
+    }
+
+    function classRosterStudents(classData) {
+        const d = domain();
+        const data = getAppData();
+        if (!d || !classData || typeof d.resolveStudentsForClass !== 'function') {
+            return [];
+        }
+        return d.resolveStudentsForClass(classData, data.cohorts) || [];
+    }
+
+    function recordsForSavedName(name, records) {
+        const trimmed = String(name || '').trim();
+        if (!trimmed) {
+            return [];
+        }
+        return records.filter((record) => {
+            return (
+                trimmed === record.en ||
+                trimmed === record.ko ||
+                trimmed === record.display ||
+                trimmed === record.alt
+            );
+        });
+    }
+
+    function recordByStudentId(studentId, records) {
+        const sid = String(studentId || '').trim();
+        if (!sid) {
+            return null;
+        }
+        return records.find((record) => record.id === sid) || null;
+    }
+
+    function applyRecordToMember(member, record) {
+        let changed = false;
+        if (record.display && member.name !== record.display) {
+            member.name = record.display;
+            changed = true;
+        }
+        if (record.id && member.studentId !== record.id) {
+            member.studentId = record.id;
+            changed = true;
+        }
+        return changed;
+    }
+
+    /**
+     * Add each student's own Korean name.
+     * A role is matched by its student id, so two students named Kai stay on
+     * their own seats. Roles, benches, and duties are not moved.
+     * A saved seat with no student id is labeled only when the English name
+     * belongs to exactly one student.
+     */
+    function applyDisambiguatedNames(sessionState, rosterStudents) {
+        const records = rosterRecordsFromStudents(rosterStudents);
+        if (!sessionState || !records.length) {
+            return { sessionState: sessionState, changed: false };
+        }
+        const next = JSON.parse(JSON.stringify(sessionState));
+        let changed = false;
+        const usedIds = Object.create(null);
+
+        function takeRecord(record) {
+            if (!record || usedIds[record.id]) {
+                return null;
+            }
+            usedIds[record.id] = true;
+            return record;
+        }
+
+        if (Array.isArray(next.students)) {
+            const nextIds = Array.isArray(next.studentIds) ? next.studentIds.slice() : [];
+            next.students = next.students.map((rawName, index) => {
+                const savedId = String(nextIds[index] || '').trim();
+                const byId = takeRecord(recordByStudentId(savedId, records));
+                if (byId) {
+                    if (byId.display !== rawName) {
+                        changed = true;
+                    }
+                    nextIds[index] = byId.id;
+                    return byId.display;
+                }
+                const name = String(rawName || '').trim();
+                const matches = recordsForSavedName(name, records).filter((record) => !usedIds[record.id]);
+                const record = matches[0];
+                if (!record) {
+                    return rawName;
+                }
+                takeRecord(record);
+                nextIds[index] = record.id;
+                if (record.display !== rawName) {
+                    changed = true;
+                    return record.display;
+                }
+                return rawName;
+            });
+            next.studentIds = nextIds;
+        }
+
+        const members = [];
+        (Array.isArray(next.debates) ? next.debates : []).forEach((debate) => {
+            (debate && Array.isArray(debate.benches) ? debate.benches : []).forEach((bench) => {
+                (bench && Array.isArray(bench.members) ? bench.members : []).forEach((member) => {
+                    if (member) {
+                        members.push(member);
+                    }
+                });
+            });
+        });
+
+        members.forEach((member) => {
+            const record = recordByStudentId(member.studentId, records);
+            if (!record) {
+                return;
+            }
+            member._debateNameResolved = true;
+            if (applyRecordToMember(member, record)) {
+                changed = true;
+            }
+        });
+
+        const unresolvedByName = Object.create(null);
+        members.forEach((member) => {
+            if (member._debateNameResolved) {
+                return;
+            }
+            const name = String(member.name || '').trim();
+            if (!unresolvedByName[name]) {
+                unresolvedByName[name] = [];
+            }
+            unresolvedByName[name].push(member);
+        });
+
+        const takenMemberIds = Object.create(null);
+        members.forEach((member) => {
+            if (member._debateNameResolved && member.studentId) {
+                takenMemberIds[String(member.studentId)] = true;
+            }
+        });
+
+        Object.keys(unresolvedByName).forEach((name) => {
+            const group = unresolvedByName[name];
+            const matches = recordsForSavedName(name, records).filter(
+                (record) => !takenMemberIds[record.id]
+            );
+            if (!matches.length || group.length !== matches.length) {
+                return;
+            }
+            group.forEach((member, index) => {
+                if (applyRecordToMember(member, matches[index])) {
+                    changed = true;
+                }
+            });
+        });
+
+        members.forEach((member) => {
+            delete member._debateNameResolved;
+        });
+
+        return { sessionState: next, changed };
     }
 
     function rebuildNameMap() {
         nameToStudentId = Object.create(null);
-        const d = domain();
-        const data = getAppData();
-        const classData = getClassData();
-        if (!d || !classData) {
-            return;
-        }
-        d.resolveStudentsForClass(classData, data.cohorts).forEach((entry) => {
-            const student = unwrapStudentEntry(entry);
-            if (!student || !student.id) {
-                return;
-            }
-            const sid = String(student.id);
-            const en = String(student.nameEn || '').trim();
-            const ko = String(student.name || '').trim();
-            const display = studentDisplayName(student);
-            if (en) {
-                nameToStudentId[en] = sid;
-            }
-            if (ko) {
-                nameToStudentId[ko] = sid;
-            }
-            if (display) {
-                nameToStudentId[display] = sid;
+        const counts = Object.create(null);
+        const pairs = [];
+        rosterRecordsFromStudents(classRosterStudents(getClassData())).forEach((record) => {
+            const seen = new Set();
+            [record.en, record.ko, record.display, record.alt].forEach((key) => {
+                const k = String(key || '').trim();
+                if (!k || seen.has(k)) {
+                    return;
+                }
+                seen.add(k);
+                counts[k] = (counts[k] || 0) + 1;
+                pairs.push([k, record.id]);
+            });
+        });
+        pairs.forEach(([key, id]) => {
+            if (counts[key] === 1) {
+                nameToStudentId[key] = id;
             }
         });
     }
@@ -299,10 +489,19 @@
 
     function getDebateBookChip() {
         const classData = getClassData();
-        if (!classData || !global.CCPDebatePeriods || !global.CCPDebatePeriods.getBookForDate) {
+        return bookForClassDate(classData, sessionDate);
+    }
+
+    function bookForClassDate(classData, dateStr) {
+        if (
+            !classData ||
+            !dateStr ||
+            !global.CCPDebatePeriods ||
+            typeof global.CCPDebatePeriods.getBookForDate !== 'function'
+        ) {
             return '';
         }
-        const book = global.CCPDebatePeriods.getBookForDate(classData, sessionDate);
+        const book = global.CCPDebatePeriods.getBookForDate(classData, dateStr);
         return book ? String(book).trim() : '';
     }
 
@@ -390,18 +589,22 @@
         return d.findDebateTeamSession(data.debateTeamSessions, classId, sessionDate);
     }
 
+    function rosterStudentEntriesForClass(classData) {
+        return classRosterStudents(classData)
+            .map((student) => {
+                const source = unwrapStudentEntry(student);
+                const name = studentDisplayName(source);
+                if (!source || !source.id || !name) {
+                    return null;
+                }
+                return { name: name, studentId: String(source.id) };
+            })
+            .filter(Boolean);
+    }
+
     function rosterStudentNames() {
         rebuildNameMap();
-        const d = domain();
-        const data = getAppData();
-        const classData = getClassData();
-        if (!d || !classData) {
-            return [];
-        }
-        return d
-            .resolveStudentsForClass(classData, data.cohorts)
-            .map(studentDisplayName)
-            .filter(Boolean);
+        return rosterStudentEntriesForClass(getClassData()).map((entry) => entry.name);
     }
 
     function importRosterToEngine(options) {
@@ -410,11 +613,11 @@
         if (!eng || !eng.importRoster) {
             return { ok: false, reason: 'core' };
         }
-        const names = rosterStudentNames();
-        if (!names.length) {
+        const entries = rosterStudentEntriesForClass(getClassData());
+        if (!entries.length) {
             return { ok: false, reason: 'empty' };
         }
-        return eng.importRoster(names, options);
+        return eng.importRoster(entries, options);
     }
 
     async function ensureCoreReady() {
@@ -579,6 +782,7 @@
         }
         if (!options.force && key === hydratedSessionKey) {
             syncStudentsFromRosterIfNeeded();
+            applyDisambiguatedNamesToOpenSession();
             return;
         }
         const stored = findStoredSession();
@@ -597,10 +801,41 @@
             }
         }
         syncStudentsFromRosterIfNeeded();
+        applyDisambiguatedNamesToOpenSession();
         applyMetadataDefaults();
         if (canMarkSessionHydrated()) {
             hydratedSessionKey = key;
         }
+    }
+
+    /**
+     * Rewrite the open session's names to include Korean, then save.
+     * Team benches and roles stay as they are.
+     */
+    function applyDisambiguatedNamesToOpenSession() {
+        const eng = engine();
+        const classData = getClassData();
+        if (!eng || !eng.collectState || !eng.loadState || !classData) {
+            return false;
+        }
+        let renamed;
+        try {
+            renamed = applyDisambiguatedNames(eng.collectState(), classRosterStudents(classData));
+        } catch (err) {
+            console.error('Debate team name update failed', err);
+            return false;
+        }
+        if (!renamed.changed || !renamed.sessionState) {
+            return false;
+        }
+        eng.loadState(renamed.sessionState);
+        if (canEdit()) {
+            scheduleSave();
+        }
+        if (hooks && hooks.showToast) {
+            hooks.showToast(t('classroomDebateNamesDisambiguated'), false);
+        }
+        return true;
     }
 
     async function reloadSessionFromStore(options) {
@@ -682,25 +917,54 @@
             return { ok: false, reason: 'readonly' };
         }
 
-        const existing = d.findDebateTeamSession(data.debateTeamSessions, targetClassId, targetDate);
+        const monthSession =
+            typeof d.findGeneratedDebateTeamSessionForPeriod === 'function'
+                ? d.findGeneratedDebateTeamSessionForPeriod(
+                      classData,
+                      targetDate,
+                      data.debateTeamSessions
+                  )
+                : null;
+        const exactSession = d.findDebateTeamSession(
+            data.debateTeamSessions,
+            targetClassId,
+            targetDate
+        );
+        // Same debate month already has teams (often on a different syllabus day).
+        const existing = monthSession || exactSession;
         if (
             existing &&
             existing.sessionState &&
             Array.isArray(existing.sessionState.debates) &&
             existing.sessionState.debates.length > 0
         ) {
-            const expectedTpl = resolveSheetTemplateForClass(classData, targetDate);
+            const sourceDate = String(existing.date || targetDate).trim();
+            const expectedTpl = resolveSheetTemplateForClass(classData, sourceDate);
             const currentTpl = d.normalizeDebateSheetTemplate
                 ? d.normalizeDebateSheetTemplate(existing.sessionState.sheetTemplate)
                 : existing.sessionState.sheetTemplate === 'yeoul'
                   ? 'yeoul'
                   : 'garam';
+            const liveKey = `${targetClassId}|${sourceDate}`;
+            const showingLive =
+                classId === targetClassId &&
+                sessionDate === sourceDate &&
+                hydratedSessionKey === liveKey &&
+                eng.collectState;
+            let sessionState = showingLive ? eng.collectState() : existing.sessionState;
+            const renamed = applyDisambiguatedNames(sessionState, classRosterStudents(classData));
+            let namesChanged = false;
+            if (renamed.changed && renamed.sessionState) {
+                sessionState = renamed.sessionState;
+                namesChanged = true;
+            }
             let entry = existing;
-            let sessionState = existing.sessionState;
             if (expectedTpl !== currentTpl) {
-                sessionState = Object.assign({}, existing.sessionState, {
+                sessionState = Object.assign({}, sessionState, {
                     sheetTemplate: expectedTpl
                 });
+            }
+            if (namesChanged || expectedTpl !== currentTpl) {
                 entry = Object.assign({}, existing, {
                     sessionState,
                     updatedAt: new Date().toISOString()
@@ -708,6 +972,9 @@
                 const nextSessions = d.upsertDebateTeamSession(data.debateTeamSessions, entry);
                 if (hooks.saveClassroom) {
                     await hooks.saveClassroom({ debateTeamSessions: nextSessions });
+                }
+                if (namesChanged && showingLive && eng.loadState) {
+                    eng.loadState(sessionState);
                 }
             }
             return {
@@ -718,10 +985,7 @@
             };
         }
 
-        const names = d
-            .resolveStudentsForClass(classData, data.cohorts)
-            .map(studentDisplayName)
-            .filter(Boolean);
+        const names = rosterStudentEntriesForClass(classData);
         if (!names.length) {
             return { ok: false, reason: 'empty' };
         }
@@ -741,23 +1005,19 @@
             studentsListTouchedByUser = false;
             rosterAutoImported = true;
 
-            if (existing && existing.sessionState) {
-                eng.loadState(existing.sessionState);
-            } else {
-                eng.loadState({
-                    version: 2,
-                    students: [],
-                    formatId: 'ap',
-                    purpleMode: false,
-                    includeReply: false,
-                    maxTeamSize: 3,
-                    classTitle: '',
-                    hrTeacher: '',
-                    topic: '',
-                    sheetTemplate: 'garam',
-                    debates: []
-                });
-            }
+            eng.loadState({
+                version: 2,
+                students: [],
+                formatId: 'ap',
+                purpleMode: false,
+                includeReply: false,
+                maxTeamSize: 3,
+                classTitle: '',
+                hrTeacher: '',
+                topic: '',
+                sheetTemplate: 'garam',
+                debates: []
+            });
 
             const imported = eng.importRoster(names, { confirm: false, clearDebates: true });
             if (!imported || !imported.ok) {
@@ -778,8 +1038,8 @@
             }
             if (eng.applyClassFormatDefaults) {
                 eng.applyClassFormatDefaults(classData, {
-                    debateBook: getDebateBookChip(),
-                    onlyIfPristine: true
+                    debateBook: bookForClassDate(classData, targetDate),
+                    forceForNewSession: true
                 });
             }
 
@@ -805,7 +1065,7 @@
                 .filter(Boolean);
 
             const entry = {
-                id: existing && existing.id ? existing.id : d.newId('dts'),
+                id: exactSession && exactSession.id ? exactSession.id : d.newId('dts'),
                 classId: targetClassId,
                 date: targetDate,
                 sessionState: sessionState,
@@ -1211,6 +1471,7 @@
         }
         ensureAutosave(panel);
         syncStudentsFromRosterIfNeeded();
+        applyDisambiguatedNamesToOpenSession();
         updateSidebarMeta();
         setEditEnabled(panel, canEdit());
         syncShellToolbar(
@@ -1227,6 +1488,8 @@
         reloadSessionFromStore,
         ensureHooks,
         buildAndPersistForHomework,
-        resolveSheetTemplateForClass
+        resolveSheetTemplateForClass,
+        formatDebateStudentLabel,
+        applyDisambiguatedNames
     };
 })(typeof window !== 'undefined' ? window : globalThis);

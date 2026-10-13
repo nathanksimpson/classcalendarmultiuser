@@ -632,4 +632,60 @@ function meetingHooks(holidayMap) {
     assert(HT.isValidHomeworkDueIso('bad') === false, 'invalid ISO rejected');
 }
 
+{
+    assert(HT.assignNeedsEssayCheck({ title: 'Day 4 / Preview', text: 'Read p. 1' }) === true, 'Day 4 title warns');
+    assert(
+        HT.assignNeedsEssayCheck({ title: 'Day 4 / Preview & Day 1 (month bridge)', text: '' }) === true,
+        'month-bridge Day 4 warns'
+    );
+    assert(HT.assignNeedsEssayCheck({ title: 'Day 2', text: 'Write an essay' }) === true, 'essay text warns');
+    assert(HT.assignNeedsEssayCheck({ title: 'Day 2', text: '에세이 쓰기' }) === true, 'Korean essay text warns');
+    assert(HT.assignNeedsEssayCheck({ title: 'Day 1', text: 'Vocab', trackEssay: true }) === true, 'trackEssay warns');
+    assert(
+        HT.assignNeedsEssayCheck({ title: 'Day 2', text: 'Write an essay', trackEssay: false }) === false,
+        'essay checkbox off does not warn'
+    );
+    assert(HT.assignNeedsEssayCheck({ title: 'Day 2', text: 'Practice speeches' }) === false, 'Day 2 without essay does not warn');
+    assert(
+        HT.assignNeedsEssayCheck({ title: 'Day 4', text: 'no essay word', trackEssay: false }) === true,
+        'Day 4 warns even if the essay checkbox is off'
+    );
+
+    const essayRows = [
+        { id: 'd2', kind: 'lesson', date: '2026-05-04', sessionNumber: 2, planTitle: 'Day 2', planDetail: 'Practice speeches' },
+        { id: 'd4', kind: 'lesson', date: '2026-05-08', sessionNumber: 4, planTitle: 'Day 4 / Preview', planDetail: 'HW-DAY-4' }
+    ];
+    const day2Pkt = HT.computeHomeworkForClass({
+        classData,
+        syllabusRows: essayRows,
+        referenceDate: '2026-05-04',
+        hooks
+    });
+    assert(day2Pkt.assignNeedsEssayCheck === false, 'Day 2 packet does not warn');
+    const day4Pkt = HT.computeHomeworkForClass({
+        classData,
+        syllabusRows: essayRows,
+        referenceDate: '2026-05-08',
+        hooks
+    });
+    assert(day4Pkt.assignNeedsEssayCheck === true, 'Day 4 packet warns');
+    const essayPkt = HT.computeHomeworkForClass({
+        classData,
+        syllabusRows: [
+            {
+                id: 'e1',
+                kind: 'lesson',
+                date: '2026-05-04',
+                sessionNumber: 1,
+                planTitle: 'Unit 3',
+                planDetail: 'Write an essay',
+                trackEssay: true
+            }
+        ],
+        referenceDate: '2026-05-04',
+        hooks
+    });
+    assert(essayPkt.assignNeedsEssayCheck === true, 'essay homework packet warns');
+}
+
 console.log('homework-tab.test.mjs: all passed');

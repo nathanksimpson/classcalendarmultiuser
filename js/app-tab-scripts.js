@@ -4,7 +4,7 @@
 (function (global) {
     const SCRIPT_FEEDBACK_TEMPLATES = 'js/debate/feedback-templates.js?v=20260710-debate-v2';
     const SCRIPT_DEBATE_SCORESHEET_EXPORT = 'js/debate/debate-scoresheet-export.js?v=20260915-class-prefix';
-    const SCRIPT_DEBATE_TEAMS_V2 = 'js/debate/debate-teams-v2.js?v=20260915-name-first-duties';
+    const SCRIPT_DEBATE_TEAMS_V2 = 'js/debate/debate-teams-v2.js?v=20261012-student-id';
     const SCRIPT_DEBATE_DUTIES_PPTX = 'js/debate/debate-duties-pptx.js?v=20260915-name-first';
     const SCRIPT_PPTXGENJS = 'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js';
     const SCRIPT_CLASS_CURRICULUM_SLICES = 'js/class-curriculum-slices.js?v=20260603-curriculum-pipeline';
@@ -41,7 +41,7 @@
             SCRIPT_ROSTER_IMPORT,
             'js/classroom-access.js?v=20260911-essay-groups',
             'js/classroom-student-row.js?v=20260723-tms-sync',
-            'js/classroom-roster.js?v=20260910-save-lock'
+            'js/classroom-roster.js?v=20261005-merge-debug'
         ],
         attendance: [
             'js/classroom-access.js?v=20260911-essay-groups',
@@ -65,15 +65,15 @@
             'js/classroom-access.js?v=20260911-essay-groups',
             'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/classroom-essay-resubmit-day-note.js?v=20260824-mention-no-at-colon',
-            'js/classroom-essay-progress.js?v=20260908-hw-due',
+            'js/classroom-essay-progress.js?v=20261006-essay-report-filters',
             'js/classroom-essay-progress-print.js?v=20260807-deconflict-min',
             'js/classroom-essay-resubmit-print.js?v=20260807-deconflict-min',
-            'js/classroom-essay-resubmit-summary.js?v=20260708-essays-redesign',
-            'js/classroom-essay-class-summary.js?v=20260807-deconflict-min',
-            'js/classroom-essay-class-summary-print.js?v=20260807-deconflict-min',
+            'js/classroom-essay-resubmit-summary.js?v=20261006-essay-report-filters',
+            'js/classroom-essay-class-summary.js?v=20261006-essay-report-filters',
+            'js/classroom-essay-class-summary-print.js?v=20261005-essay-demerit',
             'js/classroom-header.js?v=20260807-hr-tools',
-            'js/classroom-essay-scrape-editor.js?v=20260903-speech-grader',
-            'js/classroom-essays.js?v=20260911-essay-groups'
+            'js/classroom-essay-scrape-editor.js?v=20261007-essay-note-no-ai',
+            'js/classroom-essays.js?v=20261007-essay-note-sync'
         ],
         ledger: [
             'js/classroom-access.js?v=20260911-essay-groups',
@@ -104,7 +104,7 @@
             SCRIPT_DEBATE_TEAMS_V2,
             SCRIPT_DEBATE_DUTIES_PPTX,
             'js/classroom-access.js?v=20260911-essay-groups',
-            'js/classroom-debate-teams.js?v=20260915-sheet-reuse-fix'
+            'js/classroom-debate-teams.js?v=20261012-student-id'
         ],
         'debate-scores': [
             'https://cdn.jsdelivr.net/npm/pizzip@3.1.7/dist/pizzip.min.js',
@@ -121,7 +121,7 @@
             'js/classroom-access.js?v=20260911-essay-groups',
             'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/ui/classroom-autosave.js?v=20260807-deconflict-min',
-            'js/classroom-essay-class-summary.js?v=20260807-deconflict-min',
+            'js/classroom-essay-class-summary.js?v=20261006-essay-report-filters',
             'js/classroom-debate-books-summary.js?v=20260901-books-print-search',
             'js/classroom-debate-books-summary-print.js?v=20260831-books-today',
             'js/classroom-debate-books.js?v=20260901-books-print-search'

@@ -317,6 +317,51 @@ const appData = {
 
 {
     const assignments = [
+        {
+            key: 'c1|r1',
+            classId: 'c1',
+            className: 'Alpha',
+            lessonDate: '2026-09-10',
+            ssDueDate: '2026-10-02',
+            listMonth: '2026-09'
+        },
+        {
+            key: 'c1|r2',
+            classId: 'c1',
+            className: 'Alpha',
+            lessonDate: '2026-09-17',
+            ssDueDate: '2026-09-20',
+            listMonth: '2026-11'
+        }
+    ];
+    assert(
+        summary.assignmentListMonth(assignments[0]) === '2026-09',
+        'teacher list month wins over due date'
+    );
+    assert(
+        summary.assignmentListMonth({ lessonDate: '2026-09-10', ssDueDate: '2026-10-02' }) ===
+            '2026-09',
+        'syllabus date used when no teacher month'
+    );
+    const months = summary.listMonthFilterOptions(assignments);
+    assert(months.includes('2026-09') && months.includes('2026-11'), 'month options follow list month');
+    assert(
+        !months.includes('2026-10'),
+        'due-date month is not a filter option when list month differs'
+    );
+    const sept = summary.filterAssignmentsByHrAndMonth(assignments, appData, { month: '2026-09' });
+    assert(
+        sept.length === 1 && sept[0].key === 'c1|r1',
+        'September filter keeps the September list month'
+    );
+    const oct = summary.filterAssignmentsByHrAndMonth(assignments, appData, { month: '2026-10' });
+    assert(oct.length === 0, 'October due date does not put the row in October');
+    const nov = summary.filterAssignmentsByHrAndMonth(assignments, appData, { month: '2026-11' });
+    assert(nov.length === 1 && nov[0].key === 'c1|r2', 'teacher month 2026-11 is the print month');
+}
+
+{
+    const assignments = [
         { key: 'c1|r1', classId: 'c1', syllabusRowId: 'r1' },
         { key: 'c3|r4', classId: 'c3', syllabusRowId: 'r4' }
     ];
@@ -373,6 +418,41 @@ const appData = {
     assert(text.includes('Ben'), 'attention copy includes resubmit student');
     assert(text.includes('Deb'), 'attention copy includes overdue student');
     assert(!text.includes('Amy'), 'attention copy excludes complete student');
+}
+
+{
+    const assignments = [
+        { key: 'c1|n', classId: 'c1', className: 'Mine', displaySubject: 'News', ssDueDate: '2026-03-01' },
+        { key: 'c1|d', classId: 'c1', className: 'Mine', displaySubject: 'Debate', ssDueDate: '2026-03-02' },
+        { key: 'c2|s', classId: 'c2', className: 'Other', displaySubject: 'Speech', ssDueDate: '2026-03-03' }
+    ];
+    const scopeData = {
+        classes: [
+            { id: 'c1', name: 'Mine', teacherIds: ['u1'] },
+            { id: 'c2', name: 'Other', teacherIds: ['u2'] }
+        ]
+    };
+    const news = summary.filterAssignmentsByHrAndMonth(
+        assignments,
+        scopeData,
+        { essaySubject: 'News' },
+        { currentUserId: 'u1' }
+    );
+    assert(news.length === 1 && news[0].key === 'c1|n', 'class summary subject keeps News');
+    const mine = summary.filterAssignmentsByHrAndMonth(
+        assignments,
+        scopeData,
+        { classScope: 'mine' },
+        { currentUserId: 'u1' }
+    );
+    assert(mine.length === 2 && mine.every((row) => row.classId === 'c1'), 'class summary my classes');
+    const other = summary.filterAssignmentsByHrAndMonth(
+        assignments,
+        scopeData,
+        { classScope: 'other', essaySubject: 'Speech' },
+        { currentUserId: 'u1' }
+    );
+    assert(other.length === 1 && other[0].key === 'c2|s', 'class summary other classes and subject');
 }
 
 console.log('classroom-essay-class-summary.test.mjs: ok');

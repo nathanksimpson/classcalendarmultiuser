@@ -4,4 +4,9 @@
  */
 'use strict';
 
-module.exports = require('../shared/tms-roster-core.cjs');
+const tmsRoster = require('../shared/tms-roster-core.cjs');
+const { enableTmsTlsTrust } = require('./tms-tls');
+
+enableTmsTlsTrust(tmsRoster);
+
+module.exports = tmsRoster;

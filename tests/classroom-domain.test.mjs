@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 
+await import(pathToFileURL(path.join(root, 'js', 'debate-periods.js')).href);
 await import(pathToFileURL(path.join(root, 'js', 'classroom-domain.js')).href);
 
 const d = globalThis.CCPClassroomDomain;
@@ -553,6 +554,145 @@ assert(classAlerts.ae === 1, 'class AE counts submitted awaiting eval');
     });
     assert(emptyMonth.od === allMonths.od, 'empty month option matches all months OD');
     assert(emptyMonth.rs === allMonths.rs, 'empty month option matches all months RS');
+}
+
+{
+    // Class-list month follows essayListMonth, else the syllabus date, never the due date.
+    const listClass = {
+        ...essayClass,
+        id: 'cls-list-month',
+        syllabusRows: [
+            {
+                id: 'row-sep',
+                kind: 'lesson',
+                date: '2026-09-10',
+                planTitle: 'September essay',
+                trackEssay: true
+            }
+        ]
+    };
+    const completeRecords = [
+        { studentId: 's1', status: 'complete', debateVideoMissing: false, note: '' },
+        { studentId: 's2', status: 'complete', debateVideoMissing: false, note: '' }
+    ];
+    const dueInOctober = [
+        {
+            id: 'es-sep',
+            classId: 'cls-list-month',
+            syllabusRowId: 'row-sep',
+            ssDueDate: '2026-10-02',
+            records: completeRecords
+        }
+    ];
+    const bySyllabus = d.essayAlertCountsForClass(dueInOctober, listClass, cohorts, {
+        month: '2026-09'
+    });
+    assert(bySyllabus.allComplete === true, 'syllabus month is all complete');
+    const byDue = d.essayAlertCountsForClass(dueInOctober, listClass, cohorts, {
+        month: '2026-10'
+    });
+    assert(byDue.allComplete === false, 'due month does not include the assignment');
+    assert(byDue.rs === 0 && byDue.od === 0, 'due month has no warn counts for this row');
+
+    const moved = d.setEssayAssignmentListMonth(listClass, 'row-sep', '2026-11');
+    assert(!moved.error && moved.row.essayListMonth === '2026-11', 'teacher list month stored');
+    const byOverride = d.essayAlertCountsForClass(dueInOctober, moved.classData, cohorts, {
+        month: '2026-11'
+    });
+    assert(byOverride.allComplete === true, 'saved list month wins');
+    const oldMonth = d.essayAlertCountsForClass(dueInOctober, moved.classData, cohorts, {
+        month: '2026-09'
+    });
+    assert(oldMonth.allComplete === false, 'syllabus month ignored after override');
+    const cleared = d.setEssayAssignmentListMonth(moved.classData, 'row-sep', '');
+    assert(!cleared.row.essayListMonth, 'clearing list month falls back to syllabus date');
+    assert(
+        d.essayAssignmentListMonth(cleared.row) === '2026-09',
+        'fallback month is the syllabus date'
+    );
+
+    const notDone = d.essayAlertCountsForClass(
+        [
+            {
+                id: 'es-open',
+                classId: 'cls-list-month',
+                syllabusRowId: 'row-sep',
+                records: [
+                    { studentId: 's1', status: 'complete', note: '' },
+                    { studentId: 's2', status: 'not_submitted', note: '' }
+                ]
+            }
+        ],
+        listClass,
+        cohorts
+    );
+    assert(notDone.allComplete === false, 'one not submitted blocks all complete');
+
+    const lateButDone = d.essayAlertCountsForClass(
+        [
+            {
+                id: 'es-late-done',
+                classId: 'cls-list-month',
+                syllabusRowId: 'row-sep',
+                ssDueDate: '2026-09-20',
+                records: [
+                    {
+                        studentId: 's1',
+                        status: 'complete',
+                        submissionLate: true,
+                        note: ''
+                    },
+                    { studentId: 's2', status: 'complete', submissionLate: false, note: '' }
+                ]
+            }
+        ],
+        listClass,
+        cohorts
+    );
+    assert(lateButDone.allComplete === true, 'late complete still counts as all complete');
+    assert(lateButDone.od === 0, 'complete clears the overdue warn');
+    assert(
+        d.isEssaySubmissionOverdue(
+            { studentId: 's1', status: 'complete', submissionLate: true, overdueDismissed: false },
+            '2026-09-20'
+        ) === false,
+        'complete is not an overdue submission'
+    );
+
+    const exemptOk = d.essayAlertCountsForClass(
+        [
+            {
+                id: 'es-exempt',
+                classId: 'cls-list-month',
+                syllabusRowId: 'row-sep',
+                records: [
+                    { studentId: 's1', status: 'complete', note: '' },
+                    { studentId: 's2', status: 'exempt', note: '' }
+                ]
+            }
+        ],
+        listClass,
+        cohorts
+    );
+    assert(exemptOk.allComplete === true, 'exempt plus the rest complete');
+
+    const missingVideo = d.essayAlertCountsForClass(
+        [
+            {
+                id: 'es-nv',
+                classId: 'cls-list-month',
+                syllabusRowId: 'row-sep',
+                records: [
+                    { studentId: 's1', status: 'complete', debateVideoMissing: true, note: '' },
+                    { studentId: 's2', status: 'complete', debateVideoMissing: false, note: '' }
+                ]
+            }
+        ],
+        listClass,
+        cohorts
+    );
+    assert(missingVideo.allComplete === false, 'missing debate video blocks all complete');
+    assert(missingVideo.nv === 1, 'missing video still counts as NV');
 }
 
 {
@@ -1367,6 +1507,352 @@ assert(scheduledFallback[0].date === '2026-05-26', 'fallback first Day 4 date');
         ]
     );
     assert(navyRows.length === 1 && navyRows[0].name === 'Kim', 'Navy M collects only NavyM_26SP rows');
+}
+
+{
+    const submission = {
+        id: 'es-late-recalc',
+        classId: 'cls-essay',
+        syllabusRowId: 'row1',
+        ssDueDate: '2026-09-01',
+        records: [
+            {
+                studentId: 's1',
+                status: 'submitted',
+                submissionLate: true,
+                overdueDismissed: false,
+                submittedAt: '2026-09-10'
+            },
+            {
+                studentId: 's2',
+                status: 'complete',
+                submissionLate: false,
+                overdueDismissed: true,
+                submittedAt: '2026-09-12'
+            },
+            {
+                studentId: 's3',
+                status: 'submitted',
+                submissionLate: true,
+                overdueDismissed: false
+            },
+            {
+                studentId: 's4',
+                status: 'not_submitted',
+                submissionLate: false,
+                overdueDismissed: false,
+                submittedAt: '2026-09-20'
+            }
+        ]
+    };
+    const sameDay = d.applyEssayLateForDueDate(submission, '2026-09-10');
+    const s1 = sameDay.records.find((r) => r.studentId === 's1');
+    assert(s1.submissionLate === false, 'same calendar day clears received late');
+    const earlier = d.applyEssayLateForDueDate(submission, '2026-09-11');
+    const s2 = earlier.records.find((r) => r.studentId === 's2');
+    assert(s2.submissionLate === true, 'due before submission day sets received late');
+    assert(s2.overdueDismissed === false, 'recalculated late clears overdue dismiss');
+    const missing = d.applyEssayLateForDueDate(submission, '2026-09-30');
+    const s3 = missing.records.find((r) => r.studentId === 's3');
+    assert(s3.submissionLate === true, 'missing submittedAt leaves the late flag alone');
+    const notSubmitted = d.applyEssayLateForDueDate(submission, '2026-09-01');
+    const s4 = notSubmitted.records.find((r) => r.studentId === 's4');
+    assert(s4.submissionLate === false, 'not submitted row is not marked received late');
+    const normalized = d.normalizeEssaySubmission({
+        id: 'es-date',
+        classId: 'cls-essay',
+        syllabusRowId: 'row1',
+        records: [
+            { studentId: 's1', status: 'submitted', submittedAt: '2026-09-10' },
+            { studentId: 's2', status: 'submitted', submittedAt: 'not-a-date' }
+        ]
+    });
+    assert(normalized.records[0].submittedAt === '2026-09-10', 'normalize keeps submittedAt');
+    assert(normalized.records[1].submittedAt === '', 'normalize drops invalid submittedAt');
+}
+
+{
+    assert(d.ESSAY_STATUSES.includes('demerit'), 'demerit is a valid essay status');
+    assert(d.isEssayReceivedStatus('demerit'), 'demerit counts as received');
+    const saved = d.normalizeEssaySubmission({
+        id: 'es-demerit',
+        classId: 'cls-essay',
+        syllabusRowId: 'row1',
+        records: [
+            {
+                studentId: 's1',
+                status: 'demerit',
+                retestAssigned: true,
+                retestPassed: true,
+                note: ''
+            },
+            {
+                studentId: 's2',
+                status: 'complete',
+                retestAssigned: true,
+                retestPassed: true,
+                note: ''
+            },
+            {
+                studentId: 's3',
+                status: 'demerit',
+                retestAssigned: false,
+                retestPassed: true,
+                note: ''
+            }
+        ]
+    });
+    const s1 = saved.records.find((r) => r.studentId === 's1');
+    const s2 = saved.records.find((r) => r.studentId === 's2');
+    const s3 = saved.records.find((r) => r.studentId === 's3');
+    assert(s1.status === 'demerit' && s1.retestAssigned === true && s1.retestPassed === true, 'demerit keeps both flags');
+    assert(s2.retestAssigned === false && s2.retestPassed === false, 'non-demerit clears retest flags');
+    assert(s3.retestAssigned === false && s3.retestPassed === false, 'passed cannot stay on without assigned retest');
+    const counts = d.countEssayByStatus(saved);
+    assert(counts.demerit === 2, 'demerit rows are counted');
+    assert(d.essayPercentComplete(counts, 3) === 33, 'demerit is not counted as complete');
+}
+
+{
+    const base = [
+        {
+            id: 'es1',
+            classId: 'cls-essay',
+            syllabusRowId: 'row1',
+            records: [
+                {
+                    studentId: 's1',
+                    status: 'submitted',
+                    retestAssigned: false,
+                    retestPassed: false,
+                    note: 'keep me'
+                }
+            ]
+        }
+    ];
+    const demerit = d.setEssayStudentStatus(base, {
+        classId: 'cls-essay',
+        syllabusRowId: 'row1',
+        studentId: 's1',
+        status: 'demerit',
+        retestAssigned: true,
+        retestPassed: true
+    });
+    assert(!demerit.error, 'set demerit ok');
+    assert(
+        demerit.record.status === 'demerit' &&
+            demerit.record.retestAssigned === true &&
+            demerit.record.retestPassed === true,
+        'setEssayStudentStatus stores both demerit flags'
+    );
+    assert(demerit.record.note === 'keep me', 'status set keeps the note');
+    const complete = d.setEssayStudentStatus(demerit.submissions, {
+        classId: 'cls-essay',
+        syllabusRowId: 'row1',
+        studentId: 's1',
+        status: 'complete'
+    });
+    assert(
+        complete.record.status === 'complete' &&
+            complete.record.retestAssigned === false &&
+            complete.record.retestPassed === false,
+        'switching to complete clears demerit flags'
+    );
+    const passedOnly = d.setEssayStudentStatus(complete.submissions, {
+        classId: 'cls-essay',
+        syllabusRowId: 'row1',
+        studentId: 's1',
+        status: 'demerit',
+        retestAssigned: false,
+        retestPassed: true
+    });
+    assert(
+        passedOnly.record.retestAssigned === false && passedOnly.record.retestPassed === false,
+        'marked as passed cannot stay on without assigned retest'
+    );
+    const bad = d.setEssayStudentStatus(base, { classId: 'cls-essay', status: 'complete' });
+    assert(bad.error === 'invalid', 'status set rejects a missing student');
+    const noted = d.setEssayStudentNote(complete.submissions, {
+        classId: 'cls-essay',
+        syllabusRowId: 'row1',
+        studentId: 's1',
+        note: '  Needs a clearer ending  '
+    });
+    assert(!noted.error && noted.record.note === 'Needs a clearer ending', 'note set trims and stores the note');
+    assert(noted.record.status === 'complete', 'note set leaves the status alone');
+}
+
+{
+    const preview = {
+        updates: [
+            {
+                classId: 'cls-essay',
+                syllabusRowId: 'row1',
+                studentId: 's1',
+                studentName: 'Kim',
+                tmsName: 'Kim',
+                className: '3M Essay',
+                tmsTitle: 'Essay 1'
+            }
+        ],
+        skipped: [
+            {
+                classId: 'cls-essay',
+                syllabusRowId: 'row1',
+                studentId: 'pending_add_0_x',
+                tmsName: 'Park',
+                className: '3M Essay',
+                tmsTitle: 'Essay 1'
+            }
+        ]
+    };
+    const link = d.lookupEssayListLink(preview, {
+        studentName: 'Kim',
+        className: '3M Essay',
+        title: 'Essay 1'
+    });
+    assert(
+        link && link.studentId === 's1' && link.classId === 'cls-essay' && link.syllabusRowId === 'row1',
+        'lookup finds the mapped student'
+    );
+    assert(
+        d.lookupEssayListLink(preview, { studentName: 'Park', className: '3M Essay', title: 'Essay 1' }) === null,
+        'pending new students are not linked'
+    );
+    const tie = d.lookupEssayListLink(
+        {
+            updates: [preview.updates[0], Object.assign({}, preview.updates[0], { studentId: 's9', syllabusRowId: 'row9' })]
+        },
+        { studentName: 'Kim', className: '3M Essay', title: 'Essay 1' }
+    );
+    assert(tie === null, 'two different rows are not linked');
+    const purple = {
+        classId: 'cls-purple',
+        syllabusRowId: 'row-purple',
+        studentId: 's1',
+        studentName: 'Kim',
+        tmsName: 'Kim',
+        className: 'Purple M',
+        tmsClassName: 'Purple',
+        tmsClassId: '42',
+        tmsTitle: 'Essay 1'
+    };
+    const bySync = d.lookupEssayListLink(
+        { updates: [purple], skipped: [] },
+        { studentName: 'Kim', className: 'Purple', title: 'Essay 1', tmsClassId: '42' }
+    );
+    assert(
+        bySync && bySync.classId === 'cls-purple' && bySync.syllabusRowId === 'row-purple' && bySync.studentId === 's1',
+        'TMS class id links Purple to Purple M'
+    );
+    const alreadySet = d.lookupEssayListLink(
+        {
+            updates: [],
+            skipped: [Object.assign({}, purple, { studentId: 's2', tmsName: 'Lee', reason: 'already_set' })]
+        },
+        { studentName: 'Lee', className: 'Purple', title: 'Essay 1', tmsClassId: '42' }
+    );
+    assert(alreadySet && alreadySet.studentId === 's2', 'already received rows link by TMS class id');
+}
+
+{
+    const appData = {
+        classes: [essayClass],
+        cohorts,
+        essaySubmissions: [essaySubmissionPastDue]
+    };
+    const found = d.findUniqueEssayListLink(appData, {
+        studentName: 'Kim',
+        className: '3M Essay',
+        title: 'Essay 1'
+    });
+    assert(
+        found && found.studentId === 's1' && found.classId === 'cls-essay' && found.syllabusRowId === 'row1',
+        'unique name match finds one Essays row'
+    );
+    assert(found.status === 'not_submitted', 'unique match reads the current status');
+    const noTitle = d.findUniqueEssayListLink(appData, { studentName: 'Kim', className: '3M Essay' });
+    assert(noTitle && noTitle.studentId === 's1', 'one assignment matches without a title');
+    const twoRows = Object.assign({}, essayClass, {
+        syllabusRows: essayClass.syllabusRows.concat([
+            { id: 'row2', kind: 'lesson', date: yesterday, planTitle: 'Essay 2' }
+        ])
+    });
+    assert(
+        d.findUniqueEssayListLink(
+            { classes: [twoRows], cohorts, essaySubmissions: [] },
+            { studentName: 'Kim', className: '3M Essay' }
+        ) === null,
+        'two assignments without a title are not linked'
+    );
+}
+
+{
+    const periodClass = {
+        id: 'cls-period',
+        debateBookPeriods: [
+            { id: 'mar', startDate: '2026-03-01', book: 'Book A' },
+            { id: 'apr', startDate: '2026-04-01', book: 'Book B' }
+        ]
+    };
+    const periodSessions = [
+        {
+            id: 'late',
+            classId: 'cls-period',
+            date: '2026-03-24',
+            sessionState: { debates: [{ number: 2 }] }
+        },
+        {
+            id: 'early',
+            classId: 'cls-period',
+            date: '2026-03-17',
+            sessionState: { debates: [{ number: 1 }] }
+        },
+        {
+            id: 'empty',
+            classId: 'cls-period',
+            date: '2026-03-10',
+            sessionState: { debates: [] }
+        },
+        {
+            id: 'april',
+            classId: 'cls-period',
+            date: '2026-04-07',
+            sessionState: { debates: [{ number: 3 }] }
+        },
+        {
+            id: 'other-class',
+            classId: 'cls-other',
+            date: '2026-03-17',
+            sessionState: { debates: [{ number: 9 }] }
+        }
+    ];
+    const fromDay4 = d.findGeneratedDebateTeamSessionForPeriod(periodClass, '2026-03-24', periodSessions);
+    assert(fromDay4 && fromDay4.id === 'early', 'Day 4 reuses the earliest March teams');
+    const fromDay3 = d.findGeneratedDebateTeamSessionForPeriod(periodClass, '2026-03-17', periodSessions);
+    assert(fromDay3 && fromDay3.id === 'early', 'Day 3 uses the same March source');
+    const fromApril = d.findGeneratedDebateTeamSessionForPeriod(periodClass, '2026-04-14', periodSessions);
+    assert(fromApril && fromApril.id === 'april', 'next period does not reuse March teams');
+    assert(
+        d.findGeneratedDebateTeamSessionForPeriod(periodClass, '2026-02-10', periodSessions) === null,
+        'a date before the first period does not borrow later teams'
+    );
+
+    const monthClass = { id: 'cls-month', debateBookPeriods: [] };
+    const monthSessions = [
+        {
+            id: 'march-teams',
+            classId: 'cls-month',
+            date: '2026-03-10',
+            sessionState: { debates: [{ number: 1 }] }
+        }
+    ];
+    const sameMonth = d.findGeneratedDebateTeamSessionForPeriod(monthClass, '2026-03-24', monthSessions);
+    assert(sameMonth && sameMonth.id === 'march-teams', 'no book periods: same teaching month reuses teams');
+    assert(
+        d.findGeneratedDebateTeamSessionForPeriod(monthClass, '2026-04-14', monthSessions) === null,
+        'no book periods: next teaching month does not reuse teams'
+    );
 }
 
 console.log('classroom-domain.test.mjs: all passed');

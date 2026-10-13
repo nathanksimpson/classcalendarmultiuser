@@ -74,6 +74,52 @@ assert(debateBooks.length === 3, 'three debate curriculum books');
 assert(debateBooks.some((b) => b.id === 'debate-purple'), 'debate purple book');
 assert(debateBooks.some((b) => b.id === 'debate-garam-plus'), 'debate garam plus book');
 
+const debateStore = { curriculumOverrides: {} };
+CCPBooksEditor.init({
+    getAppData: () => debateStore,
+    saveData: () => {},
+    t: (k) => k,
+    getLang: () => 'en',
+    canAdoptTeamCurriculumDefault: () => true,
+    canManageCurriculumCatalog: () => true,
+    onBooksSaved: () => {}
+});
+const copiedDebateId = CCPBooksEditor.duplicateCurriculum('debate-garam-plus', debateStore);
+assert(copiedDebateId, 'duplicate debate curriculum');
+const copiedDebate = CCPBooksEditor.discoverBooks(debateStore).find((b) => b.id === copiedDebateId);
+assert(copiedDebate && copiedDebate.programTrack === 'debate', 'copy stays a debate book');
+assert(copiedDebate.debateBand === 'senior', 'copy keeps the Garam debate band');
+const copiedPreset = CCPBooksEditor.resolvePresetFromLevelAndBook('Garam', copiedDebateId, debateStore);
+assert(copiedPreset === 'preset-debate-senior', 'copy uses the debate class type');
+const copiedDefaults = CCPBooksEditor.buildMergedClassDefaults(copiedDebateId, copiedPreset, debateStore, 'Garam');
+assert(copiedDefaults.scheduleModel === 'debateMonthly', 'copy repeats lessons each month');
+assert(copiedDefaults.defaultCompressionMode === 'autoWhenNeeded', 'copy auto-compresses short months');
+const healedStore = {
+    curriculumOverrides: {
+        'old-debate-copy': {
+            isCustom: true,
+            bookTitle: 'Old debate copy',
+            duplicatedFrom: 'debate-garam-plus',
+            applicableLevels: ['Garam'],
+            sessions: [{ sessionNumber: 1, planTitle: 'Day 1', planDetail: 'p. 1', note: '' }],
+            classDefaults: { defaultTotalLessons: 4, defaultBook: 'Old debate copy' }
+        }
+    }
+};
+const healed = CCPBooksEditor.discoverBooks(healedStore).find((b) => b.id === 'old-debate-copy');
+assert(healed && healed.programTrack === 'debate' && healed.debateBand === 'senior', 'old copy is recognized as debate');
+const writeNowCopyId = CCPBooksEditor.duplicateCurriculum('write-now', debateStore);
+const writeNowCopy = CCPBooksEditor.discoverBooks(debateStore).find((b) => b.id === writeNowCopyId);
+assert(writeNowCopy && writeNowCopy.programTrack !== 'debate', 'non-debate copy stays a normal book');
+CCPBooksEditor.init({
+    getAppData: () => ({}),
+    saveData: () => {},
+    t: (k) => k,
+    getLang: () => 'en',
+    canAdoptTeamCurriculumDefault: () => true,
+    canManageCurriculumCatalog: () => true
+});
+
 assert(!CCPBooksEditor.isNoBookCurriculum(''), 'empty id is not “no book”');
 assert(CCPBooksEditor.isNoCurriculum(''), 'empty id is no curriculum');
 assert(CCPBooksEditor.isNoCurriculum(CCPBooksEditor.NONE_CURRICULUM_ID), '__none__ is no curriculum');

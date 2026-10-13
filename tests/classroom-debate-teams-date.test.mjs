@@ -214,4 +214,126 @@ function load() {
     assert(dates.includes('2026-09-08'), 'existing session date listed');
 }
 
+function loadHomeworkTeams() {
+    const sandbox = {
+        window: {},
+        globalThis: {},
+        document: {
+            getElementById() {
+                return null;
+            },
+            addEventListener() {},
+            createElement() {
+                return { style: {}, classList: { add() {}, remove() {}, toggle() {} } };
+            },
+            body: { appendChild() {}, removeChild() {} }
+        },
+        console,
+        setTimeout,
+        clearTimeout,
+        alert() {},
+        confirm() {
+            return true;
+        },
+        CCPClassroomAccess: {
+            canBypass() {
+                return true;
+            },
+            canEditClass() {
+                return true;
+            }
+        },
+        appData: {
+            ui: {},
+            classes: [
+                {
+                    id: 'c-purple',
+                    name: 'Purple M',
+                    scheduleModel: 'debateMonthly',
+                    levelPreset: 'Purple',
+                    cohortIds: ['coh'],
+                    debateBookPeriods: [
+                        { id: 'mar', startDate: '2026-03-01', book: 'Debate Purple' },
+                        { id: 'apr', startDate: '2026-04-01', book: 'Debate Purple' }
+                    ]
+                }
+            ],
+            cohorts: [
+                {
+                    id: 'coh',
+                    name: 'Purple',
+                    students: [
+                        { id: 's1', name: '김', nameEn: 'Kim', active: true },
+                        { id: 's2', name: '이', nameEn: 'Lee', active: true }
+                    ]
+                }
+            ],
+            debateTeamSessions: []
+        }
+    };
+    sandbox.window = sandbox;
+    sandbox.globalThis = sandbox;
+
+    const periods = readFileSync(path.join(root, 'js', 'debate-periods.js'), 'utf8');
+    const domain = readFileSync(path.join(root, 'js', 'classroom-domain.js'), 'utf8');
+    const engine = readFileSync(path.join(root, 'js', 'debate', 'debate-teams-v2.js'), 'utf8');
+    const teams = readFileSync(path.join(root, 'js', 'classroom-debate-teams.js'), 'utf8');
+    vm.runInNewContext(periods, sandbox);
+    vm.runInNewContext(domain, sandbox);
+    vm.runInNewContext(engine, sandbox);
+    vm.runInNewContext(teams, sandbox);
+    return sandbox;
+}
+
+{
+    const sandbox = loadHomeworkTeams();
+    const teamsApi = sandbox.CCPClassroomDebateTeams;
+    const eng = sandbox.CCPDebateTeamsV2;
+    let generateCalls = 0;
+    const originalGenerate = eng.generateDebatesSilent.bind(eng);
+    eng.generateDebatesSilent = (options) => {
+        generateCalls += 1;
+        return originalGenerate(options);
+    };
+    const hooks = {
+        t: (key) => key,
+        getAppData: () => sandbox.appData,
+        getCurrentUserId: () => 'user-test-1',
+        async saveClassroom(fields) {
+            if (fields && Array.isArray(fields.debateTeamSessions)) {
+                sandbox.appData.debateTeamSessions = fields.debateTeamSessions;
+            }
+        },
+        showToast() {}
+    };
+
+    const first = await teamsApi.buildAndPersistForHomework({
+        classId: 'c-purple',
+        date: '2026-03-17',
+        hooks
+    });
+    assert(first && first.ok, 'first homework create succeeds');
+    assert(first.reused === false, 'first create is not a reuse');
+    assert(first.sessionState && first.sessionState.purpleMode === true, 'Purple class creates purple teams');
+    assert(first.sessionState.sheetTemplate === 'yeoul', 'Purple class uses the yeoul sheet');
+    assert(first.sessionState.maxTeamSize === 1, 'Purple class uses 1-person teams');
+    assert(generateCalls === 1, 'first create generates once');
+    assert(sandbox.appData.debateTeamSessions.length === 1, 'one session is stored');
+    assert(sandbox.appData.debateTeamSessions[0].date === '2026-03-17', 'teams are stored on the first debate date');
+
+    const second = await teamsApi.buildAndPersistForHomework({
+        classId: 'c-purple',
+        date: '2026-03-24',
+        hooks
+    });
+    assert(second && second.ok && second.reused === true, 'a later day in the month reuses teams');
+    assert(generateCalls === 1, 'a later day does not generate again');
+    assert(
+        sandbox.appData.debateTeamSessions.length === 1,
+        'a later syllabus date does not write a second session'
+    );
+    assert(second.entry && second.entry.date === '2026-03-17', 'reuse keeps the original session date');
+    assert(second.sessionState && second.sessionState.purpleMode === true, 'reused teams stay purple');
+}
+
 console.log('classroom-debate-teams-date.test.mjs: all passed');

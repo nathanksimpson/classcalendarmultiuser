@@ -9,6 +9,7 @@
         submitted: 'essay-status--submitted',
         complete: 'essay-status--complete',
         resubmit_required: 'essay-status--resubmit',
+        demerit: 'essay-status--demerit',
         incomplete: 'essay-status--incomplete',
         exempt: 'essay-status--exempt'
     };
@@ -119,6 +120,25 @@
         return '';
     }
 
+    /**
+     * Month used by the class-summary / print filter.
+     * Teacher-set class-list month wins, then the syllabus date, then the due date.
+     */
+    function assignmentListMonth(row) {
+        if (!row) {
+            return '';
+        }
+        const explicit = String(row.listMonth || row.essayListMonth || '').trim();
+        if (/^\d{4}-\d{2}$/.test(explicit)) {
+            return explicit;
+        }
+        const lesson = String(row.lessonDate || '').trim();
+        if (/^\d{4}-\d{2}/.test(lesson)) {
+            return lesson.slice(0, 7);
+        }
+        return monthKeyFromDueDate(row.ssDueDate);
+    }
+
     function findClassForAssignment(assignment, appData, options) {
         const opts = options || {};
         const classId = assignment && assignment.classId;
@@ -169,7 +189,7 @@
     function listMonthFilterOptions(assignments) {
         const months = new Set();
         (Array.isArray(assignments) ? assignments : []).forEach((row) => {
-            const month = monthKeyFromDueDate(row && row.ssDueDate);
+            const month = assignmentListMonth(row);
             if (month) {
                 months.add(month);
             }
@@ -178,7 +198,7 @@
     }
 
     /**
-     * Narrow assignment checklist by HR teacher and/or ssDueDate month (YYYY-MM).
+     * Narrow assignment checklist by HR teacher and/or class-list month (YYYY-MM).
      * Empty homeroomKey / month = no filter on that axis.
      */
     function filterAssignmentsByHrAndMonth(assignments, appData, filters, options) {
@@ -186,12 +206,16 @@
         const f = filters || {};
         const homeroomKey = String(f.homeroomKey || '').trim();
         const month = String(f.month || '').trim();
+        const essaySubject = String(f.essaySubject || '').trim();
+        const classScope = String(f.classScope || opts.classScope || 'all').trim();
+        const currentUserId = opts.currentUserId || f.currentUserId || '';
+        const d = domain();
         return (Array.isArray(assignments) ? assignments : []).filter((row) => {
             if (!row) {
                 return false;
             }
             if (month) {
-                if (monthKeyFromDueDate(row.ssDueDate) !== month) {
+                if (assignmentListMonth(row) !== month) {
                     return false;
                 }
             }
@@ -199,6 +223,24 @@
                 const classData = findClassForAssignment(row, appData, opts);
                 const hr = resolveHomeroomMeta(classData, appData, opts.resolveHomeroom);
                 if (hr.key !== homeroomKey) {
+                    return false;
+                }
+            }
+            if (
+                essaySubject &&
+                d &&
+                d.essayReportSubjectMatches &&
+                !d.essayReportSubjectMatches(row.displaySubject, essaySubject)
+            ) {
+                return false;
+            }
+            if (classScope === 'mine' || classScope === 'other') {
+                const classData = findClassForAssignment(row, appData, opts);
+                if (
+                    !d ||
+                    !d.essayReportClassMatchesScope ||
+                    !d.essayReportClassMatchesScope(classData, classScope, currentUserId)
+                ) {
                     return false;
                 }
             }
@@ -508,6 +550,7 @@
         statusCssClass,
         resolveHomeroomMeta,
         monthKeyFromDueDate,
+        assignmentListMonth,
         listHomeroomFilterOptions,
         listMonthFilterOptions,
         filterAssignmentsByHrAndMonth,

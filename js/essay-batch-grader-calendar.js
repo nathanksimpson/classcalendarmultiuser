@@ -9,6 +9,7 @@
     let calendarName = '';
     let calendarId = '';
     let loaded = false;
+    let calendarData = null;
 
     function emptySettings() {
         return {
@@ -45,6 +46,7 @@
         loaded = false;
         calendarName = '';
         calendarId = '';
+        calendarData = null;
 
         if (typeof global.TeamAuth === 'undefined' || typeof global.CalendarSync === 'undefined') {
             setStatus(
@@ -96,6 +98,7 @@
         }
 
         const data = (doc && doc.data) || {};
+        calendarData = data;
         calendarName = String(data.calendarName || doc.name || '').trim();
         let settings = data.essayGraderSettings;
         let migrated = false;
@@ -160,7 +163,17 @@
         const blob = getSettingsToSave() || emptySettings();
         blob.version = 1;
         blob.updatedAt = new Date().toISOString();
-        const doc = await global.CalendarSync.saveClassroomData({ essayGraderSettings: blob });
+        let doc;
+        try {
+            doc = await global.CalendarSync.saveClassroomData({ essayGraderSettings: blob });
+        } catch (err) {
+            if (!(err && err.status === 409) || typeof global.CalendarSync.loadCalendar !== 'function') {
+                throw err;
+            }
+            const fresh = await global.CalendarSync.loadCalendar(calendarId);
+            calendarData = (fresh && fresh.data) || calendarData;
+            doc = await global.CalendarSync.saveClassroomData({ essayGraderSettings: blob });
+        }
         loaded = true;
         setStatus(onStatus, `Saved grader settings to “${calendarName || calendarId}”.`, false);
         return doc;
@@ -176,9 +189,12 @@
         saveTimer = setTimeout(() => {
             saveTimer = null;
             void saveNow(getSettingsToSave, onStatus).catch((err) => {
+                const conflict = err && (err.status === 409 || /conflict/i.test(String(err.message || '')));
                 setStatus(
                     onStatus,
-                    (err && err.message) || 'Could not save grader settings to calendar.',
+                    conflict
+                        ? 'The Essays list was saved in the other window. Change the grader setting again to retry.'
+                        : (err && err.message) || 'Could not save grader settings to calendar.',
                     true
                 );
             });
@@ -192,6 +208,18 @@
         saveNow,
         getCalendarName: () => calendarName,
         getCalendarId: () => calendarId,
+        getCalendarData: () => calendarData,
+        setEssaySubmissions(list) {
+            if (!calendarData) {
+                calendarData = {};
+            }
+            calendarData.essaySubmissions = Array.isArray(list) ? list : [];
+        },
+        replaceCalendarData(data) {
+            if (data && typeof data === 'object') {
+                calendarData = data;
+            }
+        },
         isLoaded: () => loaded
     };
 })(typeof window !== 'undefined' ? window : globalThis);

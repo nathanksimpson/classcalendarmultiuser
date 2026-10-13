@@ -477,4 +477,24 @@ Garam M
     assert(resolved.userTargetId === 'c1', 'target c1');
 }
 
+assert(
+    tms.normalizeTmsBaseUrl('http://tms.esimson.com') === 'https://tms.esimson.com',
+    'http TMS host upgrades to https'
+);
+assert(
+    tms.normalizeTmsBaseUrl('http://tms.esimson.com/') === 'https://tms.esimson.com',
+    'trailing slash stripped'
+);
+assert(
+    tms.normalizeTmsBaseUrl('https://tms.esimson.com') === 'https://tms.esimson.com',
+    'https left alone'
+);
+assert(
+    tms.resolveTmsRedirectUrl(
+        'http://tms.esimson.com/member/login.aspx',
+        'https://tms.esimson.com'
+    ) === 'https://tms.esimson.com/member/login.aspx',
+    'HTTPS upgrade keeps login path when Location has none'
+);
+
 console.log('tms-roster-class-select.test.mjs: ok');
