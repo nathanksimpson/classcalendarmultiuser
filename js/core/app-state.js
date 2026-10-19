@@ -86,6 +86,9 @@
             teacherProfiles: [],
             plannerDrafts: [],
             plannerState: null,
+            meta: {
+                versions: { lessons: 0, syllabus: 0, roster: 0 }
+            },
             ui: {
                 visibilityFilters: { ...DEFAULT_VISIBILITY_FILTERS },
                 printVisibility: { ...DEFAULT_VISIBILITY_FILTERS },

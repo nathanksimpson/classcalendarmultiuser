@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#0f172a">
     <base href="/">
-    <title>Schedule planner ??ClassManager</title>
+    <title>Schedule planner — ClassManager</title>
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <script>
@@ -43,13 +43,13 @@
 
     <header class="planner-page-header">
         <div class="planner-page-header-main">
-            <a href="/" class="planner-back-link" data-i18n="plannerBackCalendar">??Calendar</a>
+            <a href="/" class="planner-back-link" data-i18n="plannerBackCalendar">← Calendar</a>
             <h1 class="planner-page-title" data-i18n="plannerPageTitle">Schedule planner</h1>
             <p id="plannerCalendarLabel" class="planner-calendar-label section-hint"></p>
         </div>
         <div class="planner-page-header-actions">
-            <button type="button" id="plannerLangToggle" class="btn btn-outline btn-small btn-lang">?�� ?�국??/button>
-            <button type="button" id="plannerThemeToggle" class="btn btn-outline btn-small btn-header-theme">?�� Dark</button>
+            <button type="button" id="plannerLangToggle" class="btn btn-outline btn-small btn-lang">🌐 한국어</button>
+            <button type="button" id="plannerThemeToggle" class="btn btn-outline btn-small btn-header-theme">🌙 Dark</button>
         </div>
     </header>
 
@@ -108,7 +108,7 @@
         <div id="plannerStep-rooms" class="planner-step-panel" hidden>
             <div class="planner-step-intro">
                 <h2 class="planner-step-title" data-i18n="plannerStepRoomsTitle">Rooms</h2>
-                <p class="section-hint" data-i18n="plannerRoomsHint">Add classrooms here. Room conflicts are soft warnings ??teacher assignment still works without a perfect room fit.</p>
+                <p class="section-hint" data-i18n="plannerRoomsHint">Add classrooms here. Room conflicts are soft warnings — teacher assignment still works without a perfect room fit.</p>
             </div>
             <div id="plannerRoomsMount" class="planner-rooms-mount"></div>
             <div class="planner-step-footer">
@@ -143,7 +143,7 @@
             <p id="plannerMetricsMount" class="planner-summary-strip section-hint"></p>
             <div class="planner-draft-layout planner-draft-layout--3pane">
                 <aside id="plannerClassBin" class="planner-class-bin" aria-label="Class list">
-                    <input type="search" id="plannerBinSearch" class="module-list-search planner-bin-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="plannerBinSearchPlaceholder" placeholder="Search classes??>
+                    <input type="search" id="plannerBinSearch" class="module-list-search planner-bin-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="plannerBinSearchPlaceholder" placeholder="Search classes…">
                     <div class="planner-bin-heading" data-i18n="plannerClassList">Class list</div>
                     <div id="plannerClassBinList" class="planner-class-bin-list"></div>
                 </aside>
@@ -172,7 +172,8 @@
     <script defer src="js/planner/teacher-planner-ui.js?v=20260909-period8"></script>
     <script defer src="js/i18n/calendar-en.js?v=20260723-planner-print"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
-    <script defer src="app.js?v=20260722-planner-mockup"></script>
+    <script defer src="js/level-profile.js?v=20261015-p7-level"></script>
+    <script defer src="app.js?v=20261015-p7-level"></script>
     <script defer src="js/planner/teacher-planner-page.js?v=20260723-planner-permissive"></script>
 </body>
 </html>

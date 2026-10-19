@@ -641,10 +641,12 @@
             initTab._subscribed = true;
 
             global.CCPActiveContext.subscribe(async (detail) => {
-
+                const seq = (initTab._ctxSeq = (initTab._ctxSeq || 0) + 1);
                 if (panel && !panel.hidden && detail && detail.classId !== undefined) {
-
                     await flushBeforeLeave();
+                    if (seq !== initTab._ctxSeq) {
+                        return;
+                    }
 
                     syncFromActiveContext();
 

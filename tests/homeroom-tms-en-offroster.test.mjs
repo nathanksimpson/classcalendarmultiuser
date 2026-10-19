@@ -129,40 +129,40 @@ const mainStudents = tms.parseStudentsFromClassPopup(fixture);
 assert(mainStudents.length === 3, 'fixture has 3 students');
 // parseStudentsFromClassPopup enriches from 상담 txtenglishname (full EN).
 assert(
-    mainStudents.find((s) => s.mpidx === '36723').nameEn === 'Hyeonjun',
-    'popup parse uses full counsel English Hyeonjun'
+    mainStudents.find((s) => s.mpidx === '36723').nameEn === 'Stuaazzz',
+    'popup parse uses full counsel English Stuaazzz'
 );
 assert(
-    mainStudents.find((s) => s.mpidx === '126672').nameEn === 'Benjamin',
-    'popup parse uses full counsel English Benjamin'
+    mainStudents.find((s) => s.mpidx === '126672').nameEn === 'Stuabzzz',
+    'popup parse uses full counsel English Stuabzzz'
 );
 assert(
-    mainStudents.find((s) => s.mpidx === '109554').nameEn === 'Ian',
-    'short counsel English kept as Ian'
+    mainStudents.find((s) => s.mpidx === '109554').nameEn === 'Studyz',
+    'short counsel English kept as Studyz'
 );
 
 const byMpidx = tms.parseCounselingEnglishByMpidx(fixture);
-assert(byMpidx.get('36723') === 'Hyeonjun', 'counsel Hyeonjun');
-assert(byMpidx.get('126672') === 'Benjamin', 'counsel Benjamin');
-assert(byMpidx.get('109554') === 'Ian', 'counsel Ian');
+assert(byMpidx.get('36723') === 'Stuaazzz', 'counsel Stuaazzz');
+assert(byMpidx.get('126672') === 'Stuabzzz', 'counsel Stuabzzz');
+assert(byMpidx.get('109554') === 'Studyz', 'counsel Studyz');
 
 // Enrich upgrades truncated main-list paren hints when called standalone.
 const truncated = [
-    { name: '신욱포', nameEn: 'Hyeonj', mpidx: '36723' },
-    { name: '고익마', nameEn: 'Benjam', mpidx: '126672' },
-    { name: '권익사', nameEn: 'Ian', mpidx: '109554' }
+    { name: '최테가', nameEn: 'Stuagz', mpidx: '36723' },
+    { name: '박테카', nameEn: 'Stuabz', mpidx: '126672' },
+    { name: '이테카', nameEn: 'Studyz', mpidx: '109554' }
 ];
 const enriched = tms.enrichStudentsWithCounselingEnglish(truncated, fixture);
 assert(
-    enriched.find((s) => s.mpidx === '36723').nameEn === 'Hyeonjun',
+    enriched.find((s) => s.mpidx === '36723').nameEn === 'Stuaazzz',
     'enrich replaces truncated English'
 );
 assert(
-    enriched.find((s) => s.mpidx === '126672').nameEn === 'Benjamin',
-    'enrich Benjamin full'
+    enriched.find((s) => s.mpidx === '126672').nameEn === 'Stuabzzz',
+    'enrich Stuabzzz full'
 );
 assert(
-    enriched.find((s) => s.mpidx === '109554').nameEn === 'Ian',
+    enriched.find((s) => s.mpidx === '109554').nameEn === 'Studyz',
     'short counsel English kept'
 );
 
@@ -175,11 +175,11 @@ assert(soft[0] !== softSrc[0], 'enrich returns new objects');
 // --- adopt prefers longer nameEn ---
 const D = loadDomain();
 const merged = D.mergeRosterByKoreanName(
-    [{ id: 'stu_a', name: '신욱포', nameEn: 'Old', tags: [], active: true }],
-    [{ name: '신욱포', nameEn: 'Hyeonjun', mpidx: '36723' }]
+    [{ id: 'stu_a', name: '최테가', nameEn: 'Old', tags: [], active: true }],
+    [{ name: '최테가', nameEn: 'Stuaazzz', mpidx: '36723' }]
 );
 assert(
-    merged.students.find((s) => s.id === 'stu_a').nameEn === 'Hyeonjun',
+    merged.students.find((s) => s.id === 'stu_a').nameEn === 'Stuaazzz',
     'merge adopts full TMS English'
 );
 

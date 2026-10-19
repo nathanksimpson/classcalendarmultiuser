@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Kakao sign in ??ClassManager</title>
+    <title>Kakao sign in — ClassManager</title>
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <link rel="stylesheet" href="styles.css?v=20260629-classmanager-redesign">
@@ -40,13 +40,13 @@
 <body>
     <div id="appNoticeRail" class="app-notice-rail" role="status" aria-live="polite" aria-hidden="true"></div>
     <div class="login-theme-bar">
-        <button type="button" id="loginLangToggle" class="btn btn-outline btn-small btn-lang" style="margin-right: 0.5rem;">?�� ?�국??/button>
-        <button type="button" id="loginThemeToggle" class="btn btn-outline btn-small btn-header-theme" aria-pressed="false">?�� Dark</button>
+        <button type="button" id="loginLangToggle" class="btn btn-outline btn-small btn-lang" style="margin-right: 0.5rem;">🌐 한국어</button>
+        <button type="button" id="loginThemeToggle" class="btn btn-outline btn-small btn-header-theme" aria-pressed="false">🌙 Dark</button>
     </div>
     <div class="login-page">
         <div class="login-card">
-            <p class="login-back"><a id="backToChooserLink" href="/login.html">??Back to sign-in options</a></p>
-            <h1 id="loginTitle">ClassManager ??Team</h1>
+            <p class="login-back"><a id="backToChooserLink" href="/login.html">← Back to sign-in options</a></p>
+            <h1 id="loginTitle">ClassManager — Team</h1>
             <p id="loginLead">Sign in with your school Kakao account. First-time sign-in creates your account automatically.</p>
 
             <fieldset class="login-device" id="loginDeviceFieldset">
@@ -54,7 +54,7 @@
                 <label>
                     <input type="radio" name="loginDevice" value="personal" checked autocomplete="off">
                     <strong id="loginDevicePersonalTitle">My computer</strong>
-                    <span id="loginDevicePersonalHint">Stay signed in longer (up to your school?�s limit).</span>
+                    <span id="loginDevicePersonalHint">Stay signed in longer (up to your school’s limit).</span>
                 </label>
                 <label>
                     <input type="radio" name="loginDevice" value="shared" autocomplete="off">
@@ -80,13 +80,13 @@
         (function () {
             const COPY = {
                 en: {
-                    langToggle: '?�� ?�국??,
-                    title: 'ClassManager ??Team',
+                    langToggle: '🌐 한국어',
+                    title: 'ClassManager — Team',
                     lead: 'Sign in with your school Kakao account. First-time sign-in creates your account automatically.',
-                    backToChooser: '??Back to sign-in options',
+                    backToChooser: '← Back to sign-in options',
                     deviceLegend: 'Where are you signing in?',
                     devicePersonalTitle: 'My computer',
-                    devicePersonalHint: 'Stay signed in longer (up to your school?�s limit).',
+                    devicePersonalHint: 'Stay signed in longer (up to your school’s limit).',
                     deviceSharedTitle: 'Shared or public computer',
                     deviceSharedHint: 'Shorter sign-in (1 day max). Auto sign-out after 15 minutes idle.',
                     kakaoLogin: 'Login with Kakao',
@@ -105,29 +105,29 @@
                     kakao_mismatch: 'This Kakao account does not match the ID on file. Contact your admin.'
                 },
                 ko: {
-                    langToggle: '?�� English',
-                    title: 'ClassManager ???�',
-                    lead: '?�교 카카??계정?�로 로그?�하?�요. 처음 로그?�하�?계정???�동?�로 만들?�집?�다.',
-                    backToChooser: '??로그??방법 ?�택?�로 ?�아가�?,
-                    deviceLegend: '?�떤 기기?�서 로그?�하?�요?',
-                    devicePersonalTitle: '??컴퓨??,
-                    devicePersonalHint: '로그???��?가 ??길게 ?�니???�교 ?�정 ?�도 ??.',
-                    deviceSharedTitle: '공용/?�른 ?�람�??�께 ?�는 컴퓨??,
-                    deviceSharedHint: '짧게 로그?�합?�다(최�? 1??. 15�?미사?????�동 로그?�웃?�니??',
-                    kakaoLogin: '카카?�로 로그??,
-                    kakaoSwitch: '?�른 카카??계정?�로 로그??,
-                    kakaoNotConfigured: '카카??로그?�이 ?�정?��? ?�았?�니?? ?�아가???�메?�·비밀번호�??�용?�세??',
-                    notesEntryLink: '?�업 ?��? (모바??',
-                    idleSignedOut: '?�래 ?�동???�어 ?�동 로그?�웃?�었?�니?? ?�시 로그?�해 주세??',
-                    oauth_failed: '카카??로그?�에 ?�패?�습?�다. ?�시 ?�도?�거??관리자?�게 문의?�세??',
-                    oauth_denied: '카카??로그?�이 취소?�었?�니??',
-                    oauth_code_expired: '카카??로그???�간??만료?�었?�니?? ?�시 로그??버튼???�러 주세??',
-                    oauth_state_invalid: '로그???�션??만료?�었?�니?? ?�시 로그?�해 주세??',
-                    missing_code: '카카?��? 로그??코드�?반환?��? ?�았?�니??',
-                    account_disabled: '??계정?� 비활?�화?�었?�니??',
-                    not_invited: '?�직 ?�생??목록???�록?�어 ?��? ?�습?�다.',
-                    kakao_not_linked: '카카??계정???�직 ?�결?��? ?�았?�니??',
-                    kakao_mismatch: '??카카??계정?� ?�록??ID?� ?�치?��? ?�습?�다.'
+                    langToggle: '🌐 English',
+                    title: 'ClassManager — 팀',
+                    lead: '학교 카카오 계정으로 로그인하세요. 처음 로그인하면 계정이 자동으로 만들어집니다.',
+                    backToChooser: '← 로그인 방법 선택으로 돌아가기',
+                    deviceLegend: '어떤 기기에서 로그인하나요?',
+                    devicePersonalTitle: '내 컴퓨터',
+                    devicePersonalHint: '로그인 유지가 더 길게 됩니다(학교 설정 한도 내).',
+                    deviceSharedTitle: '공용/다른 사람과 함께 쓰는 컴퓨터',
+                    deviceSharedHint: '짧게 로그인합니다(최대 1일). 15분 미사용 시 자동 로그아웃됩니다.',
+                    kakaoLogin: '카카오로 로그인',
+                    kakaoSwitch: '다른 카카오 계정으로 로그인',
+                    kakaoNotConfigured: '카카오 로그인이 설정되지 않았습니다. 돌아가서 이메일·비밀번호를 사용하세요.',
+                    notesEntryLink: '수업 일지 (모바일)',
+                    idleSignedOut: '오래 활동이 없어 자동 로그아웃되었습니다. 다시 로그인해 주세요.',
+                    oauth_failed: '카카오 로그인에 실패했습니다. 다시 시도하거나 관리자에게 문의하세요.',
+                    oauth_denied: '카카오 로그인이 취소되었습니다.',
+                    oauth_code_expired: '카카오 로그인 시간이 만료되었습니다. 다시 로그인 버튼을 눌러 주세요.',
+                    oauth_state_invalid: '로그인 세션이 만료되었습니다. 다시 로그인해 주세요.',
+                    missing_code: '카카오가 로그인 코드를 반환하지 않았습니다.',
+                    account_disabled: '이 계정은 비활성화되었습니다.',
+                    not_invited: '아직 선생님 목록에 등록되어 있지 않습니다.',
+                    kakao_not_linked: '카카오 계정이 아직 연결되지 않았습니다.',
+                    kakao_mismatch: '이 카카오 계정은 등록된 ID와 일치하지 않습니다.'
                 }
             };
 

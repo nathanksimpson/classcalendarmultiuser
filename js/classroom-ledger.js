@@ -430,8 +430,12 @@
         if (typeof global.CCPActiveContext !== 'undefined' && !initTab._subscribed) {
             initTab._subscribed = true;
             global.CCPActiveContext.subscribe(async () => {
+                const seq = (initTab._ctxSeq = (initTab._ctxSeq || 0) + 1);
                 if (panel && !panel.hidden) {
                     await flushBeforeLeave();
+                    if (seq !== initTab._ctxSeq) {
+                        return;
+                    }
                     syncFromActiveContext();
                     ensureClassId();
                     render(panel, { reloadDrafts: true });

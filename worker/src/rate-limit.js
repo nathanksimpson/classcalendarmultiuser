@@ -46,8 +46,12 @@ export function clientIp(request) {
 }
 
 export async function rateLimitOr429(env, request, routeKey, limit, windowMs) {
-    const key = `${routeKey}:${clientIp(request)}`;
-    const allowed = await checkRateLimit(env, key, limit, windowMs);
+    return rateLimitByKeyOr429(env, `${routeKey}:${clientIp(request)}`, limit, windowMs);
+}
+
+/** Same as rateLimitOr429 but with a caller-chosen bucket (e.g. per signed-in user). */
+export async function rateLimitByKeyOr429(env, bucketKey, limit, windowMs) {
+    const allowed = await checkRateLimit(env, bucketKey, limit, windowMs);
     if (!allowed) {
         return new Response(JSON.stringify({ error: 'Too many requests. Try again later.' }), {
             status: 429,

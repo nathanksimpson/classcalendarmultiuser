@@ -21,8 +21,9 @@ const CalendarMeta = require('./calendar-meta');
 const AccessRequests = require('./access-requests');
 const AdminUserPolicy = require('./admin-user-policy');
 const ViewAs = require('./view-as');
+const { BRIDGE_PROTOCOL, JOB_KINDS, runTmsJob } = require('../shared/tms-jobs.cjs');
+// After tms-jobs: same cached roster core, so enableTmsTlsTrust still applies to scrapes.
 const tmsRoster = require('./tms-roster');
-const tmsCounsel = require('../shared/tms-counsel-core.cjs');
 const {
     isLoopbackRequest,
     tmsBridgeAllowedOrigin
@@ -31,6 +32,10 @@ const { getDb } = require('./schema');
 const soundboardStore = require('./soundboard');
 
 const PORT = Number(process.env.PORT) || 8080;
+const PKG_VERSION = require('../package.json').version || '';
+// Loopback by default: open access + the TMS bridge must never be reachable from the school LAN.
+const HOST = (process.env.HOST || '127.0.0.1').trim();
+const HOST_IS_LOOPBACK = HOST === '127.0.0.1' || HOST === 'localhost' || HOST === '::1';
 const PUBLIC_URL = (process.env.PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
 const SESSION_COOKIE = 'cal_session';
 const KAKAO_CLIENT_ID = process.env.KAKAO_CLIENT_ID || process.env.KAKAO_REST_API_KEY || '';
@@ -109,6 +114,18 @@ const DEV_USER = {
 
 function isOpenAccessDevUser(user) {
     return ALLOW_OPEN_ACCESS && !KAKAO_CLIENT_ID && user && user.id === 'dev-open';
+}
+
+/** Constant-time string compare; hashing first makes unequal lengths safe for timingSafeEqual. */
+function secretsEqual(provided, expected) {
+    const a = crypto.createHash('sha256').update(String(provided || ''), 'utf8').digest();
+    const b = crypto.createHash('sha256').update(String(expected || ''), 'utf8').digest();
+    return crypto.timingSafeEqual(a, b);
+}
+
+/** Open access (DEV_USER) is granted only to requests that originate on this PC. */
+function openAccessAllowed(req) {
+    return ALLOW_OPEN_ACCESS && !KAKAO_CLIENT_ID && isLoopbackRequest(req);
 }
 
 const app = express();
@@ -255,7 +272,7 @@ function requireUser(req, res, next) {
             return;
         }
     }
-    if (ALLOW_OPEN_ACCESS && !KAKAO_CLIENT_ID && !getViewAsSessionHeader(req)) {
+    if (openAccessAllowed(req) && !getViewAsSessionHeader(req)) {
         req.user = DEV_USER;
         req.actorUser = DEV_USER;
         req.viewAsSession = false;
@@ -278,7 +295,7 @@ function requireCookieUser(req, res, next) {
         next();
         return;
     }
-    if (ALLOW_OPEN_ACCESS && !KAKAO_CLIENT_ID) {
+    if (openAccessAllowed(req)) {
         req.user = DEV_USER;
         req.actorUser = DEV_USER;
         req.viewAsSession = false;
@@ -336,153 +353,6 @@ function requireTmsBridgeLoopback(req, res) {
     return true;
 }
 
-async function runTmsRosterPreview(body) {
-    const payload = body && typeof body === 'object' ? body : {};
-    const bodyUser = String(payload.username || '').trim();
-    const bodyPass = String(payload.password || '');
-    let scrapeOpts = {};
-    if (bodyUser || bodyPass) {
-        if (!bodyUser || !bodyPass) {
-            const err = new Error('TMS username and password are required');
-            err.code = 'TMS_CREDS_MISSING';
-            err.status = 503;
-            throw err;
-        }
-        scrapeOpts = { username: bodyUser, password: bodyPass };
-    }
-    const cfg = Object.assign({}, tmsRoster.getConfig(), scrapeOpts);
-    if (!tmsRoster.credentialsConfigured(cfg)) {
-        const err = new Error('TMS credentials not configured');
-        err.code = 'TMS_CREDS_MISSING';
-        err.status = 503;
-        throw err;
-    }
-    const result = await tmsRoster.scrapeRosters(scrapeOpts);
-    return {
-        cohorts: result.cohorts,
-        meta: {
-            homeUrl: result.meta && result.meta.homeUrl,
-            pagesFetched: result.meta && result.meta.pagesFetched,
-            cohortCount: (result.cohorts || []).length,
-            studentCount: (result.cohorts || []).reduce(
-                (n, c) => n + ((c.students && c.students.length) || 0),
-                0
-            )
-        }
-    };
-}
-
-async function runTmsEssayPreview(body) {
-    const payload = body && typeof body === 'object' ? body : {};
-    const bodyUser = String(payload.username || '').trim();
-    const bodyPass = String(payload.password || '');
-    let scrapeOpts = {};
-    if (bodyUser || bodyPass) {
-        if (!bodyUser || !bodyPass) {
-            const err = new Error('TMS username and password are required');
-            err.code = 'TMS_CREDS_MISSING';
-            err.status = 503;
-            throw err;
-        }
-        scrapeOpts = { username: bodyUser, password: bodyPass };
-    }
-    const cfg = Object.assign({}, tmsRoster.getConfig(), scrapeOpts);
-    if (!tmsRoster.credentialsConfigured(cfg)) {
-        const err = new Error('TMS credentials not configured');
-        err.code = 'TMS_CREDS_MISSING';
-        err.status = 503;
-        throw err;
-    }
-    const result = await tmsRoster.scrapeEssaySubmissions(scrapeOpts);
-    return {
-        assignments: result.assignments || [],
-        rows: result.rows || [],
-        meta: result.meta || {}
-    };
-}
-
-async function runTmsHomeworkPreview(body) {
-    const payload = body && typeof body === 'object' ? body : {};
-    const bodyUser = String(payload.username || '').trim();
-    const bodyPass = String(payload.password || '');
-    let scrapeOpts = {};
-    if (bodyUser || bodyPass) {
-        if (!bodyUser || !bodyPass) {
-            const err = new Error('TMS username and password are required');
-            err.code = 'TMS_CREDS_MISSING';
-            err.status = 503;
-            throw err;
-        }
-        scrapeOpts = { username: bodyUser, password: bodyPass };
-    }
-    const cfg = Object.assign({}, tmsRoster.getConfig(), scrapeOpts);
-    if (!tmsRoster.credentialsConfigured(cfg)) {
-        const err = new Error('TMS credentials not configured');
-        err.code = 'TMS_CREDS_MISSING';
-        err.status = 503;
-        throw err;
-    }
-    const onlyTmsClassIds = [];
-    const onlyTmsClassId = String(payload.tmsClassId || payload.onlyTmsClassId || '').trim();
-    if (onlyTmsClassId) {
-        onlyTmsClassIds.push(onlyTmsClassId);
-        scrapeOpts.onlyTmsClassId = onlyTmsClassId;
-    }
-    (Array.isArray(payload.tmsClassIds) ? payload.tmsClassIds : []).forEach((id) => {
-        const s = String(id || '').trim();
-        if (s && onlyTmsClassIds.indexOf(s) === -1) {
-            onlyTmsClassIds.push(s);
-        }
-    });
-    if (onlyTmsClassIds.length) {
-        scrapeOpts.onlyTmsClassIds = onlyTmsClassIds;
-    }
-    const onlyTmsClassName = String(payload.className || payload.onlyTmsClassName || '').trim();
-    if (onlyTmsClassName) {
-        scrapeOpts.onlyTmsClassName = onlyTmsClassName;
-    }
-    const result = await tmsRoster.scrapeHomeworkChecks(scrapeOpts);
-    return {
-        classes: result.classes || [],
-        meta: result.meta || {}
-    };
-}
-
-async function runTmsEssayContent(body) {
-    const payload = body && typeof body === 'object' ? body : {};
-    const bodyUser = String(payload.username || '').trim();
-    const bodyPass = String(payload.password || '');
-    let scrapeOpts = {};
-    if (bodyUser || bodyPass) {
-        if (!bodyUser || !bodyPass) {
-            const err = new Error('TMS username and password are required');
-            err.code = 'TMS_CREDS_MISSING';
-            err.status = 503;
-            throw err;
-        }
-        scrapeOpts = { username: bodyUser, password: bodyPass };
-    }
-    const cfg = Object.assign({}, tmsRoster.getConfig(), scrapeOpts);
-    if (!tmsRoster.credentialsConfigured(cfg)) {
-        const err = new Error('TMS credentials not configured');
-        err.code = 'TMS_CREDS_MISSING';
-        err.status = 503;
-        throw err;
-    }
-    const rows = Array.isArray(payload.rows) ? payload.rows : [];
-    if (!rows.length) {
-        const err = new Error('At least one essay row is required');
-        err.code = 'TMS_ESSAY_ROWS_MISSING';
-        err.status = 400;
-        throw err;
-    }
-    const result = await tmsRoster.scrapeEssayContents(Object.assign({}, scrapeOpts, { rows: rows }));
-    return {
-        essays: result.essays || [],
-        meta: result.meta || {}
-    };
-}
-
 function sendTmsPreviewError(res, err) {
     const code = err && err.code;
     if (code === 'TMS_LOGIN_FAILED') {
@@ -494,11 +364,25 @@ function sendTmsPreviewError(res, err) {
             code
         });
     }
+    if (code === 'TMS_UNKNOWN_KIND' || code === 'TMS_ESSAY_ROWS_MISSING') {
+        return res.status(err.status || 400).json({
+            error: (err && err.message) || 'TMS request rejected',
+            code
+        });
+    }
     console.error('TMS roster preview failed', err);
     return res.status(502).json({
         error: (err && err.message) || 'TMS sync failed',
         code: 'TMS_SCRAPE_FAILED'
     });
+}
+
+async function respondTmsJob(res, kind, body) {
+    try {
+        return res.json(await runTmsJob(kind, body));
+    } catch (err) {
+        return sendTmsPreviewError(res, err);
+    }
 }
 
 function requirePermission(perm) {
@@ -941,7 +825,7 @@ app.post('/api/admin/bootstrap', rateLimit.rateLimitMiddleware('admin_bootstrap'
         res.status(403).json({ error: 'Bootstrap already completed' });
         return;
     }
-    if (!BOOTSTRAP_SECRET || secret !== BOOTSTRAP_SECRET) {
+    if (!BOOTSTRAP_SECRET || !secretsEqual(secret, BOOTSTRAP_SECRET)) {
         res.status(403).json({
             error: !BOOTSTRAP_SECRET
                 ? 'Bootstrap secret is not configured. Copy .env.example to .env, set BOOTSTRAP_ADMIN_SECRET, and restart npm start.'
@@ -1367,49 +1251,36 @@ app.post('/api/backup', requireUser, rejectViewAsWrites, (_req, res) => {
     res.json({ skipped: true, reason: 'Use Synology or export from Print & data tab for backups' });
 });
 
-/** TMS roster preview — body credentials preferred; local .env fallback when body empty. */
-app.post('/api/tms/roster/preview', requireUser, rejectViewAsWrites, async (req, res) => {
-    try {
-        return res.json(await runTmsRosterPreview(req.body));
-    } catch (err) {
-        return sendTmsPreviewError(res, err);
-    }
-});
+/** Same-origin TMS jobs — signed-in users. Legacy paths stay as thin aliases. */
+function registerTmsSessionJob(routePath, kind) {
+    app.post(routePath, requireUser, rejectViewAsWrites, async (req, res) => {
+        return respondTmsJob(res, kind, req.body);
+    });
+}
 
-/** TMS essay submission preview (Writing_list) — body credentials preferred; local .env fallback. */
-app.post('/api/tms/essays/preview', requireUser, rejectViewAsWrites, async (req, res) => {
-    try {
-        return res.json(await runTmsEssayPreview(req.body));
-    } catch (err) {
-        return sendTmsPreviewError(res, err);
-    }
-});
-
-/** TMS essay body fetch for selected Writing_list rows — read-only. */
-app.post('/api/tms/essays/content', requireUser, rejectViewAsWrites, async (req, res) => {
-    try {
-        return res.json(await runTmsEssayContent(req.body));
-    } catch (err) {
-        if (err && err.code === 'TMS_ESSAY_ROWS_MISSING') {
-            return res.status(400).json({ error: err.message, code: err.code });
-        }
-        return sendTmsPreviewError(res, err);
-    }
-});
-
-/** TMS homework-check preview (class popup 숙제확인) — body credentials preferred. */
-app.post('/api/tms/homework/preview', requireUser, rejectViewAsWrites, async (req, res) => {
-    try {
-        return res.json(await runTmsHomeworkPreview(req.body));
-    } catch (err) {
-        return sendTmsPreviewError(res, err);
-    }
-});
+registerTmsSessionJob('/api/tms/roster/preview', 'roster');
+registerTmsSessionJob('/api/tms/essays/preview', 'essays');
+registerTmsSessionJob('/api/tms/essays/content', 'essayContent');
+registerTmsSessionJob('/api/tms/homework/preview', 'homework');
+registerTmsSessionJob('/api/tms/counsel/preview', 'counsel');
 
 /**
  * Live-site → localhost bridge (no ClassManager session).
  * Only loopback; CORS allowlisted for classmanager.live so Sync can use the work PC IP.
  */
+function registerTmsBridgeJob(routePath, kind) {
+    app.options(routePath, (req, res) => {
+        applyTmsBridgeCors(req, res);
+        res.status(204).end();
+    });
+    app.post(routePath, async (req, res) => {
+        if (!requireTmsBridgeLoopback(req, res)) {
+            return;
+        }
+        return respondTmsJob(res, kind, req.body);
+    });
+}
+
 app.options('/api/tms/bridge/ping', (req, res) => {
     applyTmsBridgeCors(req, res);
     res.status(204).end();
@@ -1419,92 +1290,46 @@ app.get('/api/tms/bridge/ping', (req, res) => {
     if (!requireTmsBridgeLoopback(req, res)) {
         return;
     }
-    res.json({ ok: true, bridge: true, port: PORT });
+    res.json({
+        ok: true,
+        bridge: true,
+        protocol: BRIDGE_PROTOCOL,
+        version: PKG_VERSION,
+        kinds: JOB_KINDS,
+        kind: 'dev-server',
+        port: PORT
+    });
 });
 
-app.options('/api/tms/bridge/preview', (req, res) => {
+app.options('/api/tms/bridge/run/:kind', (req, res) => {
     applyTmsBridgeCors(req, res);
     res.status(204).end();
 });
 
-app.post('/api/tms/bridge/preview', async (req, res) => {
+app.post('/api/tms/bridge/run/:kind', async (req, res) => {
     if (!requireTmsBridgeLoopback(req, res)) {
         return;
     }
-    try {
-        return res.json(await runTmsRosterPreview(req.body));
-    } catch (err) {
-        return sendTmsPreviewError(res, err);
-    }
+    return respondTmsJob(res, req.params.kind, req.body);
 });
 
-app.options('/api/tms/bridge/essays/preview', (req, res) => {
-    applyTmsBridgeCors(req, res);
-    res.status(204).end();
-});
+registerTmsBridgeJob('/api/tms/bridge/preview', 'roster');
+registerTmsBridgeJob('/api/tms/bridge/counsel', 'counsel');
+registerTmsBridgeJob('/api/tms/bridge/essays/preview', 'essays');
+registerTmsBridgeJob('/api/tms/bridge/essays/content', 'essayContent');
+registerTmsBridgeJob('/api/tms/bridge/homework/preview', 'homework');
 
-app.post('/api/tms/bridge/essays/preview', async (req, res) => {
-    if (!requireTmsBridgeLoopback(req, res)) {
+
+/** OpenAI API proxy for tools/essay-batch-editor.html (same-origin, signed-in users only). */
+const OPENAI_PROXY_ALLOWED_PATHS = [/^\/chat\/completions$/, /^\/models$/];
+
+app.use('/api/openai-proxy/v1', requireCookieUser, (req, res) => {
+    if (req.method !== 'POST' && req.method !== 'GET') {
+        res.status(405).json({ error: { message: 'Method not allowed' } });
         return;
     }
-    try {
-        return res.json(await runTmsEssayPreview(req.body));
-    } catch (err) {
-        return sendTmsPreviewError(res, err);
-    }
-});
-
-app.options('/api/tms/bridge/essays/content', (req, res) => {
-    applyTmsBridgeCors(req, res);
-    res.status(204).end();
-});
-
-app.post('/api/tms/bridge/essays/content', async (req, res) => {
-    if (!requireTmsBridgeLoopback(req, res)) {
-        return;
-    }
-    try {
-        return res.json(await runTmsEssayContent(req.body));
-    } catch (err) {
-        if (err && err.code === 'TMS_ESSAY_ROWS_MISSING') {
-            return res.status(400).json({ error: err.message, code: err.code });
-        }
-        return sendTmsPreviewError(res, err);
-    }
-});
-
-app.options('/api/tms/bridge/homework/preview', (req, res) => {
-    applyTmsBridgeCors(req, res);
-    res.status(204).end();
-});
-
-app.post('/api/tms/bridge/homework/preview', async (req, res) => {
-    if (!requireTmsBridgeLoopback(req, res)) {
-        return;
-    }
-    try {
-        return res.json(await runTmsHomeworkPreview(req.body));
-    } catch (err) {
-        return sendTmsPreviewError(res, err);
-    }
-});
-
-/** OpenAI API proxy for tools/essay-batch-editor.html (avoids browser CORS). */
-const OPENAI_PROXY_CORS = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-};
-
-app.options('/api/openai-proxy/v1/*', (req, res) => {
-    res.writeHead(204, OPENAI_PROXY_CORS);
-    res.end();
-});
-
-app.use('/api/openai-proxy/v1', (req, res) => {
-    if (req.method === 'OPTIONS') {
-        res.writeHead(204, OPENAI_PROXY_CORS);
-        res.end();
+    if (!OPENAI_PROXY_ALLOWED_PATHS.some((re) => re.test(req.path || '/'))) {
+        res.status(403).json({ error: { message: 'Endpoint not allowed' } });
         return;
     }
     const targetPath = req.url || '/';
@@ -1531,15 +1356,15 @@ app.use('/api/openai-proxy/v1', (req, res) => {
             headers
         },
         (proxyRes) => {
-            const outHeaders = Object.assign({}, OPENAI_PROXY_CORS, {
+            const outHeaders = {
                 'Content-Type': proxyRes.headers['content-type'] || 'application/json'
-            });
+            };
             res.writeHead(proxyRes.statusCode || 500, outHeaders);
             proxyRes.pipe(res);
         }
     );
     proxyReq.on('error', (err) => {
-        res.writeHead(502, Object.assign({}, OPENAI_PROXY_CORS, { 'Content-Type': 'application/json' }));
+        res.writeHead(502, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: { message: err.message } }));
     });
     if (bodyBuf) {
@@ -1548,83 +1373,6 @@ app.use('/api/openai-proxy/v1', (req, res) => {
         proxyReq.end();
     }
 });
-
-/** TMS counsel + attendance profile preview (requires ClassManager session). */
-app.post('/api/tms/counsel/preview', requireUser, rejectViewAsWrites, async (req, res) => {
-    try {
-        return res.json(await runTmsCounselPreview(req.body));
-    } catch (err) {
-        return sendTmsPreviewError(res, err);
-    }
-});
-
-app.options('/api/tms/bridge/counsel', (req, res) => {
-    applyTmsBridgeCors(req, res);
-    res.status(204).end();
-});
-
-/** Live-site → localhost bridge for counsel scrape (no ClassManager session). */
-app.post('/api/tms/bridge/counsel', async (req, res) => {
-    if (!requireTmsBridgeLoopback(req, res)) {
-        return;
-    }
-    try {
-        return res.json(await runTmsCounselPreview(req.body));
-    } catch (err) {
-        return sendTmsPreviewError(res, err);
-    }
-});
-
-async function runTmsCounselPreview(body) {
-    const payload = body && typeof body === 'object' ? body : {};
-    const bodyUser = String(payload.username || '').trim();
-    const bodyPass = String(payload.password || '');
-    let scrapeOpts = {};
-    if (bodyUser || bodyPass) {
-        if (!bodyUser || !bodyPass) {
-            const err = new Error('TMS username and password are required');
-            err.code = 'TMS_CREDS_MISSING';
-            err.status = 503;
-            throw err;
-        }
-        scrapeOpts = { username: bodyUser, password: bodyPass };
-    }
-    const cfg = Object.assign({}, tmsRoster.getConfig(), scrapeOpts);
-    if (!tmsRoster.credentialsConfigured(cfg)) {
-        const err = new Error('TMS credentials not configured');
-        err.code = 'TMS_CREDS_MISSING';
-        err.status = 503;
-        throw err;
-    }
-
-    if (Array.isArray(payload.classes) && payload.classes.length) {
-        const batches = payload.classes
-            .map((entry) => {
-                const classId = String(entry && entry.classId ? entry.classId : '').trim();
-                const tmsClassId = String(entry && entry.tmsClassId ? entry.tmsClassId : '').trim();
-                const students = Array.isArray(entry && entry.students) ? entry.students : [];
-                return {
-                    classId,
-                    tmsClassId,
-                    students: students.map((s) => ({
-                        id: s && s.id != null ? String(s.id) : '',
-                        name: s && s.name ? String(s.name) : '',
-                        tmsMpidx: String((s && (s.tmsMpidx || s.mpidx)) || '').trim()
-                    }))
-                };
-            })
-            .filter((batch) => batch.students.length > 0);
-        if (!batches.length) {
-            return { classes: {}, stats: { classes: 0, students: 0, scraped: 0, noMpidx: 0, errors: 0 } };
-        }
-        return tmsCounsel.scrapeCounselProfilesBatch(cfg, batches);
-    }
-
-    const students = Array.isArray(payload.students) ? payload.students : [];
-    const tmsClassId = String(payload.tmsClassId || '').trim();
-    const result = await tmsCounsel.scrapeCounselProfiles(cfg, students, { tmsClassId });
-    return result;
-}
 
 app.get('/api/calendars', requireUser, (req, res) => {
     res.json(CalAccess.listCalendarsForUser(req.user));
@@ -1709,9 +1457,18 @@ app.patch('/api/calendars/:id/notification-meta/:notificationId/dismiss', requir
     res.json(NotificationMeta.dismissOne(req.user.id, calId, notificationId, dismissedAt));
 });
 
+app.get('/api/me/ui-prefs', requireUser, (req, res) => {
+    res.json(UiPrefs.getUserPrefs(req.user.id));
+});
+
+app.put('/api/me/ui-prefs', requireUser, rejectViewAsWrites, (req, res) => {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    res.json(UiPrefs.putUserPrefs(req.user.id, body));
+});
+
 app.get('/api/calendars/:id/ui-prefs', requireUser, (req, res) => {
     const calId = req.params.id;
-    if (!CalAccess.canAccessCalendar(req.user, calId)) {
+    if (UiPrefs.isReservedCalendarId(calId) || !CalAccess.canAccessCalendar(req.user, calId)) {
         res.status(404).json({ error: 'Calendar not found' });
         return;
     }
@@ -1720,7 +1477,7 @@ app.get('/api/calendars/:id/ui-prefs', requireUser, (req, res) => {
 
 app.put('/api/calendars/:id/ui-prefs', requireUser, rejectViewAsWrites, (req, res) => {
     const calId = req.params.id;
-    if (!CalAccess.canAccessCalendar(req.user, calId)) {
+    if (UiPrefs.isReservedCalendarId(calId) || !CalAccess.canAccessCalendar(req.user, calId)) {
         res.status(404).json({ error: 'Calendar not found' });
         return;
     }
@@ -2233,7 +1990,7 @@ app.get('*', (req, res) => {
         const ctx = users.getSessionContext(getSessionToken(req));
         if (ctx && ctx.effective && !ctx.viewAsActive) {
             adminUser = ctx.effective;
-        } else if (ALLOW_OPEN_ACCESS && !KAKAO_CLIENT_ID) {
+        } else if (openAccessAllowed(req)) {
             adminUser = DEV_USER;
         }
         if (!adminUser || !Auth.canAccessAdminPage(adminUser)) {
@@ -2257,16 +2014,12 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(staticRoot, 'index.html'));
 });
 
-app.listen(PORT, () => {
-    const isLocalhost =
-        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(PUBLIC_URL) ||
-        PORT === 8080;
-    if (ALLOW_OPEN_ACCESS && !isLocalhost) {
-        console.error(
-            'FATAL: ALLOW_OPEN_ACCESS=1 is only allowed on localhost. Unset it or set PUBLIC_URL to http://localhost:8080'
-        );
-        process.exit(1);
-    }
+if (ALLOW_OPEN_ACCESS && !HOST_IS_LOOPBACK) {
+    console.error(`FATAL: ALLOW_OPEN_ACCESS=1 requires HOST=127.0.0.1 (got HOST=${HOST}).`);
+    process.exit(1);
+}
+
+app.listen(PORT, HOST, () => {
     if (KAKAO_CLIENT_ID) {
         const oauthSecret = (process.env.OAUTH_STATE_SECRET || process.env.BOOTSTRAP_ADMIN_SECRET || '').trim();
         if (!oauthSecret || oauthSecret === 'dev-oauth-state-insecure-change-me') {
@@ -2277,7 +2030,7 @@ app.listen(PORT, () => {
         }
     }
     console.log(`Calendar team server: ${PUBLIC_URL}`);
-    console.log(`Listening on port ${PORT}`);
+    console.log(`Listening on ${HOST}:${PORT}`);
     if (KAKAO_CLIENT_ID) {
         console.log('Kakao login: enabled');
         console.log('Kakao redirect URI (register in Kakao Developers):', kakaoRedirectUri({}));

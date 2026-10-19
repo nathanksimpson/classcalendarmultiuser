@@ -66,6 +66,68 @@ function rowToResponse(row) {
     };
 }
 
+/** Reserved calendar_id row for prefs that follow the user across calendars. */
+const USER_PREFS_CALENDAR_ID = '__user__';
+const CLASS_SCOPE_VALUES = ['all', 'mine'];
+
+function isReservedCalendarId(calendarId) {
+    return String(calendarId || '') === USER_PREFS_CALENDAR_ID;
+}
+
+function sanitizeUserPrefsBody(body) {
+    const src = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+    const out = {};
+    if (Object.prototype.hasOwnProperty.call(src, 'classScope')) {
+        const scope = String(src.classScope == null ? '' : src.classScope).trim();
+        out.classScope = CLASS_SCOPE_VALUES.includes(scope) ? scope : null;
+    }
+    return out;
+}
+
+function userRowToResponse(row) {
+    const parsed = row ? parsePrefsJson(row.prefs_json) : {};
+    return {
+        classScope: CLASS_SCOPE_VALUES.includes(parsed.classScope) ? parsed.classScope : null,
+        updatedAt: (row && row.updated_at) || null
+    };
+}
+
+function readUserPrefsRow(userId) {
+    return getDb()
+        .prepare(
+            `SELECT prefs_json, updated_at
+             FROM user_ui_prefs
+             WHERE user_id = ? AND calendar_id = ?`
+        )
+        .get(userId, USER_PREFS_CALENDAR_ID);
+}
+
+function getUserPrefs(userId) {
+    if (!userId) {
+        return userRowToResponse(null);
+    }
+    return userRowToResponse(readUserPrefsRow(userId));
+}
+
+function putUserPrefs(userId, body) {
+    if (!userId) {
+        return userRowToResponse(null);
+    }
+    const existingRow = readUserPrefsRow(userId);
+    const existing = parsePrefsJson(existingRow && existingRow.prefs_json);
+    const merged = Object.assign({}, sanitizeUserPrefsBody(existing), sanitizeUserPrefsBody(body));
+    getDb()
+        .prepare(
+            `INSERT INTO user_ui_prefs (user_id, calendar_id, prefs_json, updated_at)
+             VALUES (?, ?, ?, ?)
+             ON CONFLICT(user_id, calendar_id) DO UPDATE SET
+                prefs_json = excluded.prefs_json,
+                updated_at = excluded.updated_at`
+        )
+        .run(userId, USER_PREFS_CALENDAR_ID, JSON.stringify(merged), nowIso());
+    return getUserPrefs(userId);
+}
+
 function getPrefs(userId, calendarId) {
     if (!userId || !calendarId) {
         return emptyPrefs();
@@ -100,6 +162,11 @@ function putPrefs(userId, calendarId, body) {
 }
 
 module.exports = {
+    USER_PREFS_CALENDAR_ID,
+    isReservedCalendarId,
+    sanitizeUserPrefsBody,
+    getUserPrefs,
+    putUserPrefs,
     getPrefs,
     putPrefs
 };

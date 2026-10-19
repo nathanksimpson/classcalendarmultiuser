@@ -208,10 +208,12 @@ function load() {
             { classId: 'c-day3', date: '2026-09-08', sessionState: { debates: [{ number: 1 }] } }
         ]
     });
-    const dates = assignments.map((a) => a.date);
-    assert(dates.includes('2026-09-10'), 'Day 3 syllabus date listed');
-    assert(dates.includes('2026-09-12'), 'Day 4 syllabus date listed');
-    assert(dates.includes('2026-09-08'), 'existing session date listed');
+    assert(assignments.length === 1, 'Day 3, Day 4 and a saved session in one month give one assignment');
+    assert(assignments[0].date === '2026-09-10', 'assignment date is the first debate lesson of the month');
+    assert(
+        assignments[0].lessonDates.includes('2026-09-12'),
+        'Day 4 date belongs to the same month assignment'
+    );
 }
 
 function loadHomeworkTeams() {

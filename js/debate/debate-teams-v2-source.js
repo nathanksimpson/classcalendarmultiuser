@@ -431,7 +431,7 @@ class Component extends DCLogic {
   // Extracts "김익카 (Naeun)" pairs from academy roster exports (촬영 알림 / SMS dumps)
   parseRoster(text) {
     const out = [];
-    const re = /([가-힣]{2,4})\s*★*\s*\n?\s*\(\s*([A-Za-z][A-Za-z\-\.' ]*)\s*\)/g;
+    const re = /([가-힣]{2,7})\s*★*\s*\n?\s*\(\s*([A-Za-z][A-Za-z\-\.' ]*)\s*\)/g;
     let m;
     while ((m = re.exec(text))) {
       const name = m[1] + ' (' + m[2].trim() + ')';

@@ -26,6 +26,20 @@
 
 
 
+.classroom-zone-assignment-field {
+    flex: 0 1 18rem;
+    min-width: 12rem;
+}
+
+.classroom-zone-assignment-field .field-select {
+    width: 100%;
+}
+
+.classroom-zone-assignment-empty {
+    align-self: center;
+}
+
+
 .classroom-zone-context-bar {
 
     overflow: visible;
@@ -269,6 +283,16 @@
 .classroom-sheet-row--status-homework-missing {
 
     --classroom-row-rail: var(--status-danger-border);
+
+}
+
+
+
+.classroom-zone-override-hint {
+
+    margin: 0;
+
+    align-self: center;
 
 }
 

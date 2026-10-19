@@ -28,21 +28,22 @@ import {
     clearKakaoOAuthStateCookie,
     sanitizeReturnTo
 } from './oauth-state.js';
-import { rateLimitOr429 } from './rate-limit.js';
+import { rateLimitOr429, rateLimitByKeyOr429 } from './rate-limit.js';
 import {
     LOGIN_CONTEXT_PERSONAL,
     sanitizeLoginContext,
     resolveLoginProfile,
     sessionPolicyFromRow
 } from './login-context.js';
-import { scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHash, scryptSync, timingSafeEqual } from 'node:crypto';
 import { dbOne, dbAll, dbRun, rowsChanged, nowIso } from './db.js';
 import * as Soundboard from './soundboard.js';
 import * as Lock from './lock.js';
 import * as CalendarMeta from './calendar-meta.js';
 import * as CalendarMutations from '../../shared/calendar-mutations.cjs';
+import { SECURITY_HEADERS } from '../../shared/security-headers.cjs';
 import { findCalendarByName, assertCalendarNameAvailable } from './calendars.js';
-import * as TmsRoster from './tms-roster.js';
+import { runTmsJob } from './tms-jobs.js';
 
 const MAX_CALENDAR_BODY_BYTES = 5 * 1024 * 1024;
 const RATE_AUTH_WINDOW_MS = 15 * 60 * 1000;
@@ -56,11 +57,8 @@ const MAX_TRANSLATE_BODY_BYTES = 30 * 1024;
 const RATE_TRANSLATE_WINDOW_MS = 5 * 60 * 1000;
 const MAX_OPENAI_PROXY_BODY_BYTES = 2 * 1024 * 1024;
 const RATE_OPENAI_PROXY_WINDOW_MS = 5 * 60 * 1000;
-const OPENAI_PROXY_CORS = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-};
+// Same-origin only (Batch Essay Editor). Only the OpenAI endpoints the editor calls.
+const OPENAI_PROXY_ALLOWED_PATHS = [/^\/chat\/completions$/, /^\/models$/];
 
 function isDegenerateTranslationOutput(text, sourceText) {
     const value = String(text ?? '').trim();
@@ -1042,6 +1040,26 @@ async function handlePasswordLogin(request, env, secure, htmlSuccess) {
     }
 }
 
+/** dist/_headers does not apply to responses that pass through the Worker (run_worker_first pages). */
+function withSecurityHeaders(response) {
+    const headers = new Headers(response.headers);
+    for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+        headers.set(name, value);
+    }
+    return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers
+    });
+}
+
+/** Constant-time string compare; hashing first makes unequal lengths safe for timingSafeEqual. */
+function secretsEqual(provided, expected) {
+    const a = createHash('sha256').update(String(provided || ''), 'utf8').digest();
+    const b = createHash('sha256').update(String(expected || ''), 'utf8').digest();
+    return timingSafeEqual(a, b);
+}
+
 function passwordLoginErrorRedirect(returnTo, code, loginPage) {
     const page = loginPage || '/login.html';
     const q = new URLSearchParams({ error: code });
@@ -1074,7 +1092,7 @@ export default {
                 return handlePasswordLogin(request, env, secure, true);
             }
             if (env.ASSETS) {
-                return env.ASSETS.fetch(request);
+                return withSecurityHeaders(await env.ASSETS.fetch(request));
             }
             return new Response('Not found', { status: 404 });
         }
@@ -1110,34 +1128,36 @@ export default {
             });
         }
 
-        // Batch Essay Editor OpenAI CORS proxy (key from browser Authorization; no server secret).
+        // Batch Essay Editor OpenAI proxy (key from browser Authorization; no server secret).
+        // Signed-in, same-origin users only — never an open relay.
         if (path.startsWith('/api/openai-proxy/v1')) {
-            if (request.method === 'OPTIONS') {
-                return new Response(null, { status: 204, headers: OPENAI_PROXY_CORS });
-            }
             if (request.method !== 'POST' && request.method !== 'GET') {
-                return json({ error: { message: 'Method not allowed' } }, 405, OPENAI_PROXY_CORS);
+                return json({ error: { message: 'Method not allowed' } }, 405);
             }
-            const limited = await rateLimitOr429(
+            const proxyUser = await requireCookieUser(request, env);
+            if (!proxyUser) {
+                return json({ error: { message: 'Sign in to ClassManager first' } }, 401);
+            }
+            const suffix = path.slice('/api/openai-proxy/v1'.length) || '/';
+            if (!OPENAI_PROXY_ALLOWED_PATHS.some((re) => re.test(suffix))) {
+                return json({ error: { message: 'Endpoint not allowed' } }, 403);
+            }
+            const limited = await rateLimitByKeyOr429(
                 env,
-                request,
-                'openai_proxy',
+                `openai_proxy:user:${proxyUser.id}`,
                 60,
                 RATE_OPENAI_PROXY_WINDOW_MS
             );
             if (limited) {
-                const headers = new Headers(limited.headers);
-                Object.keys(OPENAI_PROXY_CORS).forEach((k) => headers.set(k, OPENAI_PROXY_CORS[k]));
-                return new Response(limited.body, { status: limited.status, headers });
+                return limited;
             }
-            const suffix = path.slice('/api/openai-proxy/v1'.length) || '/';
             const targetUrl = `https://api.openai.com/v1${suffix}${url.search || ''}`;
             const auth = request.headers.get('Authorization') || '';
             let bodyText;
             if (request.method !== 'GET' && request.method !== 'HEAD') {
                 bodyText = await request.text();
                 if (bodyText.length > MAX_OPENAI_PROXY_BODY_BYTES) {
-                    return json({ error: { message: 'Request body too large' } }, 413, OPENAI_PROXY_CORS);
+                    return json({ error: { message: 'Request body too large' } }, 413);
                 }
             }
             try {
@@ -1149,7 +1169,7 @@ export default {
                     },
                     body: bodyText
                 });
-                const respHeaders = new Headers(OPENAI_PROXY_CORS);
+                const respHeaders = new Headers();
                 respHeaders.set(
                     'Content-Type',
                     upstream.headers.get('Content-Type') || 'application/json'
@@ -1162,8 +1182,7 @@ export default {
                 console.error('OpenAI proxy error:', err && err.message ? err.message : err);
                 return json(
                     { error: { message: (err && err.message) || 'OpenAI proxy failed' } },
-                    502,
-                    OPENAI_PROXY_CORS
+                    502
                 );
             }
         }
@@ -1363,7 +1382,7 @@ export default {
                 return json({ error: 'Bootstrap already completed' }, 403);
             }
             const bootstrapSecret = env.BOOTSTRAP_ADMIN_SECRET || '';
-            if (!bootstrapSecret || body.secret !== bootstrapSecret) {
+            if (!bootstrapSecret || !secretsEqual(body.secret, bootstrapSecret)) {
                 return json({ error: 'Invalid bootstrap secret' }, 403);
             }
             const em = normalizeEmail(body.email);
@@ -1599,10 +1618,37 @@ export default {
             }
         }
 
-        if (path === '/api/tms/roster/preview' && request.method === 'POST') {
+        const tmsRunMatch = path.match(/^\/api\/tms\/run\/([^/]+)$/);
+        const tmsAliasKind = {
+            '/api/tms/roster/preview': 'roster',
+            '/api/tms/counsel/preview': 'counsel',
+            '/api/tms/essays/preview': 'essays',
+            '/api/tms/essays/content': 'essayContent',
+            '/api/tms/homework/preview': 'homework'
+        }[path];
+        if ((tmsRunMatch || tmsAliasKind) && request.method === 'POST') {
             const blocked = rejectViewAsJson();
             if (blocked) {
                 return blocked;
+            }
+            const kind = tmsRunMatch ? decodeURIComponent(tmsRunMatch[1]) : tmsAliasKind;
+            if (kind === 'essays' || kind === 'essayContent' || kind === 'homework' || kind === 'counsel') {
+                return json(
+                    {
+                        error: 'TMS is only reachable from the school network. Start the local bridge (npm start on the work PC) and use the local bridge endpoint.',
+                        code: 'TMS_BRIDGE_REQUIRED'
+                    },
+                    503
+                );
+            }
+            if (kind !== 'roster') {
+                return json(
+                    {
+                        error: 'Unknown sync kind: ' + kind,
+                        code: 'TMS_UNKNOWN_KIND'
+                    },
+                    400
+                );
             }
             try {
                 const body = await readJson(request);
@@ -1617,22 +1663,7 @@ export default {
                         503
                     );
                 }
-                const result = await TmsRoster.scrapeRosters({
-                    username: bodyUser,
-                    password: bodyPass
-                });
-                return json({
-                    cohorts: result.cohorts,
-                    meta: {
-                        homeUrl: result.meta && result.meta.homeUrl,
-                        pagesFetched: result.meta && result.meta.pagesFetched,
-                        cohortCount: (result.cohorts || []).length,
-                        studentCount: (result.cohorts || []).reduce(
-                            (n, c) => n + ((c.students && c.students.length) || 0),
-                            0
-                        )
-                    }
-                });
+                return json(await runTmsJob('roster', body));
             } catch (err) {
                 const code = err && err.code;
                 if (code === 'TMS_LOGIN_FAILED') {
@@ -1641,7 +1672,13 @@ export default {
                 if (code === 'TMS_CREDS_MISSING') {
                     return json(
                         { error: (err && err.message) || 'TMS credentials missing', code },
-                        503
+                        err.status || 503
+                    );
+                }
+                if (code === 'TMS_UNKNOWN_KIND' || code === 'TMS_ESSAY_ROWS_MISSING') {
+                    return json(
+                        { error: (err && err.message) || 'TMS request rejected', code },
+                        err.status || 400
                     );
                 }
                 console.error('TMS roster preview failed', err);
@@ -1653,58 +1690,6 @@ export default {
                     502
                 );
             }
-        }
-
-        if (path === '/api/tms/counsel/preview' && request.method === 'POST') {
-            const blocked = rejectViewAsJson();
-            if (blocked) return blocked;
-            // TMS is only reachable from the work PC — the Cloudflare worker cannot reach it.
-            // The client-side code routes through the local bridge at 127.0.0.1:8080 when
-            // the bridge is available; this worker endpoint exists only as a fallback error.
-            return json(
-                {
-                    error: 'TMS is only reachable from the school network. Start the local bridge (npm start on the work PC) and use the local bridge endpoint.',
-                    code: 'TMS_BRIDGE_REQUIRED'
-                },
-                503
-            );
-        }
-
-        if (path === '/api/tms/essays/preview' && request.method === 'POST') {
-            const blocked = rejectViewAsJson();
-            if (blocked) return blocked;
-            // Same as counsel: Worker cannot reach TMS; live site uses local bridge.
-            return json(
-                {
-                    error: 'TMS is only reachable from the school network. Start the local bridge (npm start on the work PC) and use the local bridge endpoint.',
-                    code: 'TMS_BRIDGE_REQUIRED'
-                },
-                503
-            );
-        }
-
-        if (path === '/api/tms/essays/content' && request.method === 'POST') {
-            const blocked = rejectViewAsJson();
-            if (blocked) return blocked;
-            return json(
-                {
-                    error: 'TMS is only reachable from the school network. Start the local bridge (npm start on the work PC) and use the local bridge endpoint.',
-                    code: 'TMS_BRIDGE_REQUIRED'
-                },
-                503
-            );
-        }
-
-        if (path === '/api/tms/homework/preview' && request.method === 'POST') {
-            const blocked = rejectViewAsJson();
-            if (blocked) return blocked;
-            return json(
-                {
-                    error: 'TMS is only reachable from the school network. Start the local bridge (npm start on the work PC) and use the local bridge endpoint.',
-                    code: 'TMS_BRIDGE_REQUIRED'
-                },
-                503
-            );
         }
 
         if (path === '/api/teachers' && request.method === 'GET') {
@@ -1771,9 +1756,27 @@ export default {
             }
         }
 
+        if (path === '/api/me/ui-prefs') {
+            if (request.method === 'GET') {
+                return json(await UiPrefs.getUserPrefs(env, user.id));
+            }
+            if (request.method === 'PUT') {
+                const blocked = rejectViewAsJson();
+                if (blocked) {
+                    return blocked;
+                }
+                const body = await readJson(request);
+                return json(await UiPrefs.putUserPrefs(env, user.id, body || {}));
+            }
+            return json({ error: 'Method not allowed' }, 405);
+        }
+
         const uiPrefsMatch = path.match(/^\/api\/calendars\/([^/]+)\/ui-prefs$/);
         if (uiPrefsMatch) {
             const calId = uiPrefsMatch[1];
+            if (UiPrefs.isReservedCalendarId(calId)) {
+                return json({ error: 'Calendar not found' }, 404);
+            }
             if (!(await CalAccess.canAccessCalendar(env, user, calId))) {
                 return json({ error: 'Calendar not found' }, 404);
             }
@@ -2984,5 +2987,29 @@ export default {
         }
 
         return json({ error: 'Not found' }, 404);
+    },
+
+    /** Daily cleanup (wrangler.toml [triggers]); each prune is independent so one failure doesn't skip the rest. */
+    async scheduled(_event, env, ctx) {
+        const now = Date.now();
+        const jobs = [
+            ['api_rate_buckets', 'DELETE FROM api_rate_buckets WHERE window_start_ms < ?', now - 24 * 3600 * 1000],
+            ['sessions', 'DELETE FROM sessions WHERE expires_at < ?', new Date(now).toISOString()],
+            [
+                'user_presence',
+                'DELETE FROM user_presence WHERE last_seen_at < ?',
+                new Date(now - 7 * 86400 * 1000).toISOString()
+            ]
+        ];
+        ctx.waitUntil(
+            Promise.all(
+                jobs.map(([label, sql, cutoff]) =>
+                    env.DB.prepare(sql)
+                        .bind(cutoff)
+                        .run()
+                        .catch((err) => console.error(`scheduled cleanup ${label} failed:`, err && err.message))
+                )
+            )
+        );
     }
 };

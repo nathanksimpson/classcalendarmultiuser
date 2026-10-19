@@ -270,13 +270,130 @@ function applyClassroomMutation(next, m) {
     }
 }
 
+const LESSON_CLASS_FIELDS = [
+    'startDate', 'endDate', 'meetingDays', 'schedulePattern', 'scheduleModel',
+    'daysOfWeek', 'period', 'timeSlotId', 'classTime', 'durationMin',
+    'termStart', 'termEnd', 'firstClassDate', 'compressionMode', 'compressionMerges',
+    'skippedLessons', 'customSchedule'
+];
+const SYLLABUS_CLASS_FIELDS = [
+    'syllabusRows', 'syllabusNotes', 'syllabusGeneralNotes', 'syllabusUnits',
+    'bookId', 'curriculumId', 'curriculumTemplateId', 'customSyllabusTemplateId',
+    'syllabusTemplateId'
+];
+
+function ensureSourceVersions(data) {
+    if (!data.meta || typeof data.meta !== 'object') {
+        data.meta = {};
+    }
+    if (!data.meta.versions || typeof data.meta.versions !== 'object') {
+        data.meta.versions = { lessons: 0, syllabus: 0, roster: 0 };
+    }
+    ['lessons', 'syllabus', 'roster'].forEach((key) => {
+        const n = Number(data.meta.versions[key]);
+        data.meta.versions[key] = Number.isFinite(n) && n >= 0 ? n : 0;
+    });
+    return data.meta.versions;
+}
+
+function meaningfulSourceValue(value) {
+    if (value == null) {
+        return false;
+    }
+    if (Array.isArray(value) && value.length === 0) {
+        return false;
+    }
+    if (typeof value === 'string' && !String(value).trim()) {
+        return false;
+    }
+    if (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0) {
+        return false;
+    }
+    return true;
+}
+
+function sourceFieldChanged(prev, nextObj, keys) {
+    return keys.some((key) => {
+        const a = prev ? prev[key] : undefined;
+        const b = nextObj ? nextObj[key] : undefined;
+        if (!meaningfulSourceValue(a) && !meaningfulSourceValue(b)) {
+            return false;
+        }
+        return JSON.stringify(a == null ? null : a) !== JSON.stringify(b == null ? null : b);
+    });
+}
+
+function cohortRosterSignature(cohort) {
+    if (!cohort) {
+        return '';
+    }
+    const students = Array.isArray(cohort.students) ? cohort.students : [];
+    const people = students
+        .map((student) =>
+            [student && student.id, student && student.name, student && student.nameEn].join('\u001f')
+        )
+        .sort()
+        .join('\u001e');
+    return [cohort.id, cohort.name, people].join('\u001d');
+}
+
+function noteSourceVersionBump(doc, bumpSet, mutation) {
+    if (!mutation || !mutation.entity) {
+        return;
+    }
+    const entity = mutation.entity;
+    const action = mutation.action;
+    const payload = mutation.payload || {};
+    if (entity === 'events' || entity === 'timetableTimeSlots' || entity === 'periodSlotMap') {
+        bumpSet.add('lessons');
+        return;
+    }
+    if (entity === 'customSyllabusTemplates') {
+        bumpSet.add('syllabus');
+        return;
+    }
+    if (entity === 'cohorts') {
+        const cohortObj = payload.cohort || payload;
+        if (action === 'remove') {
+            bumpSet.add('roster');
+            return;
+        }
+        const prev = (doc.cohorts || []).find(
+            (row) => row && cohortObj && String(row.id) === String(cohortObj.id)
+        );
+        if (cohortRosterSignature(prev) !== cohortRosterSignature(cohortObj)) {
+            bumpSet.add('roster');
+        }
+        return;
+    }
+    if (entity === 'classes' && action === 'remove') {
+        bumpSet.add('lessons');
+        return;
+    }
+    if (entity === 'classes' && action === 'upsert') {
+        const classObj = payload.class || payload;
+        if (!classObj || !classObj.id) {
+            return;
+        }
+        const prev = (doc.classes || []).find((c) => c && String(c.id) === String(classObj.id));
+        if (sourceFieldChanged(prev, classObj, LESSON_CLASS_FIELDS)) {
+            bumpSet.add('lessons');
+        }
+        if (sourceFieldChanged(prev, classObj, SYLLABUS_CLASS_FIELDS)) {
+            bumpSet.add('syllabus');
+        }
+    }
+}
+
 function applyCalendarMutations(data, mutations) {
     const next = deepClone(data);
     const list = Array.isArray(mutations) ? mutations : [];
+    const sourceBumpSet = new Set();
     for (const m of list) {
         if (!m || !m.entity || !m.action) {
             continue;
         }
+        noteSourceVersionBump(next, sourceBumpSet, m);
         const key = `${m.entity}/${m.action}`;
         const payload = m.payload || {};
         switch (key) {
@@ -337,6 +454,12 @@ function applyCalendarMutations(data, mutations) {
                 }
                 break;
         }
+    }
+    if (sourceBumpSet.size) {
+        const versions = ensureSourceVersions(next);
+        sourceBumpSet.forEach((key) => {
+            versions[key] = (Number(versions[key]) || 0) + 1;
+        });
     }
     return next;
 }

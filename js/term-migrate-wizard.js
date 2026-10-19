@@ -185,58 +185,33 @@
     }
 
     async function scrapeTmsRosters(username, password) {
-        const body = JSON.stringify({
+        if (global.CCPTmsSyncCenter && global.CCPTmsSyncCenter.open) {
+            const session = await global.CCPTmsSyncCenter.open({
+                kinds: ['roster'],
+                scope: { source: 'term-migrate' },
+                credentials: {
+                    username: String(username || '').trim(),
+                    password: String(password || '')
+                }
+            });
+            const loaded = session && session.results && session.results.roster;
+            if (loaded && Array.isArray(loaded.cohorts)) {
+                return loaded;
+            }
+            if (loaded && loaded.cohorts) {
+                return loaded;
+            }
+            const err = new Error('TMS roster was not loaded');
+            err.code = 'TMS_SYNC_CANCELLED';
+            throw err;
+        }
+        if (!global.CCPTmsSync || !global.CCPTmsSync.run) {
+            throw new Error('TMS sync is not available');
+        }
+        return global.CCPTmsSync.run('roster', {
             username: String(username || '').trim(),
             password: String(password || '')
         });
-        const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
-
-        if (!isLocalHost()) {
-            const bases = ['http://127.0.0.1:8080', 'http://localhost:8080'];
-            for (const base of bases) {
-                try {
-                    const ping = await fetch(`${base}/api/tms/bridge/ping`, {
-                        credentials: 'omit',
-                        targetAddressSpace: 'loopback'
-                    });
-                    if (!ping.ok) {
-                        continue;
-                    }
-                    const meta = await ping.json().catch(() => null);
-                    if (!meta || meta.ok !== true || meta.bridge !== true) {
-                        continue;
-                    }
-                    const res = await fetch(`${base}/api/tms/bridge/preview`, {
-                        method: 'POST',
-                        headers,
-                        body,
-                        credentials: 'omit',
-                        targetAddressSpace: 'loopback'
-                    });
-                    if (!res.ok) {
-                        const errBody = await res.json().catch(() => ({}));
-                        throw new Error(errBody.error || `bridge HTTP ${res.status}`);
-                    }
-                    return res.json();
-                } catch (err) {
-                    if (err && err.message && !/Failed to fetch|NetworkError|abort/i.test(err.message)) {
-                        throw err;
-                    }
-                }
-            }
-        }
-
-        const res = await fetch('/api/tms/roster/preview', {
-            method: 'POST',
-            headers,
-            body,
-            credentials: 'same-origin'
-        });
-        if (!res.ok) {
-            const errBody = await res.json().catch(() => ({}));
-            throw new Error(errBody.error || `HTTP ${res.status}`);
-        }
-        return res.json();
     }
 
     function mapScheduleForApp(schedule, appData) {

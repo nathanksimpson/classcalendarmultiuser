@@ -2,6 +2,8 @@ const { getDb, nowIso } = require('./schema');
 
 const PRESENCE_STALE_SEC = 90;
 const STALE_MS = PRESENCE_STALE_SEC * 1000;
+/** Skip rewriting an unchanged row more often than this (must stay well under PRESENCE_STALE_SEC). */
+const PRESENCE_WRITE_THROTTLE_MS = 30 * 1000;
 
 function touchPresence(userId, displayName, calendarId, calendarName) {
     const db = getDb();
@@ -13,8 +15,19 @@ function touchPresence(userId, displayName, calendarId, calendarName) {
            display_name = excluded.display_name,
            calendar_id = excluded.calendar_id,
            calendar_name = excluded.calendar_name,
-           last_seen_at = excluded.last_seen_at`
-    ).run(userId, label, calendarId || null, calendarName || '', nowIso());
+           last_seen_at = excluded.last_seen_at
+         WHERE user_presence.last_seen_at < ?
+            OR user_presence.calendar_id IS NOT excluded.calendar_id
+            OR user_presence.calendar_name IS NOT excluded.calendar_name
+            OR user_presence.display_name IS NOT excluded.display_name`
+    ).run(
+        userId,
+        label,
+        calendarId || null,
+        calendarName || '',
+        nowIso(),
+        new Date(Date.now() - PRESENCE_WRITE_THROTTLE_MS).toISOString()
+    );
 }
 
 function upsertPresence(user, payload) {

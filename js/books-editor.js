@@ -23,17 +23,29 @@
     const DEBATE_CURRICULUM_ID = '__debate__';
     const LEVEL_ONLY_PRESET_ID = 'builtin-korean-multiweekly';
     const DEBATE_PRESET_ID = 'builtin-debate';
+    /** Level table lives in js/level-profile.js; literals are the fallback when it is not loaded. */
+    const levelProfile = global.CCPLevelProfile && typeof global.CCPLevelProfile.getAllLevels === 'function'
+        ? global.CCPLevelProfile
+        : null;
     /** Simson middle-school level ids (중1–중3 sections). */
-    const MIDDLE_SCHOOL_LEVEL_IDS = new Set([
-        '\uC720\uB9C8', '\uB808\uC624', '\uD30C\uBCF4', '\uD3F4\uB77C',
-        '\uD649\uC2A4', '\uD2F0\uCE74', '\uBE45\uD0A4', '\uBC14\uC774\uCEEC',
-        '\uC548\uB098', '\uB0AD\uAC00', '\uB85C\uCCB4', '\uCE89\uCCB8'
-    ]);
-    /** Elementary Purple+ and all middle school — debate curriculum (schedule matrix). */
-    const DEBATE_ELIGIBLE_LEVEL_IDS = new Set([
-        'Purple', 'Yeoul', 'Saemmul', 'Garam', 'Bada', 'Byeolmaru', 'Mirinae',
-        ...MIDDLE_SCHOOL_LEVEL_IDS
-    ]);
+    const MIDDLE_SCHOOL_LEVEL_IDS = new Set(levelProfile
+        ? levelProfile.LEVEL_GROUPS.filter((g) => g.id === 'middle').flatMap((g) => g.levels.map((l) => l.id))
+        : [
+            '\uC720\uB9C8', '\uB808\uC624', '\uD30C\uBCF4', '\uD3F4\uB77C',
+            '\uD649\uC2A4', '\uD2F0\uCE74', '\uBE45\uD0A4', '\uBC14\uC774\uCEEC',
+            '\uC548\uB098', '\uB0AD\uAC00', '\uB85C\uCCB4', '\uCE89\uCCB8'
+        ]);
+    /** Elementary Purple+ and all middle school — debate curriculum (schedule matrix). Pre-middle stays out. */
+    const DEBATE_ELIGIBLE_LEVEL_IDS = new Set(levelProfile
+        ? [].concat(
+            levelProfile.DEBATE_BAND_LEVELS.purple,
+            levelProfile.DEBATE_BAND_LEVELS.yeoulSaemmul,
+            levelProfile.DEBATE_BAND_LEVELS.senior
+        )
+        : [
+            'Purple', 'Yeoul', 'Saemmul', 'Garam', 'Bada', 'Byeolmaru', 'Mirinae',
+            ...MIDDLE_SCHOOL_LEVEL_IDS
+        ]);
 
     let hooks = {
         getAppData: () => ({}),

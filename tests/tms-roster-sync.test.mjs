@@ -23,7 +23,7 @@ function assert(cond, msg) {
 
 {
     assert(D.koreanNameKey('김 민 수') === '김민수', 'collapse spaces');
-    assert(D.koreanNameKey('  이엽타 ') === '이엽타', 'trim');
+    assert(D.koreanNameKey('  최테차 ') === '최테차', 'trim');
     assert(D.koreanNameKey('김\u00A0민수') === '김민수', 'NBSP');
     assert(D.koreanNameKey('김\u200B민수') === '김민수', 'zero-width space');
     assert(D.koreanNameKey('김\u200D민수') === '김민수', 'ZWJ');
@@ -50,11 +50,11 @@ function assert(cond, msg) {
 {
     const existing = [
         { id: 'stu_a', name: '김민수', nameEn: 'Minsu', tags: [] },
-        { id: 'stu_b', name: '이엽타', nameEn: 'Seoyeon', tags: [] }
+        { id: 'stu_b', name: '최테차', nameEn: 'Seoyeon', tags: [] }
     ];
     const tms = [
         { name: '김민수', nameEn: 'DifferentEn' },
-        { name: '이엽타' },
+        { name: '최테차' },
         { name: '박지훈' }
     ];
     const result = D.mergeRosterByKoreanName(existing, tms, {
@@ -66,7 +66,7 @@ function assert(cond, msg) {
     assert(result.students.filter((s) => s.name === '김민수').length === 1, 'no duplicate 김민수');
     assert(result.students.find((s) => s.name === '김민수').id === 'stu_a', 'keep existing id');
     assert(result.students.find((s) => s.name === '김민수').nameEn === 'DifferentEn', 'exact match adopts TMS English');
-    assert(result.students.find((s) => s.name === '이엽타').nameEn === 'Seoyeon', 'blank TMS English keeps CM');
+    assert(result.students.find((s) => s.name === '최테차').nameEn === 'Seoyeon', 'blank TMS English keeps CM');
 }
 
 // Exact Korean match pushes TMS English; blank TMS English leaves CM alone
@@ -82,18 +82,18 @@ function assert(cond, msg) {
 {
     const existing = [
         { id: 'stu_a', name: '김민수', tags: [] },
-        { id: 'stu_b', name: '이엽타', tags: [] }
+        { id: 'stu_b', name: '최테차', tags: [] }
     ];
     const first = D.mergeRosterByKoreanName(existing, [{ name: '김민수' }]);
     assert(first.summary.flagged.length === 1, 'flagged one');
-    assert(first.summary.flagged[0].name === '이엽타', 'flagged 이엽타');
+    assert(first.summary.flagged[0].name === '최테차', 'flagged 최테차');
     const flagged = first.students.find((s) => s.id === 'stu_b');
     assert(flagged.tags.includes('off_roster'), 'has off_roster tag');
     assert(!first.students.find((s) => s.id === 'stu_a').tags.includes('off_roster'), 'matched not flagged');
 
     const second = D.mergeRosterByKoreanName(first.students, [
         { name: '김민수' },
-        { name: '이엽타' }
+        { name: '최테차' }
     ]);
     assert(second.summary.cleared.length === 1, 'cleared one');
     assert(
@@ -105,7 +105,7 @@ function assert(cond, msg) {
 // Unreliable partial roster can suppress missing/off_roster inference
 {
     const existing = [
-        { id: 'stu_a', name: '황익호', tags: [] },
+        { id: 'stu_a', name: '윤테카', tags: [] },
         { id: 'stu_b', name: '김민수', tags: [] }
     ];
     const result = D.mergeRosterByKoreanName(existing, [{ name: '김민수' }], {
@@ -152,12 +152,12 @@ function assert(cond, msg) {
 {
     const existing = [
         { id: 'stu_a', name: '김민수', tags: ['off_roster', 'new'] },
-        { id: 'stu_b', name: '이엽타', tags: ['off_roster'] },
+        { id: 'stu_b', name: '최테차', tags: ['off_roster'] },
         { id: 'stu_c', name: '박·지훈', tags: ['off_roster'] }
     ];
     const result = D.mergeRosterByKoreanName(existing, [
         { name: '김민수' },
-        { name: '이엽타' },
+        { name: '최테차' },
         { name: '박지훈' }
     ]);
     assert(result.summary.matched.length === 3, 'all three matched');
@@ -179,118 +179,118 @@ function assert(cond, msg) {
     assert(D.shareThreeHangulSyllables('김민수', '김민수아') === true, 'substring of 3');
     assert(D.shareThreeHangulSyllables('김민아', '김민수') === false, 'only 2 contiguous');
     assert(D.shareThreeHangulSyllables('김민', '김민수') === false, 'too short');
-    assert(D.hangulNameVariantPair('권익사', '이안권') === false, 'non-contained shared syllables do not fuzzy match');
-    assert(D.koreanMatchKey('권익사◆') === D.koreanMatchKey('권익사'), 'status symbol ignored in match key');
+    assert(D.hangulNameVariantPair('이테카', '이안권') === false, 'non-contained shared syllables do not fuzzy match');
+    assert(D.koreanMatchKey('이테카◆') === D.koreanMatchKey('이테카'), 'status symbol ignored in match key');
     assert(D.koreanMatchKey('김민수A') !== D.koreanMatchKey('김민수'), 'Latin disambiguator kept');
     assert(D.koreanMatchKey('김민수A') !== D.koreanMatchKey('김민수B'), 'Latin A ≠ B');
-    assert(D.nameStatusSymbolSuffix('권익사◆') === '◆', 'diamond status suffix');
-    assert(D.nameStatusSymbolSuffix('박욱바S◆') === 'S◆', 'shuttle counted as status suffix');
+    assert(D.nameStatusSymbolSuffix('이테카◆') === '◆', 'diamond status suffix');
+    assert(D.nameStatusSymbolSuffix('장테가S◆') === 'S◆', 'shuttle counted as status suffix');
     assert(D.nameLatinDisambiguatorSuffix('김민수A') === 'A', 'latin suffix');
-    assert(D.hangulNameVariantPair('권익사', '권익사◆') === true, 'symbol-only pair shares identity');
+    assert(D.hangulNameVariantPair('이테카', '이테카◆') === true, 'symbol-only pair shares identity');
     assert(D.hangulNameVariantPair('김민수', '김민수A') === false, 'latin blocks fuzzy');
 }
 
 // Status marks no longer block matching; they sync onto tags instead of identity
 {
-    const existing = [{ id: 'stu_a', name: '권익사', tags: [] }];
-    const unclear = D.listUnclearTmsStudentMatches(existing, [{ name: '권익사◆', nameEn: '' }]);
+    const existing = [{ id: 'stu_a', name: '이테카', tags: [] }];
+    const unclear = D.listUnclearTmsStudentMatches(existing, [{ name: '이테카◆', nameEn: '' }]);
     assert(unclear.length === 0, 'status mark gain is silent');
-    const blocked = D.mergeRosterByKoreanName(existing, [{ name: '권익사◆' }]);
+    const blocked = D.mergeRosterByKoreanName(existing, [{ name: '이테카◆' }]);
     assert(blocked.summary.added.length === 0, 'no silent add on mark change');
     assert(blocked.summary.matched.length === 1, 'status-mark variant still matches same student');
-    assert(blocked.students.find((s) => s.id === 'stu_a').name === '권익사', 'CM name unchanged');
+    assert(blocked.students.find((s) => s.id === 'stu_a').name === '이테카', 'CM name unchanged');
     assert(blocked.students.find((s) => s.id === 'stu_a').tags.includes('transfer_in'), 'transfer tag added');
 
-    const key = D.koreanMatchKey('권익사◆');
-    const result = D.mergeRosterByKoreanName(existing, [{ name: '권익사◆' }], {
+    const key = D.koreanMatchKey('이테카◆');
+    const result = D.mergeRosterByKoreanName(existing, [{ name: '이테카◆' }], {
         studentResolutions: { [key]: { action: 'map', studentId: 'stu_a' } }
     });
     assert(result.summary.matched.length === 1, 'mapped after review');
-    assert(result.students.find((s) => s.id === 'stu_a').name === '권익사', 'canonical name unchanged after map');
+    assert(result.students.find((s) => s.id === 'stu_a').name === '이테카', 'canonical name unchanged after map');
     assert(result.students.find((s) => s.id === 'stu_a').tags.includes('transfer_in'), 'map still applies transfer tag');
 
     const stripUnclear = D.listUnclearTmsStudentMatches(
-        [{ id: 'stu_a', name: '권익사◆', tags: [] }],
-        [{ name: '권익사' }]
+        [{ id: 'stu_a', name: '이테카◆', tags: [] }],
+        [{ name: '이테카' }]
     );
     assert(stripUnclear.length === 0, 'symbol loss not unclear');
     const strip = D.mergeRosterByKoreanName(
-        [{ id: 'stu_a', name: '권익사◆', tags: [] }],
-        [{ name: '권익사' }],
-        { studentResolutions: { [D.koreanMatchKey('권익사')]: { action: 'map', studentId: 'stu_a' } } }
+        [{ id: 'stu_a', name: '이테카◆', tags: [] }],
+        [{ name: '이테카' }],
+        { studentResolutions: { [D.koreanMatchKey('이테카')]: { action: 'map', studentId: 'stu_a' } } }
     );
-    assert(strip.students[0].name === '권익사', 'adopted TMS without symbol');
+    assert(strip.students[0].name === '이테카', 'adopted TMS without symbol');
 }
 
 // Parenthesized suffix from TMS roster ("Name()" or "Name(English)") should be ignored for identity
 {
-    assert(D.koreanNameKey('황익호()') === '황익호', 'strip empty parens');
-    assert(D.koreanNameKey('황익호(Leo)') === '황익호', 'strip parens with English');
+    assert(D.koreanNameKey('윤테카()') === '윤테카', 'strip empty parens');
+    assert(D.koreanNameKey('윤테카(Leo)') === '윤테카', 'strip parens with English');
     assert(D.koreanNameKey('양민아()') === '양민아', 'strip empty parens for 양민아');
 }
 
 {
-    const existing = [{ id: 'stu_a', name: '황익호', tags: [] }];
-    const matched = D.mergeRosterByKoreanName(existing, [{ name: '황익호()' }]);
-    assert(matched.summary.matched.length === 1, '황익호() matches 황익호');
+    const existing = [{ id: 'stu_a', name: '윤테카', tags: [] }];
+    const matched = D.mergeRosterByKoreanName(existing, [{ name: '윤테카()' }]);
+    assert(matched.summary.matched.length === 1, '윤테카() matches 윤테카');
     assert(matched.summary.flagged.length === 0, 'not flagged missing when parens present');
-    assert(D.listUnclearTmsStudentMatches(existing, [{ name: '황익호()' }]).length === 0, 'no unclear queue for parens');
+    assert(D.listUnclearTmsStudentMatches(existing, [{ name: '윤테카()' }]).length === 0, 'no unclear queue for parens');
 
-    const matchedEn = D.mergeRosterByKoreanName(existing, [{ name: '황익호(Leo)', nameEn: '' }]);
-    assert(matchedEn.summary.matched.length === 1, '황익호(Leo) matches 황익호 identity');
+    const matchedEn = D.mergeRosterByKoreanName(existing, [{ name: '윤테카(Leo)', nameEn: '' }]);
+    assert(matchedEn.summary.matched.length === 1, '윤테카(Leo) matches 윤테카 identity');
     assert(matchedEn.summary.flagged.length === 0, 'no missing when parens with English');
 }
 
 // Bracketed suffix from TMS roster ("Name[]" or "Name[English]") should be ignored for identity
 {
-    assert(D.koreanNameKey('황익호[]') === '황익호', 'strip empty brackets');
-    assert(D.koreanNameKey('황익호[Leo]') === '황익호', 'strip bracket with English');
-    assert(D.koreanNameKey('황익호[] 학생') === '황익호', 'strip trailing 학생 label');
+    assert(D.koreanNameKey('윤테카[]') === '윤테카', 'strip empty brackets');
+    assert(D.koreanNameKey('윤테카[Leo]') === '윤테카', 'strip bracket with English');
+    assert(D.koreanNameKey('윤테카[] 학생') === '윤테카', 'strip trailing 학생 label');
     assert(D.koreanNameKey('양민아[]') === '양민아', 'strip empty brackets for 양민아');
 }
 
 {
-    const existing = [{ id: 'stu_a', name: '황익호', tags: [] }];
-    const matched = D.mergeRosterByKoreanName(existing, [{ name: '황익호[]' }]);
-    assert(matched.summary.matched.length === 1, '황익호[] matches 황익호');
+    const existing = [{ id: 'stu_a', name: '윤테카', tags: [] }];
+    const matched = D.mergeRosterByKoreanName(existing, [{ name: '윤테카[]' }]);
+    assert(matched.summary.matched.length === 1, '윤테카[] matches 윤테카');
     assert(matched.summary.flagged.length === 0, 'not flagged missing when brackets present');
-    assert(D.listUnclearTmsStudentMatches(existing, [{ name: '황익호[]' }]).length === 0, 'no unclear queue for brackets');
+    assert(D.listUnclearTmsStudentMatches(existing, [{ name: '윤테카[]' }]).length === 0, 'no unclear queue for brackets');
 }
 
 {
-    const existing = [{ id: 'stu_a', name: '황익호', tags: [] }];
-    const matched = D.mergeRosterByKoreanName(existing, [{ name: '황익호[] 학생' }]);
-    assert(matched.summary.matched.length === 1, '황익호[] 학생 matches 황익호');
+    const existing = [{ id: 'stu_a', name: '윤테카', tags: [] }];
+    const matched = D.mergeRosterByKoreanName(existing, [{ name: '윤테카[] 학생' }]);
+    assert(matched.summary.matched.length === 1, '윤테카[] 학생 matches 윤테카');
     assert(matched.summary.flagged.length === 0, 'not flagged missing when 학생 label present');
     assert(
-        D.listUnclearTmsStudentMatches(existing, [{ name: '황익호[] 학생' }]).length === 0,
+        D.listUnclearTmsStudentMatches(existing, [{ name: '윤테카[] 학생' }]).length === 0,
         'no unclear queue for brackets+학생'
     );
 }
 
 // Identical Hangul+mark still silent-matches
 {
-    const existing = [{ id: 'stu_a', name: '정익마', nameEn: 'Taeheu', tags: ['new'] }];
-    assert(D.listUnclearTmsStudentMatches(existing, [{ name: '정익마★' }]).length === 0, 'identical not unclear');
-    const result = D.mergeRosterByKoreanName(existing, [{ name: '정익마★', nameEn: 'Taeheui' }]);
+    const existing = [{ id: 'stu_a', name: '윤테사', nameEn: 'Testeu', tags: ['new'] }];
+    assert(D.listUnclearTmsStudentMatches(existing, [{ name: '윤테사★' }]).length === 0, 'identical not unclear');
+    const result = D.mergeRosterByKoreanName(existing, [{ name: '윤테사★', nameEn: 'Testeui' }]);
     assert(result.summary.matched.length === 1, 'identical mark matched');
     assert(result.summary.added.length === 0, 'no add');
-    assert(result.students[0].nameEn === 'Taeheui', 'TMS English adopted on silent match');
-    assert(result.students[0].name === '정익마', 'canonical name stays stripped');
+    assert(result.students[0].nameEn === 'Testeui', 'TMS English adopted on silent match');
+    assert(result.students[0].name === '윤테사', 'canonical name stays stripped');
     assert(result.students[0].tags.includes('new'), 'new tag stays synced');
 }
 
-// Existing CM duplicates (정익마 + 정익마★) require merge choice
+// Existing CM duplicates (윤테사 + 윤테사★) require merge choice
 {
     const existing = [
-        { id: 'stu_star', name: '정익마★', nameEn: 'Taeheu', tags: [] },
-        { id: 'stu_plain', name: '정익마', nameEn: 'Taeheu', tags: [] }
+        { id: 'stu_star', name: '윤테사★', nameEn: 'Testeu', tags: [] },
+        { id: 'stu_plain', name: '윤테사', nameEn: 'Testeu', tags: [] }
     ];
-    const unclear = D.listUnclearTmsStudentMatches(existing, [{ name: '정익마', nameEn: 'Taeheu' }]);
+    const unclear = D.listUnclearTmsStudentMatches(existing, [{ name: '윤테사', nameEn: 'Testeu' }]);
     assert(unclear.length === 1, 'duplicate unclear');
     assert(unclear[0].reason === 'duplicate_existing', 'duplicate_existing');
     assert(unclear[0].candidates.length === 2, 'both candidates');
-    const blocked = D.mergeRosterByKoreanName(existing, [{ name: '정익마' }]);
+    const blocked = D.mergeRosterByKoreanName(existing, [{ name: '윤테사' }]);
     assert(blocked.summary.added.length === 0, 'no third student');
     assert(blocked.summary.matched.length === 0, 'no silent adopt onto one dup');
 }
@@ -306,51 +306,51 @@ function assert(cond, msg) {
 
 // Resolution add keeps canonical name and syncs transfer tag
 {
-    const existing = [{ id: 'stu_a', name: '권익사', tags: [] }];
-    const key = D.koreanMatchKey('권익사◆');
-    const result = D.mergeRosterByKoreanName(existing, [{ name: '권익사◆' }], {
+    const existing = [{ id: 'stu_a', name: '이테카', tags: [] }];
+    const key = D.koreanMatchKey('이테카◆');
+    const result = D.mergeRosterByKoreanName(existing, [{ name: '이테카◆' }], {
         newStudentId: () => 'stu_new',
         studentResolutions: { [key]: { action: 'add' } }
     });
     assert(result.summary.added.length === 1, 'added disambiguated student');
-    assert(result.summary.added[0].name === '권익사', 'kept canonical name on add');
+    assert(result.summary.added[0].name === '이테카', 'kept canonical name on add');
     assert(result.students.length === 2, 'both students remain');
     assert(result.students.find((s) => s.id === 'stu_new').tags.includes('transfer_in'), 'transfer tag set on add');
 }
 
 // Resolution map adopts TMS identifying name so next Sync exact-matches
 {
-    const existing = [{ id: 'stu_a', name: '권익사', nameEn: 'Alice', tags: ['off_roster'] }];
-    const key = D.koreanMatchKey('권익사◆');
-    const result = D.mergeRosterByKoreanName(existing, [{ name: '권익사◆', nameEn: '' }], {
+    const existing = [{ id: 'stu_a', name: '이테카', nameEn: 'Alice', tags: ['off_roster'] }];
+    const key = D.koreanMatchKey('이테카◆');
+    const result = D.mergeRosterByKoreanName(existing, [{ name: '이테카◆', nameEn: '' }], {
         studentResolutions: { [key]: { action: 'map', studentId: 'stu_a' } }
     });
     assert(result.summary.added.length === 0, 'no add on map');
     assert(result.summary.matched.some((m) => m.id === 'stu_a'), 'mapped onto existing student');
     const mapped = result.students.find((s) => s.id === 'stu_a');
-    assert(mapped.name === '권익사', 'kept canonical TMS Hangul name');
+    assert(mapped.name === '이테카', 'kept canonical TMS Hangul name');
     assert(mapped.nameEn === 'Alice', 'empty TMS nameEn keeps CM English');
     assert(!mapped.tags.includes('off_roster'), 'cleared off_roster on map');
 
-    const second = D.mergeRosterByKoreanName(result.students, [{ name: '권익사◆' }], {});
+    const second = D.mergeRosterByKoreanName(result.students, [{ name: '이테카◆' }], {});
     assert(second.summary.added.length === 0, 'second sync no add');
     assert(second.summary.matched.some((m) => m.id === 'stu_a'), 'second sync exact match');
     assert(
         !second.summary.warnings.some((w) => w.code === 'unresolved_unclear_name'),
         'second sync not unclear'
     );
-    assert(D.listUnclearTmsStudentMatches(result.students, [{ name: '권익사◆' }]).length === 0, 'no unclear queue');
+    assert(D.listUnclearTmsStudentMatches(result.students, [{ name: '이테카◆' }]).length === 0, 'no unclear queue');
 }
 
 // Resolution map writes TMS nameEn when provided
 {
-    const existing = [{ id: 'stu_a', name: '권익사', nameEn: 'Alice', tags: [] }];
-    const key = D.koreanMatchKey('권익사◆');
-    const result = D.mergeRosterByKoreanName(existing, [{ name: '권익사◆', nameEn: 'Ian' }], {
+    const existing = [{ id: 'stu_a', name: '이테카', nameEn: 'Alice', tags: [] }];
+    const key = D.koreanMatchKey('이테카◆');
+    const result = D.mergeRosterByKoreanName(existing, [{ name: '이테카◆', nameEn: 'Ian' }], {
         studentResolutions: { [key]: { action: 'map', studentId: 'stu_a' } }
     });
     const mapped = result.students.find((s) => s.id === 'stu_a');
-    assert(mapped.name === '권익사', 'canonical name from TMS');
+    assert(mapped.name === '이테카', 'canonical name from TMS');
     assert(mapped.nameEn === 'Ian', 'nameEn from TMS when present');
 }
 
@@ -408,18 +408,18 @@ function assert(cond, msg) {
 // Variant names require review (no silent fuzzy consume)
 {
     const existing = [
-        { id: 'stu_a', name: '이엽타', tags: [] },
+        { id: 'stu_a', name: '최테차', tags: [] },
         { id: 'stu_b', name: '김민수', tags: ['off_roster'] }
     ];
     const unclear = D.listUnclearTmsStudentMatches(existing, [
-        { name: '이엽타' },
+        { name: '최테차' },
         { name: '김민수아' }
     ]);
     assert(unclear.length === 1, '김민수아 unclear');
     assert(unclear[0].reason === 'fuzzy_variant', 'fuzzy_variant reason');
     const key = D.koreanNameKey('김민수아');
     const result = D.mergeRosterByKoreanName(existing, [
-        { name: '이엽타' },
+        { name: '최테차' },
         { name: '김민수아' }
     ], {
         studentResolutions: { [key]: { action: 'map', studentId: 'stu_b' } }
@@ -435,7 +435,7 @@ function assert(cond, msg) {
     assert(result.students.find((s) => s.id === 'stu_b').name === '김민수아', 'adopted TMS variant name');
     assert(
         D.listUnclearTmsStudentMatches(result.students, [
-            { name: '이엽타' },
+            { name: '최테차' },
             { name: '김민수아' }
         ]).length === 0,
         'second pass not unclear after map rename'
@@ -471,7 +471,7 @@ function assert(cond, msg) {
 {
     const existing = [
         { id: 'stu_a', name: '김민수', tags: ['off_roster'] },
-        { id: 'stu_b', name: '이엽타', tags: [] }
+        { id: 'stu_b', name: '최테차', tags: [] }
     ];
     const key = D.koreanNameKey('김민수아');
     const result = D.mergeRosterByKoreanName(existing, [{ name: '김민수아' }], {
@@ -483,26 +483,26 @@ function assert(cond, msg) {
         'off_roster removed via map'
     );
     assert(result.students.find((s) => s.id === 'stu_a').name === '김민수아', 'adopted TMS variant name');
-    assert(result.summary.flagged.length === 1, '이엽타 still flagged as missing');
-    assert(result.summary.flagged[0].id === 'stu_b', 'flagged is 이엽타');
+    assert(result.summary.flagged.length === 1, '최테차 still flagged as missing');
+    assert(result.summary.flagged[0].id === 'stu_b', 'flagged is 최테차');
 }
 
 // Off-roster inflation must not block reviewing an active name variant
 {
     const existing = [
         { id: 'stu_a', name: '김민수', tags: [] },
-        { id: 'stu_b', name: '이엽타', tags: [] },
+        { id: 'stu_b', name: '최테차', tags: [] },
         { id: 'stu_gone', name: '최유나', tags: ['off_roster'] }
     ];
     const unclear = D.listUnclearTmsStudentMatches(existing, [
         { name: '김민수아' },
-        { name: '이엽타' }
+        { name: '최테차' }
     ]);
     assert(unclear.length === 1, 'only 김민수아 unclear');
     const key = D.koreanNameKey('김민수아');
     const result = D.mergeRosterByKoreanName(existing, [
         { name: '김민수아' },
-        { name: '이엽타' }
+        { name: '최테차' }
     ], {
         studentResolutions: { [key]: { action: 'map', studentId: 'stu_a' } }
     });
@@ -517,7 +517,7 @@ function assert(cond, msg) {
 {
     const existing = [
         { id: 'stu_a', name: '김민수', tags: ['off_roster'] },
-        { id: 'stu_b', name: '이엽타', tags: [] }
+        { id: 'stu_b', name: '최테차', tags: [] }
     ];
     const result = D.mergeRosterByKoreanName(existing, [{ name: '박지훈' }]);
     assert(result.summary.fuzzyCleared.length === 0, 'no fuzzy for unrelated name');
@@ -529,27 +529,27 @@ function assert(cond, msg) {
 {
     const existing = [
         { id: 'stu_a', name: '김민수', tags: [] },
-        { id: 'stu_b', name: '이엽타', tags: [] }
+        { id: 'stu_b', name: '최테차', tags: [] }
     ];
     let n = 0;
     const result = D.mergeRosterByKoreanName(existing, [
         { name: '김민수' },
-        { name: '권익사', nameEn: '' }
+        { name: '이테카', nameEn: '' }
     ], {
         newStudentId: () => `stu_new${++n}`
     });
     assert(result.summary.added.length === 1, 'one korean-only student added');
-    assert(result.summary.added[0].name === '권익사', '권익사 added');
-    assert(result.students.find((s) => s.name === '권익사').nameEn === '', 'empty english kept');
+    assert(result.summary.added[0].name === '이테카', '이테카 added');
+    assert(result.students.find((s) => s.name === '이테카').nameEn === '', 'empty english kept');
     assert(result.summary.flagged.length === 1, 'only missing classmanager name flagged');
-    assert(result.summary.flagged[0].name === '이엽타', 'flagged existing missing');
+    assert(result.summary.flagged[0].name === '최테차', 'flagged existing missing');
 }
 
 // Empty TMS scrape should not mass-flag an active class
 {
     const existing = [
         { id: 'stu_a', name: '김민수', tags: [] },
-        { id: 'stu_b', name: '이엽타', tags: ['off_roster'] }
+        { id: 'stu_b', name: '최테차', tags: ['off_roster'] }
     ];
     const result = D.mergeRosterByKoreanName(existing, []);
     assert(result.summary.flagged.length === 0, 'no empty-scrape off_roster blast');
@@ -570,7 +570,7 @@ function assert(cond, msg) {
             userAction: 'map',
             userTargetId: 'c1',
             importCohortName: 'Purple T',
-            students: [{ name: '김민수' }, { name: '이엽타' }]
+            students: [{ name: '김민수' }, { name: '최테차' }]
         },
         { userAction: 'skip', importCohortName: 'Other', students: [{ name: '무시' }] }
     ];
@@ -594,7 +594,7 @@ function assert(cond, msg) {
             {
                 userAction: 'create',
                 importCohortName: 'Orange M',
-                students: [{ name: '이엽타' }, { name: '박지훈', nameEn: 'Jihoon' }],
+                students: [{ name: '최테차' }, { name: '박지훈', nameEn: 'Jihoon' }],
                 schedulePattern: 'mwf',
                 meetingDays: [1, 3, 5],
                 tmsSuggestedPeriod: 4,
@@ -685,7 +685,7 @@ function assert(cond, msg) {
             name: 'Cohort A',
             students: [
                 { id: 'stu_move', name: '김민수', tags: [] },
-                { id: 'stu_stay', name: '이엽타', tags: [] }
+                { id: 'stu_stay', name: '최테차', tags: [] }
             ]
         },
         {
@@ -699,7 +699,7 @@ function assert(cond, msg) {
             importCohortName: 'TMS A',
             userAction: 'map',
             userTargetId: 'cA',
-            students: [{ name: '이엽타' }],
+            students: [{ name: '최테차' }],
             studentResolutions: {}
         },
         {
@@ -780,7 +780,7 @@ function assert(cond, msg) {
         {
             id: 'c1',
             name: 'Class A',
-            students: [{ id: 'stu_live', name: '이엽타', tags: [] }]
+            students: [{ id: 'stu_live', name: '최테차', tags: [] }]
         },
         {
             id: D.ARCHIVE_COHORT_ID,
@@ -895,14 +895,14 @@ function assert(cond, msg) {
 
 // TMS homeroom (담임) match + apply on roster sync
 {
-    const teachers = [{ userId: 'u_hr', displayName: '최익하' }];
-    const exact = D.matchHomeroomTeacherByName('최익하', teachers);
+    const teachers = [{ userId: 'u_hr', displayName: '최테카' }];
+    const exact = D.matchHomeroomTeacherByName('최테카', teachers);
     assert(exact.userId === 'u_hr', 'homeroom exact account match');
-    const fuzzy = D.matchHomeroomTeacherByName('미영', teachers);
+    const fuzzy = D.matchHomeroomTeacherByName('테카', teachers);
     assert(fuzzy.userId === 'u_hr', 'homeroom fuzzy account match');
 
     const emptyResolve = D.resolveTmsHomeroomForRow(
-        { tmsHomeroomName: '최익하' },
+        { tmsHomeroomName: '최테카' },
         teachers,
         null
     );
@@ -923,15 +923,15 @@ function assert(cond, msg) {
             userTargetId: 'c1',
             importCohortName: 'YellowM^2609',
             students: [{ name: '김민수' }],
-            tmsHomeroomName: '최익하',
+            tmsHomeroomName: '최테카',
             applyHomeroomFromTms: true,
             homeroomTeacherUserId: 'u_hr',
-            homeroomTeacherName: '최익하'
+            homeroomTeacherName: '최테카'
         }
     ];
     const mapped = D.applyTmsRosterPlan(cohorts, mapPlan, { newStudentId: () => 'stu_new' });
     assert(mapped.cohorts[0].homeroomTeacherUserId === 'u_hr', 'mapped cohort gets TMS HR user');
-    assert(mapped.cohorts[0].homeroomTeacherName === '최익하', 'mapped cohort gets TMS HR name');
+    assert(mapped.cohorts[0].homeroomTeacherName === '최테카', 'mapped cohort gets TMS HR name');
 
     const cohortsKeep = [
         {
@@ -948,10 +948,10 @@ function assert(cond, msg) {
             userTargetId: 'c1',
             importCohortName: 'YellowM^2609',
             students: [],
-            tmsHomeroomName: '최익하',
+            tmsHomeroomName: '최테카',
             applyHomeroomFromTms: false,
             homeroomTeacherUserId: 'u_hr',
-            homeroomTeacherName: '최익하'
+            homeroomTeacherName: '최테카'
         }
     ];
     const kept = D.applyTmsRosterPlan(cohortsKeep, keepPlan, {});
@@ -961,11 +961,11 @@ function assert(cond, msg) {
         {
             userAction: 'create',
             importCohortName: 'Orange M',
-            students: [{ name: '이엽타' }],
-            tmsHomeroomName: '최익하',
+            students: [{ name: '최테차' }],
+            tmsHomeroomName: '최테카',
             applyHomeroomFromTms: true,
             homeroomTeacherUserId: 'u_hr',
-            homeroomTeacherName: '최익하'
+            homeroomTeacherName: '최테카'
         }
     ];
     const created = D.applyTmsRosterPlan([], createPlan, {

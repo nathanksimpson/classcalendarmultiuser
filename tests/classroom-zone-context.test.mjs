@@ -15,8 +15,9 @@ function assert(cond, msg) {
     }
 }
 
-function loadZone() {
+function loadZone(options = {}) {
     const store = new Map();
+    const filterCalls = [];
     const sandbox = {
         window: {},
         globalThis: {},
@@ -80,10 +81,18 @@ function loadZone() {
             }
         },
         CCPEssayClassFilter: {
-            filterClassesForZoneContext(classes) {
+            filterClassesForZoneContext(classes, opts) {
+                filterCalls.push(Object.assign({}, opts));
                 return classes;
             }
         },
+        filterCalls,
+        setTimeout: (fn) => {
+            fn();
+            return 1;
+        },
+        clearTimeout() {},
+        console,
         CustomEvent: class CustomEvent {
             constructor(type, init) {
                 this.type = type;
@@ -101,6 +110,15 @@ function loadZone() {
     const zone = readFileSync(path.join(root, 'js', 'classroom-zone-context.js'), 'utf8');
     vm.runInNewContext(active, sandbox);
     vm.runInNewContext(domain, sandbox);
+    if (options.withScope) {
+        vm.runInNewContext(readFileSync(path.join(root, 'js', 'class-scope.js'), 'utf8'), sandbox);
+        sandbox.CCPClassScope.init({
+            getUserId: () => 'user-test-1',
+            getAppData: () => sandbox.appData,
+            getClassIdsAssignedToViewer: () => ['c-purple'],
+            storage: sandbox.localStorage
+        });
+    }
     vm.runInNewContext(zone, sandbox);
 
     sandbox.CCPClassroomZoneContext.init({
@@ -184,6 +202,50 @@ function loadZone() {
     sandbox.CCPActiveContext.setFromClass(sandbox.appData, 'c-purple', undefined, 'test');
     assert(sandbox.CCPActiveContext.getActiveCohortId() === 'coh-keep', 'class pick keeps cohort');
     assert(sandbox.CCPActiveContext.getActiveClassId() === 'c-purple', 'class pick sets class');
+}
+
+{
+    // Without class-scope.js the legacy per-calendar flag still drives the filter.
+    const sandbox = loadZone();
+    sandbox.appData.ui.classroomZoneMyClassesOnly = '1';
+    sandbox.CCPClassroomZoneContext.getVisibleClasses();
+    assert(sandbox.filterCalls.pop().myClassesOnly === true, 'legacy flag fallback');
+}
+
+{
+    const sandbox = loadZone({ withScope: true });
+    sandbox.appData.ui.classroomZoneMyClassesOnly = true;
+    sandbox.CCPClassroomZoneContext.getVisibleClasses();
+    assert(sandbox.filterCalls.pop().myClassesOnly === false, 'header scope (all) wins over legacy flag');
+    sandbox.CCPClassScope.set('mine');
+    sandbox.CCPClassroomZoneContext.getVisibleClasses();
+    assert(sandbox.filterCalls.pop().myClassesOnly === true, 'header Mine → classroom shows mine');
+    sandbox.CCPClassScope.setOverride('classroom', false);
+    sandbox.CCPClassroomZoneContext.getVisibleClasses();
+    assert(sandbox.filterCalls.pop().myClassesOnly === false, 'classroom override wins');
+    sandbox.CCPClassScope.set('all');
+    sandbox.CCPClassScope.set('mine');
+    sandbox.CCPClassroomZoneContext.getVisibleClasses();
+    assert(sandbox.filterCalls.pop().myClassesOnly === true, 'header change clears the override');
+}
+
+{
+    // Scope flip keeps the selected class, so the shared assignment picker keeps its selection.
+    const sandbox = loadZone({ withScope: true });
+    sandbox.CCPActiveContext.setFromClass(sandbox.appData, 'c-green', undefined, 'test');
+    sandbox.CCPClassScope.set('mine');
+    sandbox.CCPClassroomZoneContext.ensureActiveClassVisible();
+    assert(sandbox.CCPClassroomZoneContext.getActiveClassId() === 'c-green', 'active class survives scope flip');
+}
+
+{
+    const zoneSrc = readFileSync(path.join(root, 'js', 'classroom-zone-context.js'), 'utf8');
+    assert(
+        /#classroomZoneMyClassesOnly'\)\?\.addEventListener\('change', \(e\) => \{\s*if \(global\.CCPClassScope\) \{\s*global\.CCPClassScope\.setOverride\('classroom', e\.target\.checked\);/.test(zoneSrc),
+        'classroom checkbox change writes the classroom override'
+    );
+    assert(zoneSrc.includes("hooks.setUiPref('classroomZoneMyClassesOnly'"), 'legacy flag still written for older clients');
+    assert(zoneSrc.includes('classroom-zone-override-hint'), 'override hint rendered');
 }
 
 console.log('classroom-zone-context.test.mjs: all passed');

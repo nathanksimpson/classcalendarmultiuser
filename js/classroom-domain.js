@@ -5183,9 +5183,9 @@
         }
         const date = normalizeStr(rowOrLesson.date);
         const title = normalizeStr(
-            rowOrLesson.planTitle || rowOrLesson.label || rowOrLesson.planDetail || 'Day 4'
+            rowOrLesson.planTitle || rowOrLesson.label || rowOrLesson.planDetail || yearMonthKey(date)
         );
-        return `${date} — ${title}`.trim();
+        return title ? `${date} — ${title}`.trim() : date;
     }
 
     function isDebateTeamScheduledLesson(lesson) {
@@ -5210,52 +5210,83 @@
         return normalizeStr(classData.scheduleModel) === 'debateMonthly';
     }
 
+    /** Period key for a debate date; dates before the first book period fall back to their month. */
+    function debateAssignmentPeriodKey(classData, dateStr) {
+        const identity = debateTeamPeriodIdentity(classData, dateStr);
+        if (identity) {
+            return identity;
+        }
+        const month = yearMonthKey(normalizeStr(dateStr));
+        return month ? `month:${month}` : '';
+    }
+
+    function debateAssignmentId(classId, periodKey) {
+        return `debate:${normalizeStr(classId)}:${normalizeStr(periodKey)}`;
+    }
+
+    function debateAssignmentTitle(classData, periodKey, date) {
+        const periodsApi = global.CCPDebatePeriods;
+        if (periodsApi && typeof periodsApi.getBookForDate === 'function' && date) {
+            const book = normalizeStr(periodsApi.getBookForDate(classData, date));
+            if (book) {
+                return book;
+            }
+        }
+        const key = normalizeStr(periodKey);
+        if (key.startsWith('month:')) {
+            return key.slice(6);
+        }
+        if (key.startsWith('period:')) {
+            return key.slice(7, 14);
+        }
+        return yearMonthKey(date);
+    }
+
+    /**
+     * One debate assignment per class per period (book period, else teaching month).
+     * Date = first debate lesson in the period; saved sessions only add periods without lessons.
+     */
     function listDebateTeamAssignmentsForClass(classData, options) {
         if (!classData || !classData.id) {
             return [];
         }
         const opts = options || {};
-        const seenDates = new Set();
-        const out = [];
+        const byPeriod = new Map();
 
-        function pushAssignment(date, planTitle, syllabusRowId, labelSource) {
+        function addDate(date, syllabusRowId) {
             const dateStr = normalizeStr(date);
-            if (!dateStr || seenDates.has(dateStr)) {
+            if (!dateStr) {
                 return;
             }
-            seenDates.add(dateStr);
-            out.push({
-                key: `${classData.id}|${dateStr}`,
-                classId: classData.id,
-                date: dateStr,
-                syllabusRowId: normalizeStr(syllabusRowId),
-                assignmentLabel: getDebateTeamAssignmentLabel(labelSource || { date: dateStr, planTitle }),
-                planTitle: normalizeStr(planTitle) || 'Day 4'
-            });
+            const periodKey = debateAssignmentPeriodKey(classData, dateStr);
+            if (!periodKey) {
+                return;
+            }
+            let entry = byPeriod.get(periodKey);
+            if (!entry) {
+                entry = { periodKey, lessonDates: [], syllabusRowIds: [] };
+                byPeriod.set(periodKey, entry);
+            }
+            if (!entry.lessonDates.includes(dateStr)) {
+                entry.lessonDates.push(dateStr);
+            }
+            const rowId = normalizeStr(syllabusRowId);
+            if (rowId && !entry.syllabusRowIds.includes(rowId)) {
+                entry.syllabusRowIds.push(rowId);
+            }
         }
 
         getDebateTeamRowsFromSyllabus(classData.syllabusRows).forEach((row) => {
-            pushAssignment(
-                row.date,
-                row.planTitle || row.planDetail || 'Day 4',
-                getSyllabusRowKey(row),
-                row
-            );
+            addDate(row.date, getSyllabusRowKey(row));
         });
 
-        if (!out.length) {
+        if (!byPeriod.size) {
             const lessons = Array.isArray(opts.scheduledLessons) ? opts.scheduledLessons : [];
             lessons.filter(isDebateTeamScheduledLesson).forEach((lesson) => {
-                pushAssignment(
-                    lesson.date,
-                    lesson.label || 'Day 4',
-                    '',
-                    { date: lesson.date, planTitle: lesson.label || 'Day 4' }
-                );
+                addDate(lesson.date, '');
             });
         }
 
-        // Include dates that already have a saved team session (e.g. Day 3 from homework copy).
         const sessions = Array.isArray(opts.debateTeamSessions) ? opts.debateTeamSessions : [];
         const classKey = normalizeStr(classData.id);
         sessions.forEach((session) => {
@@ -5263,28 +5294,70 @@
                 return;
             }
             const dateStr = normalizeStr(session.date);
-            if (!dateStr) {
-                return;
+            const periodKey = dateStr ? debateAssignmentPeriodKey(classData, dateStr) : '';
+            if (periodKey && !byPeriod.has(periodKey)) {
+                addDate(dateStr, '');
             }
-            pushAssignment(dateStr, 'Debate teams', '', { date: dateStr, planTitle: 'Debate teams' });
         });
 
+        const out = [];
+        byPeriod.forEach((entry) => {
+            entry.lessonDates.sort(compareDateStr);
+            const date = entry.lessonDates[0];
+            const title = debateAssignmentTitle(classData, entry.periodKey, date);
+            const label = `${title} · ${date}`;
+            out.push({
+                id: debateAssignmentId(classData.id, entry.periodKey),
+                key: `${classData.id}|${date}`,
+                periodKey: entry.periodKey,
+                classId: classData.id,
+                date,
+                lessonDates: entry.lessonDates.slice(),
+                syllabusRowId: entry.syllabusRowIds[0] || '',
+                syllabusRowIds: entry.syllabusRowIds.slice(),
+                label,
+                assignmentLabel: label,
+                planTitle: title
+            });
+        });
         out.sort((a, b) => compareDateStr(a.date, b.date));
         return out;
     }
 
-    function pickDefaultDebateTeamDate(classData, refDate, options) {
+    /** Assignment that owns dateStr (same period), or null. */
+    function findDebateAssignmentForDate(classData, dateStr, options) {
+        const date = normalizeStr(dateStr);
+        if (!classData || !date) {
+            return null;
+        }
+        const periodKey = debateAssignmentPeriodKey(classData, date);
+        const list = listDebateTeamAssignmentsForClass(classData, options);
+        return list.find((a) => a.periodKey === periodKey || a.lessonDates.includes(date)) || null;
+    }
+
+    /** Current period's assignment, else the next upcoming, else the latest. */
+    function pickDefaultDebateAssignment(classData, refDate, options) {
         const assignments = listDebateTeamAssignmentsForClass(classData, options);
         if (!assignments.length) {
             return null;
         }
         const ref = normalizeStr(refDate) || todayISO();
+        const refPeriod = debateAssignmentPeriodKey(classData, ref);
+        const current = assignments.find((a) => a.periodKey === refPeriod);
+        if (current) {
+            return current;
+        }
         for (let i = 0; i < assignments.length; i += 1) {
             if (compareDateStr(assignments[i].date, ref) >= 0) {
-                return assignments[i].date;
+                return assignments[i];
             }
         }
-        return assignments[assignments.length - 1].date;
+        return assignments[assignments.length - 1];
+    }
+
+    function pickDefaultDebateTeamDate(classData, refDate, options) {
+        const assignment = pickDefaultDebateAssignment(classData, refDate, options);
+        return assignment ? assignment.date : null;
     }
 
     function getLessonRowsFromSyllabus(rows) {
@@ -5511,6 +5584,14 @@
      * Matches whole level fields or word-boundary tokens in joined level text / book titles.
      */
     function defaultDebateSheetTemplate(classData, debateBook) {
+        const lp = global.CCPLevelProfile;
+        if (classData && lp && typeof lp.getLevelById === 'function') {
+            const def = lp.getLevelById(classData.levelPreset);
+            if (def && lp.debateDefaultsForBand(lp.debateBandForLevel(def.id)).sheetTemplate === 'yeoul') {
+                return 'yeoul';
+            }
+        }
+        // Custom level text ("여울 M", "퍼플", "saemul") and book titles keep the original checks.
         const fields = classData
             ? [classData.levelPreset, classData.levelCustom, classData.level]
             : [];
@@ -5613,7 +5694,7 @@
         const records = Array.isArray(raw.records)
             ? raw.records.map((r) => normalizeDebateScoreRecord(r, sheetTemplate)).filter(Boolean)
             : [];
-        return {
+        const out = {
             id: normalizeStr(raw.id),
             classId: normalizeStr(raw.classId),
             date,
@@ -5623,12 +5704,67 @@
             authorUserId: normalizeStr(raw.authorUserId),
             updatedAt: normalizeStr(raw.updatedAt)
         };
+        const periodKey = normalizeStr(raw.periodKey);
+        if (periodKey) {
+            out.periodKey = periodKey;
+        }
+        return out;
     }
 
-    function findDebateScoreSession(sessions, classId, date) {
-        const list = Array.isArray(sessions) ? sessions : [];
-        const key = debateTeamSessionKey(classId, date);
-        return list.find((s) => s && debateTeamSessionKey(s.classId, s.date) === key) || null;
+    function resolveDebateLookupClass(classId, classData) {
+        if (classData && typeof classData === 'object') {
+            return classData;
+        }
+        return { id: normalizeStr(classId) };
+    }
+
+    function debateLookupPeriodKey(classData, periodKeyOrAssignment) {
+        if (periodKeyOrAssignment && typeof periodKeyOrAssignment === 'object') {
+            return normalizeStr(periodKeyOrAssignment.periodKey);
+        }
+        return normalizeStr(periodKeyOrAssignment);
+    }
+
+    /** Sessions for classData in periodKey: matched by date period or by a stamped periodKey. */
+    function debateSessionsInPeriod(sessions, classData, periodKey) {
+        const classKey = normalizeStr(classData && classData.id);
+        if (!classKey || !periodKey) {
+            return [];
+        }
+        return (Array.isArray(sessions) ? sessions : []).filter((s) => {
+            if (!s || normalizeStr(s.classId) !== classKey) {
+                return false;
+            }
+            const fromDate = s.date ? debateAssignmentPeriodKey(classData, s.date) : '';
+            return fromDate === periodKey || normalizeStr(s.periodKey) === periodKey;
+        });
+    }
+
+    function pickDebatePeriodSession(matches, hasContent) {
+        if (!matches.length) {
+            return null;
+        }
+        const sorted = matches.slice().sort((a, b) => compareDateStr(a.date, b.date));
+        return sorted.find(hasContent) || sorted[0];
+    }
+
+    function debateScoreSessionHasRecords(session) {
+        return !!(session && Array.isArray(session.records) && session.records.length);
+    }
+
+    function findDebateScoreSessionForAssignment(sessions, classData, periodKeyOrAssignment) {
+        const periodKey = debateLookupPeriodKey(classData, periodKeyOrAssignment);
+        return pickDebatePeriodSession(
+            debateSessionsInPeriod(sessions, classData, periodKey),
+            debateScoreSessionHasRecords
+        );
+    }
+
+    /** Period lookup by date. Pass classData so book periods decide the grouping. */
+    function findDebateScoreSession(sessions, classId, date, classData) {
+        const cls = resolveDebateLookupClass(classId, classData);
+        const periodKey = debateAssignmentPeriodKey(cls, date);
+        return findDebateScoreSessionForAssignment(sessions, cls, periodKey);
     }
 
     function upsertDebateScoreSession(sessions, entry) {
@@ -5638,7 +5774,10 @@
         }
         const list = Array.isArray(sessions) ? sessions.filter(Boolean).slice() : [];
         const key = debateTeamSessionKey(normalized.classId, normalized.date);
-        const idx = list.findIndex((s) => s && debateTeamSessionKey(s.classId, s.date) === key);
+        let idx = list.findIndex((s) => s && s.id && s.id === normalized.id);
+        if (idx < 0) {
+            idx = list.findIndex((s) => s && debateTeamSessionKey(s.classId, s.date) === key);
+        }
         if (idx >= 0) {
             list[idx] = Object.assign({}, list[idx], normalized, { id: list[idx].id || normalized.id });
         } else {
@@ -5682,7 +5821,7 @@
         if (!date) {
             return null;
         }
-        return {
+        const out = {
             id: normalizeStr(raw.id),
             classId: normalizeStr(raw.classId),
             date,
@@ -5693,12 +5832,62 @@
             authorUserId: normalizeStr(raw.authorUserId),
             updatedAt: normalizeStr(raw.updatedAt)
         };
+        const periodKey = normalizeStr(raw.periodKey);
+        if (periodKey) {
+            out.periodKey = periodKey;
+        }
+        return out;
     }
 
-    function findDebateTeamSession(sessions, classId, date) {
-        const list = Array.isArray(sessions) ? sessions : [];
-        const key = debateTeamSessionKey(classId, date);
-        return list.find((s) => s && debateTeamSessionKey(s.classId, s.date) === key) || null;
+    /** The period's team session: generated teams first, else the earliest date. */
+    function findDebateTeamSessionForAssignment(sessions, classData, periodKeyOrAssignment) {
+        const periodKey = debateLookupPeriodKey(classData, periodKeyOrAssignment);
+        return pickDebatePeriodSession(
+            debateSessionsInPeriod(sessions, classData, periodKey),
+            debateSessionHasGeneratedTeams
+        );
+    }
+
+    /** Period lookup by date. Pass classData so book periods decide the grouping. */
+    function findDebateTeamSession(sessions, classId, date, classData) {
+        const cls = resolveDebateLookupClass(classId, classData);
+        const periodKey = debateAssignmentPeriodKey(cls, date);
+        return findDebateTeamSessionForAssignment(sessions, cls, periodKey);
+    }
+
+    /**
+     * Stamp periodKey on saved debate team/score sessions from their dates (no deletes).
+     * Returns true when anything changed.
+     */
+    function stampDebatePeriodKeys(data) {
+        if (!data || typeof data !== 'object') {
+            return false;
+        }
+        const classesById = Object.create(null);
+        (Array.isArray(data.classes) ? data.classes : []).forEach((c) => {
+            if (c && c.id) {
+                classesById[normalizeStr(c.id)] = c;
+            }
+        });
+        let changed = false;
+        ['debateTeamSessions', 'debateScores'].forEach((field) => {
+            if (!Array.isArray(data[field])) {
+                return;
+            }
+            data[field] = data[field].map((s) => {
+                if (!s || !s.classId || !s.date || normalizeStr(s.periodKey)) {
+                    return s;
+                }
+                const cls = classesById[normalizeStr(s.classId)] || { id: normalizeStr(s.classId) };
+                const periodKey = debateAssignmentPeriodKey(cls, s.date);
+                if (!periodKey) {
+                    return s;
+                }
+                changed = true;
+                return Object.assign({}, s, { periodKey });
+            });
+        });
+        return changed;
     }
 
     function debateSessionHasGeneratedTeams(session) {
@@ -5764,20 +5953,13 @@
         if (!classData || !classData.id) {
             return null;
         }
-        const identity = debateTeamPeriodIdentity(classData, date);
+        const identity = debateAssignmentPeriodKey(classData, date);
         if (!identity) {
             return null;
         }
-        const classKey = normalizeStr(classData.id);
-        const matches = (Array.isArray(sessions) ? sessions : []).filter((session) => {
-            if (!session || normalizeStr(session.classId) !== classKey) {
-                return false;
-            }
-            if (!debateSessionHasGeneratedTeams(session)) {
-                return false;
-            }
-            return debateTeamPeriodIdentity(classData, session.date) === identity;
-        });
+        const matches = debateSessionsInPeriod(sessions, classData, identity).filter(
+            debateSessionHasGeneratedTeams
+        );
         matches.sort((a, b) => compareDateStr(a.date, b.date));
         return matches[0] || null;
     }
@@ -5789,7 +5971,10 @@
         }
         const list = Array.isArray(sessions) ? sessions.filter(Boolean).slice() : [];
         const key = debateTeamSessionKey(normalized.classId, normalized.date);
-        const idx = list.findIndex((s) => s && debateTeamSessionKey(s.classId, s.date) === key);
+        let idx = list.findIndex((s) => s && s.id && s.id === normalized.id);
+        if (idx < 0) {
+            idx = list.findIndex((s) => s && debateTeamSessionKey(s.classId, s.date) === key);
+        }
         if (idx >= 0) {
             list[idx] = Object.assign({}, list[idx], normalized, { id: list[idx].id || normalized.id });
         } else {
@@ -6929,6 +7114,8 @@
             data.debateScores = [];
             migrated = true;
         }
+        // Lookups read the period from each date, so the stamp alone never forces a save.
+        stampDebatePeriodKeys(data);
         if (!Array.isArray(data.debateCustomFormats)) {
             data.debateCustomFormats = [];
             migrated = true;
@@ -9592,7 +9779,12 @@
         isDebateTeamScheduledLesson,
         classUsesDebateTeamAssignments,
         listDebateTeamAssignmentsForClass,
+        findDebateAssignmentForDate,
+        pickDefaultDebateAssignment,
         pickDefaultDebateTeamDate,
+        debateAssignmentPeriodKey,
+        debateAssignmentId,
+        stampDebatePeriodKeys,
         getLessonRowsFromSyllabus,
         getSyllabusRowKey,
         pickDefaultSyllabusRow,
@@ -9610,6 +9802,7 @@
         normalizeDebateTeamSession,
         normalizeDebateCustomFormat,
         findDebateTeamSession,
+        findDebateTeamSessionForAssignment,
         findGeneratedDebateTeamSessionForPeriod,
         upsertDebateTeamSession,
         buildDebateRoleMapFromTeamSession,
@@ -9661,6 +9854,7 @@
         normalizeDebateScoreRecord,
         normalizeDebateScoreSession,
         findDebateScoreSession,
+        findDebateScoreSessionForAssignment,
         upsertDebateScoreSession,
         getDebateScoreCriteria,
         getDebateScoreMaxTotal,

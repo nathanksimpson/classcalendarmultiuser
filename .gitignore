@@ -35,3 +35,7 @@ dist/
 # Cloudflare Wrangler local state
 .wrangler/
 .dev.vars
+
+# Sync Helper build output and local installer copies
+helper/build/
+downloads/*.exe

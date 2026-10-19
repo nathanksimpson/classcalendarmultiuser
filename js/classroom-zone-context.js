@@ -90,7 +90,9 @@
         const warnMonthRaw = String(ui.classroomZoneEssayWarnMonth || '').trim();
         const essayWarnMonth = /^\d{4}-\d{2}$/.test(warnMonthRaw) ? warnMonthRaw : '';
         return {
-            myClassesOnly: ui.classroomZoneMyClassesOnly === true || ui.classroomZoneMyClassesOnly === '1',
+            myClassesOnly: global.CCPClassScope
+                ? global.CCPClassScope.effectiveMine('classroom')
+                : ui.classroomZoneMyClassesOnly === true || ui.classroomZoneMyClassesOnly === '1',
             essaysOnly,
             essayWarnMonth
         };
@@ -476,7 +478,10 @@
             .map((c, index) => {
                 const selected = c.id === s.classId ? ' is-selected' : '';
                 const highlighted = index === comboboxHighlight ? ' is-highlighted' : '';
-                return `<button type="button" class="module-list-item classroom-zone-combobox-item${selected}${highlighted}" role="option" data-class-id="${escapeAttr(c.id)}" aria-selected="${c.id === s.classId ? 'true' : 'false'}">${getClassPickerItemHtml(c)}</button>`;
+                const hiddenHint = !getVisibleClasses().some((row) => row && row.id === c.id)
+                    ? ` <span class="section-hint">${escapeHtml(t('classroomClassHiddenByFilter'))}</span>`
+                    : '';
+                return `<button type="button" class="module-list-item classroom-zone-combobox-item${selected}${highlighted}" role="option" data-class-id="${escapeAttr(c.id)}" aria-selected="${c.id === s.classId ? 'true' : 'false'}">${getClassPickerItemHtml(c)}${hiddenHint}</button>`;
             })
             .join('');
     }
@@ -495,7 +500,7 @@
     function getComboboxState() {
         return {
             classId: getActiveClassId(),
-            classes: getVisibleClasses(),
+            classes: withPinnedSelection(getVisibleClasses()),
             classSearchQuery
         };
     }
@@ -692,6 +697,115 @@
         }
     }
 
+    const ASSIGNMENT_TAB_KINDS = {
+        essays: 'essay',
+        'debate-teams': 'debate',
+        'debate-scores': 'debate'
+    };
+    const NEW_CUSTOM_ESSAY_VALUE = '__new_custom_essay__';
+
+    function assignmentKindForTab() {
+        return ASSIGNMENT_TAB_KINDS[activeTabId] || '';
+    }
+
+    function scheduledLessonsFor(classData) {
+        if (!classData || !hooks || typeof hooks.getLessonDates !== 'function') {
+            return [];
+        }
+        try {
+            const schedule = hooks.getLessonDates(classData);
+            return schedule && Array.isArray(schedule.lessons) ? schedule.lessons : [];
+        } catch (_) {
+            return [];
+        }
+    }
+
+    function essayOptionLabel(item) {
+        const subject = String(item.displaySubject || '').trim();
+        const id = subject.toLowerCase();
+        let subjectLabel = subject;
+        if (id === 'debate' || id === '토론') {
+            subjectLabel = t('classroomEssaySubjectDebate');
+        } else if (id === 'news' || id === '뉴스') {
+            subjectLabel = t('classroomEssaySubjectNews');
+        }
+        return subjectLabel ? `${item.label} · ${subjectLabel}` : item.label;
+    }
+
+    /** Shared assignment picker (Essays / Debate Teams / Debate Scores); '' when not applicable. */
+    function buildAssignmentFieldHtml(classData) {
+        const kind = assignmentKindForTab();
+        const api = global.CCPAssignments;
+        const d = domain();
+        if (!kind || !api || !classData) {
+            return '';
+        }
+        if (kind === 'debate' && !(d && d.classUsesDebateTeamAssignments && d.classUsesDebateTeamAssignments(classData))) {
+            return '';
+        }
+        const appData = getAppData();
+        const opts = { scheduledLessons: kind === 'debate' ? scheduledLessonsFor(classData) : [] };
+        const items = api.list(kind, classData, appData, opts);
+        const editable = !access() || !access().canEditClass || access().canEditClass(classData) ||
+            (access().canBypass && access().canBypass());
+        let selectedId = '';
+        if (kind === 'debate') {
+            const resolved = items.length ? api.resolve(kind, classData, appData, opts) : null;
+            selectedId = resolved ? resolved.id : '';
+        } else {
+            selectedId = api.getSelected(kind, classData.id, appData);
+        }
+        const label = t(kind === 'debate' ? 'classroomDebateAssignmentLabel' : 'classroomEssayAssignmentLabel');
+        if (!items.length && kind === 'debate') {
+            return `<span class="classroom-zone-assignment-empty section-hint" id="classroomZoneAssignmentEmpty">${escapeHtml(t('classroomDebateAssignmentEmpty'))}</span>`;
+        }
+        const option = (item) =>
+            `<option value="${escapeAttr(item.id)}"${item.id === selectedId ? ' selected' : ''}>${escapeHtml(
+                kind === 'essay' ? essayOptionLabel(item) : item.label
+            )}</option>`;
+        let optionsHtml = '';
+        if (kind === 'essay') {
+            const regular = items.filter((item) => !item.custom);
+            const custom = items.filter((item) => item.custom);
+            if (!items.length) {
+                optionsHtml += `<option value="">${escapeHtml(t('classroomEssayNoAssignment'))}</option>`;
+            }
+            optionsHtml += regular.map(option).join('');
+            if (custom.length) {
+                optionsHtml += `<optgroup label="${escapeAttr(t('classroomEssayCustomAssignmentsGroup'))}">${custom.map(option).join('')}</optgroup>`;
+            }
+            if (editable) {
+                optionsHtml += `<option value="${NEW_CUSTOM_ESSAY_VALUE}">${escapeHtml(t('classroomEssayNewCustomAssignment'))}</option>`;
+            }
+        } else {
+            optionsHtml = items.map(option).join('');
+        }
+        return `<label class="classroom-zone-field classroom-zone-assignment-field">
+                    <span>${escapeHtml(label)}</span>
+                    <select id="classroomZoneAssignmentSelect" class="field-select field-control--compact" data-assignment-kind="${escapeAttr(kind)}" aria-label="${escapeAttr(label)}">${optionsHtml}</select>
+                </label>`;
+    }
+
+    function onAssignmentSelectChange(e, mountEl) {
+        const select = e.target;
+        const kind = select.getAttribute('data-assignment-kind') || '';
+        const classId = getActiveClassId();
+        const value = String(select.value || '');
+        if (!kind || !classId || !global.CCPAssignments) {
+            return;
+        }
+        if (value === NEW_CUSTOM_ESSAY_VALUE) {
+            render(mountEl);
+            if (typeof global.dispatchEvent === 'function' && typeof global.CustomEvent === 'function') {
+                global.dispatchEvent(new global.CustomEvent('ccp:essayNewCustomAssignment', { detail: { classId } }));
+            }
+            return;
+        }
+        if (value) {
+            global.CCPAssignments.select(kind, classId, value, { source: 'zone-picker', appData: getAppData() });
+        }
+    }
+
     function renderComboboxList(mountEl, state, options) {
         updateComboboxListDom(mountEl, state, options);
     }
@@ -709,19 +823,29 @@
     }
 
     function ensureActiveClassVisible() {
-        const visible = getVisibleClasses();
         const current = getActiveClassId();
-        if (!visible.length) {
-            if (current) {
-                setActiveClassId('');
-            }
+        if (!current) {
             return false;
         }
-        if (!current || !visible.some((c) => c.id === current)) {
-            setActiveClassId(visible[0].id);
+        const classes = getAppData().classes || [];
+        if (!classes.some((c) => c && c.id === current)) {
+            setActiveClassId('');
             return true;
         }
         return false;
+    }
+
+    function withPinnedSelection(classes) {
+        const list = Array.isArray(classes) ? classes.slice() : [];
+        const current = getActiveClassId();
+        if (!current || list.some((c) => c && c.id === current)) {
+            return list;
+        }
+        const selected = (getAppData().classes || []).find((c) => c && c.id === current);
+        if (!selected) {
+            return list;
+        }
+        return [selected].concat(list);
     }
 
     function render(mountEl) {
@@ -729,7 +853,7 @@
             return;
         }
         const classId = getActiveClassId();
-        const classes = getVisibleClasses();
+        const classes = withPinnedSelection(getVisibleClasses());
         const toggles = getUiToggles();
         const classData = (getAppData().classes || []).find((c) => c && c.id === classId) || null;
         const teachers = classData && Array.isArray(classData.classTeachers)
@@ -781,6 +905,7 @@
                     </label>
                     <div id="classroomZoneClassList" class="classroom-zone-class-list module-list" role="listbox"${comboboxOpen ? '' : ' hidden'}>${buildComboboxListHtml({ classId, classes, classSearchQuery })}</div>
                 </div>
+                ${buildAssignmentFieldHtml(classData)}
                 <label class="classroom-zone-field classroom-zone-date-field">
                     <span>${escapeHtml(t('classroomDateLabel'))}</span>
                     <input type="date" id="classroomZoneSessionDate" class="field-input field-control--compact" value="${escapeAttr(sessionDate)}" />
@@ -791,6 +916,7 @@
                         <input type="checkbox" id="classroomZoneMyClassesOnly"${toggles.myClassesOnly ? ' checked' : ''} />
                         <span>${escapeHtml(t('classroomZoneMyClassesOnly'))}</span>
                     </label>
+                    ${global.CCPClassScope && global.CCPClassScope.hasOverride('classroom') ? `<span class="section-hint classroom-zone-override-hint">${escapeHtml(t('classScopeOverrideHint'))}</span>` : ''}
                     ${showEssaysToggle ? `<label class="checkbox-label classroom-zone-toggle">
                         <input type="checkbox" id="classroomZoneEssaysOnly"${toggles.essaysOnly ? ' checked' : ''} />
                         <span>${escapeHtml(t('classroomZoneEssaysOnly'))}</span>
@@ -823,6 +949,9 @@
         }
 
         mountEl.querySelector('#classroomZoneMyClassesOnly')?.addEventListener('change', (e) => {
+            if (global.CCPClassScope) {
+                global.CCPClassScope.setOverride('classroom', e.target.checked);
+            }
             if (hooks && hooks.setUiPref) {
                 hooks.setUiPref('classroomZoneMyClassesOnly', e.target.checked ? '1' : '');
             }
@@ -843,6 +972,9 @@
                 hooks.setUiPref('classroomZoneEssayWarnMonth', value);
             }
             render(mountEl);
+        });
+        mountEl.querySelector('#classroomZoneAssignmentSelect')?.addEventListener('change', (e) => {
+            onAssignmentSelectChange(e, mountEl);
         });
         mountEl.querySelector('#classroomZoneSessionDate')?.addEventListener('change', (e) => {
             setSessionDate(e.target.value);
@@ -877,6 +1009,23 @@
                     render(getMountEl());
                 }
             });
+            if (global.CCPAssignments && global.CCPAssignments.subscribe) {
+                global.CCPAssignments.subscribe(() => {
+                    const mountEl = getMountEl();
+                    if (mountEl && !mountEl.hidden && assignmentKindForTab()) {
+                        render(mountEl);
+                    }
+                });
+            }
+            if (global.CCPClassScope && global.CCPClassScope.subscribe) {
+                global.CCPClassScope.subscribe(() => {
+                    const m = getMountEl();
+                    if (m && !m.hidden) {
+                        ensureActiveClassVisible();
+                        render(m);
+                    }
+                });
+            }
         }
     }
 

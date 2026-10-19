@@ -2691,6 +2691,7 @@
         generateClassesForCohort,
         importFromClasses,
         inferBlankCohortSchedulesIfNeeded,
-        printHrTeacherList
+        printHrTeacherList,
+        addCohort
     };
 })(typeof window !== 'undefined' ? window : globalThis);

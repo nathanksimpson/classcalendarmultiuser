@@ -465,9 +465,14 @@ body {
     flex-wrap: nowrap;
     align-items: center;
     flex-shrink: 0;
-    gap: 0;
-    padding-left: 2px;
+    gap: var(--space-2);
+    padding-left: var(--space-2);
     border-left: 1px solid var(--border-color);
+}
+
+.team-account-menu--header {
+    margin-left: auto;
+    flex-shrink: 0;
 }
 
 .app-top-bar-compact--collapsed .app-header-unified__tools-collapsible {
@@ -933,43 +938,12 @@ body {
     gap: 10px;
 }
 
-.term-selector__footer {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2);
-    margin-top: var(--space-3);
-    padding-top: 0;
-    border-top: none;
-}
-
-.calendar-options .term-selector__footer {
-    margin-top: var(--space-2);
-}
-
-.term-selector__footer:empty {
-    display: none;
-    margin: 0;
-    padding: 0;
-    border: none;
-}
-
 .kr-holidays-source-hint {
     flex: 1 1 100%;
     margin: 0;
     font-size: 0.75rem;
     color: var(--text-muted, #6b7280);
     line-height: 1.35;
-}
-
-.term-selector__footer #fetchKrHolidaysBtn {
-    flex-shrink: 0;
-}
-
-@media (max-width: 900px) {
-    .term-selector__footer #fetchKrHolidaysBtn {
-        width: 100%;
-    }
 }
 
 .calendar-visibility-dock {
@@ -4540,6 +4514,15 @@ body.hide-summary-print .print-summary {
     -webkit-overflow-scrolling: touch;
 }
 
+/* Level Auto / Custom hint under a class-form field (layout only; colors come from .section-hint). */
+#classForm .level-auto-hint {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-1);
+}
+
 #classModal .class-modal-name-field {
     margin-bottom: 4px;
 }
@@ -5141,6 +5124,36 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
     border-top: 1px solid var(--border-color);
 }
 
+/* Header + New menu (Phase 6) — same shell as the Calendar / Account popovers */
+.header-new-menu-panel.header-dropdown-panel {
+    box-sizing: border-box;
+    min-width: min(14rem, calc(100vw - 2 * var(--app-gutter, var(--space-4))));
+    padding: var(--space-1);
+}
+
+.header-dropdown-panel .header-dropdown-item.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Header All / My classes switch (reuses .calendar-view-switch + .syllabus-segment-btn) */
+.header-class-scope {
+    flex-shrink: 0;
+}
+
+.calendar-view-switch.header-class-scope .syllabus-segment-btn {
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding: var(--space-1) var(--space-3);
+}
+
+@media (max-width: 1024px) {
+    .calendar-view-switch.header-class-scope .syllabus-segment-btn,
+    .header-new-menu-panel .header-dropdown-item.btn {
+        min-height: var(--touch-min);
+    }
+}
+
 .team-account-menu .header-dropdown-panel .btn-header-theme,
 .team-account-menu .header-dropdown-panel .btn-header-lang,
 .team-account-menu .header-dropdown-panel .btn-notes-app {
@@ -5287,11 +5300,6 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
         overflow-x: auto;
         overflow-y: visible;
         -webkit-overflow-scrolling: touch;
-    }
-
-    #headerMyScheduleBtn:not([hidden]) {
-        flex: 1 1 100%;
-        max-width: 100%;
     }
 
     .app-top-bar-title-block h1 {
@@ -6040,6 +6048,53 @@ details.header-dropdown:not([open]) > .header-dropdown-panel {
 
 .calendar-options--collapsed .term-settings-caret-icon {
     transform: rotate(180deg);
+}
+
+#termSettingsModal .modal-content {
+    max-width: min(36rem, calc(100vw - 2 * var(--space-6)));
+}
+
+#termSettingsModal .section-hint {
+    margin-top: var(--space-2);
+    margin-bottom: 0;
+}
+
+#termSettingsModal .modal-body-scroll > .section-hint {
+    margin-top: 0;
+    margin-bottom: var(--space-4);
+}
+
+#termSettingsModal fieldset.form-group {
+    margin: 0 0 var(--space-4);
+    padding: var(--space-4);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    min-width: 0;
+}
+
+#termSettingsModal fieldset.form-group > legend {
+    padding: 0 var(--space-2);
+    font-size: var(--text-body-md);
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+#termSettingsModal fieldset.form-group > .form-group:last-child {
+    margin-bottom: 0;
+}
+
+#termSettingsModal .checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+}
+
+html:is([data-viewport="phone"], [data-viewport="tablet-sm"], [data-viewport="tablet"]) #termSettingsModal .field-input,
+html:is([data-viewport="phone"], [data-viewport="tablet-sm"], [data-viewport="tablet"]) #termSettingsModal .field-select,
+html:is([data-viewport="phone"], [data-viewport="tablet-sm"], [data-viewport="tablet"]) #termSettingsModal .checkbox-label {
+    min-height: var(--touch-min);
 }
 
 @media (max-width: 640px) {
@@ -7330,14 +7385,23 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
         grid-row: 1;
     }
 
+    .print-data-section--import-export {
+        grid-column: 1 / -1;
+        grid-row: 1;
+    }
+
     .print-syllabus-presets-section {
         grid-column: 2;
-        grid-row: 1;
+        grid-row: 2;
     }
 
     .print-data-actions-section {
         grid-column: 1 / -1;
         grid-row: 2;
+    }
+
+    .print-data-section--import-export .data-io-columns {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
@@ -7385,6 +7449,88 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
 .print-data-section--data {
     --section-accent: var(--print-section-data-accent);
     background: linear-gradient(180deg, var(--print-section-data-tint) 0%, var(--bg-card) 64px);
+}
+
+.print-data-section--danger {
+    --section-accent: var(--danger);
+    border-color: var(--danger);
+}
+
+/* Print Center rows + Data → Import & export rows (shared row grammar) */
+.print-center-list,
+.data-io-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+}
+
+.print-center-group__title {
+    margin: 0 0 var(--space-2);
+}
+
+.data-io-column__title {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-body-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.print-center-rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin: 0 0 var(--space-3);
+    padding: 0;
+    list-style: none;
+}
+
+.print-center-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-1) 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.print-center-row:last-child {
+    border-bottom: none;
+}
+
+.print-center-row__text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.print-center-row__label {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.print-center-row__hint {
+    margin: 0;
+}
+
+.print-center-row__btn {
+    flex-shrink: 0;
+}
+
+.print-center-footer {
+    margin: var(--space-4) 0 0;
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border-color);
+}
+
+.data-io-highlight {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+@media (max-width: 1024px) {
+    .print-center-row__btn {
+        min-height: var(--touch-min);
+    }
 }
 
 .print-books-section,
@@ -14912,14 +15058,6 @@ body.is-nav-cross-zone-drag .app-zone-btn:not(.is-nav-drop-target):not(.is-nav-d
 #teamCalendarSelect {
     text-overflow: ellipsis;
 }
-.team-calendar-popover-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    margin-top: var(--space-3);
-    padding-top: var(--space-3);
-    border-top: 1px solid var(--border-color);
-}
 .team-calendar-popover-menu {
     display: flex;
     flex-direction: column;
@@ -18952,10 +19090,6 @@ html[data-nav-tabs-collapsed="1"] .app-top-bar-row--nav {
     display: none;
 }
 
-.nav-tabs-collapse-toggle {
-    flex-shrink: 0;
-}
-
 .nav-tabs-collapsed-chip {
     display: none;
     align-items: center;
@@ -18985,11 +19119,6 @@ html[data-nav-tabs-collapsed="1"] .nav-tabs-collapsed-chip:not([hidden]) {
 }
 
 @media (max-width: 1024px) {
-    .nav-tabs-collapse-toggle {
-        min-height: var(--touch-target-min, 44px);
-        min-width: var(--touch-target-min, 44px);
-    }
-
     .nav-tabs-collapsed-chip {
         min-height: var(--touch-target-min, 44px);
         padding-left: var(--space-3);
@@ -19099,6 +19228,22 @@ html[data-nav-tabs-collapsed="1"] .nav-tabs-collapsed-chip:not([hidden]) {
     margin-left: auto;
 }
 
+button.term-summary-strip {
+    font: inherit;
+    font-size: var(--text-body-md);
+    text-align: left;
+    cursor: pointer;
+}
+
+button.term-summary-strip:hover {
+    background: var(--bg-hover);
+}
+
+button.term-summary-strip:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
 .term-summary-strip__name {
     font-weight: 600;
     color: var(--text-primary);
@@ -19110,18 +19255,7 @@ html[data-nav-tabs-collapsed="1"] .nav-tabs-collapsed-chip:not([hidden]) {
 
 .term-summary-strip__link {
     margin-left: var(--space-1);
-    padding: 0;
-    border: none;
-    background: none;
-    color: var(--primary-dark);
-    font: inherit;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.term-summary-strip__link:hover {
-    text-decoration: underline;
-    text-underline-offset: 2px;
+    flex-shrink: 0;
 }
 
 .team-lock-status--inline {
@@ -19809,9 +19943,7 @@ html[data-viewport="phone"] .app-header-unified__tools-collapsible,
 html[data-viewport="tablet-sm"] .app-header-unified__tools-collapsible,
 html[data-viewport="tablet"] .app-header-unified__tools-collapsible {
     display: none;
-    position: absolute;
-    right: 0;
-    top: calc(100% + var(--space-2));
+    position: fixed;
     flex-direction: column;
     align-items: stretch;
     gap: var(--space-2);
@@ -19852,11 +19984,12 @@ html[data-viewport="tablet"] .app-header-unified__tools-collapsible .header-tool
 html[data-viewport="phone"] .team-lock-sync-bar.team-lock-sync-bar--inline,
 html[data-viewport="tablet-sm"] .team-lock-sync-bar.team-lock-sync-bar--inline,
 html[data-viewport="tablet"] .team-lock-sync-bar.team-lock-sync-bar--inline {
-    flex: 0 1 auto;
+    flex: 0 0 auto;
     width: auto;
-    min-width: 0;
-    max-width: min(100%, calc(100% - 9rem));
-    padding: var(--space-1) var(--space-2);
+    min-width: max-content;
+    max-width: none;
+    padding: 0 var(--space-1);
+    overflow: visible;
 }
 
 /* ≤1024: hide chip label (padlock aria-label carries status); keep action + pending visible */
@@ -19922,37 +20055,6 @@ html[data-viewport="tablet-sm"] .app-brand-name {
     border: 0;
 }
 
-/* Phone: wrap pending Allow/Dismiss under padlock instead of clipping */
-html[data-viewport="phone"] .team-lock-sync-bar.team-lock-sync-bar--inline {
-    overflow: visible;
-    flex-wrap: wrap;
-    max-width: min(100%, calc(100% - 7rem));
-}
-
-html[data-viewport="phone"] .team-lock-sync-bar.team-lock-sync-bar--inline .team-lock-control {
-    flex-wrap: wrap;
-}
-
-/* ≤1024: hide Hide-tabs label text; title/aria remain */
-html[data-viewport="phone"] .nav-tabs-collapse-toggle,
-html[data-viewport="tablet-sm"] .nav-tabs-collapse-toggle,
-html[data-viewport="tablet"] .nav-tabs-collapse-toggle {
-    font-size: 0;
-    line-height: 0;
-    min-width: var(--touch-target-min, 44px);
-    min-height: var(--touch-target-min, 44px);
-    padding: var(--space-2);
-}
-
-html[data-viewport="phone"] .nav-tabs-collapse-toggle::before,
-html[data-viewport="tablet-sm"] .nav-tabs-collapse-toggle::before,
-html[data-viewport="tablet"] .nav-tabs-collapse-toggle::before {
-    content: "\2630";
-    font-size: var(--text-body-sm, 0.8125rem);
-    line-height: 1;
-    speak: never;
-}
-
 @media (max-width: 1024px) {
     .header-tools-overflow-btn {
         display: inline-flex;
@@ -19971,9 +20073,7 @@ html[data-viewport="tablet"] .nav-tabs-collapse-toggle::before {
 
     .app-header-unified__tools-collapsible {
         display: none;
-        position: absolute;
-        right: 0;
-        top: calc(100% + var(--space-2));
+        position: fixed;
         flex-direction: column;
         align-items: stretch;
         gap: var(--space-2);
@@ -20003,16 +20103,12 @@ html[data-viewport="tablet"] .nav-tabs-collapse-toggle::before {
     }
 
     .team-lock-sync-bar.team-lock-sync-bar--inline {
-        flex: 0 1 auto;
+        flex: 0 0 auto;
         width: auto;
-        min-width: 0;
-        max-width: min(100%, calc(100% - 9rem));
-        padding: var(--space-1) var(--space-2);
-    }
-
-    .team-lock-sync-bar.team-lock-sync-bar--inline .team-lock-control {
-        flex: 1 1 auto;
-        min-width: 0;
+        min-width: max-content;
+        max-width: none;
+        padding: 0 var(--space-1);
+        overflow: visible;
     }
 
     .team-lock-sync-bar.team-lock-sync-bar--inline .team-lock-chip-label {
@@ -20054,20 +20150,6 @@ html[data-viewport="tablet"] .nav-tabs-collapse-toggle::before {
         border: 0;
     }
 
-    .nav-tabs-collapse-toggle {
-        font-size: 0;
-        line-height: 0;
-        min-width: var(--touch-target-min, 44px);
-        min-height: var(--touch-target-min, 44px);
-        padding: var(--space-2);
-    }
-
-    .nav-tabs-collapse-toggle::before {
-        content: "\2630";
-        font-size: var(--text-body-sm, 0.8125rem);
-        line-height: 1;
-        speak: never;
-    }
 }
 
 /* Match tablet-sm (≤900) when data-viewport is unset */
@@ -20085,15 +20167,153 @@ html[data-viewport="tablet"] .nav-tabs-collapse-toggle::before {
     }
 }
 
-@media (max-width: 640px) {
-    .team-lock-sync-bar.team-lock-sync-bar--inline {
-        overflow: visible;
-        flex-wrap: wrap;
-        max-width: min(100%, calc(100% - 7rem));
+/* Header Row 1 is always one control row: the lock pill never stacks its buttons */
+.team-lock-sync-bar.team-lock-sync-bar--inline,
+.team-lock-sync-bar.team-lock-sync-bar--inline .team-lock-control,
+.team-lock-sync-bar.team-lock-sync-bar--inline .team-lock-pending-actions {
+    flex-wrap: nowrap;
+}
+
+.team-lock-sync-bar.team-lock-sync-bar--inline .team-lock-pending-actions .btn {
+    flex: 0 0 auto;
+}
+
+/* Desktop: inline tools stay on one line; #headerToolsRow scrolls instead of wrapping */
+.app-header-unified__tools-collapsible {
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+}
+
+.header-pinned-icon {
+    display: none;
+}
+
+.header-class-scope__short {
+    display: none;
+}
+
+.app-top-bar-row--primary {
+    padding-top: var(--space-1);
+    padding-bottom: var(--space-1);
+}
+
+/* Start-aligned so overflow scrolls right; flex-end pushed the + New end off-screen to the left */
+.app-top-bar-row--primary .app-header-unified__tools {
+    justify-content: flex-start;
+    padding-top: var(--space-1);
+    padding-bottom: var(--space-1);
+}
+
+@media (max-width: 1024px) {
+    /* Cap at one touch row; overflow scrolls sideways (dropdowns inside are position: fixed) */
+    .app-top-bar-row--primary {
+        max-height: calc(var(--touch-min) + 2 * var(--space-2));
+        padding-top: var(--space-1);
+        padding-bottom: var(--space-1);
+        overflow-x: auto;
+        overflow-y: hidden;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
     }
 
+    .app-top-bar-row--primary::-webkit-scrollbar {
+        display: none;
+    }
+
+    .app-top-bar-row--primary > * {
+        flex-shrink: 0;
+    }
+
+    .team-lock-sync-bar.team-lock-sync-bar--inline .team-lock-status,
     .team-lock-sync-bar.team-lock-sync-bar--inline .team-lock-control {
-        flex-wrap: wrap;
+        flex: 0 0 auto;
+        min-width: max-content;
+    }
+
+    .team-lock-sync-bar.team-lock-sync-bar--inline .team-lock-pending-actions {
+        margin-left: 0;
+    }
+
+    .team-lock-sync-bar.team-lock-sync-bar--inline .team-lock-status-btn {
+        min-width: var(--touch-min);
+        min-height: var(--touch-min);
+    }
+
+    /* Icon-only Release / Start editing and pending Allow / Dismiss (text stays the accessible name) */
+    .team-lock-sync-bar.team-lock-sync-bar--inline .team-lock-action-btn,
+    .team-lock-sync-bar.team-lock-sync-bar--inline .team-lock-pending-btn {
+        font-size: 0;
+        line-height: 0;
+        min-width: var(--touch-min);
+        min-height: var(--touch-min);
+        padding: var(--space-2);
+        justify-content: center;
+    }
+
+    .team-lock-sync-bar.team-lock-sync-bar--inline .team-lock-action-btn::before,
+    .team-lock-sync-bar.team-lock-sync-bar--inline .team-lock-pending-btn::before {
+        content: "\270E";
+        font-size: var(--text-body-sm, 0.8125rem);
+        line-height: 1;
+        speak: never;
+    }
+
+    .team-lock-sync-bar.team-lock-sync-bar--inline .team-lock-action-btn.btn-outline::before {
+        content: "\21A9";
+    }
+
+    .team-lock-sync-bar.team-lock-sync-bar--inline #teamLockAllowBtn::before {
+        content: "\2713";
+    }
+
+    .team-lock-sync-bar.team-lock-sync-bar--inline #teamLockDismissBtn::before {
+        content: "\2715";
+    }
+
+    .team-lock-sync-bar.team-lock-sync-bar--inline .team-lock-status.team-lock-status--drawer-open .team-lock-details {
+        position: fixed;
+    }
+
+    .app-top-bar-row--primary .app-header-unified__tools {
+        padding-top: 0;
+        padding-bottom: 0;
+    }
+}
+
+/* ≤1280 (tablets incl. iPad landscape): Term settings, Helper, Sync go icon-only; scope uses short labels */
+@media (max-width: 1280px) {
+    .header-pinned-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .header-pinned-label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    .calendar-view-switch.header-class-scope .syllabus-segment-btn {
+        padding-left: var(--space-2);
+        padding-right: var(--space-2);
+    }
+
+    .header-class-scope__full {
+        display: none;
+    }
+
+    .header-class-scope__short {
+        display: inline;
     }
 }
 
@@ -22567,4 +22787,230 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-boo
     .briefing-card-header { background: var(--surface-raised, #111827); }
     .briefing-section-detail { border-color: var(--border, #374151); }
     .briefing-section-detail > summary { background: var(--surface-raised, #111827); }
+}
+
+.tms-sync-status-dot {
+    display: inline-block;
+    width: var(--space-2);
+    height: var(--space-2);
+    border-radius: var(--radius-full);
+    background: var(--text-muted);
+    flex: 0 0 auto;
+}
+
+.tms-sync-status-dot--ready,
+.tms-sync-status-dot--same-origin {
+    background: var(--success);
+}
+
+.tms-sync-status-dot--outdated {
+    background: var(--danger);
+}
+
+.tms-sync-status-dot--missing {
+    background: var(--text-muted);
+}
+
+#tmsSyncCenterBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+#tmsSyncCenterModal .modal-content {
+    width: min(960px, 94vw);
+    max-width: min(960px, 94vw);
+    max-height: min(92vh, calc(100dvh - 2rem));
+}
+
+/* One dialog scroller. Gap stays when the blocks between Load and Apply are hidden. */
+#tmsSyncCenterModal .modal-content > .modal-body-scroll {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--pad-overlay);
+}
+
+#tmsSyncCenterModal .modal-content > .modal-body-scroll > * {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+/* Review blocks used to be their own scrolling modals. */
+#tmsSyncCenterModal .tms-sync-pane .modal-body-scroll {
+    display: block;
+    overflow: visible;
+    flex: none;
+    max-height: none;
+    min-height: 0;
+    padding: 0;
+}
+
+/* Fieldset padding is unreliable once a legend is present. Inset the chips instead. */
+#tmsSyncCenterModal fieldset.form-group {
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    min-inline-size: 0;
+}
+
+#tmsSyncCenterModal fieldset.form-group > legend {
+    margin-inline: var(--space-3);
+    padding-inline: var(--space-2);
+}
+
+#tmsSyncCenterModal fieldset.form-group > .tms-sync-kind-list {
+    margin: var(--space-4);
+}
+
+#tmsSyncCenterModal .selection-chip .section-hint {
+    margin: 0 0 0 var(--space-2);
+}
+
+#tmsSyncCenterModal .modal-content > .modal-body-scroll > .toolbar-actions {
+    margin-left: 0;
+    justify-content: flex-start;
+    gap: var(--space-3);
+}
+
+#tmsSyncCenterModal .roster-import-actions {
+    margin-top: var(--space-4);
+    gap: var(--space-3);
+}
+
+/* overflow-x: auto would compute overflow-y to auto and swallow the wheel. */
+#tmsSyncCenterModal .roster-import-table-wrap {
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.tms-sync-helper {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.tms-sync-helper-text {
+    margin: 0;
+    flex: 1 1 auto;
+}
+
+#tmsSyncHelperDownload {
+    margin-top: var(--space-3);
+}
+
+#tmsHelperToggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-left: var(--space-2);
+}
+
+#tmsHelperUninstall {
+    margin-left: var(--space-2);
+}
+
+#termSummaryToggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+/* ≤1280: icon-only pinned buttons (labels use .header-pinned-label) */
+@media (max-width: 1280px) {
+    #termSummaryToggle,
+    #tmsHelperToggle,
+    #tmsSyncCenterBtn {
+        min-width: var(--touch-min);
+        min-height: var(--touch-min);
+        justify-content: center;
+        gap: var(--space-1);
+        padding-left: var(--space-2);
+        padding-right: var(--space-2);
+    }
+
+    #tmsHelperToggle,
+    #tmsHelperUninstall {
+        margin-left: 0;
+    }
+}
+
+#tmsHelperGuideModal .tms-helper-guide-steps {
+    list-style: decimal;
+    margin: 0 0 var(--space-4);
+    padding-left: var(--space-5);
+}
+
+#tmsHelperGuideModal .tms-helper-guide-steps li {
+    margin: 0 0 var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    color: var(--text-muted);
+}
+
+#tmsHelperGuideModal .tms-helper-guide-steps li.is-active {
+    color: var(--text-primary);
+    background: var(--accent-muted);
+    box-shadow: inset var(--space-1) 0 0 var(--primary);
+}
+
+#tmsHelperGuideModal .tms-helper-guide-steps li.is-done {
+    color: var(--text-secondary);
+}
+
+.tms-sync-kind-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+}
+
+#tmsSyncCenterModal .tms-sync-kind-list .selection-chip {
+    align-items: center;
+    width: 100%;
+    min-height: var(--touch-min);
+}
+
+@media (max-width: 640px) {
+    .tms-sync-kind-list {
+        grid-template-columns: 1fr;
+    }
+}
+
+.tms-sync-progress {
+    margin-top: var(--space-4);
+}
+
+#tmsSyncProgressFill {
+    width: 0;
+}
+
+.tms-sync-tablist {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.tms-sync-tablist .is-active {
+    background: var(--accent-muted);
+    color: var(--primary);
+}
+
+.source-version-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: var(--accent-muted);
+}
+
+.source-version-banner p {
+    margin: 0;
 }

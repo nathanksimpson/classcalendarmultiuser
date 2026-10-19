@@ -1,63 +1,89 @@
 /**
- * Production asset build: copy static files to dist/ and minify JS/CSS.
+ * Production asset build: copy allow-listed static files to dist/, minify JS/CSS,
+ * stamp content-hash ?v= cache strings, and write dist/_headers.
  * Local dev (npm start) continues to use repo root; deploy uses dist/.
  */
 import fs from 'fs';
 import path from 'path';
+import { createHash } from 'crypto';
+import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import * as esbuild from 'esbuild';
 import { concatCssForDist } from './split-styles.mjs';
+import { checkTreeEncoding } from './encoding-check.mjs';
+
+const require = createRequire(import.meta.url);
+const { renderHeadersFile } = require('../shared/security-headers.cjs');
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dist = path.join(root, 'dist');
 
-const SKIP_DIRS = new Set([
+/** Top-level directories published to production (copied recursively). */
+const SHIP_DIRS = new Set(['js', 'css', 'help', 'soundboard', 'templates', 'tools', 'downloads']);
+
+/** Top-level files published to production (in addition to *.html). */
+const SHIP_FILES = new Set([
+    'app.js',
+    'styles.css',
+    'admin.css',
+    'help.css',
+    'homework-import-standard.json',
+    'FOR TEACHERS.md',
+    'FOR TEACHERS-ko.md'
+]);
+
+/** Known dev-only top-level items: skipped quietly. Anything not shipped or listed here fails the build. */
+const DEV_ONLY_DIRS = new Set([
     'node_modules',
     '.git',
+    '.github',
     '.cursor',
     '.prod-recovery',
     '.wrangler',
     'dist',
     'data',
     'crypto',
+    'shared',
     'Reference',
     'scripts',
     'tests',
     'server',
     'worker',
-    'Example Calendars',
-    'design_handoff_schedule_planner',
-    'design_handoff_debate_teams'
+    'docs',
+    'design',
+    'helper',
+    'Example Calendars'
 ]);
 
-const SKIP_FILES = new Set([
+const DEV_ONLY_FILES = new Set([
+    'package.json',
     'package-lock.json',
+    'wrangler.toml',
     '.env',
     '.env.example',
-    '.tmp-cookies.txt',
-    'wrangler.toml',
-    'AGENTS.md',
-    'DEVELOPER.md',
-    'SECURITY-AUDIT.md',
-    'SCHEMA.md',
-    'CLOUDFLARE-DEPLOY.md',
-    'KAKAO-SETUP.md'
+    '.gitignore',
+    '.gitattributes',
+    '.editorconfig',
+    '.assetsignore'
 ]);
 
-function shouldSkipFile(name) {
-    if (SKIP_FILES.has(name)) {
+function isDevOnlyTopLevel(name, isDir) {
+    if (isDir) {
+        return DEV_ONLY_DIRS.has(name) || name.startsWith('design_handoff_') || name.startsWith('.tmp');
+    }
+    return (
+        DEV_ONLY_FILES.has(name) ||
+        name.startsWith('.tmp') ||
+        /\.(md|bat|log|patch|bak)$/i.test(name)
+    );
+}
+
+/** Files inside shipped directories that must never be published. */
+function shouldSkipNestedFile(name) {
+    if (name.startsWith('.tmp') || name === '_headers') {
         return true;
     }
-    if (name.endsWith('.bat') || name.startsWith('.tmp')) {
-        return true;
-    }
-    if (name.endsWith('.log') || name.endsWith('.patch')) {
-        return true;
-    }
-    if (name.endsWith('.md') && !name.startsWith('FOR TEACHERS')) {
-        return true;
-    }
-    return false;
+    return /\.(bat|log|patch|bak)$/i.test(name) || (name.endsWith('.md') && !name.startsWith('FOR TEACHERS'));
 }
 
 const MINIFY_JS = [
@@ -126,29 +152,148 @@ const MINIFY_JS = [
 
 const MINIFY_CSS = ['styles.css', 'admin.css', 'help.css'];
 
-function shouldSkipDir(name) {
-    return SKIP_DIRS.has(name);
-}
-
 function copyRecursive(srcDir, destDir) {
     const entries = fs.readdirSync(srcDir, { withFileTypes: true });
     for (const ent of entries) {
         const srcPath = path.join(srcDir, ent.name);
         const destPath = path.join(destDir, ent.name);
         if (ent.isDirectory()) {
-            if (shouldSkipDir(ent.name)) {
+            if (ent.name.startsWith('.tmp') || ent.name === 'node_modules') {
                 continue;
             }
             fs.mkdirSync(destPath, { recursive: true });
             copyRecursive(srcPath, destPath);
             continue;
         }
-        if (shouldSkipFile(ent.name)) {
+        if (shouldSkipNestedFile(ent.name)) {
             continue;
         }
         fs.mkdirSync(path.dirname(destPath), { recursive: true });
         fs.copyFileSync(srcPath, destPath);
     }
+}
+
+/** Copy only allow-listed top-level items; throw on anything unclassified. */
+function copyAllowListed() {
+    const unknown = [];
+    for (const ent of fs.readdirSync(root, { withFileTypes: true })) {
+        const name = ent.name;
+        const isDir = ent.isDirectory();
+        const ship = isDir ? SHIP_DIRS.has(name) : SHIP_FILES.has(name) || /\.html$/i.test(name);
+        if (ship) {
+            const src = path.join(root, name);
+            const dest = path.join(dist, name);
+            if (isDir) {
+                fs.mkdirSync(dest, { recursive: true });
+                copyRecursive(src, dest);
+            } else {
+                fs.copyFileSync(src, dest);
+            }
+            continue;
+        }
+        if (!isDevOnlyTopLevel(name, isDir)) {
+            unknown.push((isDir ? 'dir  ' : 'file ') + name);
+        }
+    }
+    if (unknown.length) {
+        throw new Error(
+            'Build stopped: unclassified top-level item(s). Add each to SHIP_* (publish) or DEV_ONLY_* (keep private) in scripts/build-assets.mjs:\n  ' +
+                unknown.join('\n  ')
+        );
+    }
+}
+
+// ---- Content-hash cache busting (8.1) -------------------------------------------------------
+
+/** Quoted local asset refs with a non-empty ?v= (string-concatenated '...?v=' + x refs are left alone). */
+const VERSIONED_REF_RE =
+    /(["'])((?:\.{0,2}\/)*(?:[\w.\- ]+\/)*[\w.\-]+\.(?:js|css|html|json))\?v=([^"'\s]+)\1/g;
+
+function hashFile(absPath) {
+    return createHash('sha256').update(fs.readFileSync(absPath)).digest('hex').slice(0, 10);
+}
+
+function listDistFiles(dir, ext, out = []) {
+    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, ent.name);
+        if (ent.isDirectory()) {
+            listDistFiles(p, ext, out);
+        } else if (ext.test(ent.name)) {
+            out.push(p);
+        }
+    }
+    return out;
+}
+
+function resolveRef(fromFile, ref) {
+    const clean = ref.replace(/^\.\//, '');
+    const candidates = clean.startsWith('/')
+        ? [path.join(dist, clean)]
+        : [path.join(path.dirname(fromFile), clean), path.join(dist, clean)];
+    return candidates.find((p) => p.startsWith(dist) && fs.existsSync(p) && fs.statSync(p).isFile()) || null;
+}
+
+/** Rewrite ?v= in one file; returns number of refs changed. */
+function stampFile(file, hashCache) {
+    const text = fs.readFileSync(file, 'utf8');
+    let changed = 0;
+    const out = text.replace(VERSIONED_REF_RE, (match, quote, ref, oldVersion) => {
+        const target = resolveRef(file, ref);
+        if (!target || target === file) {
+            return match;
+        }
+        if (!hashCache.has(target)) {
+            hashCache.set(target, hashFile(target));
+        }
+        const next = hashCache.get(target);
+        if (next === oldVersion) {
+            return match;
+        }
+        changed += 1;
+        return `${quote}${ref}?v=${next}${quote}`;
+    });
+    if (changed) {
+        fs.writeFileSync(file, out, 'utf8');
+    }
+    return changed;
+}
+
+function stampContentHashes() {
+    const jsFiles = listDistFiles(dist, /\.js$/i);
+    let jsRefs = 0;
+    // Loaders can reference other loaders; repeat until hashes stop moving.
+    for (let pass = 0; pass < 5; pass += 1) {
+        const hashCache = new Map();
+        const n = jsFiles.reduce((sum, f) => sum + stampFile(f, hashCache), 0);
+        jsRefs += n;
+        if (!n) {
+            break;
+        }
+    }
+    const hashCache = new Map();
+    let htmlRefs = 0;
+    for (const f of listDistFiles(dist, /\.html$/i)) {
+        htmlRefs += stampFile(f, hashCache);
+    }
+    // CCP_I18N_VERSION is appended at runtime to lazily loaded calendar-en.js / calendar-ko.js.
+    const i18nFiles = ['calendar-en.js', 'calendar-ko.js'].map((f) => path.join(dist, 'js', 'i18n', f));
+    if (i18nFiles.every((p) => fs.existsSync(p))) {
+        const i18nHash = createHash('sha256')
+            .update(i18nFiles.map((p) => hashFile(p)).join(':'))
+            .digest('hex')
+            .slice(0, 10);
+        for (const f of listDistFiles(dist, /\.html$/i)) {
+            const html = fs.readFileSync(f, 'utf8');
+            const next = html.replace(
+                /(window\.CCP_I18N_VERSION\s*=\s*)(['"])[^'"]*\2/,
+                (m, lhs, q) => `${lhs}${q}${i18nHash}${q}`
+            );
+            if (next !== html) {
+                fs.writeFileSync(f, next, 'utf8');
+            }
+        }
+    }
+    console.log(`Cache strings: ${jsRefs} ref(s) in JS loaders, ${htmlRefs} ref(s) in HTML stamped with content hashes`);
 }
 
 async function minifyFiles() {
@@ -198,9 +343,17 @@ function rmDist() {
 }
 
 async function main() {
+    const encodingProblems = checkTreeEncoding(root, { ext: /\.html$/i });
+    if (encodingProblems.length) {
+        throw new Error(
+            'Build stopped: HTML files with broken encoding (restore them before deploying):\n' +
+                encodingProblems.join('\n')
+        );
+    }
     rmDist();
     fs.mkdirSync(dist, { recursive: true });
-    copyRecursive(root, dist);
+    copyAllowListed();
+    fs.writeFileSync(path.join(dist, '_headers'), renderHeadersFile(), 'utf8');
     // Flatten styles.css @imports into a single file for production (no nested @import).
     try {
         const flat = concatCssForDist('styles.css');
@@ -209,6 +362,7 @@ async function main() {
         console.warn('CSS flatten from styles.css failed, using copied styles.css:', err.message);
     }
     await minifyFiles();
+    stampContentHashes();
     // Production root alias — Cloudflare SPA would otherwise serve index.html for /essay-batch-editor.html
     try {
         const editorSrc = path.join(dist, 'tools', 'essay-batch-editor.html');

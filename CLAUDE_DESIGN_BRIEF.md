@@ -158,7 +158,8 @@ Modal backdrop dark: `rgba(2, 6, 23, 0.72)`
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│ ROW 1 — Tools: Calendar menu · Display · Print · Help · Account │
+│ ROW 1 — 🔔 · [+ New ▾ · Day notes · Calendar ▾ · Print · Help · ◐] │
+│         [All | Mine] · Term settings · Helper · Account ▾       │
 ├─────────────────────────────────────────────────────────────┤
 │ ROW 2 — Zone tabs: Calendar | Classes | Events | Syllabus | …  │
 │         (horizontal scroll on narrow screens + edge fade)      │
@@ -170,6 +171,8 @@ Modal backdrop dark: `rgba(2, 6, 23, 0.72)`
 │ Main content (calendar grid, lists, editors)                   │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+**Row 1 hierarchy (Phase 6):** create things from **+ New** (teal primary button, header popover); print anything from **Print** → Print Center modal; admin/file actions (backup, remove calendar, clear data, import/export index) live in **Data**; preferences (theme, language, popup, hide tabs, reset tab layout) live in **Account**. The **All | Mine** segmented switch is pinned and sets which classes every tab shows. On phones ⋮ folds + New · Day notes · Calendar · Print · Help · theme.
 
 **Zone tabs:** Track background `#eef1f5`. Active tab has **3px teal top rail** `#14b98f`.
 

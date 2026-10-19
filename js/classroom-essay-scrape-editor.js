@@ -308,71 +308,22 @@
         }
     }
 
-    function isLocalHost() {
-        try {
-            const host = String(location.hostname || '').toLowerCase();
-            return host === 'localhost' || host === '127.0.0.1';
-        } catch (_) {
-            return false;
-        }
-    }
-
-    function bridgeFetchInit(extra) {
-        return Object.assign(
-            { credentials: 'omit', targetAddressSpace: 'loopback' },
-            extra || {}
-        );
-    }
-
-    async function probeBridge() {
-        if (isLocalHost()) {
-            return null;
-        }
-        const bases = ['http://127.0.0.1:8080', 'http://localhost:8080'];
-        for (const base of bases) {
-            const controller =
-                typeof AbortController !== 'undefined' ? new AbortController() : null;
-            const timer = controller ? setTimeout(() => controller.abort(), 3000) : null;
-            try {
-                const res = await fetch(
-                    `${base}/api/tms/bridge/ping`,
-                    bridgeFetchInit({
-                        method: 'GET',
-                        signal: controller ? controller.signal : undefined
-                    })
-                );
-                if (timer) {
-                    clearTimeout(timer);
-                }
-                if (!res.ok) {
-                    continue;
-                }
-                const body = await res.json().catch(() => null);
-                if (body && body.ok === true && body.bridge === true) {
-                    return {
-                        base,
-                        previewUrl: `${base}/api/tms/bridge/essays/preview`,
-                        contentUrl: `${base}/api/tms/bridge/essays/content`
-                    };
-                }
-            } catch (_) {
-                if (timer) {
-                    clearTimeout(timer);
-                }
-            }
-        }
-        return null;
-    }
-
     function readCreds() {
         const userEl = document.getElementById('essayScrapeUsername');
         const passEl = document.getElementById('essayScrapePassword');
         const rememberEl = document.getElementById('essayScrapeRememberUser');
-        return {
+        const dom = {
             username: userEl ? String(userEl.value || '').trim() : '',
             password: passEl ? String(passEl.value || '') : '',
             rememberUser: Boolean(rememberEl && rememberEl.checked)
         };
+        if ((userEl || passEl) && (dom.username || dom.password)) {
+            return dom;
+        }
+        if (global.CCPTmsSyncCenter && global.CCPTmsSyncCenter.getCredentials) {
+            return global.CCPTmsSyncCenter.getCredentials();
+        }
+        return dom;
     }
 
     function hydrateCreds() {
@@ -765,62 +716,15 @@
                 payload.username = creds.username;
                 payload.password = creds.password;
             }
-            const bridge = await probeBridge();
-            const onLocal = isLocalHost();
-            const previewUrl = bridge
-                ? bridge.previewUrl
-                : onLocal
-                  ? '/api/tms/essays/preview'
-                  : '';
-            if (!previewUrl) {
-                setError(
-                    `${t('rosterTmsBridgeMissingHint')} ${t('rosterTmsBridgeLocalNetworkHint')}`
-                );
-                setStatus('');
-                return;
-            }
-            if (bridge) {
-                setStatus(t('classroomEssayTmsBridgeLoading'));
-            }
             stillTimer = setTimeout(() => {
                 if (loading) {
                     setStatus(t('classroomEssayTmsBridgeStillLoading'));
                 }
             }, STILL_LOADING_MS);
-            if (controller) {
-                abortTimer = setTimeout(() => controller.abort(), BRIDGE_TIMEOUT_MS);
-            }
-            const fetchInit = bridge
-                ? bridgeFetchInit({
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(payload),
-                      signal: controller.signal
-                  })
-                : {
-                      method: 'POST',
-                      credentials: 'same-origin',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(payload),
-                      signal: controller.signal
-                  };
-            const res = await fetch(previewUrl, fetchInit);
-            const contentType = String(res.headers.get('content-type') || '').toLowerCase();
-            const body = contentType.includes('application/json')
-                ? await res.json().catch(() => null)
-                : null;
-            if (!res.ok) {
-                const code = body && body.code;
-                if (code === 'TMS_CREDS_MISSING') {
-                    setError(t('rosterTmsSyncCredsMissing'));
-                } else if (code === 'TMS_LOGIN_FAILED' || res.status === 401) {
-                    setError(t('rosterTmsSyncLoginFailed'));
-                } else {
-                    setError((body && body.error) || t('rosterTmsSyncError'));
-                }
-                setStatus('');
-                return;
-            }
+            const body = await global.CCPTmsSync.run('essays', payload, {
+                timeoutMs: BRIDGE_TIMEOUT_MS,
+                signal: controller ? controller.signal : undefined
+            });
             allRows = normalizeFlatRows(body);
             selectedKeys.clear();
             filterState = {
@@ -907,52 +811,15 @@
                 payload.username = creds.username;
                 payload.password = creds.password;
             }
-            const bridge = await probeBridge();
-            const onLocal = isLocalHost();
-            const contentUrl = bridge
-                ? bridge.contentUrl
-                : onLocal
-                  ? '/api/tms/essays/content'
-                  : '';
-            if (!contentUrl) {
-                setError(
-                    `${t('rosterTmsBridgeMissingHint')} ${t('rosterTmsBridgeLocalNetworkHint')}`
-                );
-                setStatus('');
-                return;
-            }
             stillTimer = setTimeout(() => {
                 if (fetchingBodies) {
                     setStatus(t('classroomEssayScrapeFetchingStill'));
                 }
             }, STILL_LOADING_MS);
-            if (controller) {
-                abortTimer = setTimeout(() => controller.abort(), BRIDGE_TIMEOUT_MS);
-            }
-            const fetchInit = bridge
-                ? bridgeFetchInit({
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(payload),
-                      signal: controller.signal
-                  })
-                : {
-                      method: 'POST',
-                      credentials: 'same-origin',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(payload),
-                      signal: controller.signal
-                  };
-            const res = await fetch(contentUrl, fetchInit);
-            const contentType = String(res.headers.get('content-type') || '').toLowerCase();
-            const body = contentType.includes('application/json')
-                ? await res.json().catch(() => null)
-                : null;
-            if (!res.ok) {
-                setError((body && body.error) || t('classroomEssayScrapeFetchFailed'));
-                setStatus('');
-                return;
-            }
+            const body = await global.CCPTmsSync.run('essayContent', payload, {
+                timeoutMs: BRIDGE_TIMEOUT_MS,
+                signal: controller ? controller.signal : undefined
+            });
             const essays = Array.isArray(body && body.essays) ? body.essays : [];
             const byKey = new Map();
             essays.forEach((e) => {
@@ -1284,9 +1151,6 @@
         });
         document.getElementById('closeEssayScrapeEditorModal')?.addEventListener('click', () => {
             closeModal();
-        });
-        document.getElementById('essayScrapeBridgeTestBtn')?.addEventListener('click', () => {
-            window.open('http://127.0.0.1:8080/api/tms/bridge/ping', '_blank', 'noopener,noreferrer');
         });
         document.getElementById('essayScrapeMonth')?.addEventListener('change', (e) => {
             filterState.month = e.target.value || '';

@@ -38,7 +38,7 @@ const sampleTracker = {
                 {
                     id: 'uuid-1',
                     index: 1,
-                    koreanName: '김익카',
+                    koreanName: '박테다',
                     englishName: 'Naeun',
                     branch: '잠실',
                     school: 'Test School',
@@ -76,7 +76,7 @@ assert(parsed.pack.cohorts[0].cohortName === 'Purple Tue 6/4', 'class name');
 assert(parsed.pack.cohorts[0].students.length === 2, 'student count');
 
 const s0 = parsed.pack.cohorts[0].students[0];
-assert(s0.name === '김익카' && s0.nameEn === 'Naeun', 'name mapping');
+assert(s0.name === '박테다' && s0.nameEn === 'Naeun', 'name mapping');
 assert(s0.locationTag === '잠실', 'branch mapping');
 assert(s0.tags.includes('interested'), 'star → interested tag');
 assert(s0.memo.includes('Test School'), 'memo includes school');
@@ -92,7 +92,7 @@ const calendarCohorts = [
         students: [
             {
                 id: 'stu-existing-1',
-                name: '김익카',
+                name: '박테다',
                 nameEn: 'Naeun',
                 sortOrder: 1,
                 active: true,
@@ -118,7 +118,7 @@ assert(!applied.error, applied.error || 'apply ok');
 const merged = applied.cohorts.find((c) => c.id === 'cohort-purple');
 assert(merged.students.length === 2, 'merge replace keeps two students');
 assert(
-    merged.students.some((s) => s.id === 'stu-existing-1' && s.name === '김익카'),
+    merged.students.some((s) => s.id === 'stu-existing-1' && s.name === '박테다'),
     'existing id preserved by name'
 );
 

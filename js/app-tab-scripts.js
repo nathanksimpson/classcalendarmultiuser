@@ -4,7 +4,7 @@
 (function (global) {
     const SCRIPT_FEEDBACK_TEMPLATES = 'js/debate/feedback-templates.js?v=20260710-debate-v2';
     const SCRIPT_DEBATE_SCORESHEET_EXPORT = 'js/debate/debate-scoresheet-export.js?v=20260915-class-prefix';
-    const SCRIPT_DEBATE_TEAMS_V2 = 'js/debate/debate-teams-v2.js?v=20261012-student-id';
+    const SCRIPT_DEBATE_TEAMS_V2 = 'js/debate/debate-teams-v2.js?v=20261015-p7-level';
     const SCRIPT_DEBATE_DUTIES_PPTX = 'js/debate/debate-duties-pptx.js?v=20260915-name-first';
     const SCRIPT_PPTXGENJS = 'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js';
     const SCRIPT_CLASS_CURRICULUM_SLICES = 'js/class-curriculum-slices.js?v=20260603-curriculum-pipeline';
@@ -15,9 +15,9 @@
         cohorts: [
             SCRIPT_TEACHER_TIMETABLE,
             'js/meeting-days-control.js?v=20260610-setup-board',
-            'js/hr-teacher-list.js?v=20260909-cohort-color',
+            'js/hr-teacher-list.js?v=20261015-p7-level',
             'js/hr-teacher-list-print.js?v=20260909-hr-title',
-            'js/cohort-management.js?v=20260907-hr-t-list',
+            'js/cohort-management.js?v=20261014-p6-hierarchy',
             'js/setup-board.js?v=20260828-cohort-catch22',
             'js/cohorts-class-detail.js?v=20260908-quick-wins'
         ],
@@ -41,25 +41,25 @@
             SCRIPT_ROSTER_IMPORT,
             'js/classroom-access.js?v=20260911-essay-groups',
             'js/classroom-student-row.js?v=20260723-tms-sync',
-            'js/classroom-roster.js?v=20261005-merge-debug'
+            'js/classroom-roster.js?v=20261013-tms-sync'
         ],
         attendance: [
             'js/classroom-access.js?v=20260911-essay-groups',
             'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/classroom-header.js?v=20260807-hr-tools',
-            'js/classroom-attendance.js?v=20260806-patch-mutations'
+            'js/classroom-attendance.js?v=20261014-shared-class'
         ],
         briefing: [
             'js/classroom-access.js?v=20260911-essay-groups',
             'js/classroom-header.js?v=20260807-hr-tools',
-            'js/classroom-briefing.js?v=20260914-hw-skip-warn'
+            'js/classroom-briefing.js?v=20261013-tms-sync'
         ],
         'homework-tracking': [
             'js/classroom-access.js?v=20260911-essay-groups',
             'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/classroom-header.js?v=20260807-hr-tools',
-            'js/classroom-homework.js?v=20260914-navym-hw',
-            'js/classroom-homework-tms.js?v=20260914-navym-hw'
+            'js/classroom-homework.js?v=20261014-shared-class',
+            'js/classroom-homework-tms.js?v=20261013-tms-sync'
         ],
         essays: [
             'js/classroom-access.js?v=20260911-essay-groups',
@@ -72,13 +72,13 @@
             'js/classroom-essay-class-summary.js?v=20261006-essay-report-filters',
             'js/classroom-essay-class-summary-print.js?v=20261005-essay-demerit',
             'js/classroom-header.js?v=20260807-hr-tools',
-            'js/classroom-essay-scrape-editor.js?v=20261007-essay-note-no-ai',
-            'js/classroom-essays.js?v=20261007-essay-note-sync'
+            'js/classroom-essay-scrape-editor.js?v=20261013-tms-sync',
+            'js/classroom-essays.js?v=20261014-debate-period'
         ],
         ledger: [
             'js/classroom-access.js?v=20260911-essay-groups',
             'js/classroom-ledger-bridge.js?v=20260619-ui-overhaul',
-            'js/classroom-ledger.js?v=20260807-hr-tools'
+            'js/classroom-ledger.js?v=20261014-shared-class'
         ],
         'command-center': [
             'js/command-center.js?v=20260807-deconflict-min'
@@ -93,7 +93,7 @@
             'js/classroom-access.js?v=20260911-essay-groups',
             'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/classroom-header.js?v=20260807-hr-tools',
-            'js/classroom-tests.js?v=20260703-zone-context'
+            'js/classroom-tests.js?v=20261014-shared-class'
         ],
         'debate-teams': [
             'https://cdn.jsdelivr.net/npm/pizzip@3.1.7/dist/pizzip.min.js',
@@ -104,7 +104,7 @@
             SCRIPT_DEBATE_TEAMS_V2,
             SCRIPT_DEBATE_DUTIES_PPTX,
             'js/classroom-access.js?v=20260911-essay-groups',
-            'js/classroom-debate-teams.js?v=20261012-student-id'
+            'js/classroom-debate-teams.js?v=20261014-debate-period'
         ],
         'debate-scores': [
             'https://cdn.jsdelivr.net/npm/pizzip@3.1.7/dist/pizzip.min.js',
@@ -115,7 +115,7 @@
             SCRIPT_DEBATE_TEAMS_V2,
             SCRIPT_DEBATE_DUTIES_PPTX,
             'js/classroom-access.js?v=20260911-essay-groups',
-            'js/classroom-debate-scores.js?v=20260721-numpad-place'
+            'js/classroom-debate-scores.js?v=20261014-debate-period'
         ],
         'debate-books': [
             'js/classroom-access.js?v=20260911-essay-groups',
@@ -124,7 +124,7 @@
             'js/classroom-essay-class-summary.js?v=20261006-essay-report-filters',
             'js/classroom-debate-books-summary.js?v=20260901-books-print-search',
             'js/classroom-debate-books-summary-print.js?v=20260831-books-today',
-            'js/classroom-debate-books.js?v=20260901-books-print-search'
+            'js/classroom-debate-books.js?v=20261014-p6-hierarchy'
         ],
         'speaking-test': [
             SCRIPT_ROSTER_IMPORT,

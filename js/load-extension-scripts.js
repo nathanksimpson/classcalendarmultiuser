@@ -7,11 +7,11 @@
         'js/syllabus-table.js?v=20261002-essay-list-month',
         'js/schedule-matrix-data.js',
         'js/syllabus-schedule-matrix.js',
-        'js/syllabus-curricula-data.js?v=20260907-strip-angle',
+        'js/syllabus-curricula-data.js?v=20261015-p7-level',
         'js/syllabus-curricula.js',
         'js/syllabus-presets.js',
         'js/default-class-editor.js?v=20260908-quick-wins',
-        'js/books-editor.js?v=20260930-debate-copy-syllabus',
+        'js/books-editor.js?v=20261015-p7-level',
         'js/homework-import.js?v=20260907-strip-angle',
         'js/homework-tab.js?v=20260929-assign-essay-warn',
         'js/syllabus-templates.js?v=20260908-debate-combine'

@@ -65,6 +65,17 @@ When two student cohorts meet together for the same subject (합반), use **one 
 
 Homeroom (담임) stays on each cohort; the shared class only needs teachers listed under **Classes**.
 
+## Sync from TMS
+
+TMS only accepts the school network. Install the **Sync Helper** once on the school PC.
+
+1. On classmanager.live, open **Sync** and click **Download installer**.
+2. Double-click the file. If Windows says it protected your PC, click **More info**, then **Run anyway**.
+3. Leave the helper running. It starts again the next time you sign in to Windows.
+4. Press **Check again**. When it says **Helper ready**, type your TMS username and password and press **Load**.
+
+The password is used for that sync only. It is not saved in a file on the PC.
+
 ## More help
 
 - In the app: **Help** opens [help.html](help.html) — sections 1–14 = planner, **17–19** = team sign-in and locks, **20–21** = Admin and roles.

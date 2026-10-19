@@ -189,4 +189,26 @@ const styles = printApi.getPrintStyles();
 assert(styles.includes('print-color-adjust: exact'), 'print CSS keeps colors');
 assert(styles.includes('color: #243244') || styles.includes('color:#243244'), 'table CSS locks light-paper text');
 
+// Without the getAllSimsonLevels hook, order comes from js/level-profile.js (incl. middle school).
+await import(pathToFileURL(path.join(root, 'js', 'level-profile.js')).href);
+assert(globalThis.CCPLevelProfile, 'CCPLevelProfile loaded');
+const YUMA = '\uC720\uB9C8';
+const noHookRows = api.buildRows({
+    cohorts: [
+        { id: 'yuma-mwf', name: 'Yuma', levelPreset: YUMA, schedulePattern: 'mwf', homeroomTeacherName: 'Kim' },
+        { id: 'pre-yuma', name: 'Pre Yuma', levelPreset: `Pre ${YUMA}`, schedulePattern: 'mwf', homeroomTeacherName: 'Lee' },
+        { id: 'navy-mwf', name: 'Navy', levelPreset: 'Navy', schedulePattern: 'mwf', homeroomTeacherName: 'Park' }
+    ]
+}, {
+    getEffectiveCohortPattern: (cohort) => (cohort.schedulePattern === 'tth' ? 'tth' : 'mwf'),
+    formatCohortDisplayTitle: (cohort) => cohort.name || '',
+    getHomeroomLabel: (cohort) => cohort.homeroomTeacherName || ''
+});
+assert(
+    noHookRows.map((r) => r.levelId).join(',') === ['Navy', `Pre ${YUMA}`, YUMA].join(','),
+    `profile order elementary → pre-middle → middle, got ${noHookRows.map((r) => r.levelId).join(',')}`
+);
+assert(noHookRows[2].accent === '#fef08a', 'middle-school row uses the profile grade color');
+assert(api.fallbackLevelColor('Red').color === api.NAMED_LEVEL_COLORS.Red, 'Red fallback color unchanged');
+
 console.log('hr-teacher-list.test.mjs: all passed');

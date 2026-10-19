@@ -9,7 +9,6 @@
     let autosave = null;
     let contextSubscribed = false;
     let draftSession = null;
-    let applyingAssignment = false;
     let boundPanel = null;
     let draftEpoch = 0;
     let scoreNumpadEl = null;
@@ -117,17 +116,6 @@
         return false;
     }
 
-    function getDebateAssignmentMap() {
-        const data = getAppData();
-        if (!data.ui) {
-            data.ui = {};
-        }
-        if (!data.ui.debateAssignmentByClassId || typeof data.ui.debateAssignmentByClassId !== 'object') {
-            data.ui.debateAssignmentByClassId = {};
-        }
-        return data.ui.debateAssignmentByClassId;
-    }
-
     function getScheduledLessonsForClass(classData) {
         if (!classData || !hooks || typeof hooks.getLessonDates !== 'function') {
             return [];
@@ -141,67 +129,55 @@
         }
     }
 
-    function listAssignmentsForClass(classData) {
-        const d = domain();
-        if (!d || !classData || !d.listDebateTeamAssignmentsForClass) {
-            return [];
-        }
-        return d.listDebateTeamAssignmentsForClass(classData, {
-            scheduledLessons: getScheduledLessonsForClass(classData)
-        });
-    }
-
-    function persistDebateAssignmentDate(cId, dateStr) {
-        if (!cId || !dateStr) {
-            return;
-        }
-        const map = getDebateAssignmentMap();
-        map[cId] = dateStr;
-        if (typeof global.saveUiStateToLocalStorage === 'function') {
-            global.saveUiStateToLocalStorage();
-        }
-    }
-
-    function pushSessionDateToContext(dateStr, source) {
-        const next = String(dateStr || '').trim();
-        if (!next) {
-            return;
-        }
-        applyingAssignment = true;
-        try {
-            if (typeof global.CCPActiveContext !== 'undefined' && global.CCPActiveContext.set) {
-                global.CCPActiveContext.set({ sessionDate: next }, { source: source || 'debate-scores-assignment' });
-            } else if (hooks && hooks.setUiPref) {
-                hooks.setUiPref('classroomTabDate', next);
-            }
-        } finally {
-            applyingAssignment = false;
-        }
-    }
-
+    /** Date of the shared debate assignment (CCPAssignments) for classData; local to this tab. */
     function resolveDebateAssignmentDate(classData, preferredDate) {
         const d = domain();
-        if (!d || !classData || !d.classUsesDebateTeamAssignments || !d.classUsesDebateTeamAssignments(classData)) {
+        const api = global.CCPAssignments;
+        if (!d || !api || !classData || !d.classUsesDebateTeamAssignments || !d.classUsesDebateTeamAssignments(classData)) {
             return preferredDate || '';
         }
-        const assignments = listAssignmentsForClass(classData);
-        if (!assignments.length) {
-            return preferredDate || '';
+        const assignment = api.resolve('debate', classData, getAppData(), {
+            refDate: preferredDate,
+            scheduledLessons: getScheduledLessonsForClass(classData)
+        });
+        return assignment ? assignment.date : preferredDate || '';
+    }
+
+    function currentPeriodKey() {
+        const d = domain();
+        if (!d || !classId || !sessionDate || typeof d.debateAssignmentPeriodKey !== 'function') {
+            return sessionDate || '';
         }
-        const map = getDebateAssignmentMap();
-        const saved = map[classData.id] || '';
-        if (saved && assignments.some((a) => a.date === saved)) {
-            return saved;
+        return d.debateAssignmentPeriodKey(getClassData() || { id: classId }, sessionDate);
+    }
+
+    function findTeamSession() {
+        const d = domain();
+        if (!d || !classId || !sessionDate) {
+            return null;
         }
-        const preferred = String(preferredDate || '').trim();
-        if (preferred && assignments.some((a) => a.date === preferred)) {
-            return preferred;
+        return d.findDebateTeamSession(getAppData().debateTeamSessions, classId, sessionDate, getClassData());
+    }
+
+    function onSharedAssignmentChanged(detail) {
+        if (!detail || detail.kind !== 'debate' || !hooks || detail.classId !== classId) {
+            return;
         }
-        return (
-            d.pickDefaultDebateTeamDate(classData, preferred || d.todayISO(), {
-                scheduledLessons: getScheduledLessonsForClass(classData)
-            }) || assignments[assignments.length - 1].date
-        );
+        const panel = panelRef || document.getElementById('panel-debate-scores');
+        if (!panel || panel.hidden) {
+            return;
+        }
+        const nextDate = resolveDebateAssignmentDate(getClassData(), sessionDate);
+        if (!nextDate || nextDate === sessionDate) {
+            return;
+        }
+        void flushBeforeLeave().then(() => {
+            sessionDate = nextDate;
+            ensureDraftSession();
+            if (panelRef) {
+                render(panelRef);
+            }
+        });
     }
 
     function defaultSheetTemplate(classData) {
@@ -251,7 +227,7 @@
         if (!d || !d.buildDebateRoleMapFromTeamSession || !classId || !sessionDate) {
             return Object.create(null);
         }
-        const teamSession = d.findDebateTeamSession(data.debateTeamSessions, classId, sessionDate);
+        const teamSession = findTeamSession();
         return d.buildDebateRoleMapFromTeamSession(teamSession, getStudents());
     }
 
@@ -447,19 +423,20 @@
             return;
         }
         const data = getAppData();
-        const existing = d.findDebateScoreSession(data.debateScores, classId, sessionDate);
         const classData = getClassData();
+        const existing = d.findDebateScoreSession(data.debateScores, classId, sessionDate, classData);
+        const periodKey = currentPeriodKey();
         const sameDraft =
             draftSession &&
             draftSession.classId === classId &&
-            draftSession.date === sessionDate;
+            draftSession.periodKey === periodKey;
         const scoreSource = sameDraft ? draftSession : existing;
         const sheetTemplate =
             (scoreSource && scoreSource.sheetTemplate) ||
             (existing && existing.sheetTemplate) ||
             defaultSheetTemplate(classData);
         const roleMap = buildRoleMapFromTeams();
-        const teamSession = d.findDebateTeamSession(data.debateTeamSessions, classId, sessionDate);
+        const teamSession = findTeamSession();
         const byId = Object.create(null);
         if (scoreSource && Array.isArray(scoreSource.records)) {
             scoreSource.records.forEach((r) => {
@@ -500,7 +477,8 @@
                 (existing && existing.id) ||
                 d.newId('dbs'),
             classId,
-            date: sessionDate,
+            date: (sameDraft && draftSession.date) || (existing && existing.date) || sessionDate,
+            periodKey,
             sheetTemplate: d.normalizeDebateSheetTemplate(sheetTemplate),
             sessionId: teamSession && teamSession.id ? teamSession.id : null,
             records: records.filter(Boolean),
@@ -572,67 +550,6 @@
                 saveBtn.disabled = !canEdit();
             }
         }
-    }
-
-    function syncAssignmentPicker(panel) {
-        const wrap = panel && panel.querySelector('#classroomDebateScoresAssignmentWrap');
-        const select = panel && panel.querySelector('#classroomDebateScoresAssignmentSelect');
-        const emptyEl = panel && panel.querySelector('#classroomDebateScoresAssignmentEmpty');
-        if (!wrap || !select) {
-            return;
-        }
-        const d = domain();
-        const classData = getClassData();
-        const isDebate =
-            !!(d && classData && d.classUsesDebateTeamAssignments && d.classUsesDebateTeamAssignments(classData));
-        if (!isDebate) {
-            wrap.hidden = true;
-            if (emptyEl) {
-                emptyEl.hidden = true;
-            }
-            return;
-        }
-        const assignments = listAssignmentsForClass(classData);
-        if (!assignments.length) {
-            wrap.hidden = true;
-            if (emptyEl) {
-                emptyEl.hidden = false;
-                emptyEl.textContent = t('classroomDebateAssignmentEmpty');
-            }
-            return;
-        }
-        if (emptyEl) {
-            emptyEl.hidden = true;
-        }
-        wrap.hidden = false;
-        const current = sessionDate;
-        select.innerHTML = assignments
-            .map((a) => {
-                const selected = a.date === current ? ' selected' : '';
-                return `<option value="${escapeHtml(a.date)}"${selected}>${escapeHtml(a.assignmentLabel)}</option>`;
-            })
-            .join('');
-        if (current && !assignments.some((a) => a.date === current)) {
-            select.value = assignments[0].date;
-        } else {
-            select.value = current;
-        }
-    }
-
-    function onAssignmentSelectChange(e) {
-        const nextDate = e && e.target ? String(e.target.value || '').trim() : '';
-        if (!nextDate || nextDate === sessionDate) {
-            return;
-        }
-        void flushBeforeLeave().then(() => {
-            sessionDate = nextDate;
-            persistDebateAssignmentDate(classId, nextDate);
-            pushSessionDateToContext(nextDate, 'debate-scores-assignment-select');
-            ensureDraftSession();
-            if (panelRef) {
-                render(panelRef);
-            }
-        });
     }
 
     function updateBookChip(panel) {
@@ -1262,7 +1179,7 @@
         }
         const d = domain();
         const data = getAppData();
-        const teamSession = d.findDebateTeamSession(data.debateTeamSessions, classId, sessionDate);
+        const teamSession = findTeamSession();
         if (!teamSession || !teamSession.sessionState || !Array.isArray(teamSession.sessionState.debates) || !teamSession.sessionState.debates.length) {
             hint.hidden = false;
             hint.textContent = t('classroomDebateScoresNoTeamsHint');
@@ -1349,11 +1266,6 @@
             return;
         }
         boundPanel = panel;
-        const assignmentSelect = panel.querySelector('#classroomDebateScoresAssignmentSelect');
-        if (assignmentSelect && !assignmentSelect.dataset.bound) {
-            assignmentSelect.dataset.bound = '1';
-            assignmentSelect.addEventListener('change', onAssignmentSelectChange);
-        }
         const templateSelect = panel.querySelector('#classroomDebateScoresTemplate');
         if (templateSelect && !templateSelect.dataset.bound) {
             templateSelect.dataset.bound = '1';
@@ -1424,7 +1336,6 @@
         bindToolbar(panel);
         applyPanelI18n(panel);
         ensureToolbarCollapsedState(panel);
-        syncAssignmentPicker(panel);
         updateBookChip(panel);
         ensureDraftSession();
         const templateSelect = panel.querySelector('#classroomDebateScoresTemplate');
@@ -1471,10 +1382,10 @@
             return;
         }
         contextSubscribed = true;
+        if (global.CCPAssignments && global.CCPAssignments.subscribe) {
+            global.CCPAssignments.subscribe(onSharedAssignmentChanged);
+        }
         global.CCPActiveContext.subscribe(() => {
-            if (applyingAssignment) {
-                return;
-            }
             const panel = panelRef || document.getElementById('panel-debate-scores');
             if (!panel || panel.hidden) {
                 return;
@@ -1483,9 +1394,6 @@
                 const next = resolveContext();
                 classId = next.classId;
                 sessionDate = next.sessionDate;
-                if (classId && sessionDate) {
-                    persistDebateAssignmentDate(classId, sessionDate);
-                }
                 ensureDraftSession();
                 render(panel);
             });
@@ -1508,12 +1416,6 @@
         }
         if (options && options.sessionDate) {
             sessionDate = String(options.sessionDate);
-        }
-        if (classId && sessionDate) {
-            persistDebateAssignmentDate(classId, sessionDate);
-            if (!applyingAssignment) {
-                pushSessionDateToContext(sessionDate, 'debate-scores-init');
-            }
         }
         ensureDraftSession();
         render(panel);

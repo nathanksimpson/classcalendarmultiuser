@@ -730,11 +730,22 @@ Homework: ${homework}`;
 
     const DEBATE_SENIOR_ELEM_LEVELS = ['Garam', 'Bada', 'Byeolmaru', 'Mirinae'];
 
-    const DEBATE_BAND_LEVELS = {
-        purple: ['Purple'],
-        yeoulSaemmul: ['Yeoul', 'Saemmul'],
-        senior: [...DEBATE_SENIOR_ELEM_LEVELS, ...DEBATE_MIDDLE_SCHOOL_LEVEL_IDS]
-    };
+    /** Source of truth is js/level-profile.js; the literals above are the fallback when it is not loaded. */
+    const levelProfile = global.CCPLevelProfile && global.CCPLevelProfile.DEBATE_BAND_LEVELS
+        ? global.CCPLevelProfile
+        : null;
+
+    const DEBATE_BAND_LEVELS = levelProfile
+        ? {
+            purple: levelProfile.DEBATE_BAND_LEVELS.purple.slice(),
+            yeoulSaemmul: levelProfile.DEBATE_BAND_LEVELS.yeoulSaemmul.slice(),
+            senior: levelProfile.DEBATE_BAND_LEVELS.senior.slice()
+        }
+        : {
+            purple: ['Purple'],
+            yeoulSaemmul: ['Yeoul', 'Saemmul'],
+            senior: [...DEBATE_SENIOR_ELEM_LEVELS, ...DEBATE_MIDDLE_SCHOOL_LEVEL_IDS]
+        };
 
     const DEBATE_DAY1_DETAIL = `Vocabulary, p. 7 (Write example sentences)
 Reading Comprehension, p. 11 (if not finished during class)
@@ -829,6 +840,9 @@ ${DEBATE_PREVIEW_BLOCK}`,
 
     function resolveDebateHomeworkBand(level) {
         const t = (level || '').trim();
+        if (levelProfile) {
+            return levelProfile.debateBandForLevel(t);
+        }
         if (t === 'Purple') {
             return 'purple';
         }
@@ -843,6 +857,9 @@ ${DEBATE_PREVIEW_BLOCK}`,
 
     function resolveDebatePresetId(level) {
         const band = resolveDebateHomeworkBand(level);
+        if (levelProfile && levelProfile.DEBATE_PRESET_IDS) {
+            return band ? levelProfile.DEBATE_PRESET_IDS[band] || null : null;
+        }
         if (band === 'purple') {
             return 'preset-debate-purple';
         }

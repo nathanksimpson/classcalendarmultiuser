@@ -325,6 +325,8 @@
     /** Last class used for format/sheet defaults (so unchecking purple restores Yeoul sheet). */
     let formatDefaultClassData = null;
     let formatDefaultDebateBook = '';
+    /** >0 while runDetached builds a session off-screen: no render, no save notifications. */
+    let detachedDepth = 0;
 
     const state = {
         version: 2,
@@ -438,6 +440,9 @@
     }
 
     function notifySave() {
+        if (detachedDepth > 0) {
+            return;
+        }
         if (bridge && bridge.onSave) {
             bridge.onSave(collectState());
         }
@@ -1311,7 +1316,7 @@
 
     function parseRoster(text) {
         const out = [];
-        const re = /([가-힣]{2,4})\s*★*\s*\n?\s*\(\s*([A-Za-z][A-Za-z\-.' ]*)\s*\)/g;
+        const re = /([가-힣]{2,7})\s*★*\s*\n?\s*\(\s*([A-Za-z][A-Za-z\-.' ]*)\s*\)/g;
         let m;
         while ((m = re.exec(text))) {
             const name = m[1] + ' (' + m[2].trim() + ')';
@@ -1735,7 +1740,7 @@
     }
 
     function render() {
-        if (!root) {
+        if (!root || detachedDepth > 0) {
             return;
         }
         ensureRootBound();
@@ -2565,6 +2570,42 @@
         render();
     }
 
+    /**
+     * Run fn against a fresh off-screen state, then restore the live state exactly.
+     * fn must be synchronous; nothing renders or notifies the bridge meanwhile.
+     */
+    function runDetached(fn) {
+        const savedState = JSON.parse(JSON.stringify(state));
+        const savedFmtClass = formatDefaultClassData;
+        const savedFmtBook = formatDefaultDebateBook;
+        detachedDepth += 1;
+        try {
+            Object.assign(state, {
+                version: 2,
+                students: [],
+                formatId: 'ap',
+                includeReply: false,
+                maxTeamSize: 3,
+                classTitle: '',
+                hrTeacher: '',
+                topic: '',
+                sheetTemplate: 'garam',
+                purpleMode: false,
+                debates: [],
+                studentIds: []
+            });
+            return fn();
+        } finally {
+            Object.keys(state).forEach((k) => {
+                delete state[k];
+            });
+            Object.assign(state, savedState);
+            formatDefaultClassData = savedFmtClass;
+            formatDefaultDebateBook = savedFmtBook;
+            detachedDepth -= 1;
+        }
+    }
+
     function collectState() {
         return {
             version: 2,
@@ -2625,9 +2666,23 @@
         return { ok: true, reason: 'imported', count: list.length, debatesCleared };
     }
 
+    /** Band defaults for a known levelPreset (js/level-profile.js), else null. */
+    function levelPresetDebateDefaults(classData) {
+        const lp = global.CCPLevelProfile;
+        if (!lp || typeof lp.getLevelById !== 'function' || !classData) {
+            return null;
+        }
+        const def = lp.getLevelById(classData.levelPreset);
+        return def ? lp.debateDefaultsForBand(lp.debateBandForLevel(def.id)) : null;
+    }
+
     function isPurpleDebateClass(classData, debateBook) {
         if (!classData) {
             return false;
+        }
+        const fromLevel = levelPresetDebateDefaults(classData);
+        if (fromLevel && fromLevel.purpleMode) {
+            return true;
         }
         const preset = String(classData.levelPreset || '').trim();
         const custom = String(classData.levelCustom || classData.level || '').trim();
@@ -2636,6 +2691,15 @@
         }
         const book = String(debateBook || classData.book || '').trim();
         return /purple/i.test(book);
+    }
+
+    /** Neutral new-session knobs (the 'none' band row); level-specific bits are applied below. */
+    function newSessionBaseDefaults() {
+        const lp = global.CCPLevelProfile;
+        if (lp && typeof lp.debateDefaultsForBand === 'function') {
+            return lp.debateDefaultsForBand(null);
+        }
+        return { purpleMode: false, formatId: 'ap', includeReply: false, teamSize: 3, sheetTemplate: 'garam' };
     }
 
     function applyClassFormatDefaults(classData, options) {
@@ -2650,11 +2714,12 @@
             if (state.debates.length > 0) {
                 return;
             }
+            const base = newSessionBaseDefaults();
             state.purpleMode = false;
-            state.formatId = 'ap';
-            state.includeReply = false;
-            state.maxTeamSize = 3;
-            state.sheetTemplate = 'garam';
+            state.formatId = base.formatId;
+            state.includeReply = base.includeReply;
+            state.maxTeamSize = base.includeReply ? base.teamSize + 1 : base.teamSize;
+            state.sheetTemplate = base.sheetTemplate;
         } else if (options.onlyIfPristine === false) {
             // Never re-force on stored sessions. A saved purpleMode:false always wins.
             return;
@@ -2731,6 +2796,7 @@
         hasLiveDom,
         loadState,
         collectState,
+        runDetached,
         importRoster,
         render,
         assignDebates,

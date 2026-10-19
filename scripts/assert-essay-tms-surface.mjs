@@ -57,16 +57,16 @@ export function assertEssayTmsSurface() {
     mustInclude(
         'server/index.js',
         [
-            "app.post('/api/tms/essays/preview'",
-            "app.post('/api/tms/bridge/essays/preview'",
-            'runTmsEssayPreview'
+            "registerTmsSessionJob('/api/tms/essays/preview', 'essays')",
+            "registerTmsBridgeJob('/api/tms/bridge/essays/preview', 'essays')",
+            'runTmsJob'
         ],
         errors
     );
 
     mustInclude(
         'worker/src/index.js',
-        ["path === '/api/tms/essays/preview'"],
+        ["'/api/tms/essays/preview': 'essays'"],
         errors
     );
 

@@ -12,10 +12,12 @@
     "test": "node scripts/run-all-tests.mjs",
     "test:all": "node scripts/run-all-tests.mjs",
     "deploy": "npm run build && wrangler deploy",
+    "build:helper": "node scripts/build-helper.mjs",
     "db:migrate:remote": "wrangler d1 migrations apply calendar-team --remote"
   },
   "devDependencies": {
     "esbuild": "0.28.1",
+    "postject": "1.0.0-alpha.6",
     "wrangler": "4.100.0"
   },
   "engines": {

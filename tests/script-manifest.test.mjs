@@ -145,4 +145,19 @@ assert(
     'TAB_SCRIPTS.students must include js/classroom-roster.js (Homework Day 3 roster)'
 );
 
+// js/level-profile.js: eager, one ?v=, after debate-periods and before classroom-domain / app.js.
+const indexPaths = indexScripts.map((s) => parseSrc(s).path);
+const levelProfileIdx = indexPaths.indexOf('js/level-profile.js');
+assert(levelProfileIdx >= 0, 'index.html must load js/level-profile.js');
+assert(indexPaths.filter((p) => p === 'js/level-profile.js').length === 1, 'js/level-profile.js listed once');
+assert(parseSrc(indexScripts[levelProfileIdx]).version, 'js/level-profile.js needs a ?v=');
+assert(levelProfileIdx > indexPaths.indexOf('js/debate-periods.js'), 'level-profile after debate-periods');
+assert(levelProfileIdx < indexPaths.indexOf('js/classroom-domain.js'), 'level-profile before classroom-domain');
+assert(levelProfileIdx < indexPaths.indexOf('app.js'), 'level-profile before app.js');
+['notes.html', 'planner.html'].forEach((page) => {
+    const paths = [...read(page).matchAll(/<script[^>]+src=["']([^"']+)["']/g)].map((m) => parseSrc(m[1]).path);
+    const idx = paths.indexOf('js/level-profile.js');
+    assert(idx >= 0 && idx < paths.indexOf('app.js'), `${page} loads js/level-profile.js before app.js`);
+});
+
 console.log('script-manifest.test.mjs: all passed');

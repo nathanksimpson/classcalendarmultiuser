@@ -611,6 +611,7 @@
         },
 
         setActiveCalendarId(id) {
+            const prev = state.activeCalendarId;
             state.activeCalendarId = id;
             try {
                 if (typeof CCPSessionRestore !== 'undefined' && CCPSessionRestore.setActiveCalendarIdInStorage) {
@@ -621,6 +622,9 @@
                     localStorage.removeItem(STORAGE_ACTIVE);
                 }
             } catch (_) { /* ignore */ }
+            if (prev !== id && typeof CCPActiveContext !== 'undefined' && CCPActiveContext.reload) {
+                CCPActiveContext.reload();
+            }
         },
 
         isReadOnly() {
@@ -897,6 +901,22 @@
             }
             debugLog('api', 'PUT /ui-prefs', { calendarId: calId });
             return apiFetch('/calendars/' + encodeURIComponent(calId) + '/ui-prefs', {
+                method: 'PUT',
+                body: body && typeof body === 'object' ? body : {}
+            });
+        },
+
+        async loadUserUiPrefs() {
+            debugLog('api', 'GET /me/ui-prefs');
+            const result = await apiFetch('/me/ui-prefs');
+            return result && typeof result === 'object'
+                ? result
+                : { classScope: null, updatedAt: null };
+        },
+
+        async putUserUiPrefs(body) {
+            debugLog('api', 'PUT /me/ui-prefs');
+            return apiFetch('/me/ui-prefs', {
                 method: 'PUT',
                 body: body && typeof body === 'object' ? body : {}
             });

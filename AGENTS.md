@@ -66,7 +66,7 @@ The repo lives on a **USB drive** (`Simson USB\Class Calendar Multi User`) so yo
 
 Without `npm start`, the app cannot load or save calendar data.
 
-**TMS Sync on classmanager.live (work IP allowlist):** keep `npm start` / START TEAM CALENDAR.bat running on the work PC (port 8080). The live Sync modal probes `http://127.0.0.1:8080/api/tms/bridge/ping` and scrapes via the local bridge so TMS sees the work IP; Apply still saves to the cloud calendar.
+**TMS Sync on classmanager.live:** teachers install the Sync Helper (port 8765) from the header Sync window. It stays on that PC so TMS sees the school IP. `npm start` on port 8080 remains the developer bridge. The live site probes `http://127.0.0.1:8765` first, then `http://127.0.0.1:8080`. Apply still saves to the cloud calendar.
 
 **Essay Sync (Classroom → Essays → Sync from TMS):** uses `POST /api/tms/bridge/essays/preview` (not the roster bridge path). After pulling/deploying essay Sync code, **restart** the local bridge process — an old `npm start` still answers ping (`bridge: true`) but essay load fails with “Failed to fetch” until restarted from this project folder.
 
@@ -74,10 +74,11 @@ Without `npm start`, the app cannot load or save calendar data.
 
 1. Test locally via `npm start` when possible (see above).
 2. API changes: update **both** `server/` and `worker/src/`.
-3. Bump `?v=` on changed scripts in `index.html` (`app.js`, `js/calendar-sync.js`, `js/team-auth.js`).
-4. `npm run deploy` (runs `npm run build` → minified `dist/`, then wrangler) — **git push alone does not update the live site.** Local `npm start` still serves unfrozen sources from the repo root. **CSS:** edit root `styles.css` only; `npm run build` runs `css:split` then bundles `css/index.css` into `dist/styles.css` for production.
-5. New D1 migration: `npm run db:migrate:remote` then deploy.
-6. Production smoke test + Ctrl+F5 on browsers.
+3. **Cache strings are automatic for deploys:** `npm run build` rewrites every quoted `…?v=…` ref (HTML and JS loaders such as `js/app-tab-scripts.js`) in `dist/` to a content hash, and sets `CCP_I18N_VERSION`. Manual `?v=` bumps in the repo are only needed if you want a hard refresh to pick up changes under local `npm start`. Keep a non-empty `?v=` on new script/link tags so the build can stamp them.
+4. **What ships:** `scripts/build-assets.mjs` publishes an allow-list (`*.html`, `app.js`, `styles.css`, `js/`, `css/`, `help/`, `soundboard/`, `templates/`, `tools/`, …). A new top-level file or folder **fails the build** until you add it to `SHIP_*` (public) or `DEV_ONLY_*` (private). Security headers come from `shared/security-headers.cjs` (written to `dist/_headers`; Worker pages via `withSecurityHeaders`).
+5. `npm run deploy` (runs `npm run build` → minified `dist/`, then wrangler) — **git push alone does not update the live site.** Local `npm start` still serves unfrozen sources from the repo root. **CSS:** edit root `styles.css` only; `npm run build` runs `css:split` then bundles `css/index.css` into `dist/styles.css` for production.
+6. New D1 migration: `npm run db:migrate:remote` then deploy.
+7. Production smoke test + Ctrl+F5 on browsers.
 
 ## Collaborative lock (current behavior)
 
@@ -110,7 +111,9 @@ Without `npm start`, the app cannot load or save calendar data.
 3. `409`: revision conflict has `body.document`; duplicate name has `code: DUPLICATE_NAME`.
 4. Lock bugs: same `calendarId` on both browsers; `?lockDebug=1`; hard refresh after deploy.
 5. Do not edit Cursor plan files unless the user asks.
-6. Debate scheduling uses **`debateBookPeriods`** (start date per book), not `booksByMonth` alone. Bump `debate-periods.js` and `app.js` cache strings in `index.html` when changing period logic.
+6. **Fixtures must never contain real student/teacher names.** Use `*-real.html` (gitignored) locally and commit redacted `*-snippet.html` only. Fake names in committed fixtures follow the `김테가` / `(Stuaa)` pattern.
+7. **Encoding:** save every file as UTF-8 without BOM (`.editorconfig`). `npm test` (`tests/encoding.test.mjs`) and `npm run build` fail on invalid UTF-8, BOM, U+FFFD, or `??` glued to Hangul (Korean re-saved through the wrong codepage).
+6. Debate scheduling uses **`debateBookPeriods`** (start date per book), not `booksByMonth` alone. (Deploy cache strings are content hashes — see Deploy step 3.)
 
 ## Local dev processes (optional)
 
@@ -136,5 +139,5 @@ Stopping local dev does **not** affect the production Cloudflare worker.
 2. Compare behavior with **production** if the user reports “deployed features changed” — folder may lag until pull/deploy
 3. Read lock routes in `worker/src/index.js` and polling in `js/calendar-sync.js`
 4. For lock bugs: reproduce with `?lockDebug=1`, compare `calendarId` on both browsers
-5. Match worker + server; bump `index.html` cache strings; `npm run deploy` from one PC, then `git push`
+5. Match worker + server; `npm run deploy` from one PC (cache strings are stamped automatically), then `git push`
 6. **UI updates:** follow [UI_STYLE_GUIDE.md](UI_STYLE_GUIDE.md); update [CLAUDE_DESIGN_BRIEF.md](CLAUDE_DESIGN_BRIEF.md) when tokens or shell layout change; syllabus print layout also needs [Syllabus Style Guide.md](Syllabus%20Style%20Guide.md)
