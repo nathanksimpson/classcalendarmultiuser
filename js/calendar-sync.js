@@ -813,6 +813,27 @@
             }
         },
 
+        /**
+         * Skip redundant lock/touch while the holder's updated_at is still in the
+         * fresher half of the stale window (cuts poll cost; policy unchanged).
+         */
+        shouldTouchLock() {
+            if (!state.holdsLock) {
+                return false;
+            }
+            const lock = state.lock;
+            if (!lock || !lock.updatedAt) {
+                return true;
+            }
+            const staleMs = Math.max(60 * 1000, (Number(state.lockStaleMinutes) || 20) * 60 * 1000);
+            const updated = Date.parse(lock.updatedAt);
+            if (!Number.isFinite(updated)) {
+                return true;
+            }
+            const remaining = updated + staleMs - Date.now();
+            return remaining < staleMs * 0.5;
+        },
+
         async touchLock(id) {
             if (isViewAsMode() && state.simulatedLock) {
                 return { touched: true, simulated: true };
@@ -1763,7 +1784,7 @@
                     // poll (skipped in View As there), so no separate heartbeat request
                     // is needed per tick.
                     const lockState = applyLockFromResponse(tagLockDebugSource(meta, 'poll'));
-                    if (state.holdsLock) {
+                    if (state.holdsLock && CalendarSync.shouldTouchLock()) {
                         await CalendarSync.touchLock(id);
                     }
                     debugLog('poll', 'Meta poll', {

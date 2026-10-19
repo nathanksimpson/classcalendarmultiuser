@@ -4,6 +4,7 @@ const appSettings = require('./app-settings');
 const loginContext = require('./login-context');
 const Auth = require('./auth-permissions');
 const { removePresence } = require('./presence');
+const LockCore = require('../shared/lock-core.cjs');
 
 const SESSION_DAYS = 14; /* default; createSession uses app_settings.session_max_days */
 const MIN_PASSWORD_LENGTH = 8;
@@ -554,25 +555,11 @@ function permanentlyDeleteUser(targetId, actingAdminId) {
 }
 
 function sessionTokenOf(user) {
-    if (!user || typeof user !== 'object') {
-        return '';
-    }
-    return String(user.sessionToken || '').trim();
+    return LockCore.sessionTokenOf(user);
 }
 
 function lockHeldByCaller(lock, userId, sessionToken) {
-    if (!lock || !userId) {
-        return false;
-    }
-    if (lock.holder_user_id !== userId) {
-        return false;
-    }
-    const holderSession = String(lock.holder_session_token || '').trim();
-    if (!holderSession) {
-        return true;
-    }
-    const mine = String(sessionToken || '').trim();
-    return Boolean(mine) && holderSession === mine;
+    return LockCore.lockHeldByCaller(lock, userId, sessionToken);
 }
 
 function getLock(calendarId) {
@@ -581,17 +568,11 @@ function getLock(calendarId) {
 }
 
 function isLockStale(lock) {
-    if (!lock) {
-        return true;
-    }
-    return Date.now() - new Date(lock.updated_at).getTime() > appSettings.getLockStaleMs();
+    return LockCore.isLockStaleByUpdatedAt(lock, appSettings.getLockStaleMs());
 }
 
 function lockExpiresAtIso(lock) {
-    if (!lock || !lock.updated_at) {
-        return null;
-    }
-    return new Date(new Date(lock.updated_at).getTime() + appSettings.getLockStaleMs()).toISOString();
+    return LockCore.lockExpiresAtIso(lock, appSettings.getLockStaleMs());
 }
 
 function purgeStaleLock(calendarId) {

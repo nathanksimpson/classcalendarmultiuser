@@ -69,10 +69,13 @@
         if (toggle) {
             const labelKey = collapsed ? 'accountShowTabs' : 'accountHideTabs';
             const titleKey = collapsed ? 'navTabsShowTitle' : 'navTabsHideTitle';
-            toggle.textContent = t(labelKey);
+            const label = t(labelKey);
+            const title = t(titleKey);
+            toggle.textContent = label;
             toggle.setAttribute('data-i18n', labelKey);
             toggle.setAttribute('data-i18n-title', titleKey);
-            toggle.title = t(titleKey);
+            toggle.title = title;
+            toggle.setAttribute('aria-label', title);
             toggle.setAttribute('aria-pressed', String(collapsed));
         }
         updateNavTabsCollapsedChip();

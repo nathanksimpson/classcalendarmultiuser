@@ -2,16 +2,19 @@
  * Collaborative calendar edit locks (worker).
  * Ownership is user + session: same user on another device auto-takes over;
  * different users still use edit-request → Allow / Dismiss.
+ * Pure identity/staleness helpers live in shared/lock-core.cjs.
  */
 import * as Auth from './auth-permissions.js';
 import * as AppSettings from './app-settings.js';
 import { dbOne, dbRun, nowIso } from './db.js';
+import {
+    sessionTokenOf as sessionTokenOfCore,
+    lockHeldByCaller as lockHeldByCallerCore,
+    isLockStaleByUpdatedAt
+} from '../../shared/lock-core.cjs';
 
 export function sessionTokenOf(user) {
-    if (!user || typeof user !== 'object') {
-        return '';
-    }
-    return String(user.sessionToken || '').trim();
+    return sessionTokenOfCore(user);
 }
 
 /**
@@ -20,26 +23,12 @@ export function sessionTokenOf(user) {
  * until the next assign stamps a session (see claimLegacyLockSession).
  */
 export function lockHeldByCaller(lock, userId, sessionToken) {
-    if (!lock || !userId) {
-        return false;
-    }
-    if (lock.holder_user_id !== userId) {
-        return false;
-    }
-    const holderSession = String(lock.holder_session_token || '').trim();
-    if (!holderSession) {
-        return true;
-    }
-    const mine = String(sessionToken || '').trim();
-    return Boolean(mine) && holderSession === mine;
+    return lockHeldByCallerCore(lock, userId, sessionToken);
 }
 
 export async function isLockStale(env, lock) {
-    if (!lock) {
-        return true;
-    }
     const staleMs = await AppSettings.getLockStaleMs(env);
-    return Date.now() - new Date(lock.updated_at).getTime() > staleMs;
+    return isLockStaleByUpdatedAt(lock, staleMs);
 }
 
 export async function getLock(env, calendarId) {
