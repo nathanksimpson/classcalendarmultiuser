@@ -41,7 +41,7 @@ Multi-teacher calendar with **Kakao OAuth** (first login auto-creates teacher + 
 | M2 | CORS / `PUBLIC_URL` mismatch | Broken auth / redirects | Document in DEVELOPER.md |
 | M3 | Admin HTML visible to pending teachers | Static UI only; APIs 403 | Low |
 | M4 | Import JSON size | DoS | **Mitigated:** 5 MB Express/Worker cap on JSON bodies |
-| M5 | Calendar ACL duplicated server/worker | Drift | Ongoing dual maintenance |
+| M5 | Calendar ACL duplicated server/worker | Drift | Ongoing dual maintenance — mitigate via `shared/*.cjs` (e.g. `auth-permissions`, `calendar-mutations`, `ui-prefs-core`, `app-settings-core`). Express stays as local bridge host; do not retire it while Sync Helper falls back to `:8080`. |
 | M-K1 | `kakaoClientIdHint` in `/api/health` | Recon | **Fixed:** removed |
 | M-K2 | OAuth error `detail` in login URL | Info leak via Referer | **Fixed:** errors without `detail` query |
 | M-K3 | Legacy `denied=1` query on login | PII in URL | **Fixed:** UI removed |

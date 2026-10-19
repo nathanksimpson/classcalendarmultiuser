@@ -232,4 +232,123 @@ assert(
     'saved August is kept before the transition week'
 );
 
+const warnClass = Object.assign({}, debateClass, { cohortIds: ['coh-warn'] });
+const warnCohorts = [
+    {
+        id: 'coh-warn',
+        students: [
+            { id: 'new1', name: '김신규★', active: true, tags: [] },
+            { id: 'issuedNew', name: '이발급', active: true, tags: ['new'] },
+            { id: 'abs1', name: '박결석', active: true },
+            { id: 'oldAbs', name: '정지난달', active: true },
+            { id: 'plain', name: '최평범', active: true },
+            { id: 'both', name: '한둘★', active: true },
+            { id: 'miss', name: '오분실', active: true }
+        ]
+    }
+];
+const warnData = {
+    cohorts: warnCohorts,
+    debateBookDistributions: [
+        {
+            id: 'dbd-warn',
+            classId: 'cls-debate',
+            periodKey: '2026-04',
+            bookTitle: 'Debate Yeoul',
+            records: [
+                { studentId: 'issuedNew', status: 'issued', note: '', issuedAt: '2026-04-01' },
+                { studentId: 'miss', status: 'missing', note: '' }
+            ]
+        }
+    ],
+    attendanceSessions: [
+        {
+            id: 'att-apr',
+            classId: 'cls-debate',
+            date: '2026-04-08',
+            records: [
+                { studentId: 'abs1', status: 'absent' },
+                { studentId: 'both', status: 'absent' },
+                { studentId: 'plain', status: 'late' },
+                { studentId: 'miss', status: 'absent' }
+            ]
+        },
+        {
+            id: 'att-mar',
+            classId: 'cls-debate',
+            date: '2026-03-10',
+            records: [{ studentId: 'oldAbs', status: 'absent' }]
+        },
+        {
+            id: 'att-today',
+            classId: 'cls-debate',
+            date: '2026-04-15',
+            records: [{ studentId: 'plain', status: 'absent' }]
+        }
+    ]
+};
+
+function warningIds(rows) {
+    return (rows || []).map((row) => row.studentId).sort();
+}
+
+const warnings = d.listClassBookHandoutWarnings(warnData, warnClass, '2026-04-15');
+assert(warnings.tracked === true, 'tracked class');
+assert(warnings.periodKey === '2026-04', `period ${warnings.periodKey}`);
+assert(warnings.bookTitle === 'Debate Yeoul', `book ${warnings.bookTitle}`);
+assert(
+    warningIds(warnings.newWithoutBook).join(',') === 'both,new1',
+    `new without book: ${warningIds(warnings.newWithoutBook).join(',')}`
+);
+assert(
+    warningIds(warnings.absentNeedingBook).join(',') === 'abs1',
+    `absent needing book: ${warningIds(warnings.absentNeedingBook).join(',')}`
+);
+assert(
+    !warnings.newWithoutBook.some((row) => row.studentId === 'issuedNew'),
+    'issued new student is omitted'
+);
+assert(
+    !warnings.absentNeedingBook.some((row) => row.studentId === 'oldAbs'),
+    'absence from the previous book month is omitted'
+);
+assert(
+    !warnings.newWithoutBook.concat(warnings.absentNeedingBook).some((row) => row.studentId === 'plain'),
+    'not-issued student with no prior absence is omitted'
+);
+assert(
+    !warnings.absentNeedingBook.some((row) => row.studentId === 'miss'),
+    'missing status is omitted'
+);
+
+const issuedData = JSON.parse(JSON.stringify(warnData));
+issuedData.debateBookDistributions[0].records.push(
+    { studentId: 'new1', status: 'issued', note: '', issuedAt: '2026-04-08' },
+    { studentId: 'abs1', status: 'issued', note: '', issuedAt: '2026-04-08' }
+);
+const afterIssue = d.listClassBookHandoutWarnings(issuedData, warnClass, '2026-04-15');
+assert(
+    !afterIssue.newWithoutBook.some((row) => row.studentId === 'new1'),
+    'new student drops off once issued'
+);
+assert(
+    !afterIssue.absentNeedingBook.some((row) => row.studentId === 'abs1'),
+    'absent student drops off once issued'
+);
+assert(
+    afterIssue.newWithoutBook.some((row) => row.studentId === 'both'),
+    'other new student still listed'
+);
+
+const untracked = d.listClassBookHandoutWarnings(
+    warnData,
+    { id: 'plain-cls', scheduleModel: 'sequentialTerm', book: '' },
+    '2026-04-15'
+);
+assert(untracked.tracked === false, 'class without book tracking');
+assert(
+    untracked.newWithoutBook.length === 0 && untracked.absentNeedingBook.length === 0,
+    'untracked class returns no names'
+);
+
 console.log('classroom-debate-books.test.mjs: ok');

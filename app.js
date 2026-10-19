@@ -8911,6 +8911,71 @@ function buildNowClassPopupHomeworkDisplay(classData, dateStr) {
     };
 }
 
+function bookWarningNameList(entries) {
+    return (Array.isArray(entries) ? entries : [])
+        .map((entry) => (entry && entry.name ? String(entry.name).trim() : ''))
+        .filter(Boolean)
+        .join(', ');
+}
+
+function bookWarningSignature(warnings) {
+    if (!warnings) {
+        return '';
+    }
+    const rows = []
+        .concat(warnings.newWithoutBook || [])
+        .concat(warnings.absentNeedingBook || []);
+    return rows
+        .map((entry) => (entry && entry.studentId ? `${entry.studentId}:${entry.name || ''}` : ''))
+        .filter(Boolean)
+        .sort()
+        .join(',');
+}
+
+function listNowClassPopupBookWarnings(classData, dateStr) {
+    if (
+        typeof CCPClassroomDomain === 'undefined' ||
+        typeof CCPClassroomDomain.listClassBookHandoutWarnings !== 'function'
+    ) {
+        return null;
+    }
+    try {
+        return CCPClassroomDomain.listClassBookHandoutWarnings(appData, classData, dateStr);
+    } catch (err) {
+        console.warn('listClassBookHandoutWarnings failed:', classData && classData.id, err);
+        return null;
+    }
+}
+
+function appendNowClassPopupBookWarnings(card, warnings) {
+    const newNames = bookWarningNameList(warnings && warnings.newWithoutBook);
+    const absentNames = bookWarningNameList(warnings && warnings.absentNeedingBook);
+    if (!newNames && !absentNames) {
+        return;
+    }
+    const sec = document.createElement('div');
+    sec.className = 'now-class-popup-section now-class-popup-section--books';
+    const label = document.createElement('div');
+    label.className = 'now-class-popup-section-label';
+    const bookTitle = warnings && warnings.bookTitle ? String(warnings.bookTitle).trim() : '';
+    label.textContent = bookTitle
+        ? formatI18n('nowClassPopupBooksTitleWithBook', { book: bookTitle })
+        : t('nowClassPopupBooksTitle');
+    const body = document.createElement('div');
+    body.className = 'now-class-popup-body';
+    const lines = [];
+    if (newNames) {
+        lines.push(formatI18n('nowClassPopupBooksNew', { names: newNames }));
+    }
+    if (absentNames) {
+        lines.push(formatI18n('nowClassPopupBooksAbsent', { names: absentNames }));
+    }
+    body.textContent = lines.join('\n');
+    sec.appendChild(label);
+    sec.appendChild(body);
+    card.appendChild(sec);
+}
+
 function appendNowClassPopupSection(card, labelText, bodyText, emptyHint) {
     const sec = document.createElement('div');
     sec.className = 'now-class-popup-section';
@@ -9145,6 +9210,7 @@ function renderNowClassPopup(options = {}) {
     const nextText = nextNote && nextNote.text ? String(nextNote.text) : '';
 
     const homework = buildNowClassPopupHomeworkDisplay(ctx.classData, ctx.dateStr);
+    const bookWarnings = listNowClassPopupBookWarnings(ctx.classData, ctx.dateStr);
 
     const titleTime = ctx.timeSlot && ctx.timeSlot.start && ctx.timeSlot.end
         ? `${ctx.timeSlot.start}–${ctx.timeSlot.end}`
@@ -9164,7 +9230,9 @@ function renderNowClassPopup(options = {}) {
         clampTextSnippet(homework.studentHomework, 120),
         clampTextSnippet(homework.gradingHomework, 120),
         homework.lessonLine,
-        homework.dueLine
+        homework.dueLine,
+        bookWarnings && bookWarnings.bookTitle ? bookWarnings.bookTitle : '',
+        bookWarningSignature(bookWarnings)
     ].join('|');
     if (sig === nowClassPopupLastSig && root.firstChild) {
         return;
@@ -9194,6 +9262,8 @@ function renderNowClassPopup(options = {}) {
     header.appendChild(title);
     header.appendChild(sub);
     card.appendChild(header);
+
+    appendNowClassPopupBookWarnings(card, bookWarnings);
 
     if (homework.lessonOnDate) {
         if (homework.lessonLine) {
@@ -16600,214 +16670,36 @@ function updateContentExpandChrome() {
     btn.textContent = expanded ? t('contentCollapse') : t('contentExpand');
 }
 
-const NAV_TABS_COLLAPSED_STORAGE_KEY = 'ccpNavTabsCollapsed';
-
-function isZoneNavReorderActive() {
-    return Boolean(
-        document.querySelector('.is-reorder-active, .is-nav-dragging, .is-nav-reorder-pending')
-    );
-}
-
-function getNavTabsCollapsed() {
-    return document.documentElement.getAttribute('data-nav-tabs-collapsed') === '1';
-}
-
-function getActiveNavLocationLabels() {
-    const zoneBtn = document.querySelector('.app-zone-btn.is-active, .app-zone-btn[aria-selected="true"]');
-    const zoneLabel = zoneBtn ? (zoneBtn.textContent || '').trim() : '';
-    const activePanel = document.querySelector('.app-zone-segment-panel.is-active:not([hidden])');
-    const segmentBtn = activePanel
-        ? activePanel.querySelector('.app-zone-segment-btn.is-active, .app-zone-segment-btn[aria-selected="true"]')
-        : null;
-    const segmentLabel = segmentBtn && !segmentBtn.hidden
-        ? (segmentBtn.textContent || '').trim()
-        : '';
-    if (zoneLabel && segmentLabel) {
-        return `${zoneLabel} · ${segmentLabel}`;
+function updateNavTabsCollapseChrome() {
+    if (typeof CCPHeaderChrome !== 'undefined' && CCPHeaderChrome.updateNavTabsCollapseChrome) {
+        CCPHeaderChrome.updateNavTabsCollapseChrome();
     }
-    return zoneLabel || segmentLabel || '';
 }
 
 function updateNavTabsCollapsedChip() {
-    const chip = document.getElementById('navTabsCollapsedChip');
-    const labelEl = document.getElementById('navTabsCollapsedChipLabel');
-    if (!chip || !labelEl) {
-        return;
+    if (typeof CCPHeaderChrome !== 'undefined' && CCPHeaderChrome.updateNavTabsCollapsedChip) {
+        CCPHeaderChrome.updateNavTabsCollapsedChip();
     }
-    const collapsed = getNavTabsCollapsed();
-    const label = getActiveNavLocationLabels();
-    labelEl.textContent = label;
-    chip.hidden = !collapsed || !label;
-    chip.setAttribute('aria-hidden', String(chip.hidden));
-    chip.title = t('navTabsCollapsedChipTitle');
-    chip.setAttribute('aria-label', label
-        ? `${label}. ${t('navTabsShowTitle')}`
-        : t('navTabsShowTitle'));
-}
-
-function updateNavTabsCollapseChrome() {
-    const toggle = document.getElementById('accountHideTabsBtn');
-    const collapsed = getNavTabsCollapsed();
-    if (toggle) {
-        const labelKey = collapsed ? 'accountShowTabs' : 'accountHideTabs';
-        const titleKey = collapsed ? 'navTabsShowTitle' : 'navTabsHideTitle';
-        toggle.textContent = t(labelKey);
-        toggle.setAttribute('data-i18n', labelKey);
-        toggle.setAttribute('data-i18n-title', titleKey);
-        toggle.title = t(titleKey);
-        toggle.setAttribute('aria-pressed', String(collapsed));
-    }
-    updateNavTabsCollapsedChip();
-}
-
-function setNavTabsCollapsed(collapsed, options = {}) {
-    const next = Boolean(collapsed);
-    if (next && isZoneNavReorderActive() && !options.force) {
-        return false;
-    }
-    if (next) {
-        document.documentElement.setAttribute('data-nav-tabs-collapsed', '1');
-    } else {
-        document.documentElement.removeAttribute('data-nav-tabs-collapsed');
-    }
-    try {
-        localStorage.setItem(NAV_TABS_COLLAPSED_STORAGE_KEY, next ? '1' : '0');
-    } catch (_) {
-        /* ignore quota / private mode */
-    }
-    updateNavTabsCollapseChrome();
-    requestAnimationFrame(() => {
-        syncAppChromeStickyTop();
-        if (!next && typeof syncAllZoneNavScrollAffordances === 'function') {
-            syncAllZoneNavScrollAffordances();
-        }
-    });
-    return true;
-}
-
-function toggleNavTabsCollapsed() {
-    if (getNavTabsCollapsed()) {
-        setNavTabsCollapsed(false);
-        return;
-    }
-    setNavTabsCollapsed(true);
-}
-
-function setupNavTabsCollapseToggle() {
-    const toggle = document.getElementById('accountHideTabsBtn');
-    const chip = document.getElementById('navTabsCollapsedChip');
-    if (toggle && toggle.dataset.bound !== '1') {
-        toggle.dataset.bound = '1';
-        toggle.addEventListener('click', () => toggleNavTabsCollapsed());
-    }
-    if (chip && chip.dataset.bound !== '1') {
-        chip.dataset.bound = '1';
-        chip.addEventListener('click', () => setNavTabsCollapsed(false));
-    }
-    let stored = false;
-    try {
-        stored = localStorage.getItem(NAV_TABS_COLLAPSED_STORAGE_KEY) === '1';
-    } catch (_) {
-        stored = false;
-    }
-    setNavTabsCollapsed(stored, { force: true });
 }
 
 function setHeaderToolsOverflowOpen(open) {
-    const row = document.getElementById('headerToolsRow');
-    const btn = document.getElementById('headerToolsOverflowBtn');
-    if (!row || !btn) {
+    if (typeof CCPHeaderChrome !== 'undefined' && CCPHeaderChrome.setHeaderToolsOverflowOpen) {
+        CCPHeaderChrome.setHeaderToolsOverflowOpen(open);
+    }
+}
+
+function initHeaderChrome() {
+    if (typeof CCPHeaderChrome === 'undefined') {
         return;
     }
-    const next = Boolean(open);
-    row.classList.toggle('is-overflow-open', next);
-    btn.setAttribute('aria-expanded', String(next));
-    positionHeaderRowPanels();
-}
-
-function isHeaderRowScrollTier() {
-    return Boolean(window.matchMedia && window.matchMedia(`(max-width: ${VIEWPORT_BP_TABLET}px)`).matches);
-}
-
-function clearHeaderRowPanelPosition(panel) {
-    if (!panel) {
-        return;
-    }
-    ['position', 'top', 'left', 'right', 'bottom', 'maxHeight', 'overflow', 'overflowY'].forEach((prop) => {
-        panel.style[prop] = '';
+    CCPHeaderChrome.init({
+        t,
+        viewportBpTablet: VIEWPORT_BP_TABLET,
+        positionFixedPopoverBelowTrigger,
+        syncAppChromeStickyTop,
+        syncAllZoneNavScrollAffordances
     });
-}
-
-/**
- * ≤1024 the primary header row scrolls sideways, which would clip absolute children,
- * so the ⋮ panel and the lock details drawer are fixed and placed from their trigger.
- */
-function positionHeaderRowPanels() {
-    const narrow = isHeaderRowScrollTier();
-    const toolsRow = document.getElementById('headerToolsRow');
-    const overflowBtn = document.getElementById('headerToolsOverflowBtn');
-    const overflowPanel = document.getElementById('headerToolsCollapsible');
-    if (overflowPanel) {
-        const open = Boolean(toolsRow && toolsRow.classList.contains('is-overflow-open'));
-        if (narrow && open) {
-            if (!positionFixedPopoverBelowTrigger(overflowBtn, overflowPanel, { align: 'right', minMaxHeight: 120 })) {
-                setHeaderToolsOverflowOpen(false);
-            }
-        } else {
-            clearHeaderRowPanelPosition(overflowPanel);
-        }
-    }
-    const status = document.getElementById('teamLockStatus');
-    const pill = document.getElementById('teamLockSyncBar');
-    const details = document.getElementById('teamLockDetails');
-    if (details) {
-        const drawerOpen = Boolean(status && status.classList.contains('team-lock-status--drawer-open'));
-        if (!(narrow && drawerOpen && positionFixedPopoverBelowTrigger(pill, details, { align: 'left', minMaxHeight: 120 }))) {
-            clearHeaderRowPanelPosition(details);
-        }
-    }
-}
-
-let headerRowPanelsRaf = 0;
-
-function scheduleHeaderRowPanelsPosition() {
-    if (headerRowPanelsRaf) {
-        return;
-    }
-    headerRowPanelsRaf = requestAnimationFrame(() => {
-        headerRowPanelsRaf = 0;
-        positionHeaderRowPanels();
-    });
-}
-
-function setupHeaderToolsOverflow() {
-    const row = document.getElementById('headerToolsRow');
-    const btn = document.getElementById('headerToolsOverflowBtn');
-    if (!row || !btn || btn.dataset.bound === '1') {
-        return;
-    }
-    btn.dataset.bound = '1';
-    document.getElementById('appTopBarPrimaryRow')?.addEventListener('scroll', scheduleHeaderRowPanelsPosition, { passive: true });
-    window.addEventListener('resize', scheduleHeaderRowPanelsPosition, { passive: true });
-    window.addEventListener('scroll', scheduleHeaderRowPanelsPosition, { passive: true });
-    btn.addEventListener('click', (event) => {
-        event.stopPropagation();
-        setHeaderToolsOverflowOpen(!row.classList.contains('is-overflow-open'));
-    });
-    document.addEventListener('click', (event) => {
-        if (!row.classList.contains('is-overflow-open')) {
-            return;
-        }
-        if (row.contains(event.target)) {
-            return;
-        }
-        setHeaderToolsOverflowOpen(false);
-    });
-    document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') {
-            setHeaderToolsOverflowOpen(false);
-        }
-    });
+    CCPHeaderChrome.setup();
 }
 
 function syncContentExpandToggleVisibility(tabId) {
@@ -16835,20 +16727,6 @@ function setupContentExpandToggle() {
         }
         updateContentExpandChrome();
         requestAnimationFrame(syncHomeworkSidebarChromeOffset);
-    });
-}
-
-function setupLockDrawerToggle() {
-    const toggle = document.getElementById('teamLockDrawerToggle');
-    const status = document.getElementById('teamLockStatus');
-    if (!toggle || !status || toggle.dataset.bound === '1') {
-        return;
-    }
-    toggle.dataset.bound = '1';
-    toggle.addEventListener('click', () => {
-        const open = status.classList.toggle('team-lock-status--drawer-open');
-        toggle.setAttribute('aria-expanded', String(open));
-        positionHeaderRowPanels();
     });
 }
 
@@ -16974,9 +16852,7 @@ function initAppTabs() {
 
     setupContentExpandToggle();
     syncContentExpandToggleVisibility();
-    setupNavTabsCollapseToggle();
-    setupHeaderToolsOverflow();
-    setupLockDrawerToggle();
+    initHeaderChrome();
     syncZoneNavPermissions();
     if (typeof CCPZoneNavReorder !== 'undefined') {
         CCPZoneNavReorder.init(getZoneNavReorderHooks());
@@ -18741,7 +18617,11 @@ function getDailySummaryPrintLabels() {
         noPrepNotes: t('dailySummaryNoPrepNotes'),
         noGradingHomework: t('dailySummaryNoGradingHomework'),
         noTodayContent: t('dailySummaryNoTodayContent'),
-        noHomework: t('dailySummaryNoHomework')
+        noHomework: t('dailySummaryNoHomework'),
+        booksTitle: t('nowClassPopupBooksTitle'),
+        booksTitleWithBook: t('nowClassPopupBooksTitleWithBook'),
+        booksNewLine: t('nowClassPopupBooksNew'),
+        booksAbsentLine: t('nowClassPopupBooksAbsent')
     };
 }
 
@@ -18775,6 +18655,21 @@ function buildDailySummaryPayloadsForPrint(classes, referenceDate) {
             const classMeta = [formatClassLabelWithPeriod(classData), classData.grade, effective.book || classData.book]
                 .filter(Boolean)
                 .join(' · ');
+            let bookWarnings = null;
+            if (
+                typeof CCPClassroomDomain !== 'undefined' &&
+                typeof CCPClassroomDomain.listClassBookHandoutWarnings === 'function'
+            ) {
+                try {
+                    bookWarnings = CCPClassroomDomain.listClassBookHandoutWarnings(
+                        appData,
+                        effective,
+                        referenceDate
+                    );
+                } catch (err) {
+                    console.warn('daily summary book warnings skipped:', classData && classData.id, err);
+                }
+            }
             payloads.push(mod.buildDailySummaryPayload({
                 classData,
                 packet,
@@ -18787,7 +18682,8 @@ function buildDailySummaryPayloadsForPrint(classes, referenceDate) {
                     ? formatDateDisplay(prep.previousMeetingDate)
                     : '',
                 dueDateLabel: packet.dueDate ? formatDateDisplay(packet.dueDate) : '',
-                splitPlanDetailSections: splitFn
+                splitPlanDetailSections: splitFn,
+                bookWarnings
             }));
         } catch (err) {
             console.warn('buildDailySummaryPayloadsForPrint skipped class:', classData && classData.id, err);

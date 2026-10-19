@@ -162,8 +162,9 @@ Order (Phase 6): `[logo] [save/lock pill] [Sync ●] … [bell] [+ New ▾ · Da
 - **Print:** `#openPrintBtn` (`.btn-header-print`, blue tint) → **Print Center** `#printCenterModal` (every printable, "For this tab" first; rows open the owning tab and click its own print control).
 - **Help:** link to `help.html`, outline style.
 - **Theme:** `.btn-header-theme` icon — toggles `[data-theme="dark"]` on `<html>` (labelled version in Account → Preferences).
+- **Hide tabs:** `#accountHideTabsBtn` in header tools / ⋮ overflow (`#headerToolsCollapsible`); restore chip `#navTabsCollapsedChip` when collapsed.
 - **Scope switch:** `#headerClassScope` (pinned, `.calendar-view-switch` + `.syllabus-segment-btn`, `role="radiogroup"`) — All classes / My classes, saved per teacher (`/api/me/ui-prefs`). Local "My classes only" boxes become per-screen overrides until the header changes.
-- **Account:** avatar trigger → Preferences (Theme, Language, During-class popup, Hide tabs, Reset tab layout) → My timetable · Mobile day notes · Schedule planner → Admin · Edit name · Change password · Sign out.
+- **Account:** avatar trigger → Preferences (Theme, Language, During-class popup, Reset tab layout) → My timetable · Mobile day notes · Schedule planner → Admin · Edit name · Change password · Sign out.
 - **Notifications bell:** `#appWarningsBtn` — setup warnings inbox popover (`#tabWarningsPopover`).
 - **Term strip:** `#termSummaryStrip` is a button that opens Term settings (holidays now import from Schedule → Events).
 - **Phone:** `#headerToolsOverflowBtn` (⋮) holds + New, Day notes, Calendar, Print, Help, theme; scope switch, Term, Helper and Account stay pinned.

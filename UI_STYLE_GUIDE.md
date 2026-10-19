@@ -249,7 +249,7 @@ Header order (Phase 6): bell → `#headerToolsCollapsible` (**+ New ▾** · Day
 - **Create** lives in **+ New** (`#headerNewPopover`, `.header-fixed-popover` + `.header-dropdown-item` rows). Calendar-data items (Class, Event, Cohort) are disabled in view-only; Day note and Custom essay assignment are not lock-gated.
 - **Print** opens the **Print Center** (`#printCenterModal`). New printables register with `CCPPrintCenter.register({ id, group, labelKey, tabs, available, run })`; prefer `openVia(zone, segment, buttonId)` over calling module internals. Do not add new header print buttons.
 - **Data** owns admin/file actions: Import & export index (`CCPDataTransfer`), Back up to Drive, and the **Danger zone** (`.print-data-section--danger`). The Calendar menu is switch + New calendar only.
-- **Preferences** (theme, language, popup, Hide tabs, Reset tab layout) live in the Account menu, not in the header row or Data.
+- **Preferences** (theme, language, popup, Reset tab layout) live in the Account menu, not in Data. **Hide tabs** lives in the header tools row / ⋮ overflow (`#accountHideTabsBtn` inside `#headerToolsCollapsible`); the restore chip `#navTabsCollapsedChip` stays in the header when tabs are hidden.
 - **Scope switch** `#headerClassScope` reuses `.calendar-view-switch` + `.syllabus-segment-btn` (`role="radiogroup"`, ≥44px ≤1024px). Local "My classes only" boxes show the effective value and become per-screen overrides (`CCPClassScope.setOverride`) with a `.classroom-zone-override-hint` note until the header changes.
 
 Calendar views (desktop + tablet): Month · Week · Agenda via `.calendar-view-toolbar`. Phone: agenda default, Week hidden.

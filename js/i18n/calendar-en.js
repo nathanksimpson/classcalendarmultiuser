@@ -3171,6 +3171,10 @@
         nowClassPopupPreviewLabel: 'Preview',
         nowClassPopupPreviewNoClassDay: 'Class does not meet on this date',
         nowClassPopupClose: 'Close',
-        nowClassPopupPreviewFailed: 'Could not preview popup for this class.'
+        nowClassPopupPreviewFailed: 'Could not preview popup for this class.',
+        nowClassPopupBooksTitle: 'Books to give',
+        nowClassPopupBooksTitleWithBook: 'Books to give · {book}',
+        nowClassPopupBooksNew: 'New, no book: {names}',
+        nowClassPopupBooksAbsent: 'Absent, needs book: {names}'
     };
 })(typeof window !== 'undefined' ? window : globalThis);

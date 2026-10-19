@@ -33,8 +33,11 @@ The **Setup → Cohorts** tab uses a visual setup board with click actions (`js/
 | API | `server/index.js` + `server/*.js` | `worker/src/index.js` |
 | DB | `server/schema.js` → `data/calendars.db` | `worker/migrations/*.sql` → D1 |
 | Static | Express serves repo root | Wrangler `[assets]` (see `.assetsignore`) |
+| Shared cores | `shared/*.cjs` (pure logic used by both backends) | Same modules imported by Worker |
 
 Frontend calls `/api` via `js/calendar-sync.js` (save debounce, poll, locks, revisions).
+
+**Dual-backend policy:** Keep Express + `better-sqlite3` for local preview and as the Sync Helper fallback on port 8080. Put clamp/sanitize/mutation rules in `shared/*.cjs` so server and worker cannot drift. Do not switch primary local preview to `wrangler d1 --local` until the bridge no longer needs Express.
 
 **Sibling repo:** `../Calendar App` — `npm run sync-from-main` copies UI updates (skips `js/calendar-sync.js`, `package.json`, `.env`).
 
@@ -51,7 +54,8 @@ Frontend calls `/api` via `js/calendar-sync.js` (save debounce, poll, locks, rev
 | Users, passwords, locks | `server/users.js` + Worker mirror in `worker/src/index.js` |
 | Calendar CRUD | `server/calendars.js` |
 | Access control | `server/calendar-access.js`, `worker/src/calendar-access.js`, `server/access-requests.js`, `worker/src/access-requests.js` |
-| App settings | `server/app-settings.js`, `worker/src/app-settings.js` |
+| App settings | `shared/app-settings-core.cjs` + `server/app-settings.js` / `worker/src/app-settings.js` |
+| UI prefs (nav layout, class scope) | `shared/ui-prefs-core.cjs` + `server/ui-prefs.js` / `worker/src/ui-prefs.js` |
 | Export JSON shape | `SCHEMA.md`, `Example Calendars/` |
 | Class / event filter semantics | `SCHEMA.md` → **Class filter contracts** (viewer intersection vs event applicability + exclusions) |
 | Daily class log (calendar) | `js/day-notes.js`, `appData.dayNotes[]`, calendar context menus in `app.js` |
