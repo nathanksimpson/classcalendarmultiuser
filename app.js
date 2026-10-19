@@ -16616,58 +16616,15 @@ async function navigateToTabBody(tabId, options = {}) {
 }
 
 function updateContentPipelineStepper(tabId) {
-    const stepper = document.getElementById('contentPipelineStepper');
-    if (!stepper) {
-        return;
-    }
-    const contentTabs = ['curriculum', 'syllabus'];
-    const hasBooks = (appData.curriculumBooks || []).some((b) => b && b.id);
-    const hasSyllabi = (appData.classes || []).some((c) => c && c.syllabus && c.syllabus.length);
-    const setupIncomplete = !hasBooks || !hasSyllabi;
-    stepper.hidden = !contentTabs.includes(tabId) || !setupIncomplete;
-    if (stepper.hidden) {
-        return;
-    }
-    const stepMap = {
-        curriculum: 'books',
-        syllabus: 'syllabi',
-        homework: 'homework'
-    };
-    const activeStep = stepMap[tabId] || 'books';
-    ['books', 'syllabi', 'homework'].forEach((step) => {
-        const el = stepper.querySelector(`[data-step="${step}"]`);
-        if (!el) {
-            return;
-        }
-        el.classList.remove('is-active', 'is-done');
-        if (step === activeStep) {
-            el.classList.add('is-active');
-        }
-        if (step === 'books' && hasBooks) {
-            el.classList.add('is-done');
-        }
-        if (step === 'syllabi' && hasSyllabi) {
-            el.classList.add('is-done');
-        }
-        if (step === 'homework' && tabId === 'homework') {
-            el.classList.add('is-done');
-        }
-    });
-    if (!stepper.dataset.pipelineBound) {
-        stepper.dataset.pipelineBound = '1';
-        document.getElementById('contentStepBooks')?.addEventListener('click', () => navigateToZone(APP_ZONE_CLASSES, 'curriculum'));
-        document.getElementById('contentStepSyllabi')?.addEventListener('click', () => navigateToZone(APP_ZONE_CLASSES, 'syllabus'));
-        document.getElementById('contentStepHomework')?.addEventListener('click', () => navigateToZone(APP_ZONE_SCHEDULE, 'homework'));
+    if (typeof CCPContentExpand !== 'undefined' && CCPContentExpand.updateContentPipelineStepper) {
+        CCPContentExpand.updateContentPipelineStepper(tabId);
     }
 }
 
 function updateContentExpandChrome() {
-    const btn = document.getElementById('contentExpandToggleBtn');
-    if (!btn) {
-        return;
+    if (typeof CCPContentExpand !== 'undefined' && CCPContentExpand.updateContentExpandChrome) {
+        CCPContentExpand.updateContentExpandChrome();
     }
-    const expanded = document.documentElement.getAttribute('data-content-expanded') === '1';
-    btn.textContent = expanded ? t('contentCollapse') : t('contentExpand');
 }
 
 function updateNavTabsCollapseChrome() {
@@ -16702,32 +16659,30 @@ function initHeaderChrome() {
     CCPHeaderChrome.setup();
 }
 
-function syncContentExpandToggleVisibility(tabId) {
-    const btn = document.getElementById('contentExpandToggleBtn');
-    if (!btn) {
+function initContentExpand() {
+    if (typeof CCPContentExpand === 'undefined') {
         return;
     }
-    const tab = tabId || getActiveTab();
-    const showOn = ['homework', 'curriculum', 'syllabus'];
-    btn.hidden = !showOn.includes(tab);
+    CCPContentExpand.init({
+        t,
+        getAppData: () => appData,
+        navigateToZone,
+        getActiveTab,
+        zoneClasses: APP_ZONE_CLASSES,
+        zoneSchedule: APP_ZONE_SCHEDULE,
+        syncHomeworkSidebarChromeOffset
+    });
+    CCPContentExpand.setup();
+}
+
+function syncContentExpandToggleVisibility(tabId) {
+    if (typeof CCPContentExpand !== 'undefined' && CCPContentExpand.syncContentExpandToggleVisibility) {
+        CCPContentExpand.syncContentExpandToggleVisibility(tabId);
+    }
 }
 
 function setupContentExpandToggle() {
-    const btn = document.getElementById('contentExpandToggleBtn');
-    if (!btn || btn.dataset.bound === '1') {
-        return;
-    }
-    btn.dataset.bound = '1';
-    btn.addEventListener('click', () => {
-        const expanded = document.documentElement.getAttribute('data-content-expanded') === '1';
-        if (expanded) {
-            document.documentElement.removeAttribute('data-content-expanded');
-        } else {
-            document.documentElement.setAttribute('data-content-expanded', '1');
-        }
-        updateContentExpandChrome();
-        requestAnimationFrame(syncHomeworkSidebarChromeOffset);
-    });
+    initContentExpand();
 }
 
 function getSetupChecklistItems() {

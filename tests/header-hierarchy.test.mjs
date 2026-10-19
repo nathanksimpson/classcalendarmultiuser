@@ -66,9 +66,10 @@ function block(id) {
 
 {
     const account = block('teamAccountPopover');
-    ['accountMyTimetableBtn', 'accountHideTabsBtn', 'accountResetNavLayoutBtn', 'openPlannerAppHeaderBtn'].forEach((id) => {
+    ['accountMyTimetableBtn', 'accountResetNavLayoutBtn', 'openPlannerAppHeaderBtn'].forEach((id) => {
         assert(account.includes(`id="${id}"`), `Account menu has #${id}`);
     });
+    assert(!account.includes('id="accountHideTabsBtn"'), 'Hide tabs is not in Account Preferences');
     const prefsAt = account.indexOf('data-i18n="accountPreferencesHeading"');
     assert(prefsAt >= 0, 'Preferences heading present');
     assert(prefsAt < account.indexOf('id="themeToggleBtn"'), 'Preferences heading above Theme');
@@ -83,6 +84,8 @@ function block(id) {
     assert(newAt >= 0 && notesAt > newAt && calAt > notesAt, '+ New, Day notes, then Calendar inside the collapsible tools');
     assert(tools.indexOf('id="openPrintBtn"') > calAt, 'Print after Calendar');
     assert(tools.includes('id="headerThemeToggleBtn"'), 'theme icon stays in header');
+    assert(tools.includes('id="accountHideTabsBtn"'), 'Hide tabs lives in tools / ⋮ overflow');
+    assert(tools.includes('header-tool-hide-tabs'), 'Hide tabs uses compact tool class');
     const pinnedAt = html.indexOf('app-header-unified__tools-pinned');
     assert(html.indexOf('id="headerClassScope"') > pinnedAt, 'scope switch is pinned');
     assert(/id="headerClassScope"[^>]*role="radiogroup"/.test(html), 'scope switch is a radiogroup');
@@ -90,6 +93,19 @@ function block(id) {
     ['headerNewClassItem', 'headerNewEventItem', 'headerNewCohortItem', 'headerNewDayNoteItem', 'headerNewEssayAssignmentItem'].forEach((id) => {
         assert(newMenu.includes(`id="${id}"`), `+ New has #${id}`);
     });
+}
+
+{
+    assert(
+        /\.header-tool-hide-tabs\s*\{[^}]*font-size:\s*0/.test(styles),
+        'Hide tabs is icon-only in the inline tools row'
+    );
+    assert(
+        /\.app-header-unified__tools-collapsible\s+\.header-tool-hide-tabs\s*\{[^}]*font-size:\s*var\(--text-body-md/.test(
+            styles
+        ),
+        'Hide tabs shows full label inside ⋮ overflow'
+    );
 }
 
 {
@@ -151,8 +167,16 @@ function block(id) {
 {
     // Header scaling A+B+C: lock pill never stacks; primary row height-capped; short scope labels.
     assert(
-        /\.team-lock-sync-bar\.team-lock-sync-bar--inline[\s\S]{0,220}?flex-wrap:\s*nowrap/.test(styles),
+        /\.team-lock-sync-bar\.team-lock-sync-bar--inline\s*\{[^}]*flex-wrap:\s*nowrap/.test(styles),
         'lock pill forces nowrap'
+    );
+    assert(
+        /\.team-lock-sync-bar\.team-lock-sync-bar--inline\s*\{[^}]*min-width:\s*max-content/.test(styles),
+        'lock pill never collapses below its controls'
+    );
+    assert(
+        /header-tools-overflow-btn[\s\S]{0,80}?order:\s*100/.test(styles),
+        '⋮ overflow button moves to the far right on small viewports'
     );
     assert(
         /\.team-lock-sync-bar\.team-lock-sync-bar--inline\s+\.team-lock-control[\s\S]{0,120}?flex-wrap:\s*nowrap/.test(

@@ -14,6 +14,8 @@
     const USERNAME_KEY = 'ccp.tmsRosterUsername';
     const LAST_SYNC_KEY = 'ccp.tmsLastSync';
     const MIN_PROTOCOL = 2;
+    /** Default age after which Sync Center shows a “sync overdue” nudge (24h). */
+    const STALE_SYNC_MS = 24 * 60 * 60 * 1000;
 
     const listeners = [];
     let bridgeState = {
@@ -298,6 +300,30 @@
         }
     }
 
+    /**
+     * True when no sync has been recorded, or the newest kind timestamp is older
+     * than maxAgeMs (default 24h).
+     */
+    function isLastSyncStale(maxAgeMs) {
+        const limit = Number.isFinite(Number(maxAgeMs)) && Number(maxAgeMs) > 0
+            ? Number(maxAgeMs)
+            : STALE_SYNC_MS;
+        const map = getLastSync();
+        const times = Object.keys(map)
+            .map((k) => Date.parse(map[k]))
+            .filter((n) => Number.isFinite(n));
+        if (!times.length) {
+            return true;
+        }
+        const newest = Math.max.apply(null, times);
+        return Date.now() - newest > limit;
+    }
+
+    function isBridgeReady(state) {
+        const s = state || bridgeState;
+        return Boolean(s && (s.status === 'ready' || s.status === 'same-origin'));
+    }
+
     function estimateSyncMinutes(studentCount) {
         const secondsPerStudent = 4;
         const count = Math.max(1, Number(studentCount) || 1);
@@ -342,6 +368,7 @@
 
     global.CCPTmsSync = {
         HELPER_PORTS: HELPER_PORTS,
+        STALE_SYNC_MS: STALE_SYNC_MS,
         detectBridge: detectBridge,
         stopHelper: stopHelper,
         run: run,
@@ -349,6 +376,9 @@
         getSavedUsername: getSavedUsername,
         setSavedUsername: setSavedUsername,
         getLastSync: getLastSync,
+        recordLastSync: recordLastSync,
+        isLastSyncStale: isLastSyncStale,
+        isBridgeReady: isBridgeReady,
         estimateSyncMinutes: estimateSyncMinutes,
         getBridgeState: getBridgeState
     };

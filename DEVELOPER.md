@@ -39,6 +39,12 @@ Frontend calls `/api` via `js/calendar-sync.js` (save debounce, poll, locks, rev
 
 **Dual-backend policy:** Keep Express + `better-sqlite3` for local preview and as the Sync Helper fallback on port 8080. Put clamp/sanitize/mutation rules in `shared/*.cjs` so server and worker cannot drift. Do not switch primary local preview to `wrangler d1 --local` until the bridge no longer needs Express.
 
+**Optional Worker + local D1 smoke (does not replace `npm start`):**
+
+1. `npm run db:migrate:local` — apply D1 migrations to Wrangler’s local SQLite.
+2. `npm run dev:worker-local` — runs migrate then `wrangler dev` (Worker API against local D1).
+3. Use this to smoke Worker-only routes. Teachers and TMS Sync Helper still need `npm start` on **8080** (or the installed Helper on **8765**).
+
 **Sibling repo:** `../Calendar App` — `npm run sync-from-main` copies UI updates (skips `js/calendar-sync.js`, `package.json`, `.env`).
 
 ## Where to edit
@@ -56,6 +62,7 @@ Frontend calls `/api` via `js/calendar-sync.js` (save debounce, poll, locks, rev
 | Access control | `server/calendar-access.js`, `worker/src/calendar-access.js`, `server/access-requests.js`, `worker/src/access-requests.js` |
 | App settings | `shared/app-settings-core.cjs` + `server/app-settings.js` / `worker/src/app-settings.js` |
 | UI prefs (nav layout, class scope) | `shared/ui-prefs-core.cjs` + `server/ui-prefs.js` / `worker/src/ui-prefs.js` |
+| Collaborative lock identity / stale | `shared/lock-core.cjs` + `server/users.js` / `worker/src/lock.js` |
 | Export JSON shape | `SCHEMA.md`, `Example Calendars/` |
 | Class / event filter semantics | `SCHEMA.md` → **Class filter contracts** (viewer intersection vs event applicability + exclusions) |
 | Daily class log (calendar) | `js/day-notes.js`, `appData.dayNotes[]`, calendar context menus in `app.js` |

@@ -38,6 +38,13 @@
     const GUIDE_PROBE_MS = 2000;
     const GUIDE_DOWNLOAD_AFTER_MS = 4000;
     const GUIDE_WAIT_MS = 45000;
+    const HEALTH_PROBE_MS = 45000;
+    const HEALTH_TOAST_COOLDOWN_MS = 5 * 60 * 1000;
+    const SAFE_QUICK_KINDS = ['homework', 'essays', 'counsel'];
+
+    let healthTimer = null;
+    let healthWasReady = false;
+    let healthToastAt = 0;
 
     function t(key, fallback) {
         try {
@@ -169,6 +176,46 @@
         return t('tmsSyncStatusMissing', 'Helper not found');
     }
 
+    function notify(message, isError) {
+        if (!message) {
+            return;
+        }
+        if (global.CCPNotice && typeof global.CCPNotice.show === 'function') {
+            global.CCPNotice.show(message, { type: isError ? 'error' : 'info' });
+            return;
+        }
+        if (typeof global.showSyncToast === 'function') {
+            global.showSyncToast(message, Boolean(isError));
+        }
+    }
+
+    function paintStaleNudge(state) {
+        const btn = document.getElementById('tmsSyncCenterBtn');
+        const api = syncApi();
+        const ready = api && api.isBridgeReady
+            ? api.isBridgeReady(state)
+            : Boolean(state && (state.status === 'ready' || state.status === 'same-origin'));
+        const stale = ready && api && api.isLastSyncStale ? api.isLastSyncStale() : false;
+        if (btn) {
+            btn.classList.toggle('tms-sync-center-btn--stale', stale);
+            if (stale) {
+                btn.title = t(
+                    'tmsSyncStaleNudgeTitle',
+                    'TMS sync is overdue — open Sync to Load and Apply'
+                );
+                btn.setAttribute('data-i18n-title', 'tmsSyncStaleNudgeTitle');
+            } else {
+                btn.title = t('tmsSyncCenterBtnTitle', 'Sync from TMS');
+                btn.setAttribute('data-i18n-title', 'tmsSyncCenterBtnTitle');
+            }
+        }
+        const dot = document.getElementById('tmsSyncCenterDot');
+        if (dot && stale) {
+            dot.classList.add('tms-sync-status-dot--stale');
+        }
+        return stale;
+    }
+
     function paintHelper(state) {
         const text = document.getElementById('tmsSyncHelperText');
         const hint = document.getElementById('tmsSyncHelperHint');
@@ -222,6 +269,47 @@
         }
         helperViewState = state || { status: 'missing' };
         paintHeaderHelper(helperViewState);
+        paintStaleNudge(helperViewState);
+    }
+
+    function startHealthWatch() {
+        if (healthTimer) {
+            return;
+        }
+        const api = syncApi();
+        if (api && api.isBridgeReady) {
+            healthWasReady = api.isBridgeReady(api.getBridgeState && api.getBridgeState());
+        }
+        const tick = async () => {
+            const sync = syncApi();
+            if (!sync || !sync.detectBridge) {
+                return;
+            }
+            try {
+                const state = await sync.detectBridge();
+                const ready = sync.isBridgeReady ? sync.isBridgeReady(state) : false;
+                if (healthWasReady && !ready) {
+                    const now = Date.now();
+                    if (now - healthToastAt >= HEALTH_TOAST_COOLDOWN_MS) {
+                        healthToastAt = now;
+                        notify(
+                            t(
+                                'tmsHelperDroppedToast',
+                                'Sync Helper disconnected on this PC. Reopen Helper or Check again in Sync.'
+                            ),
+                            true
+                        );
+                    }
+                }
+                healthWasReady = ready;
+                paintHelper(state);
+            } catch (_) {
+                /* next tick */
+            }
+        };
+        healthTimer = setInterval(() => {
+            void tick();
+        }, HEALTH_PROBE_MS);
     }
 
     function headerMode(state) {
@@ -899,6 +987,7 @@
                 setProgress((i + 1) / kinds.length, t('tmsSyncLoadedKind', 'Loaded'));
             }
             paintLastSync();
+            paintStaleNudge(helperViewState);
             const firstLoaded = kinds[0];
             if (firstLoaded) {
                 showPane(firstLoaded);
@@ -934,6 +1023,58 @@
                     applied.homework = true;
                 }
             }
+        }
+    }
+
+    /** Apply only safe kinds — never roster (always needs review). */
+    async function applySafeKinds() {
+        const essayBtn = document.getElementById('essayTmsSyncConfirmBtn');
+        if (essayBtn && !essayBtn.disabled) {
+            essayBtn.click();
+            applied.essays = true;
+        }
+        const homeworkBtn = document.getElementById('homeworkTmsSyncConfirmBtn');
+        if (homeworkBtn && !homeworkBtn.disabled) {
+            homeworkBtn.click();
+            applied.homework = true;
+        }
+        /* counsel applies during Load via briefing.runSync */
+    }
+
+    function ensureQuickSyncKindsChecked() {
+        document.querySelectorAll('input[name="tmsSyncKind"]').forEach((input) => {
+            const kind = input.value;
+            if (SAFE_QUICK_KINDS.includes(kind)) {
+                input.checked = true;
+            }
+            /* leave roster as the teacher left it — Load may include it, Apply will not */
+        });
+    }
+
+    async function quickSync() {
+        if (running) {
+            return;
+        }
+        ensureQuickSyncKindsChecked();
+        if (!selectedKinds().length) {
+            notify(t('tmsSyncQuickNone', 'Select at least one kind to sync.'), true);
+            return;
+        }
+        await loadSelected();
+        await applySafeKinds();
+        paintStaleNudge(helperViewState || (syncApi() && syncApi().getBridgeState && syncApi().getBridgeState()));
+        const rosterLoaded = Boolean(results.roster);
+        if (rosterLoaded) {
+            showPane('roster');
+            notify(
+                t(
+                    'tmsSyncQuickRosterLeft',
+                    'Quick sync applied safe kinds. Review roster, then Apply.'
+                ),
+                false
+            );
+        } else {
+            notify(t('tmsSyncQuickDone', 'Quick sync finished for safe kinds.'), false);
         }
     }
 
@@ -1074,6 +1215,9 @@
         document.getElementById('tmsSyncLoadBtn')?.addEventListener('click', () => {
             void loadSelected();
         });
+        document.getElementById('tmsSyncQuickBtn')?.addEventListener('click', () => {
+            void quickSync();
+        });
         document.getElementById('tmsSyncApplyAllBtn')?.addEventListener('click', () => {
             void applyAll();
         });
@@ -1088,6 +1232,7 @@
             api.onBridgeChange(paintHelper);
         }
         void refreshHelper();
+        startHealthWatch();
     }
 
     function boot() {
