@@ -203,4 +203,45 @@ function splitPlanDetailSections(planDetail) {
     assert(hw === 'y', 'extractStudentHomework prefers homework section');
 }
 
+const bookLabels = Object.assign({}, labels, {
+    booksTitle: 'Books to give',
+    booksTitleWithBook: 'Books to give · {book}',
+    booksNewLine: 'New, no book: {names}',
+    booksAbsentLine: 'Absent, needs book: {names}'
+});
+
+{
+    const payload = DSP.buildDailySummaryPayload({
+        classData: { id: 'c1', name: 'Debate A' },
+        packet: {},
+        prep: { previousMeetingDate: '', notes: [] },
+        bookWarnings: {
+            bookTitle: 'Debate Yeoul',
+            newWithoutBook: [{ studentId: 'new1', name: '김신규' }],
+            absentNeedingBook: [{ studentId: 'abs1', name: '박결석' }]
+        }
+    });
+    assert(payload.bookWarnings.bookTitle === 'Debate Yeoul', 'book title copied');
+    assert(payload.bookWarnings.newWithoutBook[0].name === '김신규', 'new name copied');
+    const html = DSP.renderTeacherClassBlock(payload, bookLabels);
+    assert(html.includes('daily-summary-book-warnings'), 'teacher block has book warnings');
+    assert(html.includes('Books to give · Debate Yeoul'), 'book warning title');
+    assert(html.includes('New, no book: 김신규'), 'new student line');
+    assert(html.includes('Absent, needs book: 박결석'), 'absent student line');
+    const studentHtml = DSP.renderStudentHandoutDocumentHtml([payload], bookLabels, { copiesPerPage: 4 });
+    assert(!studentHtml.includes('daily-summary-book-warnings'), 'student slips omit book warnings');
+    assert(!studentHtml.includes('김신규'), 'student slips omit student names from warnings');
+}
+
+{
+    const emptyPayload = DSP.buildDailySummaryPayload({
+        classData: { id: 'c1', name: 'Debate A' },
+        packet: {},
+        prep: { previousMeetingDate: '', notes: [] }
+    });
+    assert(emptyPayload.bookWarnings.newWithoutBook.length === 0, 'missing warnings normalize empty');
+    const html = DSP.renderTeacherClassBlock(emptyPayload, bookLabels);
+    assert(!html.includes('daily-summary-book-warnings'), 'empty warnings omit the section');
+}
+
 console.log('daily-summary-print.test.mjs: all tests passed');

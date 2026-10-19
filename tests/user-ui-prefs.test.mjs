@@ -30,10 +30,13 @@ function makeTable() {
 }
 
 function loadWorker(table) {
+    const core = require(path.join(root, 'shared', 'ui-prefs-core.cjs'));
     const src = readFileSync(path.join(root, 'worker', 'src', 'ui-prefs.js'), 'utf8')
-        .replace(/^import[^\n]*\n/m, '')
+        .replace(/^import[\s\S]*?from\s+['"][^'"]+['"];?\r?\n/gm, '')
+        .replace(/^export \{[^}]*\};\r?\n/gm, '')
         .replace(/^export /gm, '');
     const sandbox = {
+        ...core,
         dbOne: async (_env, _sql, userId, calendarId) => table.get(userId, calendarId),
         dbRun: async (_env, _sql, userId, calendarId, prefsJson, updatedAt) =>
             table.put(userId, calendarId, prefsJson, updatedAt),

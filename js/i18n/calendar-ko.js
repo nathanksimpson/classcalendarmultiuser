@@ -3180,6 +3180,10 @@
         nowClassPopupPreviewLabel: '미리보기',
         nowClassPopupPreviewNoClassDay: '이 날짜에는 수업이 없습니다',
         nowClassPopupClose: '닫기',
-        nowClassPopupPreviewFailed: '이 수업의 팝업을 미리볼 수 없습니다.'
+        nowClassPopupPreviewFailed: '이 수업의 팝업을 미리볼 수 없습니다.',
+        nowClassPopupBooksTitle: '교재 배부',
+        nowClassPopupBooksTitleWithBook: '교재 배부 · {book}',
+        nowClassPopupBooksNew: '신규, 미배부: {names}',
+        nowClassPopupBooksAbsent: '결석, 교재 필요: {names}'
     };
 })(typeof window !== 'undefined' ? window : globalThis);

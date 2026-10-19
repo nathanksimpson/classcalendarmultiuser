@@ -6744,6 +6744,162 @@
         });
     }
 
+    function emptyBookHandoutWarnings() {
+        return {
+            tracked: false,
+            bookTitle: '',
+            periodKey: '',
+            newWithoutBook: [],
+            absentNeedingBook: []
+        };
+    }
+
+    function studentIsNewForBookWarning(student) {
+        if (!student) {
+            return false;
+        }
+        if (Array.isArray(student.tags) && student.tags.includes('new')) {
+            return true;
+        }
+        return parseKoreanNameMarks(student.name).isNew === true;
+    }
+
+    /**
+     * True when an absence date belongs to the book period in effect on the reference day.
+     * Monthly periods match the teaching month. Term books match on or after the class start.
+     */
+    function absenceDateInBookPeriod(classData, periodKey, absenceDate) {
+        const date = normalizeStr(absenceDate);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            return false;
+        }
+        if (periodKey === DEBATE_BOOK_TERM_PERIOD_KEY) {
+            const start = normalizeStr(classData && classData.startDate);
+            if (start && date < start) {
+                return false;
+            }
+            const end = normalizeStr(classData && classData.endDate);
+            if (end && date > end) {
+                return false;
+            }
+            return true;
+        }
+        const periodsApi = global.CCPDebatePeriods;
+        const month =
+            periodsApi && typeof periodsApi.teachingMonthKeyForDate === 'function'
+                ? periodsApi.teachingMonthKeyForDate(date)
+                : date.slice(0, 7);
+        return month === periodKey;
+    }
+
+    function studentWasAbsentBeforeDateInPeriod(sessions, classId, studentId, classData, periodKey, dateStr) {
+        const cid = normalizeStr(classId);
+        const sid = normalizeStr(studentId);
+        const ref = normalizeStr(dateStr);
+        const list = Array.isArray(sessions) ? sessions : [];
+        for (let i = 0; i < list.length; i += 1) {
+            const session = list[i];
+            if (!session || normalizeStr(session.classId) !== cid) {
+                continue;
+            }
+            const sessionDate = normalizeStr(session.date);
+            if (!sessionDate || sessionDate >= ref) {
+                continue;
+            }
+            if (!absenceDateInBookPeriod(classData, periodKey, sessionDate)) {
+                continue;
+            }
+            const rec = getAttendanceRecordForStudent(session, sid);
+            if (rec && rec.status === 'absent') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function sortBookWarningRows(rows) {
+        rows.sort((a, b) =>
+            compareStudentNames(
+                { name: a.name, id: a.studentId },
+                { name: b.name, id: b.studentId }
+            )
+        );
+        return rows;
+    }
+
+    /**
+     * Students who still need the book for the period covering dateStr.
+     * New students with status not_issued, and students absent earlier in that
+     * period who are still not_issued. Issued and missing students are omitted.
+     * A student who is both new and absent is listed only under new.
+     */
+    function listClassBookHandoutWarnings(appData, classData, dateStr) {
+        if (!classTracksDebateBookDelivery(classData)) {
+            return emptyBookHandoutWarnings();
+        }
+        const ref = normalizeStr(dateStr);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(ref)) {
+            return Object.assign({}, emptyBookHandoutWarnings(), { tracked: true });
+        }
+        const periodKey = resolveDebateBookPeriodKeyForClass(classData, null, ref);
+        if (!periodKey) {
+            return Object.assign({}, emptyBookHandoutWarnings(), { tracked: true });
+        }
+        const data = appData && typeof appData === 'object' ? appData : {};
+        const students = resolveStudentsForClass(classData, data.cohorts || []);
+        const dist = findDebateBookDistribution(
+            data.debateBookDistributions,
+            classData.id,
+            periodKey
+        );
+        const ensured = ensureDebateBookRecordsForStudents(
+            dist || { classId: classData.id, periodKey, records: [] },
+            students
+        );
+        const bookTitle =
+            normalizeStr(dist && dist.bookTitle) ||
+            resolveDebateBookTitleForMonth(classData, periodKey);
+        const sessions = data.attendanceSessions || [];
+        const newWithoutBook = [];
+        const absentNeedingBook = [];
+        students.forEach((entry) => {
+            const student = entry && entry.student;
+            if (!student || !student.id) {
+                return;
+            }
+            const rec = getDebateBookRecordForStudent(ensured, student.id);
+            const status =
+                rec && DEBATE_BOOK_STATUSES.includes(rec.status) ? rec.status : 'not_issued';
+            if (status !== 'not_issued') {
+                return;
+            }
+            const row = { studentId: student.id, name: normalizeStr(student.name) };
+            if (studentIsNewForBookWarning(student)) {
+                newWithoutBook.push(row);
+                return;
+            }
+            if (
+                studentWasAbsentBeforeDateInPeriod(
+                    sessions,
+                    classData.id,
+                    student.id,
+                    classData,
+                    periodKey,
+                    ref
+                )
+            ) {
+                absentNeedingBook.push(row);
+            }
+        });
+        return {
+            tracked: true,
+            bookTitle,
+            periodKey,
+            newWithoutBook: sortBookWarningRows(newWithoutBook),
+            absentNeedingBook: sortBookWarningRows(absentNeedingBook)
+        };
+    }
+
     function snapshotPriorDebateBookStatus(appData, studentId, classData) {
         const sid = normalizeStr(studentId);
         const uiPeriodMap =
@@ -9834,6 +9990,7 @@
         listDebateBookSummaryEntries,
         listDebateBookSummaryRows,
         classTracksDebateBookDelivery,
+        listClassBookHandoutWarnings,
         listDebateBookClassesForCohort,
         snapshotPriorDebateBookStatus,
         normalizePendingDebateBookCheck,

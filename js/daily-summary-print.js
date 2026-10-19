@@ -115,6 +115,74 @@
         return raw;
     }
 
+    function normalizeBookWarningNames(list) {
+        return (Array.isArray(list) ? list : [])
+            .map((entry) => {
+                if (!entry) {
+                    return null;
+                }
+                if (typeof entry === 'string') {
+                    const name = entry.trim();
+                    return name ? { studentId: '', name } : null;
+                }
+                const name = String(entry.name || '').trim();
+                if (!name) {
+                    return null;
+                }
+                return {
+                    studentId: String(entry.studentId || '').trim(),
+                    name
+                };
+            })
+            .filter(Boolean);
+    }
+
+    function normalizeBookWarnings(raw) {
+        const src = raw && typeof raw === 'object' ? raw : {};
+        return {
+            bookTitle: String(src.bookTitle || '').trim(),
+            newWithoutBook: normalizeBookWarningNames(src.newWithoutBook),
+            absentNeedingBook: normalizeBookWarningNames(src.absentNeedingBook)
+        };
+    }
+
+    function fillBookWarningLine(template, names) {
+        const joined = names.map((entry) => entry.name).join(', ');
+        return String(template || '').replace(/\{names\}/g, joined);
+    }
+
+    function renderBookWarningsSection(payload, labels) {
+        const warnings = payload && payload.bookWarnings;
+        if (!warnings) {
+            return '';
+        }
+        const labelSet = labels || {};
+        const lines = [];
+        if (warnings.newWithoutBook.length) {
+            const line = fillBookWarningLine(labelSet.booksNewLine, warnings.newWithoutBook);
+            if (line) {
+                lines.push(line);
+            }
+        }
+        if (warnings.absentNeedingBook.length) {
+            const line = fillBookWarningLine(labelSet.booksAbsentLine, warnings.absentNeedingBook);
+            if (line) {
+                lines.push(line);
+            }
+        }
+        if (!lines.length) {
+            return '';
+        }
+        const book = warnings.bookTitle;
+        const title = book && labelSet.booksTitleWithBook
+            ? String(labelSet.booksTitleWithBook).replace(/\{book\}/g, book)
+            : String(labelSet.booksTitle || '');
+        return `<div class="daily-summary-compact-section daily-summary-book-warnings">
+<h4 class="daily-summary-compact-title">${escapeHtml(title)}</h4>
+<div class="daily-summary-compact-body">${textToHtml(lines.join('\n'))}</div>
+</div>`;
+    }
+
     function buildDailySummaryPayload(input) {
         const classData = input.classData || {};
         const packet = input.packet || {};
@@ -141,7 +209,8 @@
             assignHomework,
             studentHomework: extractStudentHomework(assignHomework, splitFn),
             dueDate: String(packet.dueDate || '').trim(),
-            dueDateLabel: String(input.dueDateLabel || packet.dueDate || '').trim()
+            dueDateLabel: String(input.dueDateLabel || packet.dueDate || '').trim(),
+            bookWarnings: normalizeBookWarnings(input.bookWarnings)
         };
     }
 
@@ -181,6 +250,7 @@ ${inner}
 <h3 class="daily-summary-class-block-name">${escapeHtml(payload.className)}</h3>
 ${metaParts ? `<p class="daily-summary-class-block-meta">${escapeHtml(metaParts)}</p>` : ''}
 <div class="daily-summary-class-block-sections">
+${renderBookWarningsSection(payload, labels)}
 ${renderCompactSection(prepTitle, prepText, prepHint)}
 ${renderCompactSection(labels.gradingHomework, payload.gradingHomework, labels.noGradingHomework)}
 ${renderCompactSection(

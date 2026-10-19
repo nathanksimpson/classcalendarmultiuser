@@ -19016,6 +19016,11 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
     margin-bottom: 4px;
 }
 
+.now-class-popup-section--books .now-class-popup-section-label {
+    color: var(--danger);
+    opacity: 1;
+}
+
 .now-class-popup-body {
     font-size: 0.86rem;
     line-height: 1.25rem;
