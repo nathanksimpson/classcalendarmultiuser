@@ -39,7 +39,7 @@ function sampleApp() {
                 id: 'coh1',
                 name: '여울T',
                 students: [
-                    { id: 'stu1', name: '박세빈S', nameEn: 'Sally', tags: [] },
+                    { id: 'stu1', name: '장테가S', nameEn: 'Stubpz', tags: [] },
                     { id: 'stu2', name: '이미제출', nameEn: '', tags: [] }
                 ]
             }
@@ -107,7 +107,7 @@ function sampleApp() {
                 lessonDate: today,
                 homeworkItemIdx: '1282873',
                 students: [
-                    { name: '박세빈S', submitted: true, submittedAt: '2026-07-28' },
+                    { name: '장테가S', submitted: true, submittedAt: '2026-07-28' },
                     { name: '이미제출', submitted: true, submittedAt: '2026-07-20' },
                     { name: '없는학생', submitted: true, submittedAt: '2026-07-28' }
                 ]
@@ -203,7 +203,7 @@ function sampleApp() {
                 title: 'Debate',
                 lessonDate: today,
                 homeworkItemIdx: '1282873',
-                students: [{ name: '박세빈S', submitted: true, submittedAt: '2026-07-28' }]
+                students: [{ name: '장테가S', submitted: true, submittedAt: '2026-07-28' }]
             }
         ]
     });
@@ -241,7 +241,7 @@ function sampleApp() {
                 lessonDate: '2026-07-23',
                 assignedDate: '2026-07-23',
                 homeworkItemIdx: '1282873',
-                students: [{ name: '박세빈S', submitted: true, submittedAt: '2026-07-28' }]
+                students: [{ name: '장테가S', submitted: true, submittedAt: '2026-07-28' }]
             }
         ]
     });
@@ -277,7 +277,7 @@ function sampleApp() {
                 lessonDate: '2026-08-07',
                 assignedDate: '2026-08-07',
                 homeworkItemIdx: 'aug-yuma',
-                students: [{ name: '박세빈S', submitted: true, submittedAt: '2026-08-08' }]
+                students: [{ name: '장테가S', submitted: true, submittedAt: '2026-08-08' }]
             }
         ]
     });
@@ -296,7 +296,7 @@ function sampleApp() {
                 title: 'Debate',
                 lessonDate: today,
                 homeworkItemIdx: '1282873',
-                students: [{ name: '박세빈S', submitted: true, submittedAt: '2026-07-28' }]
+                students: [{ name: '장테가S', submitted: true, submittedAt: '2026-07-28' }]
             }
         ]
     });
@@ -371,7 +371,7 @@ function sampleApp() {
                 title: 'Debate',
                 lessonDate: '2026-07-21',
                 homeworkItemIdx: 'in-term',
-                students: [{ name: '박세빈S', submitted: true, submittedAt: '2026-07-28' }]
+                students: [{ name: '장테가S', submitted: true, submittedAt: '2026-07-28' }]
             },
             {
                 tmsClassId: '31040',
@@ -379,7 +379,7 @@ function sampleApp() {
                 title: 'Debate',
                 lessonDate: '2026-03-21',
                 homeworkItemIdx: 'old-term',
-                students: [{ name: '박세빈S', submitted: true, submittedAt: '2026-03-28' }]
+                students: [{ name: '장테가S', submitted: true, submittedAt: '2026-03-28' }]
             }
         ]
     };
@@ -403,7 +403,7 @@ function sampleApp() {
                 title: 'Debate',
                 lessonDate: '2026-03-21',
                 homeworkItemIdx: 'old-term',
-                students: [{ name: '박세빈S', submitted: true, submittedAt: '2026-03-28' }]
+                students: [{ name: '장테가S', submitted: true, submittedAt: '2026-03-28' }]
             }
         ]
     };
@@ -476,7 +476,7 @@ function sampleApp() {
             lessonDate: '2026-08-12',
             assignedDate: '2026-08-12',
             studentCount: 1,
-            students: [{ name: '박세빈S', submitted: true, submittedAt: '2026-08-13' }],
+            students: [{ name: '장테가S', submitted: true, submittedAt: '2026-08-13' }],
             userAction: 'map',
             userClassId: 'cls1',
             userSyllabusRowId: 'row-jul'
@@ -510,7 +510,7 @@ function sampleApp() {
             lessonDate: '2026-09-17',
             assignedDate: '2026-09-17',
             studentCount: 1,
-            students: [{ name: '박세빈S', submitted: true, submittedAt: '2026-09-20' }],
+            students: [{ name: '장테가S', submitted: true, submittedAt: '2026-09-20' }],
             userAction: 'map',
             userClassId: 'cls1',
             userSyllabusRowId: 'row-oct-custom'
@@ -573,7 +573,7 @@ function sampleApp() {
             {
                 tmsClassId: '31040', className: '여울T^2606', title: 'Debate',
                 lessonDate: today, homeworkItemIdx: '100',
-                students: [{ name: '박세빈S', submitted: true, submittedAt: today }]
+                students: [{ name: '장테가S', submitted: true, submittedAt: today }]
             },
             {
                 tmsClassId: '88888', className: 'OtherT^2606', title: 'Weekly writing',
@@ -592,7 +592,7 @@ function sampleApp() {
 {
     // Symbol-insensitive essay match + name update on apply
     const app = sampleApp();
-    app.cohorts[0].students[0].name = '박세빈S';
+    app.cohorts[0].students[0].name = '장테가S';
     const built = D.buildTmsEssaySyncPlan(app, {
         assignments: [
             {
@@ -601,7 +601,7 @@ function sampleApp() {
                 title: 'Debate',
                 lessonDate: today,
                 homeworkItemIdx: '1282873',
-                students: [{ name: '박세빈S◆', submitted: true, submittedAt: '2026-07-28' }]
+                students: [{ name: '장테가S◆', submitted: true, submittedAt: '2026-07-28' }]
             }
         ]
     });
@@ -612,11 +612,11 @@ function sampleApp() {
     assert(preview.updates.length === 1, 'symbol match update');
     assert(preview.updates[0].studentId === 'stu1', 'matched stu1');
     assert(preview.updates[0].nameUpdated === true, 'name update flagged');
-    assert(preview.updates[0].tmsName === '박세빈', 'canonical tms name');
+    assert(preview.updates[0].tmsName === '장테가', 'canonical tms name');
     const applied = D.applyTmsEssaySync(app.essaySubmissions, preview, { appData: app });
     assert(applied.summary.appliedCount === 1, 'applied');
     const stu = applied.cohorts[0].students.find((s) => s.id === 'stu1');
-    assert(stu.name === '박세빈', 'cohort name canonical (no status symbols)');
+    assert(stu.name === '장테가', 'cohort name canonical (no status symbols)');
     assert(Array.isArray(stu.tags) && stu.tags.includes('shuttle'), 'shuttle tag');
     assert(stu.tags.includes('transfer_in'), 'transfer tag');
 }
@@ -882,7 +882,7 @@ function sampleApp() {
             className: '여울T^2606',
             title: 'Debate',
             lessonDate: today,
-            students: [{ name: '박세빈S', submitted: true, submittedAt: '2026-07-28' }]
+            students: [{ name: '장테가S', submitted: true, submittedAt: '2026-07-28' }]
         }
     ]);
     assert(preview.updates.length === 1, 'same-day essay due still updates');
@@ -916,7 +916,7 @@ function sampleApp() {
             className: '여울T^2606',
             title: 'Debate',
             lessonDate: today,
-            students: [{ name: '박세빈S', submitted: true, submittedAt: today }]
+            students: [{ name: '장테가S', submitted: true, submittedAt: today }]
         }
     ]);
     assert(preview.updates.length === 0, 'already received is not a new mark');
@@ -1004,7 +1004,7 @@ function sampleApp() {
                 title: 'News',
                 lessonDate: today,
                 homeworkItemIdx: 'news-item',
-                students: [{ name: '박세빈S', submitted: true, submittedAt: today }]
+                students: [{ name: '장테가S', submitted: true, submittedAt: today }]
             }
         ]
     });
@@ -1023,7 +1023,7 @@ function sampleApp() {
             lessonDate: today,
             assignedDate: today,
             studentCount: 1,
-            students: [{ name: '박세빈S', submitted: true, submittedAt: today }],
+            students: [{ name: '장테가S', submitted: true, submittedAt: today }],
             userAction: 'map',
             userClassId: 'cls1',
             userSyllabusRowId: 'row-debate'

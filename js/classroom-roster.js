@@ -1233,11 +1233,18 @@
         const userEl = document.getElementById('rosterTmsUsername');
         const passEl = document.getElementById('rosterTmsPassword');
         const rememberEl = document.getElementById('rosterTmsRememberUser');
-        return {
+        const dom = {
             username: userEl ? String(userEl.value || '').trim() : '',
             password: passEl ? String(passEl.value || '') : '',
             rememberUser: Boolean(rememberEl && rememberEl.checked)
         };
+        if ((userEl || passEl) && (dom.username || dom.password)) {
+            return dom;
+        }
+        if (global.CCPTmsSyncCenter && global.CCPTmsSyncCenter.getCredentials) {
+            return global.CCPTmsSyncCenter.getCredentials();
+        }
+        return dom;
     }
 
     function persistTmsUsernamePreference(username, remember) {
@@ -2958,9 +2965,6 @@
         document.getElementById('rosterTmsLoadBtn')?.addEventListener('click', () => {
             void loadTmsSyncPreview();
         });
-        document.getElementById('rosterTmsBridgeTestBtn')?.addEventListener('click', () => {
-            window.open('http://127.0.0.1:8080/api/tms/bridge/ping', '_blank', 'noopener,noreferrer');
-        });
         document.getElementById('rosterTmsPassword')?.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -3043,94 +3047,22 @@
                 }
                 resolve(payload);
             };
+            if (global.CCPTmsSyncCenter && global.CCPTmsSyncCenter.open) {
+                global.CCPTmsSyncCenter.open({ kinds: ['roster'], scope: {} }).then((session) => {
+                    done({
+                        applied: Boolean(session && session.applied && session.applied.roster)
+                    });
+                });
+                return;
+            }
             openTmsSyncModal({ onComplete: done });
         });
     }
 
-    function isLocalClassManagerHost() {
-        try {
-            if (typeof location === 'undefined') {
-                return false;
-            }
-            const host = String(location.hostname || '').toLowerCase();
-            return host === 'localhost' || host === '127.0.0.1';
-        } catch (_) {
-            return false;
-        }
-    }
-
-    function tmsBridgeFetchInit(extra) {
-        const init = Object.assign(
-            {
-                credentials: 'omit',
-                // Chrome Local Network Access: 127.0.0.1 / localhost are loopback
-                // (not LAN "local") — mismatch causes silent block with no prompt.
-                targetAddressSpace: 'loopback'
-            },
-            extra || {}
-        );
-        return init;
-    }
-
-    function getTmsBridgeBaseCandidates() {
-        return ['http://127.0.0.1:8080', 'http://localhost:8080'];
-    }
-
-    async function probeTmsLocalBridge() {
-        // Already on local server — use same-origin preview, not the cross-origin bridge.
-        if (isLocalClassManagerHost()) {
-            return null;
-        }
-        const bases = getTmsBridgeBaseCandidates();
-        let lastErr = null;
-        for (const base of bases) {
-            const pingUrl = `${base}/api/tms/bridge/ping`;
-            const controller =
-                typeof AbortController !== 'undefined' ? new AbortController() : null;
-            const timer = controller ? setTimeout(() => controller.abort(), 3000) : null;
-            try {
-                const res = await fetch(
-                    pingUrl,
-                    tmsBridgeFetchInit({
-                        method: 'GET',
-                        signal: controller ? controller.signal : undefined
-                    })
-                );
-                if (timer) {
-                    clearTimeout(timer);
-                }
-                if (!res.ok) {
-                    lastErr = new Error(`bridge ping HTTP ${res.status} at ${base}`);
-                    continue;
-                }
-                const body = await res.json().catch(() => null);
-                if (!body || body.ok !== true || body.bridge !== true) {
-                    lastErr = new Error(`bridge ping invalid JSON at ${base}`);
-                    continue;
-                }
-                return {
-                    base,
-                    previewUrl: `${base}/api/tms/bridge/preview`
-                };
-            } catch (err) {
-                if (timer) {
-                    clearTimeout(timer);
-                }
-                lastErr = err;
-            }
-        }
-        if (typeof console !== 'undefined' && console.warn) {
-            console.warn(
-                '[TMS bridge] local probe failed — keep START TEAM CALENDAR.bat running and Allow local network access for classmanager.live',
-                lastErr
-            );
-        }
-        return null;
-    }
-
     async function loadTmsSyncPreview() {
+        let loadedRosterBody = null;
         if (!hooks) {
-            return;
+            return null;
         }
         if (isRosterReadOnly()) {
             setTmsSyncError(t('rosterImportReadOnly'));
@@ -3156,68 +3088,12 @@
                 payload.password = creds.password;
             }
 
-            const onLocalHost = isLocalClassManagerHost();
-            const bridge = await probeTmsLocalBridge();
-            let usedBridge = false;
-            let res;
-
-            if (bridge) {
-                usedBridge = true;
+            const bridgeState = global.CCPTmsSync ? await global.CCPTmsSync.detectBridge() : { status: 'missing' };
+            const usedBridge = bridgeState.status === 'ready' || bridgeState.status === 'same-origin';
+            if (bridgeState.status === 'ready') {
                 setTmsSyncStatus(t('rosterTmsBridgeLoading'));
-                res = await fetch(
-                    bridge.previewUrl,
-                    tmsBridgeFetchInit({
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    })
-                );
-            } else if (onLocalHost) {
-                // Local UI: scrape from this Node process (work IP).
-                res = await fetch('/api/tms/roster/preview', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-            } else {
-                // Live site without reachable bridge — do not fall back to Worker
-                // (Cloudflare IPs are usually blocked by TMS).
-                setTmsSyncError(
-                    `${t('rosterTmsBridgeMissingHint')} ${t('rosterTmsBridgeLocalNetworkHint')}`
-                );
-                setTmsSyncStatus('');
-                tmsSyncLoading = false;
-                if (loadBtn) {
-                    loadBtn.disabled = false;
-                }
-                renderTmsSyncTable();
-                return;
             }
-
-            const contentType = String(res.headers.get('content-type') || '').toLowerCase();
-            const body = contentType.includes('application/json')
-                ? await res.json().catch(() => null)
-                : null;
-            if (!res.ok) {
-                const code = body && body.code;
-                if (code === 'TMS_CREDS_MISSING') {
-                    setTmsSyncError(t('rosterTmsSyncCredsMissing'));
-                } else if (code === 'TMS_LOGIN_FAILED' || res.status === 401) {
-                    setTmsSyncError(t('rosterTmsSyncLoginFailed'));
-                } else if (res.status === 404 || !body) {
-                    setTmsSyncError(t('rosterTmsSyncUnavailable'));
-                } else {
-                    setTmsSyncError((body && body.error) || t('rosterTmsSyncError'));
-                }
-                setTmsSyncStatus('');
-                tmsSyncLoading = false;
-                if (loadBtn) {
-                    loadBtn.disabled = false;
-                }
-                renderTmsSyncTable();
-                return;
-            }
+            const body = await global.CCPTmsSync.run('roster', payload);
             if (!body || !Array.isArray(body.cohorts)) {
                 setTmsSyncError(t('rosterTmsSyncUnavailable'));
                 setTmsSyncStatus('');
@@ -3229,6 +3105,7 @@
                 return;
             }
             tmsSyncHasFetched = true;
+            loadedRosterBody = body;
             clearTmsPasswordField();
             const cohorts = body.cohorts;
             const calendar = getCohorts();
@@ -3257,7 +3134,18 @@
                 );
             }
         } catch (err) {
-            setTmsSyncError((err && err.message) || t('rosterTmsSyncError'));
+            const code = err && err.code;
+            if (code === 'TMS_CREDS_MISSING') {
+                setTmsSyncError(t('rosterTmsSyncCredsMissing'));
+            } else if (code === 'TMS_LOGIN_FAILED' || (err && err.status === 401)) {
+                setTmsSyncError(t('rosterTmsSyncLoginFailed'));
+            } else if (code === 'TMS_BRIDGE_OUTDATED') {
+                setTmsSyncError(t('tmsSyncOutdatedHint'));
+            } else if (code === 'TMS_BRIDGE_REQUIRED') {
+                setTmsSyncError(t('tmsSyncMissingHint'));
+            } else {
+                setTmsSyncError((err && err.message) || t('rosterTmsSyncError'));
+            }
             setTmsSyncStatus('');
         }
         tmsSyncLoading = false;
@@ -3265,6 +3153,7 @@
             loadBtn.disabled = false;
         }
         renderTmsSyncTable();
+        return loadedRosterBody;
     }
 
     function validateTmsMappedTargets() {
@@ -3720,6 +3609,10 @@
         });
         panel.querySelector('#classroomRosterTmsSyncBtn')?.addEventListener('click', () => {
             closeImportMenu();
+            if (global.CCPTmsSyncCenter && global.CCPTmsSyncCenter.open) {
+                void global.CCPTmsSyncCenter.open({ kinds: ['roster'], scope: { classId: getActiveClassroomClassId() } });
+                return;
+            }
             openTmsSyncModal();
         });
 
@@ -5484,6 +5377,11 @@
         render(panel);
     }
 
+    function ensureSyncUi(h) {
+        ensureHooks(h);
+        ensureTmsSyncModalHandlers();
+    }
+
     global.CCPClassroomRoster = {
         initTab,
         render,
@@ -5491,6 +5389,8 @@
         studentInitial,
         openTmsSyncModal,
         requestTmsSyncThen,
-        ensureHooks
+        ensureHooks,
+        ensureSyncUi,
+        loadTmsPreview: loadTmsSyncPreview
     };
 })(typeof window !== 'undefined' ? window : globalThis);

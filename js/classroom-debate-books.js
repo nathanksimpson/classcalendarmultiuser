@@ -12,6 +12,7 @@
     let draftDistribution = null;
     let autosave = null;
     let contextSubscribed = false;
+    let contextSeq = 0;
     let mountEventsBound = false;
     const selectedStudentIds = new Set();
     let reportsMenuOpen = false;
@@ -587,6 +588,9 @@
         } else if (filtersRaw && typeof filtersRaw === 'object') {
             classSummaryFilters = parseClassSummaryFilters(filtersRaw, normalizeWarn);
         }
+        if (global.CCPClassScope) {
+            classSummaryFilters.myClassesOnly = global.CCPClassScope.effectiveMine('debateBooksSummary');
+        }
     }
 
     function saveClassSummarySelection() {
@@ -637,6 +641,9 @@
         const todayCb = document.getElementById('debateBookClassSummaryTodayOnly');
         if (myCb) {
             myCb.checked = classSummaryFilters.myClassesOnly === true;
+            if (global.CCPClassScope && global.CCPClassScope.syncOverrideHint) {
+                global.CCPClassScope.syncOverrideHint(myCb, 'debateBooksSummary', t('classScopeOverrideHint'));
+            }
         }
         if (debateCb) {
             debateCb.checked = classSummaryFilters.debateOnly === true;
@@ -1050,7 +1057,10 @@
             });
         document
             .getElementById('debateBookClassSummaryMyClassesOnly')
-            ?.addEventListener('change', () => {
+            ?.addEventListener('change', (e) => {
+                if (global.CCPClassScope) {
+                    global.CCPClassScope.setOverride('debateBooksSummary', e.target.checked);
+                }
                 syncClassSummaryFiltersFromDom();
                 renderClassSummaryModal();
             });
@@ -1594,6 +1604,7 @@
         }
         contextSubscribed = true;
         global.CCPActiveContext.subscribe(async (detail) => {
+            const seq = (contextSeq = (contextSeq || 0) + 1);
             const panel = panelRef || document.getElementById('panel-debate-books');
             if (!panel || panel.hidden) {
                 return;
@@ -1606,6 +1617,9 @@
                 return;
             }
             await flushBeforeLeave();
+            if (seq !== contextSeq) {
+                return;
+            }
             classId = nextClassId;
             selectedStudentIds.clear();
             ensurePeriodForClass();

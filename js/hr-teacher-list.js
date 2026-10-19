@@ -31,9 +31,23 @@
         return String(v == null ? '' : v).trim();
     }
 
+    function levelProfile() {
+        const lp = global.CCPLevelProfile;
+        return lp && typeof lp.getAllLevels === 'function' ? lp : null;
+    }
+
+    /** Level order from js/level-profile.js when loaded, else the elementary literal list. */
+    function fallbackLevelOrder() {
+        const lp = levelProfile();
+        const ids = lp ? lp.getAllLevels().map((l) => l && l.id).filter(Boolean) : [];
+        return ids.length ? ids : SIMSON_LEVEL_ORDER.slice();
+    }
+
     function fallbackLevelColor(levelId) {
         const id = normalizeStr(levelId);
-        const hex = NAMED_LEVEL_COLORS[id];
+        const lp = levelProfile();
+        const fromProfile = lp ? lp.defaultColorsForLevel(id) : null;
+        const hex = (fromProfile && fromProfile.color) || NAMED_LEVEL_COLORS[id];
         return {
             color: hex || DEFAULT_ACCENT,
             textColor: PRINT_TEXT
@@ -97,12 +111,14 @@
             : fallbackLevelColor;
 
         const levelDefs = typeof h.getAllSimsonLevels === 'function' ? h.getAllSimsonLevels() : null;
+        const profileLevels = levelProfile() ? levelProfile().getAllLevels() : null;
         const orderIds = Array.isArray(levelDefs) && levelDefs.length
             ? levelDefs.map((l) => l && l.id).filter(Boolean)
-            : SIMSON_LEVEL_ORDER.slice();
+            : fallbackLevelOrder();
         const nameById = new Map();
-        if (Array.isArray(levelDefs)) {
-            levelDefs.forEach((l) => {
+        const namedDefs = Array.isArray(levelDefs) && levelDefs.length ? levelDefs : profileLevels;
+        if (Array.isArray(namedDefs)) {
+            namedDefs.forEach((l) => {
                 if (l && l.id) {
                     nameById.set(l.id, l.name || l.id);
                 }

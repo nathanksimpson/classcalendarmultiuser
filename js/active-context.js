@@ -23,12 +23,51 @@
         return null;
     }
 
-    function storageKeys(userId) {
+    function getCalendarId() {
+        if (global.CalendarSync && typeof global.CalendarSync.getActiveCalendarId === 'function') {
+            return String(global.CalendarSync.getActiveCalendarId() || '').trim();
+        }
+        return '';
+    }
+
+    function scopeId() {
+        const userId = getUserId();
+        if (!userId) {
+            return null;
+        }
+        const calId = getCalendarId();
+        return calId ? `${userId}:${calId}` : userId;
+    }
+
+    function storageKeys(scope) {
         return {
-            classId: `ccpActiveClassId:${userId}`,
-            cohortId: `ccpActiveCohortId:${userId}`,
-            sessionDate: `ccpActiveSessionDate:${userId}`
+            classId: `ccpActiveClassId:${scope}`,
+            cohortId: `ccpActiveCohortId:${scope}`,
+            sessionDate: `ccpActiveSessionDate:${scope}`
         };
+    }
+
+    function migrateCalendarScope(userId) {
+        const calId = getCalendarId();
+        if (!userId || !calId || typeof localStorage === 'undefined') {
+            return;
+        }
+        const scope = `${userId}:${calId}`;
+        const flag = `ccpActiveContextCalScoped:${scope}`;
+        if (localStorage.getItem(flag) === '1') {
+            return;
+        }
+        const nextKeys = storageKeys(scope);
+        const oldKeys = storageKeys(userId);
+        ['classId', 'cohortId', 'sessionDate'].forEach((field) => {
+            if (!localStorage.getItem(nextKeys[field])) {
+                const old = localStorage.getItem(oldKeys[field]);
+                if (old) {
+                    localStorage.setItem(nextKeys[field], old);
+                }
+            }
+        });
+        localStorage.setItem(flag, '1');
     }
 
     function emptyContext() {
@@ -39,7 +78,8 @@
         if (!userId || typeof localStorage === 'undefined') {
             return emptyContext();
         }
-        const k = storageKeys(userId);
+        migrateCalendarScope(userId);
+        const k = storageKeys(scopeId() || userId);
         return {
             classId: localStorage.getItem(k.classId) || '',
             cohortId: localStorage.getItem(k.cohortId) || '',
@@ -51,7 +91,7 @@
         if (!userId || typeof localStorage === 'undefined') {
             return;
         }
-        const k = storageKeys(userId);
+        const k = storageKeys(scopeId() || userId);
         ['classId', 'cohortId', 'sessionDate'].forEach((field) => {
             const val = ctx[field] == null ? '' : String(ctx[field]).trim();
             if (val) {
@@ -70,6 +110,7 @@
             global.ensureUiState();
         }
         const ui = global.appData.ui;
+        // Read-only mirrors of CCPActiveContext. Writers go through selectClass / set.
         const fullMirror = !patch;
         if (fullMirror || patch.classId !== undefined) {
             ui.homeworkTabClassId = ctx.classId || '';
@@ -273,6 +314,24 @@
         return set(patch, { source: source || 'class' });
     }
 
+    function selectClass(classId, options) {
+        options = options || {};
+        const id = String(classId || '').trim();
+        const appData = global.appData || {};
+        const classes = Array.isArray(appData.classes) ? appData.classes : [];
+        if (id && classes.length && !classes.some((c) => c && c.id === id)) {
+            return get();
+        }
+        return setFromClass(appData, id, options.sessionDate, options.source || 'selectClass');
+    }
+
+    function reload() {
+        const ctx = get();
+        syncUiMirror(ctx);
+        dispatch(Object.assign({}, ctx, { source: 'calendar', prev: ctx }));
+        return ctx;
+    }
+
     function resolveActiveClassId(appData, options) {
         options = options || {};
         const visible = Array.isArray(options.visibleClasses) ? options.visibleClasses : null;
@@ -281,12 +340,12 @@
             return fromOptions;
         }
         const ctxId = get().classId || '';
-        if (ctxId && (!visible || visible.some((c) => c && c.id === ctxId))) {
+        if (ctxId) {
             return ctxId;
         }
         const ui = appData && appData.ui ? appData.ui : {};
         const uiId = ui.classroomTabClassId || ui.homeworkTabClassId || '';
-        if (uiId && (!visible || visible.some((c) => c && c.id === uiId))) {
+        if (uiId) {
             return uiId;
         }
         if (visible && visible.length) {
@@ -308,6 +367,8 @@
         resolveActiveClassId,
         deriveCohortIdFromClass,
         setFromClass,
+        selectClass,
+        reload,
         getActiveClassId() {
             return get().classId;
         },

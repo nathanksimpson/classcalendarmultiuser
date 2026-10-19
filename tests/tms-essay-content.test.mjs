@@ -54,9 +54,8 @@ function assert(cond, msg) {
 
 {
     const listHtml = readFileSync(path.join(__dirname, 'fixtures', 'tms', 'writing-list-page1.html'), 'utf8');
-    // Fixture may not include photopoliview fn; dump does
     const dump = readFileSync(
-        path.join(__dirname, '..', 'scripts', '_tms-dump', 'writing-list-get.html'),
+        path.join(__dirname, 'fixtures', 'tms', 'writing-list-photopoliview-snippet.html'),
         'utf8'
     );
     const tmpl = tms.extractPhotopoliviewUrlTemplate(dump);

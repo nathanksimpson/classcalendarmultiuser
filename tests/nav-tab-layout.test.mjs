@@ -178,4 +178,15 @@ const emptiedNormalized = api.normalizeTabLayout(
 );
 assert(emptiedNormalized.navTabOrder.tools.length > 0, 'normalize restores empty tools zone');
 
+{
+    // Phase 6: reset + hide tabs moved from Data / header into Account → Preferences.
+    const html = readFileSync(path.join(root, 'index.html'), 'utf8');
+    const appSrc = readFileSync(path.join(root, 'app.js'), 'utf8');
+    assert(html.includes('id="accountResetNavLayoutBtn"'), 'reset entry point lives in the Account menu');
+    assert(!html.includes('id="dataResetNavLayoutBtn"'), 'old Data reset button removed');
+    assert(appSrc.includes("getElementById('accountResetNavLayoutBtn')"), 'reset entry point is bound');
+    assert(/accountResetNavLayoutBtn[\s\S]{0,400}resetNavTabLayoutToDefaults\(\)/.test(appSrc), 'reset still uses the shared handler');
+    assert(html.includes('id="accountHideTabsBtn"'), 'hide tabs lives in the Account menu');
+}
+
 console.log('nav-tab-layout.test.mjs: all passed');

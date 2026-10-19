@@ -242,7 +242,15 @@ Use existing banner/status token classes rather than inventing new alert colors.
 
 Calendar term settings: `#calendarOptions` with `.term-settings-header` and `.calendar-options-details` (collapse is calendar-only; does not hide lock UI).
 
-Top app chrome: global tools row (Calendar menu, Display, Print, Help, theme toggle, Account) in frosted `.app-top-bar-row--primary`; zone buttons (`.app-zone-btn`) + segment row (`.app-zone-segment-btn`); **lock/sync bar** `.team-lock-sync-bar` with `#teamSyncSavedDot`.
+Top app chrome: global tools row in frosted `.app-top-bar-row--primary`; zone buttons (`.app-zone-btn`) + segment row (`.app-zone-segment-btn`); **lock/sync bar** `.team-lock-sync-bar` with `#teamSyncSavedDot`.
+
+Header order (Phase 6): bell → `#headerToolsCollapsible` (**+ New ▾** · Day notes · Calendar ▾ · Print · Help · ◐) → pinned (**All | Mine** scope switch · Term settings · Helper · Account ▾). On phones ⋮ (`#headerToolsOverflowBtn`) folds the collapsible group; pinned items stay. Rules:
+
+- **Create** lives in **+ New** (`#headerNewPopover`, `.header-fixed-popover` + `.header-dropdown-item` rows). Calendar-data items (Class, Event, Cohort) are disabled in view-only; Day note and Custom essay assignment are not lock-gated.
+- **Print** opens the **Print Center** (`#printCenterModal`). New printables register with `CCPPrintCenter.register({ id, group, labelKey, tabs, available, run })`; prefer `openVia(zone, segment, buttonId)` over calling module internals. Do not add new header print buttons.
+- **Data** owns admin/file actions: Import & export index (`CCPDataTransfer`), Back up to Drive, and the **Danger zone** (`.print-data-section--danger`). The Calendar menu is switch + New calendar only.
+- **Preferences** (theme, language, popup, Hide tabs, Reset tab layout) live in the Account menu, not in the header row or Data.
+- **Scope switch** `#headerClassScope` reuses `.calendar-view-switch` + `.syllabus-segment-btn` (`role="radiogroup"`, ≥44px ≤1024px). Local "My classes only" boxes show the effective value and become per-screen overrides (`CCPClassScope.setOverride`) with a `.classroom-zone-override-hint` note until the header changes.
 
 Calendar views (desktop + tablet): Month · Week · Agenda via `.calendar-view-toolbar`. Phone: agenda default, Week hidden.
 
@@ -334,6 +342,9 @@ name → colors → curriculum → term dates → period/level/grade → total l
 | List sidebar filters | [`index.html`](index.html) — homework tab `.list-filter-presets` |
 | Filter preset helper | [`js/ui/filter-presets.js`](js/ui/filter-presets.js) |
 | Popover multi-select filter | [`index.html`](index.html) — `#lessonFilterPopover` |
+| Print Center + Import & export | [`js/print-center.js`](js/print-center.js) — `#printCenterModal`, `#dataImportExportList` (`.print-center-row`) |
+| Header scope switch | [`js/class-scope.js`](js/class-scope.js) — `#headerClassScope` |
+| Level Auto / Custom hint (class form) | [`templates/class-form.html`](templates/class-form.html) — `#classGradeLevelHint`, `#classColorLevelHint`: `<p class="section-hint level-auto-hint">` text + `.btn.btn-outline.btn-small` "Reset to auto" (shown only when Custom). `.level-auto-hint` is layout-only (flex + `--space-*` gap); no new chip or color. Defaults come from [`js/level-profile.js`](js/level-profile.js) |
 
 ---
 

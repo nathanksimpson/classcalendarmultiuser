@@ -49,7 +49,11 @@ Multi-teacher calendar with **Kakao OAuth** (first login auto-creates teacher + 
 | H6 | Full-document PUT, no edge body cap | Cost abuse | **Mitigated:** 5 MB cap |
 | M-A1 | **`GET /api/groups` for pending users** | Org structure leak | **Fixed:** same gate as `/api/teachers` |
 | M-A3 | **Server lock bypass drift** | Head teacher bypass on local PUT | **Fixed:** holder check aligned with worker |
-| M-A7 | **Admin HTML public** | UI recon | **Mitigated:** redirect to login without `canAccessAdmin` |
+| M-A7 | **Admin HTML public** | UI recon | **Fixed (2026-10):** redirect existed but never ran (static assets served first); `/admin`, `/admin/`, `/admin.html` now in `run_worker_first` |
+| M-O1 | **Open OpenAI relay** `/api/openai-proxy/v1/*` | Domain used as anonymous relay | **Fixed (2026-10):** signed-in cookie user only, endpoint allow-list (`/chat/completions`, `/models`), no CORS, rate limit per user |
+| M-L1 | **Dev server on all interfaces** with `ALLOW_OPEN_ACCESS=1` | LAN users become admin | **Fixed (2026-10):** binds `HOST=127.0.0.1`; open access only for loopback requests; refuses to start otherwise |
+| M-P1 | **Real student names in public test fixtures** | PII exposure | **Fixed (2026-10):** fixtures redacted to fake names; repo to be made private; history purge optional |
+| M-B1 | Bootstrap secret compared with `!==` | Timing side channel | **Fixed (2026-10):** SHA-256 + `timingSafeEqual` (server + worker) |
 | M-A9 | **Internal docs in `dist/`** | Recon (D1 id, audit notes) | **Fixed:** excluded from build |
 | M-A6 | **Worker rate limit fails open on D1 error** | Auth brute force | **Fixed:** fail closed |
 
@@ -58,7 +62,9 @@ Multi-teacher calendar with **Kakao OAuth** (first login auto-creates teacher + 
 ## Low / hygiene
 
 - Client idle logout — [js/team-auth.js](js/team-auth.js)
-- CSP / HSTS — not on static assets; configure via Cloudflare
+- CSP — **report-only** since 2026-10 (`shared/security-headers.cjs` → `dist/_headers` + Worker `withSecurityHeaders`); switch to enforcing after a clean week. Also sets `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`. HSTS: configure via Cloudflare
+- Encoding guard — `tests/encoding.test.mjs` + build gate stop corrupted (mojibake) HTML from deploying
+- D1 hygiene — daily cron (`scheduled()`) prunes `api_rate_buckets`, expired `sessions`, presence older than 7 days; presence upsert throttled to one write per 30 s when unchanged
 - Stored XSS — partial fix in [app.js](app.js) hot paths; **class autocomplete** escaped (2026-05-31); continue audit for other `innerHTML`
 - Prompt injection — N/A (no LLM)
 - Kakao removal — Phase 2 per original roadmap
@@ -95,7 +101,7 @@ Env: `OAUTH_STATE_SECRET` (required when Kakao enabled on local server; falls ba
 ### Phase 1 — Planned
 
 - TOTP; session rotation; shorter max session
-- CSP; broader `escapeHtml` audit
+- CSP enforcing (report-only shipped 2026-10; move 7 inline `on*=` handlers in `index.html` first); broader `escapeHtml` audit
 - Adaptive polling; per-user save limits
 
 ### Phase 2

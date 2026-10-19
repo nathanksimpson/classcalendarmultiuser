@@ -207,4 +207,25 @@ function lessonFilterTeacherMatchesRef(ref, selector) {
         'daily print intersects date-occurs with my-classes assignment');
 }
 
+// --- Phase 6: local "My classes only" boxes stay, but show the header scope's effective value ---
+{
+    const appSrc = readFileSync(path.join(root, 'app.js'), 'utf8');
+    const booksSrc = readFileSync(path.join(root, 'js', 'classroom-debate-books.js'), 'utf8');
+    const scopeSrc = readFileSync(path.join(root, 'js', 'class-scope.js'), 'utf8');
+    [
+        ['homework', appSrc],
+        ['notes', appSrc],
+        ['debateBooksSummary', booksSrc]
+    ].forEach(([screen, src]) => {
+        assert(src.includes(`effectiveMine('${screen}')`), `${screen} checkbox shows the effective value`);
+        assert(src.includes(`setOverride('${screen}'`), `${screen} checkbox writes a local override`);
+        assert(scopeSrc.includes(`'${screen}'`), `${screen} is a known class-scope screen`);
+    });
+    assert(appSrc.includes("getElementById('homeworkMyClassesOnly')"), 'homework checkbox kept');
+    assert(appSrc.includes("getElementById('classNotesMyClassesOnly')"), 'notes checkbox kept');
+    assert(booksSrc.includes("getElementById('debateBookClassSummaryMyClassesOnly')"), 'debate books checkbox kept');
+    assert(/function onClassScopeChanged[\s\S]{0,400}applyLessonFilterJustMine\(\)[\s\S]{0,80}resetLessonFilters\(\)/.test(appSrc),
+        'header change resets the Calendar lesson filter (Mine → Just my classes, All → reset)');
+}
+
 console.log('class-filter-contracts.test.mjs: all passed');

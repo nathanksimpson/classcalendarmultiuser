@@ -15,21 +15,29 @@ function assert(cond, msg) {
 }
 
 {
-    const p = tms.parseWritingStudentLabel('박세빈S(Sally)');
-    assert(p.name === '박세빈', `name got ${p.name}`);
-    assert(p.nameEn === 'Sally', `en got ${p.nameEn}`);
+    const p = tms.parseWritingStudentLabel('장테가S(Stubpz)');
+    assert(p.name === '장테가', `name got ${p.name}`);
+    assert(p.nameEn === 'Stubpz', `en got ${p.nameEn}`);
     assert(p.statusMarks && p.statusMarks.shuttle === true, 'shuttle mark');
 }
 
 {
-    const p = tms.parseWritingStudentLabel('김유겸(YooGyum)');
-    assert(p.name === '김유겸', `name got ${p.name}`);
-    assert(p.nameEn === 'YooGyum', 'en');
+    const p = tms.parseWritingStudentLabel('강테카(Stuaczz)');
+    assert(p.name === '강테카', `name got ${p.name}`);
+    assert(p.nameEn === 'Stuaczz', 'en');
 }
 
 {
-    const p = tms.parseWritingStudentLabel('황연진()');
-    assert(p.name === '황연진', `empty paren name got ${p.name}`);
+    const p = tms.parseWritingStudentLabel('윤테카()');
+    assert(p.name === '윤테카', `empty paren name got ${p.name}`);
+}
+
+{
+    const four = tms.parseWritingStudentLabel('선우테가(Stulong)');
+    assert(four.name === '선우테가', `4-syllable name got ${four.name}`);
+    const five = tms.parseWritingStudentLabel('남궁테가나(Stulonger)');
+    assert(five.name === '남궁테가나', `5-syllable name got ${five.name}`);
+    assert(five.nameEn === 'Stulonger', `5-syllable en got ${five.nameEn}`);
 }
 
 {
@@ -37,7 +45,7 @@ function assert(cond, msg) {
     const rows = tms.parseWritingListRows(html);
     assert(rows.length === 5, `expected 5 rows got ${rows.length}`);
     const first = rows[0];
-    assert(first.name === '박세빈', `first name ${first.name}`);
+    assert(first.name === '장테가', `first name ${first.name}`);
     assert(first.statusMarks && first.statusMarks.shuttle === true, 'first shuttle');
     assert(first.tmsClassId === '31040', `class id ${first.tmsClassId}`);
     assert(first.homeworkItemIdx === '1282873', 'homework idx');
@@ -55,8 +63,8 @@ function assert(cond, msg) {
     const debate = assignments.find((a) => a.title === 'Debate' && a.tmsClassId === '31040');
     assert(debate, 'debate assignment');
     assert(debate.mpidx === '137465', `debate mpidx ${debate.mpidx}`);
-    assert(debate.students.some((s) => s.name === '박세빈'), 'debate student');
-    const park = debate.students.find((s) => s.name === '박세빈');
+    assert(debate.students.some((s) => s.name === '장테가'), 'debate student');
+    const park = debate.students.find((s) => s.name === '장테가');
     assert(park && park.mpidx, 'essay student keeps per-row mpidx');
     const news = assignments.find((a) => a.homeworkItemIdx === '1283783');
     assert(news && news.title === 'News', 'news assignment');

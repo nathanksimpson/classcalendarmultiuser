@@ -1234,19 +1234,23 @@ assert(
     'Day 3 + two Day 4 rows found for debate class'
 );
 const debateAssignments = d.listDebateTeamAssignmentsForClass(debateClass);
-assert(debateAssignments.length === 3, 'listDebateTeamAssignmentsForClass returns Day 3 + two Day 4s');
+assert(debateAssignments.length === 2, 'listDebateTeamAssignmentsForClass returns one assignment per month');
 assert(debateAssignments[0].date === '2026-03-17', 'first debate assignment is March Day 3');
 assert(
-    debateAssignments[1].assignmentLabel.includes('Day 4'),
-    'debate assignment label includes Day 4'
+    debateAssignments[0].lessonDates.includes('2026-03-24'),
+    'March Day 4 belongs to the March assignment'
+);
+assert(
+    !/Day 4/.test(debateAssignments[1].assignmentLabel) && debateAssignments[1].assignmentLabel.includes('2026-04'),
+    'debate assignment label uses month wording, not Day 4'
 );
 assert(
     d.pickDefaultDebateTeamDate(debateClass, '2026-03-01') === '2026-03-17',
-    'default debate date picks soonest Day 3/4 on or after ref'
+    'default debate date picks the current month assignment'
 );
 assert(
     d.pickDefaultDebateTeamDate(debateClass, '2026-05-01') === '2026-04-28',
-    'default debate date falls back to last Day 4 when all past'
+    'default debate date falls back to the latest assignment when all past'
 );
 
 {
@@ -1319,8 +1323,8 @@ const scheduledFallback = d.listDebateTeamAssignmentsForClass(emptySyllabusDebat
         { date: '2026-06-23', label: 'Day 4 / Preview', group: { days: [4] } }
     ]
 });
-assert(scheduledFallback.length === 2, 'scheduled lesson fallback lists Day 4 dates');
-assert(scheduledFallback[0].date === '2026-05-26', 'fallback first Day 4 date');
+assert(scheduledFallback.length === 2, 'scheduled lesson fallback lists one assignment per month');
+assert(scheduledFallback[0].date === '2026-05-26', 'fallback first debate date');
 
 {
     assert(d.isHomeworkMiss('N') === true, 'N is a miss');

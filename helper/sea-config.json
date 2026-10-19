@@ -1,0 +1,6 @@
+{
+  "main": "helper/build/helper-bundle.cjs",
+  "output": "helper/build/sea-prep.blob",
+  "disableExperimentalSEAWarning": true,
+  "useCodeCache": true
+}

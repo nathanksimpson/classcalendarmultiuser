@@ -1,4 +1,4 @@
-﻿-- Multi-device sessions: public id + metadata; session-scoped calendar locks.
+-- Multi-device sessions: public id + metadata; session-scoped calendar locks.
 ALTER TABLE sessions ADD COLUMN id TEXT;
 ALTER TABLE sessions ADD COLUMN created_at TEXT;
 ALTER TABLE sessions ADD COLUMN last_seen_at TEXT;

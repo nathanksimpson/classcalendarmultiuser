@@ -49,4 +49,10 @@ const { CCPFilterPresets } = sandbox.window;
     assert(seen === true, 'wire change handler');
 }
 
+{
+    // Phase 6: the shared builder still renders the box; callers pass the effective scope value.
+    const off = CCPFilterPresets.buildMyClassesOnlyCheckbox({ id: 'homeworkMyClassesOnly', checked: false });
+    assert(!/\schecked(\s|>|=)/.test(off), 'unchecked when the effective value is false');
+}
+
 console.log('filter-presets.test.mjs: all passed');

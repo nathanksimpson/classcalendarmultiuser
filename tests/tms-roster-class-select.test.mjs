@@ -83,7 +83,7 @@ const FIXTURE_CLASS_SELECT = `
         {
             cohortName: 'NavyM_26SP',
             tmsClassId: '30496',
-            students: [{ name: '이서연', nameEn: '' }],
+            students: [{ name: '최테차', nameEn: '' }],
             source: 'class-popup'
         },
         {
@@ -97,7 +97,7 @@ const FIXTURE_CLASS_SELECT = `
     assert(byId, 'merged by tmsClassId');
     assert(byId.students.length === 2, 'merged students under same id');
     assert(
-        byId.students.some((s) => s.name === '김민수') && byId.students.some((s) => s.name === '이서연'),
+        byId.students.some((s) => s.name === '김민수') && byId.students.some((s) => s.name === '최테차'),
         'both students kept'
     );
 }
@@ -111,23 +111,23 @@ const FIXTURE_CLASS_SELECT = `
     assert(tms.isLikelyStudentName('신규학'), '신규학 is a plausible real name');
     assert(tms.isLikelyStudentName('신규생'), '신규생 is a plausible real name');
     assert(tms.isLikelyStudentName('신선우'), '신선우 is a real name');
-    assert(tms.isLikelyStudentName('조하연'), '조하연 is a student name');
-    assert(tms.isLikelyStudentName('권이안◆'), 'disambiguator diamond allowed');
-    assert(tms.isLikelyStudentName('권이안♦'), 'card-suit diamond allowed');
+    assert(tms.isLikelyStudentName('장테사'), '장테사 is a student name');
+    assert(tms.isLikelyStudentName('이테카◆'), 'disambiguator diamond allowed');
+    assert(tms.isLikelyStudentName('이테카♦'), 'card-suit diamond allowed');
     assert(tms.isLikelyStudentName('김민수A'), 'disambiguator latin allowed');
-    assert(tms.isLikelyStudentName('권이안 ◆'), 'space before mark normalized');
+    assert(tms.isLikelyStudentName('이테카 ◆'), 'space before mark normalized');
     assert(!tms.isLikelyStudentName('◆'), 'symbol alone rejected');
-    assert(tms.stripTmsAttendanceNoise('권이안 (Absent)') === '권이안', 'strip english attendance');
-    assert(tms.stripTmsAttendanceNoise('권이안 결석') === '권이안', 'strip korean attendance');
-    assert(tms.normalizeTmsStudentName('권이안◆ 결석').name === '권이안', 'strip transfer mark after attendance strip');
-    assert(tms.normalizeTmsStudentName('권이안◆ 결석').statusMarks.transferIn === true, 'transfer tag detected');
-    assert(tms.normalizeTmsStudentName('권이안 ◆').name === '권이안', 'collapse space before mark');
+    assert(tms.stripTmsAttendanceNoise('이테카 (Absent)') === '이테카', 'strip english attendance');
+    assert(tms.stripTmsAttendanceNoise('이테카 결석') === '이테카', 'strip korean attendance');
+    assert(tms.normalizeTmsStudentName('이테카◆ 결석').name === '이테카', 'strip transfer mark after attendance strip');
+    assert(tms.normalizeTmsStudentName('이테카◆ 결석').statusMarks.transferIn === true, 'transfer tag detected');
+    assert(tms.normalizeTmsStudentName('이테카 ◆').name === '이테카', 'collapse space before mark');
 }
 
 {
     const html = `
       <td class="TL">
-        <span><a href="javascript:studentinf(137338)">조하연</a><br></span>
+        <span><a href="javascript:studentinf(137338)">장테사</a><br></span>
         (<a href="#">Alice</a>)
       </td>
       <td class="TL">
@@ -144,14 +144,14 @@ const FIXTURE_CLASS_SELECT = `
     `;
     const students = tms.parseStudentsFromClassPopup(html);
     assert(students.length === 2, `expected 2 students, got ${students.length}`);
-    assert(students[0].name === '조하연', 'first 조하연');
+    assert(students[0].name === '장테사', 'first 장테사');
     assert(students[0].nameEn === 'Alice', 'english Alice');
     assert(students[1].name === '김민수', 'second 김민수');
     assert(!students.some((s) => s.name === '매우만족'), 'no 매우만족');
     assert(!students.some((s) => /숙제확인/.test(s.name)), 'no 숙제확인');
     const hwChecks = tms.parseHomeworkChecksFromClassPopup(html);
     const jo = hwChecks.find((s) => s.mpidx === '137338');
-    assert(jo, 'homework check parsed for 조하연');
+    assert(jo, 'homework check parsed for 장테사');
     assert(jo.missing === true, 'No Check → missing');
     assert(jo.selfCheck === 'satisfied', 'Hselfcheck 매우만족 → satisfied');
     assert(jo.parentCheck === false, '학부모확인 label alone is not parentCheck');
@@ -176,7 +176,7 @@ const FIXTURE_CLASS_SELECT = `
 {
     const html = `
       <td class="TL">
-        <a href="StudentPopup.aspx?mpidx=137338">조하연</a>
+        <a href="StudentPopup.aspx?mpidx=137338">장테사</a>
         <input type="hidden" name="repe1$ctl00$Hselfcheck" value="매우만족">
         <input type="hidden" name="repe1$ctl00$HHmpidx" value="137338">
         <a href="#">No Check</a>
@@ -197,7 +197,7 @@ const FIXTURE_CLASS_SELECT = `
     assert(min && min.selfCheck === 'not_checked', 'prefixed 보통 → not_checked');
     const merged = tms.mergeStudentsWithHomeworkChecks(
         [
-            { mpidx: '137338', name: '조하연', nameEn: 'Alice' },
+            { mpidx: '137338', name: '장테사', nameEn: 'Alice' },
             { mpidx: '999', name: 'Ghost' }
         ],
         hw
@@ -228,19 +228,19 @@ const FIXTURE_CLASS_SELECT = `
 
 {
     const html = `
-      <td><a href="javascript:studentinf(10101)">권이안◆</a></td>
+      <td><a href="javascript:studentinf(10101)">이테카◆</a></td>
       <td><a href="javascript:studentinf(10102)">김민수A</a></td>
-      <td><a href="javascript:studentinf(10103)">이서연◆ (Absent)</a></td>
+      <td><a href="javascript:studentinf(10103)">최테차◆ (Absent)</a></td>
       <td><a href="javascript:studentinf(10104)">박지훈</a>◆<br>(Alice)</td>
       <td><a href="javascript:studentinf(10105)">최유나</a> ♦ </td>
     `;
     const students = tms.parseStudentsFromClassPopup(html);
     assert(students.length === 5, `disambiguator names expected 5, got ${students.length}`);
-    assert(students[0].name === '권이안', 'canonical transfer student name');
+    assert(students[0].name === '이테카', 'canonical transfer student name');
     assert(students[0].statusMarks.transferIn === true, 'transfer mark detected');
     assert(students[0].nameEn === '', 'empty english preserved');
     assert(students[1].name === '김민수A', 'kept latin disambiguator');
-    assert(students[2].name === '이서연', 'attendance stripped, transfer mark not kept in name');
+    assert(students[2].name === '최테차', 'attendance stripped, transfer mark not kept in name');
     assert(students[2].statusMarks.transferIn === true, 'attendance row keeps transfer status');
     assert(students[3].name === '박지훈', 'mark after </a> captured as status');
     assert(students[3].statusMarks.transferIn === true, 'trailing transfer status captured');
@@ -354,11 +354,11 @@ const FIXTURE_CLASS_SELECT = `
 {
     // Alternate TMS link shape.
     const popup = tms.parseStudentsFromClassPopup(`
-      <a href="StudentPopup.aspx?mpidx=555">조하연</a>(Alice)
+      <a href="StudentPopup.aspx?mpidx=555">장테사</a>(Alice)
       <a href="StudentPopup.aspx?mpidx=556">김민수</a>
     `);
     assert(popup.length === 2, `StudentPopup.aspx links parsed, got ${popup.length}`);
-    assert(popup[0].name === '조하연' && popup[0].nameEn === 'Alice', 'popup first');
+    assert(popup[0].name === '장테사' && popup[0].nameEn === 'Alice', 'popup first');
     assert(popup[1].mpidx === '556', 'popup second mpidx');
 }
 
@@ -380,7 +380,7 @@ const FIXTURE_CLASS_SELECT = `
 {
     // Real TMS often wraps Hangul / mark in nested tags — old [^<]+ regex dropped these.
     const html = `
-      <td><span><a href="javascript:studentinf(20101)">권이안<span style="color:red">◆</span></a><br></span></td>
+      <td><span><a href="javascript:studentinf(20101)">이테카<span style="color:red">◆</span></a><br></span></td>
       <td><a href="javascript:studentinf(20102)"><font color="#c00">서하린</font></a>◆</td>
       <td><a href="javascript:studentinf(20103)">민서아</a><br>(Mina)◆</td>
       <td><a href="javascript:studentinf(20104)">윤도현&#9670;</a></td>
@@ -389,7 +389,7 @@ const FIXTURE_CLASS_SELECT = `
     `;
     const students = tms.parseStudentsFromClassPopup(html);
     assert(students.length === 6, `nested/entity names expected 6, got ${students.length}`);
-    assert(students[0].name === '권이안', 'mark inside nested span becomes status');
+    assert(students[0].name === '이테카', 'mark inside nested span becomes status');
     assert(students[0].statusMarks.transferIn === true, 'nested span transfer status');
     assert(students[1].name === '서하린', 'font wrap + mark after </a>');
     assert(students[1].statusMarks.transferIn === true, 'font wrap transfer status');
@@ -408,7 +408,7 @@ Navy M
 김민수
 (Minsu)
 2. 본관
-이서연
+최테차
 (Seoyeon)
 [숙제확인]
 매우만족
@@ -417,21 +417,21 @@ Navy M
     const students = tms.parseStudentsFromNumberedBlocks(numbered);
     assert(students.length === 2, `numbered expected 2, got ${students.length}`);
     assert(students[0].name === '김민수' && students[0].nameEn === 'Minsu', 'numbered first');
-    assert(students[1].name === '이서연', 'numbered second');
+    assert(students[1].name === '최테차', 'numbered second');
     assert(!students.some((s) => s.name === '매우만족'), 'tail trimmed 매우만족');
 }
 
 {
     const numbered = `
 Garam M
-1. 권이안
+1. 이테카
 결석
 2. 김민수
 (Minsu)
 `;
     const students = tms.parseStudentsFromNumberedBlocks(numbered);
     assert(students.length === 2, `numbered korean-only expected 2, got ${students.length}`);
-    assert(students[0].name === '권이안', 'numbered first-line korean name');
+    assert(students[0].name === '이테카', 'numbered first-line korean name');
     assert(students[0].nameEn === '', 'numbered first-line english empty');
     assert(students[1].name === '김민수', 'numbered second student');
 }
@@ -450,8 +450,8 @@ Garam M
 }
 
 {
-    const multi = tms.normalizeTmsStudentName('박세빈S◆');
-    assert(multi.name === '박세빈', 'multi-mark canonical name');
+    const multi = tms.normalizeTmsStudentName('장테가S◆');
+    assert(multi.name === '장테가', 'multi-mark canonical name');
     assert(multi.statusMarks.shuttle === true && multi.statusMarks.transferIn === true, 'S+◆ marks');
     const letterStar = tms.normalizeTmsStudentName('김민수AS★');
     assert(letterStar.name === '김민수A', 'A kept, S/★ status');

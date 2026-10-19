@@ -4,6 +4,17 @@
     "intro": "This app builds a term calendar for your classes: lesson days, holidays, deadlines, syllabus tables, timetables, curriculum books, day notes, and printouts. The header has four zones (Schedule, Class Setup, Classroom, More), each with its own tabs. When your school uses the team cloud link, you also share calendars with colleagues (sections 17–21). Use this guide in order when you are new, or jump to a section you need.",
     "sections": [
       {
+        "heading": "Sync Helper",
+        "where": "Header → Sync, on classmanager.live",
+        "steps": [
+          "TMS only accepts the school network. The Sync Helper is a small program on this PC so ClassManager can sync through it.",
+          "Open Sync. If it says the helper is missing, click Download installer.",
+          "Double-click the file. If Windows says it protected your PC, click More info, then Run anyway.",
+          "Leave the helper running. It starts again the next time you sign in to Windows.",
+          "Back in ClassManager, press Check again. When it says Helper ready, type your TMS username and password and press Load. The password is not saved in a file."
+        ]
+      },
+      {
         "heading": "1. The zones and tabs",
         "where": "Top header — Schedule | Class Setup | Classroom | More",
         "steps": [
@@ -280,6 +291,17 @@
     "title": "도움말 — ClassManager",
     "intro": "이 앱은 학기 캘린더를 만듭니다. 수업일, 공휴일, 마감일, 강의 계획표, 시간표, 교재, 수업 일지, 인쇄까지 한곳에서 관리할 수 있습니다. 상단에는 일정·수업 설정·수업관리·더보기 네 구역과 각 구역의 탭이 있습니다. 학교 팀 클라우드 링크를 쓰면 동료와 캘린더를 공유합니다(17–21절). 처음에는 아래 순서대로, 필요한 항목만 골라 읽어도 됩니다.",
     "sections": [
+      {
+        "heading": "동기화 도우미",
+        "where": "classmanager.live 상단 → 동기화",
+        "steps": [
+          "TMS는 학교 네트워크만 허용합니다. 동기화 도우미는 이 PC에서 조용히 실행되는 작은 프로그램입니다.",
+          "동기화를 엽니다. 도우미가 없다고 나오면 설치 파일 받기를 누릅니다.",
+          "파일을 두 번 클릭합니다. Windows가 PC를 보호했다고 하면 추가 정보, 그다음 실행을 누릅니다.",
+          "도우미를 켜 둡니다. 다음에 Windows에 로그인하면 다시 시작됩니다.",
+          "ClassManager로 돌아와 다시 확인을 누릅니다. 도우미 준비됨이 보이면 TMS 아이디와 비밀번호를 입력하고 불러오기를 누릅니다. 비밀번호는 파일로 저장되지 않습니다."
+        ]
+      },
       {
         "heading": "1. 구역과 탭",
         "where": "상단 헤더 — 일정 | 수업 설정 | 수업관리 | 더보기",

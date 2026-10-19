@@ -1,0 +1,21 @@
+<!-- Redacted excerpt of TMS Writing_list.aspx: only the photopoliview() script (no student data). -->
+<html>
+<head>
+    <script language="javascript">
+        function photopoliview(mpidx, classidx, homeworkitemidx, wdate) {
+
+
+            if (classidx == "") {
+
+                alert('선택된 반이 없습니다.');
+                return;
+            }
+
+            window.open('/recorder/rec_video/recphotopholi.aspx?mpidx=' + mpidx + '&classidx=' + classidx + '&homeworkitemidx=' + homeworkitemidx + '&wdate=' + wdate, 'video', 'width=1200,height=900,scrollbars=yes');
+
+        }
+
+    </script>
+</head>
+<body class="mem_essay"></body>
+</html>

@@ -71,43 +71,12 @@
     gap: 10px;
 }
 
-.term-selector__footer {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2);
-    margin-top: var(--space-3);
-    padding-top: 0;
-    border-top: none;
-}
-
-.calendar-options .term-selector__footer {
-    margin-top: var(--space-2);
-}
-
-.term-selector__footer:empty {
-    display: none;
-    margin: 0;
-    padding: 0;
-    border: none;
-}
-
 .kr-holidays-source-hint {
     flex: 1 1 100%;
     margin: 0;
     font-size: 0.75rem;
     color: var(--text-muted, #6b7280);
     line-height: 1.35;
-}
-
-.term-selector__footer #fetchKrHolidaysBtn {
-    flex-shrink: 0;
-}
-
-@media (max-width: 900px) {
-    .term-selector__footer #fetchKrHolidaysBtn {
-        width: 100%;
-    }
 }
 
 .calendar-visibility-dock {

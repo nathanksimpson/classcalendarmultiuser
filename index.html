@@ -4,16 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ClassManager &mdash; Team</title>
-    <script>document.documentElement.classList.add('ccp-auth-boot');</script>
-    <style>html.ccp-auth-boot body{visibility:hidden}html.ccp-auth-boot{background:var(--bg-main,#f4f6f9)}</style>
-    <link rel="stylesheet" href="styles.css?v=20261005-essay-demerit">
+    <link rel="stylesheet" href="styles.css?v=20261015-hdr-row">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <script>
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20261013-homework-copy-options';
+        window.CCP_I18N_VERSION = '20261015-hdr-row';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -112,8 +110,8 @@
                             <button type="button" id="teamLockActionBtn" class="btn btn-primary btn-small team-lock-action-btn" hidden></button>
                             <button type="button" id="teamLockDrawerToggle" class="btn btn-outline btn-small team-lock-drawer-toggle" aria-expanded="false" aria-controls="teamLockDetails" data-i18n="teamLockDetailsBtn" data-i18n-title="teamLockDetailsBtn" data-i18n-aria-label="teamLockDetailsBtn" title="Details" aria-label="Details">Details</button>
                             <span id="teamLockPendingActions" class="team-lock-pending-actions team-lock-pending-actions--icon" hidden>
-                                <button type="button" id="teamLockAllowBtn" class="btn btn-outline btn-small team-lock-pending-btn" data-i18n="teamLockAllow">Allow</button>
-                                <button type="button" id="teamLockDismissBtn" class="btn btn-outline btn-small team-lock-pending-btn" data-i18n="teamLockDismiss">Dismiss</button>
+                                <button type="button" id="teamLockAllowBtn" class="btn btn-outline btn-small team-lock-pending-btn" data-i18n="teamLockAllow" data-i18n-title="teamLockAllow" title="Allow">Allow</button>
+                                <button type="button" id="teamLockDismissBtn" class="btn btn-outline btn-small team-lock-pending-btn" data-i18n="teamLockDismiss" data-i18n-title="teamLockDismiss" title="Dismiss">Dismiss</button>
                             </span>
                         </div>
                         <div id="teamLockDetails" class="team-lock-details">
@@ -136,11 +134,21 @@
                         <span data-i18n="syncAllSaved">All changes saved</span>
                     </span>
                     </div>
+                    <button type="button" id="tmsSyncCenterBtn" class="btn btn-outline btn-small" data-i18n-title="tmsSyncCenterBtnTitle" title="Sync from TMS">
+                        <span id="tmsSyncCenterDot" class="tms-sync-status-dot" aria-hidden="true"></span>
+                        <span class="header-pinned-icon" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="23 4 23 10 17 10"></polyline>
+                                <polyline points="1 20 1 14 7 14"></polyline>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                            </svg>
+                        </span>
+                        <span class="header-pinned-label" data-i18n="tmsSyncCenterBtn">Sync</span>
+                    </button>
                     <div class="app-top-bar-row__spacer" aria-hidden="true"></div>
                     <button type="button" id="navTabsCollapsedChip" class="nav-tabs-collapsed-chip" hidden aria-hidden="true">
                         <span id="navTabsCollapsedChipLabel" class="nav-tabs-collapsed-chip__label"></span>
                     </button>
-                    <button type="button" id="navTabsCollapseToggle" class="btn btn-outline btn-small nav-tabs-collapse-toggle" aria-expanded="true" aria-controls="appZoneNavCluster appZoneSegmentNavRow" data-i18n="navTabsHide" data-i18n-title="navTabsHideTitle" title="Hide navigation tabs">Hide tabs</button>
                     <div id="appWarningsNotify" class="app-warnings-notify" hidden>
                 <button type="button" id="appWarningsBtn" class="btn btn-outline btn-small app-notify-bell-btn" aria-haspopup="dialog" aria-controls="tabWarningsPopover" aria-label="Notifications" data-i18n-aria-label="appNotificationsBtnTitle" data-i18n-title="appNotificationsBtnTitle" title="Notifications">
                     <span class="app-notify-bell-icon" aria-hidden="true">
@@ -155,19 +163,50 @@
                     <div class="app-header-unified__tools app-top-bar-actions header-tools-row" id="headerToolsRow" role="group" aria-label="Quick actions" data-i18n-aria-label="headerQuickActionsAria">
                     <button type="button" id="headerToolsOverflowBtn" class="btn btn-outline btn-small header-tools-overflow-btn" aria-expanded="false" aria-controls="headerToolsCollapsible" data-i18n-aria-label="headerToolsMoreAria" data-i18n-title="headerToolsMoreAria" title="More actions" aria-label="More actions">&#8942;</button>
                     <div class="app-header-unified__tools-collapsible" id="headerToolsCollapsible">
+                    <button type="button" id="headerNewMenuBtn" class="btn btn-primary btn-small header-dropdown-trigger" aria-expanded="false" aria-haspopup="menu" aria-controls="headerNewPopover" data-i18n="headerNewMenu" data-i18n-title="headerNewMenuAria" data-i18n-aria-label="headerNewMenuAria" title="Create something new" aria-label="Create something new">+ New</button>
+                    <button type="button" id="headerDayNotesBtn" class="btn btn-outline btn-small" data-i18n="headerDayNotes" data-i18n-title="headerDayNotesTitle" title="Open notes for the current class">Day notes</button>
                     <span id="contextCohortChip" class="context-cohort-chip-host" hidden></span>
                     <button type="button" id="teamCalendarMenuBtn" class="btn btn-outline btn-small header-dropdown-trigger team-calendar-menu-trigger" aria-expanded="false" aria-haspopup="menu" aria-controls="teamCalendarPopover" data-i18n="teamCalendarMenu">Calendar</button>
-                    <button type="button" id="headerMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="headerMySchedule" hidden>My schedule</button>
                     <button type="button" id="openPrintBtn" class="btn btn-header-print btn-small" data-i18n="printBtn">Print</button>
                     <a href="help.html" id="helpLink" class="btn btn-outline btn-small btn-help header-tool-help" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help</a>
                     <button type="button" id="headerThemeToggleBtn" class="btn btn-header-theme btn-small header-tool-theme" data-theme-icon-only="1" aria-pressed="false" data-i18n-title="themeToggleTitle" data-i18n-aria-label="themeToggleTitle" title="Switch light/dark theme" aria-label="Switch light/dark theme">◐</button>
+                    <input type="file" id="importFile" accept=".json" hidden>
+                    </div>
+                    <div class="app-header-unified__tools-pinned">
+                        <div id="headerClassScope" class="calendar-view-switch header-class-scope" role="radiogroup" aria-label="Which classes to show" data-i18n-aria-label="classScopeAria">
+                            <button type="button" class="syllabus-segment-btn is-active" role="radio" aria-checked="true" data-class-scope="all" aria-label="All classes" data-i18n-aria-label="classScopeAll"><span class="header-class-scope__full" data-i18n="classScopeAll">All classes</span><span class="header-class-scope__short" data-i18n="classScopeAllShort">All</span></button>
+                            <button type="button" class="syllabus-segment-btn" role="radio" aria-checked="false" data-class-scope="mine" aria-label="My classes" data-i18n-aria-label="classScopeMine"><span class="header-class-scope__full" data-i18n="classScopeMine">My classes</span><span class="header-class-scope__short" data-i18n="classScopeMineShort">Mine</span></button>
+                        </div>
+                        <button type="button" id="termSummaryToggle" class="btn btn-outline btn-small header-dropdown-trigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="termSettingsModal" data-i18n-title="toolbarTermSettings" title="Term settings">
+                            <span class="header-pinned-icon" aria-hidden="true">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                                </svg>
+                            </span>
+                            <span class="header-pinned-label" data-i18n="toolbarTermSettings">Term settings</span>
+                        </button>
+                        <button type="button" id="tmsHelperToggle" class="btn btn-outline btn-small" aria-live="polite" aria-label="Helper · Off" title="Helper · Off">
+                            <span id="tmsHelperToggleDot" class="tms-sync-status-dot tms-sync-status-dot--missing" aria-hidden="true"></span>
+                            <span class="header-pinned-icon" aria-hidden="true">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 22v-5"></path>
+                                    <path d="M9 8V2"></path>
+                                    <path d="M15 8V2"></path>
+                                    <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"></path>
+                                </svg>
+                            </span>
+                            <span id="tmsHelperToggleText" class="header-pinned-label">Helper · Off</span>
+                        </button>
+                        <button type="button" id="tmsHelperUninstall" class="btn btn-outline btn-small" hidden data-i18n="tmsHelperUninstall">Uninstall</button>
+                    </div>
                     <div class="team-account-menu team-account-menu--header" id="teamAccountGroup" hidden>
                         <button type="button" class="btn btn-outline btn-small team-account-menu-trigger team-account-menu-trigger--avatar" id="teamAccountMenuBtn" aria-expanded="false" aria-haspopup="menu" aria-controls="teamAccountPopover">
                             <span id="teamAccountMenuLabel" class="team-account-menu-label" data-i18n="teamAccountMenu">Account</span>
                             <span id="teamAccountAvatar" class="team-account-avatar" aria-hidden="true"></span>
                         </button>
-                    </div>
-                    <input type="file" id="importFile" accept=".json" hidden>
                     </div>
                 </div>
                 </div>
@@ -216,7 +255,7 @@
                             <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="soundboard" data-tab="soundboard" data-i18n="tabSoundboard">Sound board</button>
                         </div>
                     </nav>
-                    <div id="termSummaryStrip" class="term-summary-strip" hidden>
+                    <button type="button" id="termSummaryStrip" class="term-summary-strip" hidden aria-haspopup="dialog" aria-controls="termSettingsModal" data-i18n-title="termSummaryStripTitle" title="Open term settings">
                         <span id="termSummaryName" class="term-summary-strip__name"></span>
                         <span class="term-summary-strip__sep" aria-hidden="true">&middot;</span>
                         <span id="termSummaryDates" class="term-summary-strip__dates"></span>
@@ -224,8 +263,7 @@
                             <span class="term-summary-strip__sep" aria-hidden="true">&middot;</span>
                             <span id="termSummaryMonths" class="term-summary-strip__months"></span>
                         </span>
-                        <button type="button" id="termSummaryToggle" class="term-summary-strip__link" data-i18n="termSummarySettings">Term settings ▸</button>
-                    </div>
+                    </button>
                 </div>
                 <div id="teamCalendarPickerGroup" class="team-calendar-picker-group" hidden aria-hidden="true"></div>
                 </div>
@@ -349,53 +387,6 @@
                                 <div id="lessonFilterPopoverBody" class="lesson-filter-body"></div>
                             </section>
                         </div>
-                    </div>
-                </div>
-
-                <div id="calendarOptions" class="calendar-options calendar-options--collapsed">
-                    <div class="term-settings-header">
-                        <button type="button" id="termSettingsToggle" class="term-settings-caret" aria-expanded="true" aria-controls="topBarDetails" data-i18n-aria-label="termSettingsHide" aria-label="Hide term settings">
-                            <span class="term-settings-caret-icon" aria-hidden="true"></span>
-                        </button>
-                        <span id="termSettingsSummary" class="term-settings-summary" hidden></span>
-                        <h2 id="toolbarTermHeading" class="visually-hidden" data-i18n="toolbarTermSettings">Term settings</h2>
-                    </div>
-                    <div id="topBarDetails" class="calendar-options-details">
-                        <section class="term-selector" aria-labelledby="toolbarTermHeading">
-                            <div class="term-selector__fields">
-                                <div class="toolbar-field">
-                                    <label for="calendarName" id="calendarNameLabel" data-i18n="calendarName">Calendar Name:</label>
-                                    <input type="text" id="calendarName" data-i18n-placeholder="calendarNamePlaceholder" placeholder="e.g., Fall 2025 Term">
-                                </div>
-                                <div class="toolbar-field">
-                                    <label for="termStart" data-i18n="termStartDate">Term start date:</label>
-                                    <input type="date" id="termStart" value="">
-                                </div>
-                                <div class="toolbar-field">
-                                    <label for="termEnd" data-i18n="termEndDate">Term end date:</label>
-                                    <input type="date" id="termEnd" value="">
-                                </div>
-                                <div class="toolbar-field toolbar-field--checkbox">
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="termUseAutoTermEnd" checked>
-                                        <span data-i18n="useAutoTermEnd">Auto-set end date from month count</span>
-                                    </label>
-                                </div>
-                                <div class="toolbar-field">
-                                    <label for="termMonthCount" data-i18n="termMonthCount">Months to display:</label>
-                                    <select id="termMonthCount" class="field-select" aria-label="Term month count" data-i18n-aria-label="termMonthCount">
-                                        <option value="3">3</option>
-                                        <option value="4">4</option>
-                                        <option value="5">5</option>
-                                        <option value="6">6</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div id="termSelectorFooter" class="term-selector__footer">
-                                <button type="button" id="dayNotesToolbarBtn" class="btn btn-outline btn-small" data-i18n="dayNotesToolbarBtn">Day notes</button>
-                                <a href="/notes.html" id="openNotesAppLink" class="btn btn-outline btn-small notes-app-link" data-i18n="notesOpenMobile">Day notes app</a>
-                            </div>
-                        </section>
                     </div>
                 </div>
 
@@ -654,13 +645,17 @@
             </section>
 
             <section id="panel-debate-teams" class="app-tab-panel debate-teams-panel" data-tab="debate-teams" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
+                <div id="debateSourceBanner" class="source-version-banner" hidden data-noprint>
+                    <p data-i18n="sourceChangedBanner">Source changed since this was generated — Update</p>
+                    <button type="button" id="debateSourceBannerUpdate" class="btn btn-outline btn-small" data-i18n="sourceChangedUpdate">Update</button>
+                </div>
                 <div class="module-toolbar classroom-tab-toolbar" data-noprint>
-                    <button type="button" id="classroomDebateRefreshRosterBtn" class="btn btn-outline btn-compact" data-i18n="classroomDebateRefreshRoster">Refresh roster</button>
-                    <label id="classroomDebateAssignmentWrap" class="classroom-debate-assignment-field" hidden>
-                        <span class="classroom-debate-assignment-label" data-i18n="classroomDebateAssignmentLabel">Debate assignment</span>
-                        <select id="classroomDebateAssignmentSelect" class="field-select field-control"></select>
-                    </label>
-                    <p id="classroomDebateAssignmentEmpty" class="section-hint classroom-debate-assignment-empty" hidden data-i18n="classroomDebateAssignmentEmpty">No Day 4 debate dates in this term.</p>
+                    <details class="header-dropdown">
+                        <summary class="btn btn-outline btn-compact header-dropdown-trigger" data-i18n="sourceChangedMore">More</summary>
+                        <div class="header-dropdown-panel">
+                            <button type="button" id="classroomDebateRefreshRosterBtn" class="header-dropdown-item" data-i18n="classroomDebateRefreshRoster">Refresh roster</button>
+                        </div>
+                    </details>
                     <div class="toolbar-actions">
                         <span id="classroomDebateSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomSaveSaved">Saved</span>
                         <button type="button" id="classroomDebateSaveBtn" class="btn btn-outline btn-compact" data-i18n="classroomSaveNow">Save now</button>
@@ -733,11 +728,6 @@
             <section id="panel-debate-scores" class="app-tab-panel" data-tab="debate-scores" role="tabpanel" aria-labelledby="zoneBtn-tools" hidden>
                 <div class="module-toolbar classroom-tab-toolbar classroom-debate-scores-toolbar" data-noprint>
                     <div class="classroom-debate-scores-toolbar-row">
-                        <label id="classroomDebateScoresAssignmentWrap" class="classroom-debate-assignment-field" hidden>
-                            <span class="classroom-debate-assignment-label" data-i18n="classroomDebateAssignmentLabel">Debate assignment</span>
-                            <select id="classroomDebateScoresAssignmentSelect" class="field-select field-control"></select>
-                        </label>
-                        <p id="classroomDebateScoresAssignmentEmpty" class="section-hint classroom-debate-assignment-empty" hidden data-i18n="classroomDebateAssignmentEmpty">No Day 4 debate dates in this term.</p>
                         <label class="classroom-debate-assignment-field" for="classroomDebateScoresTemplate">
                             <span class="classroom-debate-assignment-label" data-i18n="classroomDebateScoreSheetStyle">Score sheet style</span>
                             <select id="classroomDebateScoresTemplate" class="field-select field-control">
@@ -914,6 +904,7 @@
                                             <button type="button" id="classNotesManageCategoriesBtn" class="btn btn-outline btn-small" data-i18n="dayNoteCategoryManage">Manage categories</button>
                                             <button type="button" id="classNotesExportCopyBtn" class="btn btn-outline btn-small" data-i18n="classNotesExportCopy">Copy export</button>
                                             <button type="button" id="classNotesExportDownloadBtn" class="btn btn-outline btn-small" data-i18n="classNotesExportDownload">Download .txt</button>
+                                            <button type="button" id="classNotesDaySummaryBtn" class="btn btn-outline btn-small" data-i18n="classNotesDaySummaryBtn">Day summary&hellip;</button>
                                         </div>
                                     </div>
                                     <p class="class-notes-sort-hint section-hint" data-i18n="classNotesSortHint">Newest/Oldest use exact time. By day sorts calendar dates.</p>
@@ -965,14 +956,18 @@
                     <div id="syllabusTabEditorMount" class="syllabus-tab-editor-mount workspace-books-editor-mount">
                         <p id="syllabusEditorEmpty" class="module-empty-hint" data-i18n="syllabusTabEditorEmpty">Select a class or a custom syllabus template.</p>
                         <div id="syllabusEditorShell" class="syllabus-editor-shell books-editor-fullpage syllabus-editor-panel" hidden>
+                            <div id="syllabusSourceBanner" class="source-version-banner" hidden>
+                                <p data-i18n="sourceChangedBanner">Source changed since this was generated — Update</p>
+                                <button type="button" id="syllabusSourceBannerUpdate" class="btn btn-outline btn-small" data-i18n="sourceChangedUpdate">Update</button>
+                            </div>
                             <div class="syllabus-editor-actions-bar form-actions books-editor-actions" role="toolbar" aria-label="Syllabus editor actions">
-                                <button type="button" id="syllabusRefreshHeaderBtn" class="btn btn-outline btn-small" data-i18n="refreshSyllabusFromCalendar">Refresh from calendar</button>
-                                <button type="button" id="syllabusRefreshCurriculumHeaderBtn" class="btn btn-outline btn-small" data-i18n="refreshSyllabusFromCurriculum">Refresh from curriculum</button>
                                 <button type="button" id="syllabusPrintHeaderBtn" class="btn btn-outline btn-small" data-i18n="printClassSyllabus">Print syllabus</button>
                                 <button type="button" id="syllabusPrintStudentBtn" class="btn btn-outline btn-small" data-i18n="printStudentSyllabus">Print student syllabus</button>
                                 <details class="header-dropdown editor-header-more">
                                     <summary class="btn btn-outline btn-small editor-header-more-btn header-dropdown-trigger" aria-label="More actions">&#8942;</summary>
                                     <div class="header-dropdown-panel editor-header-more-menu">
+                                        <button type="button" id="syllabusRefreshHeaderBtn" class="header-dropdown-item" data-i18n="refreshSyllabusFromCalendar">Refresh from calendar</button>
+                                        <button type="button" id="syllabusRefreshCurriculumHeaderBtn" class="header-dropdown-item" data-i18n="refreshSyllabusFromCurriculum">Refresh from curriculum</button>
                                         <button type="button" id="syllabusOpenClassSettingsBtn" class="header-dropdown-item" data-i18n="syllabusOpenClassSettings">Class schedule &amp; settings</button>
                                         <button type="button" id="syllabusOpenHomeworkBtn" class="header-dropdown-item" data-i18n="syllabusOpenHomework">Homework copy</button>
                                         <button type="button" id="syllabusSaveAsTemplateBtn" class="header-dropdown-item" hidden data-i18n="syllabusSaveAsTemplate">Save as template</button>
@@ -1069,7 +1064,16 @@
                 </div>
                 <div class="homework-layout module-split-layout module-split-layout--homework">
                     <aside class="module-list-panel homework-sidebar-panel" aria-label="Class list">
-                        <button type="button" id="homeworkRefreshSyllabiBtn" class="btn btn-outline btn-small homework-update-copy-btn" data-i18n="homeworkTabRefreshSyllabi">Reload copy text from syllabi</button>
+                        <div id="homeworkSourceBanner" class="source-version-banner" hidden>
+                            <p data-i18n="sourceChangedBanner">Source changed since this was generated — Update</p>
+                            <button type="button" id="homeworkSourceBannerUpdate" class="btn btn-outline btn-small" data-i18n="sourceChangedUpdate">Update</button>
+                        </div>
+                        <details class="header-dropdown">
+                            <summary class="btn btn-outline btn-small header-dropdown-trigger" data-i18n="sourceChangedMore">More</summary>
+                            <div class="header-dropdown-panel">
+                                <button type="button" id="homeworkRefreshSyllabiBtn" class="header-dropdown-item homework-update-copy-btn" data-i18n="homeworkTabRefreshSyllabi">Reload copy text from syllabi</button>
+                            </div>
+                        </details>
                         <div class="homework-filter-panel list-filter-presets">
                             <div class="homework-filter-checkboxes">
                                 <label class="checkbox-label homework-filter-my-classes" data-filter-preset="my-classes">
@@ -1331,6 +1335,11 @@
 
             <section id="panel-data" class="app-tab-panel" data-tab="data" role="tabpanel" aria-labelledby="zoneBtn-data" hidden>
                 <div class="print-data-layout">
+                    <div class="print-data-section print-data-section--import-export">
+                        <h2 class="module-section-title" data-i18n="dataImportExportHeading">Import &amp; export</h2>
+                        <p class="section-hint" data-i18n="dataImportExportHint">Every way to move data in or out. Run does it now; Go opens the right tab.</p>
+                        <div id="dataImportExportList" class="data-io-columns"></div>
+                    </div>
                     <div class="print-data-section print-data-section--calendar-backup">
                         <h2 class="module-section-title" data-i18n="dataCalendarBackupHeading">Calendar backup</h2>
                         <p class="section-hint" data-i18n="dataCalendarBackupHint">Export a full backup of this calendar (classes, events, cohorts, classroom data, TMS links, planner, timetable, and UI settings). Export before importing if unsure.</p>
@@ -1342,14 +1351,9 @@
                         <div class="print-data-actions">
                             <button type="button" id="dataExportCalendarBtn" class="btn btn-outline btn-small" data-i18n="dataExportCalendar">Export calendar</button>
                             <button type="button" id="dataImportCalendarBtn" class="btn btn-outline btn-small" data-i18n="dataImportCalendar">Import calendar</button>
+                            <button type="button" id="teamBackupBtn" class="btn btn-outline btn-small" data-i18n="dataServerBackupBtn">Back up to Drive now</button>
                         </div>
-                    </div>
-                    <div class="print-data-section print-data-section--nav-layout">
-                        <h2 class="module-section-title" data-i18n="navLayoutHeading">Tab layout</h2>
-                        <p class="section-hint" data-i18n="navLayoutHint">Drag zone or section tabs to reorder. Drag a section tab onto another zone to move it. Your layout syncs to your account on this calendar.</p>
-                        <div class="print-data-actions">
-                            <button type="button" id="dataResetNavLayoutBtn" class="btn btn-outline btn-small" data-i18n="navReorderReset">Reset tab layout</button>
-                        </div>
+                        <p class="section-hint" data-i18n="dataServerBackupHint">Saves a copy on the server. Export downloads a file to this computer.</p>
                     </div>
                     <div class="print-data-section print-data-section--curriculum-link" hidden>
                         <h2 class="module-section-title" data-i18n="tabCurriculum">Curriculum</h2>
@@ -1399,9 +1403,11 @@
                             <button type="button" id="dataTermMigrateBtn" class="btn btn-outline btn-small" data-i18n="dataTermMigrateOpen">Migrate to next term&hellip;</button>
                         </div>
                     </div>
-                    <div class="print-data-section print-data-section--data print-data-actions-section">
-                        <h2 class="module-section-title" data-i18n="tabPrintDataHeading">Data &amp; settings</h2>
+                    <div class="print-data-section print-data-section--danger">
+                        <h2 class="module-section-title" data-i18n="dataDangerZoneHeading">Danger zone</h2>
+                        <p class="section-hint" data-i18n="dataDangerZoneHint">These actions cannot be undone. Export a backup first.</p>
                         <div class="print-data-actions">
+                            <button type="button" id="teamDeleteCalendarBtn" class="btn btn-outline btn-small btn-danger-text" data-i18n="dataRemoveCalendar">Remove this calendar&hellip;</button>
                             <button type="button" id="clearDataBtn" class="btn btn-danger btn-small" data-i18n="clearAllData">Clear All Data</button>
                         </div>
                     </div>
@@ -2045,6 +2051,146 @@
         </div>
     </div>
 
+    <div id="tmsSyncCenterModal" class="modal" role="dialog" aria-labelledby="tmsSyncCenterTitle" aria-modal="true" aria-hidden="true" hidden>
+        <div class="modal-content modal-wide modal-content--scrollable">
+            <div class="modal-header">
+                <h2 id="tmsSyncCenterTitle" data-i18n="tmsSyncCenterTitle">Sync from TMS</h2>
+                <button type="button" class="modal-close" id="tmsSyncCenterClose" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body-scroll">
+                <div class="tms-sync-helper">
+                    <span id="tmsSyncHelperDot" class="tms-sync-status-dot" aria-hidden="true"></span>
+                    <p id="tmsSyncHelperText" class="tms-sync-helper-text"></p>
+                    <button type="button" id="tmsSyncCheckAgain" class="btn btn-outline btn-small" data-i18n="tmsSyncCheckAgain">Check again</button>
+                </div>
+                <p id="tmsSyncHelperHint" class="section-hint"></p>
+                <p id="tmsSyncHelperSteps" class="section-hint" hidden></p>
+                <a id="tmsSyncHelperDownload" class="btn btn-outline btn-small" hidden href="https://github.com/nathanksimpson/classcalendarmultiuser/releases/download/sync-helper-1.0.0/ClassManagerSyncSetup.exe" data-i18n="tmsSyncDownloadInstaller">Download installer</a>
+                <form id="tmsSyncCredForm" class="credential-form" autocomplete="on" onsubmit="return false;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="tmsSyncUsername" data-i18n="rosterTmsUsernameLabel">TMS username</label>
+                            <input type="text" id="tmsSyncUsername" class="field-input" name="tms-username" autocomplete="username" spellcheck="false">
+                        </div>
+                        <div class="form-group">
+                            <label for="tmsSyncPassword" data-i18n="rosterTmsPasswordLabel">TMS password</label>
+                            <input type="password" id="tmsSyncPassword" class="field-input" name="tms-password" autocomplete="current-password">
+                        </div>
+                    </div>
+                    <label class="checkbox-label selection-chip">
+                        <input type="checkbox" id="tmsSyncRememberUser">
+                        <span data-i18n="rosterTmsRememberUser">Remember username on this device</span>
+                    </label>
+                </form>
+                <fieldset class="form-group">
+                    <legend class="form-label" data-i18n="tmsSyncKindsLabel">What to sync</legend>
+                    <div class="tms-sync-kind-list">
+                        <label class="checkbox-label selection-chip">
+                            <input type="checkbox" name="tmsSyncKind" value="roster" checked>
+                            <span data-i18n="tmsSyncKindRoster">Rosters</span>
+                            <span id="tmsSyncLast-roster" class="section-hint"></span>
+                        </label>
+                        <label class="checkbox-label selection-chip">
+                            <input type="checkbox" name="tmsSyncKind" value="essays">
+                            <span data-i18n="tmsSyncKindEssays">Essays</span>
+                            <span id="tmsSyncLast-essays" class="section-hint"></span>
+                        </label>
+                        <label class="checkbox-label selection-chip">
+                            <input type="checkbox" name="tmsSyncKind" value="homework">
+                            <span data-i18n="tmsSyncKindHomework">Homework</span>
+                            <span id="tmsSyncLast-homework" class="section-hint"></span>
+                        </label>
+                        <label class="checkbox-label selection-chip">
+                            <input type="checkbox" name="tmsSyncKind" value="counsel">
+                            <span data-i18n="tmsSyncKindCounsel">Counsel</span>
+                            <span id="tmsSyncLast-counsel" class="section-hint"></span>
+                        </label>
+                    </div>
+                </fieldset>
+                <fieldset class="form-group">
+                    <legend class="form-label" data-i18n="tmsSyncScopeLabel">Scope</legend>
+                    <div class="tms-sync-kind-list">
+                        <label class="checkbox-label selection-chip">
+                            <input type="radio" name="tmsSyncScope" id="tmsSyncScopeAll" value="all" checked>
+                            <span data-i18n="tmsSyncScopeAll">All classes</span>
+                        </label>
+                        <label class="checkbox-label selection-chip">
+                            <input type="radio" name="tmsSyncScope" id="tmsSyncScopeClass" value="class">
+                            <span data-i18n="tmsSyncScopeClass">This class</span>
+                        </label>
+                    </div>
+                </fieldset>
+                <div class="toolbar-actions">
+                    <button type="button" id="tmsSyncLoadBtn" class="btn btn-primary" data-i18n="tmsSyncLoadBtn">Load</button>
+                </div>
+                <div id="tmsSyncProgress" class="tms-sync-progress" hidden>
+                    <div class="briefing-sync-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+                        <div id="tmsSyncProgressFill" class="briefing-sync-bar-fill"></div>
+                    </div>
+                    <p id="tmsSyncProgressLabel" class="section-hint"></p>
+                </div>
+                <div id="tmsSyncReviewTabs" class="tms-sync-review-tabs" hidden>
+                    <div class="tms-sync-tablist" role="tablist">
+                        <button type="button" class="btn btn-outline btn-small" data-tms-sync-tab="roster" role="tab" data-i18n="tmsSyncKindRoster">Rosters</button>
+                        <button type="button" class="btn btn-outline btn-small" data-tms-sync-tab="essays" role="tab" data-i18n="tmsSyncKindEssays">Essays</button>
+                        <button type="button" class="btn btn-outline btn-small" data-tms-sync-tab="homework" role="tab" data-i18n="tmsSyncKindHomework">Homework</button>
+                        <button type="button" class="btn btn-outline btn-small" data-tms-sync-tab="counsel" role="tab" data-i18n="tmsSyncKindCounsel">Counsel</button>
+                    </div>
+                    <div id="tmsSyncPaneRoster" class="tms-sync-pane" role="tabpanel"></div>
+                    <div id="tmsSyncPaneEssays" class="tms-sync-pane" role="tabpanel" hidden></div>
+                    <div id="tmsSyncPaneHomework" class="tms-sync-pane" role="tabpanel" hidden></div>
+                    <div id="tmsSyncPaneCounsel" class="tms-sync-pane" role="tabpanel" hidden></div>
+                </div>
+                <div class="toolbar-actions">
+                    <button type="button" id="tmsSyncApplyAllBtn" class="btn btn-primary" data-i18n="tmsSyncApplyAll">Apply all reviewed</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tmsHelperGuideModal" class="modal" role="dialog" aria-labelledby="tmsHelperGuideTitle" aria-modal="true" aria-hidden="true" hidden>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="tmsHelperGuideTitle" data-i18n="tmsHelperGuideTitle">Set up the Sync Helper</h2>
+                <button type="button" class="modal-close" id="tmsHelperGuideClose" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <ol id="tmsHelperGuideSteps" class="tms-helper-guide-steps">
+                    <li data-guide-step="1"><span data-i18n="tmsHelperGuideStepInstall">Install the helper</span></li>
+                    <li data-guide-step="2"><span data-i18n="tmsHelperGuideStepWait">Wait until it is running</span></li>
+                    <li data-guide-step="3"><span data-i18n="tmsHelperGuideStepSignIn">Sign in to TMS</span></li>
+                    <li data-guide-step="4"><span data-i18n="tmsHelperGuideStepDone">You're ready</span></li>
+                </ol>
+                <p id="tmsHelperGuideSmartScreen" class="section-hint" data-i18n="tmsHelperGuideSmartScreen">If Windows says it protected your PC, click More info, then Run anyway.</p>
+                <p id="tmsHelperGuideNote" class="section-hint" role="status"></p>
+                <div class="toolbar-actions" id="tmsHelperGuideStartRow">
+                    <a id="tmsHelperGuideStart" class="btn btn-primary" href="https://github.com/nathanksimpson/classcalendarmultiuser/releases/download/sync-helper-1.0.0/ClassManagerSyncSetup.exe" data-i18n="tmsSyncDownloadInstaller">Download installer</a>
+                </div>
+                <div class="toolbar-actions" id="tmsHelperGuideSkipRow">
+                    <button type="button" id="tmsHelperGuideSkip" class="btn btn-outline" data-i18n="tmsHelperGuideSkip">Skip</button>
+                </div>
+                <div id="tmsHelperGuideSignIn" hidden>
+                    <div class="form-group">
+                        <label for="tmsHelperGuideUsername" data-i18n="rosterTmsUsernameLabel">TMS username</label>
+                        <input type="text" id="tmsHelperGuideUsername" class="field-input" name="tms-username" autocomplete="username" spellcheck="false">
+                    </div>
+                    <div class="form-group">
+                        <label for="tmsHelperGuidePassword" data-i18n="rosterTmsPasswordLabel">TMS password</label>
+                        <input type="password" id="tmsHelperGuidePassword" class="field-input" name="tms-password" autocomplete="current-password">
+                    </div>
+                    <p id="tmsHelperGuidePassHint" class="section-hint" data-i18n="tmsHelperGuidePassHint">Used for this sync only. Not saved in a file.</p>
+                </div>
+                <div id="tmsHelperGuideDone" hidden>
+                    <p id="tmsHelperGuideDoneText" data-i18n="tmsHelperGuideDoneText">This PC can now sync. TMS sees the school network through the helper.</p>
+                    <p id="tmsHelperGuideNext" class="section-hint" data-i18n="tmsHelperGuideNext">Open Sync in the header to load rosters and the other jobs.</p>
+                    <div class="toolbar-actions">
+                        <button type="button" id="tmsHelperGuideFinish" class="btn btn-primary" data-i18n="tmsHelperGuideFinish">Done</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="briefingTmsSyncModal" class="modal" role="dialog" aria-labelledby="briefingTmsSyncModalTitle" aria-modal="true" aria-hidden="true">
         <div class="modal-content">
             <div class="modal-header">
@@ -2052,7 +2198,7 @@
                 <button type="button" class="modal-close" id="closeBriefingTmsSyncModal" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
             </div>
             <div class="modal-body">
-                <p class="section-hint" data-i18n="briefingTmsSyncHint">TMS username and password are required to load counseling notes and attendance. Password is used only for this sync and is not saved.</p>
+                <div id="briefingTmsReviewMount">
                 <p class="section-hint" data-briefing-sync-scope data-i18n="briefingTmsSyncScopeHint">One sign-in loads counseling notes and attendance for all classes with rosters.</p>
                 <div id="briefingTmsSyncProgress" class="briefing-sync-progress" hidden aria-live="polite">
                     <div class="briefing-sync-progress-row">
@@ -2067,26 +2213,7 @@
                     <p id="briefingTmsSyncEstimate" class="section-hint briefing-sync-estimate"></p>
                     <p id="briefingTmsSyncResult" class="section-hint briefing-sync-result" hidden></p>
                 </div>
-                <form id="briefingTmsCredForm" class="briefing-tms-cred-form credential-form" autocomplete="on" onsubmit="return false">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="briefingTmsUsername" data-i18n="rosterTmsUsernameLabel">TMS username</label>
-                            <input type="text" id="briefingTmsUsername" class="field-input" name="tms-username" autocomplete="username" spellcheck="false">
-                        </div>
-                        <div class="form-group">
-                            <label for="briefingTmsPassword" data-i18n="rosterTmsPasswordLabel">TMS password</label>
-                            <input type="password" id="briefingTmsPassword" class="field-input" name="tms-password" autocomplete="current-password">
-                        </div>
-                    </div>
-                    <label class="checkbox-label selection-chip">
-                        <input type="checkbox" id="briefingTmsRememberUser">
-                        <span data-i18n="rosterTmsRememberUser">Remember username on this device</span>
-                    </label>
-                </form>
                 <p id="briefingTmsModalError" class="section-hint briefing-status-text--error" hidden role="alert"></p>
-                <div class="toolbar-actions">
-                    <button type="button" id="briefingTmsCancelBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
-                    <button type="button" id="briefingTmsConfirmBtn" class="btn btn-primary" data-i18n="briefingTmsConfirmBtn" disabled>Sign in &amp; load</button>
                 </div>
             </div>
         </div>
@@ -2098,31 +2225,10 @@
                 <h2 id="rosterTmsSyncModalTitle" data-i18n="rosterTmsSyncTitle">Sync roster from TMS</h2>
                 <button type="button" class="modal-close" id="closeRosterTmsSyncModal" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
             </div>
-            <div class="modal-body-scroll roster-import-modal-body">
+            <div id="rosterTmsReviewMount" class="modal-body-scroll roster-import-modal-body">
                 <p class="section-hint" data-i18n="rosterTmsSyncHint">
                     Pull class lists from tms.esimson.com, match students by Korean name, add new names, and flag missing students as Off roster (no deletes). Your TMS class → cohort choices are remembered for next time.
                 </p>
-                <form id="rosterTmsCredForm" class="roster-tms-cred-form credential-form" autocomplete="on" onsubmit="return false">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="rosterTmsUsername" data-i18n="rosterTmsUsernameLabel">TMS username</label>
-                            <input type="text" id="rosterTmsUsername" class="field-input" name="tms-username" autocomplete="username" spellcheck="false">
-                        </div>
-                        <div class="form-group">
-                            <label for="rosterTmsPassword" data-i18n="rosterTmsPasswordLabel">TMS password</label>
-                            <input type="password" id="rosterTmsPassword" class="field-input" name="tms-password" autocomplete="current-password">
-                        </div>
-                    </div>
-                    <label class="checkbox-label selection-chip">
-                        <input type="checkbox" id="rosterTmsRememberUser">
-                        <span data-i18n="rosterTmsRememberUser">Remember username on this device</span>
-                    </label>
-                    <p class="section-hint" data-i18n="rosterTmsCredHint">Password is used only for this sync and is not saved. On classmanager.live at work: keep local ClassManager (port 8080) running so Sync uses your work IP. Local npm start can leave fields blank to use TMS_* from .env.</p>
-                    <div class="toolbar-actions">
-                        <button type="button" id="rosterTmsLoadBtn" class="btn btn-primary" data-i18n="rosterTmsLoadBtn">Sign in &amp; load rosters</button>
-                        <button type="button" id="rosterTmsBridgeTestBtn" class="btn btn-outline btn-small" data-i18n="rosterTmsBridgeTestBtn">Open bridge test</button>
-                    </div>
-                </form>
                 <p id="rosterTmsSyncStatus" class="section-hint" aria-live="polite"></p>
                 <div class="module-toolbar classroom-tab-toolbar roster-tms-sync-toolbar" id="rosterTmsSyncBatchBar" hidden>
                     <div class="toolbar-actions">
@@ -2150,10 +2256,10 @@
                     </div>
                 </div>
                 <p id="rosterTmsSyncError" class="section-hint roster-import-error" hidden role="alert"></p>
-            </div>
-            <div class="form-actions roster-import-actions">
-                <button type="button" id="cancelRosterTmsSyncBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
-                <button type="button" id="rosterTmsSyncConfirmBtn" class="btn btn-primary" disabled data-i18n="rosterTmsSyncConfirm">Apply sync</button>
+                <div class="form-actions roster-import-actions">
+                    <button type="button" id="cancelRosterTmsSyncBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
+                    <button type="button" id="rosterTmsSyncConfirmBtn" class="btn btn-primary" disabled data-i18n="rosterTmsSyncConfirm">Apply sync</button>
+                </div>
             </div>
         </div>
     </div>
@@ -2164,31 +2270,10 @@
                 <h2 id="essayTmsSyncModalTitle" data-i18n="classroomEssayTmsSyncTitle">Sync essay submissions from TMS</h2>
                 <button type="button" class="modal-close" id="closeEssayTmsSyncModal" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
             </div>
-            <div class="modal-body-scroll roster-import-modal-body">
+            <div id="essayTmsReviewMount" class="modal-body-scroll roster-import-modal-body">
                 <p class="section-hint" data-i18n="classroomEssayTmsSyncHint">
                     Pull submitted essays from TMS 에세이관리. Each TMS assignment shows its class, assigned date (wdate), and subject. Confirm or correct the ClassManager class and essay assignment before Apply. Only marks Not submitted → Received.
                 </p>
-                <form id="essayTmsCredForm" class="roster-tms-cred-form credential-form" autocomplete="on" onsubmit="return false">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="essayTmsUsername" data-i18n="rosterTmsUsernameLabel">TMS username</label>
-                            <input type="text" id="essayTmsUsername" class="field-input" name="tms-username" autocomplete="username" spellcheck="false">
-                        </div>
-                        <div class="form-group">
-                            <label for="essayTmsPassword" data-i18n="rosterTmsPasswordLabel">TMS password</label>
-                            <input type="password" id="essayTmsPassword" class="field-input" name="tms-password" autocomplete="current-password">
-                        </div>
-                    </div>
-                    <label class="checkbox-label selection-chip">
-                        <input type="checkbox" id="essayTmsRememberUser">
-                        <span data-i18n="rosterTmsRememberUser">Remember username on this device</span>
-                    </label>
-                    <p class="section-hint" data-i18n="classroomEssayTmsCredHint">Password is used only for this sync and is not saved. On classmanager.live at work: keep local ClassManager (port 8080) running, and restart it after updating essay Sync code (ping alone is not enough). Local npm start can leave fields blank to use TMS_* from .env.</p>
-                    <div class="toolbar-actions">
-                        <button type="button" id="essayTmsLoadBtn" class="btn btn-primary" data-i18n="classroomEssayTmsLoadBtn">Sign in &amp; load submissions</button>
-                        <button type="button" id="essayTmsBridgeTestBtn" class="btn btn-outline btn-small" data-i18n="rosterTmsBridgeTestBtn">Open bridge test</button>
-                    </div>
-                </form>
                 <p id="essayTmsSyncStatus" class="section-hint" aria-live="polite"></p>
                 <div class="module-toolbar classroom-tab-toolbar roster-tms-sync-toolbar" id="essayTmsSyncBatchBar" hidden>
                     <div class="toolbar-actions">
@@ -2215,10 +2300,10 @@
                     </div>
                 </div>
                 <p id="essayTmsSyncError" class="section-hint roster-import-error" hidden role="alert"></p>
-            </div>
-            <div class="form-actions roster-import-actions">
-                <button type="button" id="cancelEssayTmsSyncBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
-                <button type="button" id="essayTmsSyncConfirmBtn" class="btn btn-primary" disabled data-i18n="classroomEssayTmsSyncConfirm">Apply Received updates</button>
+                <div class="form-actions roster-import-actions">
+                    <button type="button" id="cancelEssayTmsSyncBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
+                    <button type="button" id="essayTmsSyncConfirmBtn" class="btn btn-primary" disabled data-i18n="classroomEssayTmsSyncConfirm">Apply Received updates</button>
+                </div>
             </div>
         </div>
     </div>
@@ -2229,36 +2314,16 @@
                 <h2 id="homeworkTmsSyncModalTitle" data-i18n="classroomHomeworkTmsSyncTitle">Sync homework checks from TMS</h2>
                 <button type="button" class="modal-close" id="closeHomeworkTmsSyncModal" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
             </div>
-            <div class="modal-body-scroll roster-import-modal-body">
+            <div id="homeworkTmsReviewMount" class="modal-body-scroll roster-import-modal-body">
                 <p class="section-hint" data-i18n="classroomHomeworkTmsSyncHint">
-                    Pull today’s TMS 숙제확인 (self-check, parent check, No Check) into the selected assignment. Does not overwrite grades A–F already saved. On classmanager.live at work: keep local ClassManager (port 8080) running.
+                    Pull today’s TMS 숙제확인 (self-check, parent check, No Check) into the selected assignment. Does not overwrite grades A–F already saved. Keep ClassManager running on this PC (npm start) so TMS sees the school IP.
                 </p>
-                <form id="homeworkTmsCredForm" class="roster-tms-cred-form credential-form" autocomplete="on" onsubmit="return false">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="homeworkTmsUsername" data-i18n="rosterTmsUsernameLabel">TMS username</label>
-                            <input type="text" id="homeworkTmsUsername" class="field-input" name="tms-username-hw" autocomplete="username" spellcheck="false">
-                        </div>
-                        <div class="form-group">
-                            <label for="homeworkTmsPassword" data-i18n="rosterTmsPasswordLabel">TMS password</label>
-                            <input type="password" id="homeworkTmsPassword" class="field-input" name="tms-password-hw" autocomplete="current-password">
-                        </div>
-                    </div>
-                    <label class="checkbox-label selection-chip">
-                        <input type="checkbox" id="homeworkTmsRememberUser">
-                        <span data-i18n="rosterTmsRememberUser">Remember username on this device</span>
-                    </label>
-                    <div class="toolbar-actions">
-                        <button type="button" id="homeworkTmsLoadBtn" class="btn btn-primary" data-i18n="classroomHomeworkTmsLoadBtn">Sign in &amp; load checks</button>
-                        <button type="button" id="homeworkTmsBridgeTestBtn" class="btn btn-outline btn-small" data-i18n="rosterTmsBridgeTestBtn">Open bridge test</button>
-                    </div>
-                </form>
                 <p id="homeworkTmsSyncStatus" class="section-hint" aria-live="polite"></p>
                 <p id="homeworkTmsSyncError" class="section-hint roster-import-error" hidden role="alert"></p>
-            </div>
-            <div class="form-actions roster-import-actions">
-                <button type="button" id="cancelHomeworkTmsSyncBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
-                <button type="button" id="homeworkTmsSyncConfirmBtn" class="btn btn-primary" disabled data-i18n="classroomHomeworkTmsSyncConfirm">Apply homework updates</button>
+                <div class="form-actions roster-import-actions">
+                    <button type="button" id="cancelHomeworkTmsSyncBtn" class="btn btn-outline" data-i18n="cancel">Cancel</button>
+                    <button type="button" id="homeworkTmsSyncConfirmBtn" class="btn btn-primary" disabled data-i18n="classroomHomeworkTmsSyncConfirm">Apply homework updates</button>
+                </div>
             </div>
         </div>
     </div>
@@ -2290,7 +2355,6 @@
                     </label>
                     <div class="toolbar-actions">
                         <button type="button" id="essayScrapeLoadBtn" class="btn btn-primary" data-i18n="classroomEssayScrapeLoadBtn">Sign in &amp; load list</button>
-                        <button type="button" id="essayScrapeBridgeTestBtn" class="btn btn-outline btn-small" data-i18n="rosterTmsBridgeTestBtn">Open bridge test</button>
                     </div>
                 </form>
                 <p id="essayScrapeStatus" class="section-hint" aria-live="polite"></p>
@@ -2499,6 +2563,60 @@
         </div>
     </div>
 
+    <div id="termSettingsModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="toolbarTermHeading" aria-hidden="true" hidden>
+        <div class="modal-content modal-content--scrollable">
+            <div class="modal-header">
+                <h2 id="toolbarTermHeading" data-i18n="toolbarTermSettings">Term settings</h2>
+                <button type="button" class="modal-close" id="closeTermSettingsModal" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+            </div>
+            <div id="topBarDetails" class="modal-body-scroll modal-body-scroll--padded">
+                <p class="section-hint" data-i18n="termSettingsHint">This changes the term name and dates used by the calendar, syllabi, and homework.</p>
+                <section class="term-selector" aria-labelledby="toolbarTermHeading">
+                    <fieldset class="form-group">
+                        <legend data-i18n="termSettingsGroupName">Term name</legend>
+                        <div class="form-group">
+                            <label for="calendarName" id="calendarNameLabel" data-i18n="calendarName">Calendar Name:</label>
+                            <input type="text" id="calendarName" class="field-input" data-i18n-placeholder="calendarNamePlaceholder" placeholder="e.g., Fall 2025 Term">
+                            <p class="section-hint" data-i18n="termSettingsNameHint">The name teachers see for this calendar.</p>
+                        </div>
+                    </fieldset>
+                    <fieldset class="form-group">
+                        <legend data-i18n="termSettingsGroupDates">Term dates</legend>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="termStart" data-i18n="termStartDate">Term start date:</label>
+                                <input type="date" id="termStart" class="field-input" value="">
+                            </div>
+                            <div class="form-group">
+                                <label for="termEnd" data-i18n="termEndDate">Term end date:</label>
+                                <input type="date" id="termEnd" class="field-input" value="">
+                            </div>
+                        </div>
+                        <p class="section-hint" data-i18n="termSettingsDatesHint">First and last day of this term. Lessons and holidays use these dates.</p>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="termUseAutoTermEnd" checked>
+                            <span data-i18n="useAutoTermEnd">Auto-set end date from month count</span>
+                        </label>
+                        <p class="section-hint" data-i18n="termSettingsAutoEndHint">On: the end date follows the month count. Off: you choose the end date.</p>
+                        <div class="form-group">
+                            <label for="termMonthCount" data-i18n="termMonthCount">Months to display:</label>
+                            <select id="termMonthCount" class="field-select" aria-label="Term month count" data-i18n-aria-label="termMonthCount">
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                            </select>
+                            <p class="section-hint" data-i18n="termSettingsMonthsHint">How many months show on the calendar, starting from the term start.</p>
+                        </div>
+                    </fieldset>
+                    <p class="section-hint">
+                        <button type="button" id="termSettingsHolidaysLink" class="btn btn-outline btn-small" data-i18n="termSettingsHolidaysMoved">Import Korean holidays in Schedule &rarr; Events</button>
+                    </p>
+                </section>
+            </div>
+        </div>
+    </div>
+
     <div id="studentMergeModal" class="modal" role="dialog" aria-labelledby="studentMergeModalTitle" aria-modal="true" aria-hidden="true">
         <div class="modal-content modal-small">
             <div class="modal-header">
@@ -2619,6 +2737,22 @@
                         </div>
                     </section>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="printCenterModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="printCenterTitle" aria-hidden="true" hidden>
+        <div class="modal-content modal-content--scrollable">
+            <div class="modal-header">
+                <h2 id="printCenterTitle" data-i18n="printCenterTitle">Print Center</h2>
+                <button type="button" class="modal-close" id="closePrintCenterModal" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body-scroll modal-body-scroll--padded">
+                <p class="section-hint" data-i18n="printCenterHint">Everything you can print. Items for this tab are listed first.</p>
+                <div id="printCenterList" class="print-center-list"></div>
+                <p class="print-center-footer">
+                    <button type="button" id="printCenterPlannerLink" class="btn btn-outline btn-small" data-i18n="printCenterPlannerLink">Schedule planner (prints from its own page)</button>
+                </p>
             </div>
         </div>
     </div>
@@ -2867,21 +3001,23 @@
     <script defer src="js/theme-toggle.js?v=20260629-theme-icon-only"></script>
     <script defer src="js/storage-prune.js?v=20260604-session-prune"></script>
     <script defer src="js/session-restore.js?v=20260619-delta-sync"></script>
-    <script defer src="js/active-context.js?v=20260807-no-auto-cohort"></script>
+    <script defer src="js/active-context.js?v=20261014-shared-class"></script>
     <script defer src="js/essay-class-filter.js?v=20260911-essay-groups"></script>
-    <script defer src="js/classroom-zone-context.js?v=20261002-essay-all-complete"></script>
+    <script defer src="js/class-scope.js?v=20261014-p6-hierarchy"></script>
+    <script defer src="js/classroom-zone-context.js?v=20261014-p6-hierarchy"></script>
     <script defer src="js/cohort-sidebar-filter.js?v=20260724-filter-contracts"></script>
     <script defer src="js/cohort-context-chip.js?v=20260619-ui-overhaul"></script>
-    <script defer src="js/template-loader.js?v=20260915-event-day-notify"></script>
-    <script defer src="js/app-tab-scripts.js?v=20261012-student-id"></script>
-    <script defer src="js/load-extension-scripts.js?v=20261002-essay-list-month"></script>
+    <script defer src="js/template-loader.js?v=20261015-p7-level"></script>
+    <script defer src="js/tms-sync-client.js?v=20261013-helper-loopback"></script>
+    <script defer src="js/app-tab-scripts.js?v=20261015-p7-level"></script>
+    <script defer src="js/load-extension-scripts.js?v=20261015-p7-level"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
     <script defer src="js/view-as-banner.js?v=20260908-quick-wins"></script>
     <script defer src="js/team-auth.js?v=20260908-quick-wins"></script>
     <script defer src="js/teacher-management.js?v=20260601-ui-consistency"></script>
-    <script defer src="js/calendar-mutations.js?v=20260911-essay-groups"></script>
+    <script defer src="js/calendar-mutations.js?v=20261013-tms-sync"></script>
     <script defer src="js/calendar-export.js?v=20260911-essay-groups"></script>
-    <script defer src="js/calendar-sync.js?v=20260918-quiet-lock"></script>
+    <script defer src="js/calendar-sync.js?v=20261014-p6-hierarchy"></script>
     <script defer src="js/conflict-merge.js?v=20260911-essay-groups"></script>
     <script defer src="js/classroom-reports.js?v=20260618-term-summary"></script>
     <script defer src="js/classroom-term-summary.js?v=20260618-term-summary"></script>
@@ -2894,22 +3030,26 @@
     <script defer src="js/timetable-import-pdf.js?v=20260828-migrate-ux"></script>
     <script defer src="js/timetable-import-ui.js?v=20260828-migrate-ux"></script>
     <script defer src="js/tms-class-name.js?v=20260828-term-code"></script>
-    <script defer src="js/term-migrate-wizard.js?v=20260930-search-password"></script>
+    <script defer src="js/term-migrate-wizard.js?v=20261013-tms-sync"></script>
     <script defer src="js/dom.js?v=20260615-ui-refactor"></script>
     <script defer src="js/ui/modal.js?v=20260828-modal-stay"></script>
+    <script defer src="js/tms-sync-center.js?v=20261015-hdr-row"></script>
+    <script defer src="js/source-version-banners.js?v=20261013-tms-sync"></script>
     <script defer src="js/ui/filter-presets.js?v=20260703-ui-harmonize"></script>
     <script defer src="js/ui/classroom-autosave.js?v=20260807-deconflict-min"></script>
     <script defer src="js/views/class-list-view.js?v=20260629-ui-fixes"></script>
     <script defer src="js/views/event-list-view.js?v=20260615-ui-refactor"></script>
     <script defer src="js/views/calendar-view.js?v=20260615-ui-refactor"></script>
-    <script defer src="js/core/app-state.js?v=20260909-period8"></script>
+    <script defer src="js/core/app-state.js?v=20261013-tms-sync"></script>
     <script defer src="js/core/app-store.js?v=20260619-delta-sync"></script>
     <script defer src="js/core/render-orchestrator.js?v=20260615-ui-refactor"></script>
     <script defer src="js/core/app-enums.js?v=20260615-ui-refactor"></script>
     <script defer src="js/core/app-delegation.js?v=20260615-ui-refactor"></script>
     <script defer src="js/debate-periods.js?v=20260901-transition-week"></script>
+    <script defer src="js/level-profile.js?v=20261015-p7-level"></script>
     <script defer src="js/games-loader.js?v=20260608-games-lazy"></script>
-    <script defer src="js/classroom-domain.js?v=20261007-essay-note-sync"></script>
+    <script defer src="js/classroom-domain.js?v=20261015-p7-level"></script>
+    <script defer src="js/assignments.js?v=20261014-debate-period"></script>
     <script defer src="js/day-note-categories.js?v=20260618-class-points"></script>
     <script defer src="js/classroom-points-day-note.js?v=20260618-term-summary"></script>
     <script defer src="js/day-note-mentions.js?v=20260914-notes-lag"></script>
@@ -2918,9 +3058,15 @@
     <script defer src="js/class-notes-panel.js?v=20260612-mention-focus"></script>
     <div id="teamAccountPopover" class="header-fixed-popover header-dropdown-panel team-account-menu-panel" role="menu" hidden>
         <p id="teamUserLabel" class="team-user-label header-dropdown-user" hidden></p>
+        <hr class="header-dropdown-divider" aria-hidden="true">
+        <p class="header-dropdown-user account-preferences-heading" data-i18n="accountPreferencesHeading">Preferences</p>
         <button type="button" id="themeToggleBtn" class="btn btn-header-theme btn-small header-dropdown-item" aria-pressed="false" data-i18n="themeDark" data-i18n-title="themeToggleTitle" title="Switch light/dark theme">Dark</button>
         <button type="button" id="langToggleBtn" class="btn btn-header-lang btn-small btn-lang header-dropdown-item" data-i18n="langToggle">Language</button>
         <button type="button" id="nowClassPopupToggleBtn" class="btn btn-outline btn-small header-dropdown-item" aria-pressed="true" data-i18n="nowClassPopupToggleOn">During-class popup: On</button>
+        <button type="button" id="accountHideTabsBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" aria-pressed="false" aria-controls="appZoneNavCluster appZoneSegmentNavRow" data-i18n="accountHideTabs" data-i18n-title="navTabsHideTitle" title="Hide navigation tabs">Hide tabs</button>
+        <button type="button" id="accountResetNavLayoutBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="navReorderReset" data-i18n-title="navLayoutHint" title="Drag zone or section tabs to reorder. Drag a section tab onto another zone to move it. Your layout syncs to your account on this calendar.">Reset tab layout</button>
+        <hr class="header-dropdown-divider" aria-hidden="true">
+        <button type="button" id="accountMyTimetableBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" hidden data-i18n="accountMyTimetable">My timetable</button>
         <button type="button" id="openNotesAppHeaderBtn" class="btn btn-outline btn-small btn-notes-app header-dropdown-item" data-i18n="notesOpenMobile" data-i18n-title="notesOpenMobileTitle">Mobile day notes</button>
         <a href="/planner.html" id="openPlannerAppHeaderBtn" class="btn btn-outline btn-small header-dropdown-item" data-i18n="plannerOpenLink" data-i18n-title="plannerOpenLinkTitle">Schedule planner</a>
         <hr class="header-dropdown-divider" aria-hidden="true">
@@ -2947,28 +3093,30 @@
             <p id="tabWarningsEmpty" class="tab-warnings-empty section-hint" hidden data-i18n="tabWarningsNone">No notifications</p>
         </div>
     </div>
+    <div id="headerNewPopover" class="header-fixed-popover header-dropdown-panel header-new-menu-panel" role="menu" aria-label="Create something new" data-i18n-aria-label="headerNewMenuAria" hidden>
+        <button type="button" id="headerNewClassItem" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="headerNewClass">Class</button>
+        <button type="button" id="headerNewEventItem" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="headerNewEvent">Event</button>
+        <button type="button" id="headerNewCohortItem" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="headerNewCohort">Cohort</button>
+        <hr class="header-dropdown-divider" aria-hidden="true">
+        <button type="button" id="headerNewDayNoteItem" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="headerNewDayNote">Day note</button>
+        <button type="button" id="headerNewEssayAssignmentItem" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="headerNewEssayAssignment">Custom essay assignment</button>
+    </div>
     <div id="teamCalendarPopover" class="header-fixed-popover header-dropdown-panel team-calendar-menu-panel" role="menu" hidden>
         <div class="team-calendar-popover-body">
             <label class="classroom-header-field team-calendar-field" for="teamCalendarSelect">
                 <span data-i18n="teamCalendar">Team calendar:</span>
                 <select id="teamCalendarSelect" class="field-select field-control--compact team-calendar-select" aria-label="Team calendar" data-i18n-aria-label="teamCalendarSelectAria" data-i18n-title="teamCalendarHint"></select>
             </label>
-            <div class="team-calendar-popover-actions">
-                <button type="button" id="addClassBtn" class="btn btn-primary btn-small" data-i18n="addClass">+ Add Class</button>
-                <button type="button" id="addHolidayBtn" class="btn btn-secondary btn-small" data-i18n="addEvent">+ Add Event</button>
-            </div>
             <div class="team-calendar-popover-menu">
-                <button type="button" id="teamNewCalendarBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="teamNewCalendar">+ New</button>
-                <button type="button" id="teamDeleteCalendarBtn" class="btn btn-outline btn-small btn-danger-text header-dropdown-item" role="menuitem" data-i18n="teamDeleteCalendar">Remove</button>
-                <button type="button" id="teamBackupBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="syncBackupNow">Backup</button>
+                <button type="button" id="teamNewCalendarBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="teamNewCalendarItem">New calendar</button>
             </div>
-            <p class="section-hint team-calendar-hint" data-i18n="teamCalendarHint">Pick a calendar from the list, or click + New. Edit Calendar Name below to rename the saved calendar.</p>
+            <p class="section-hint team-calendar-hint" data-i18n="teamCalendarHint">Pick a calendar from the list, or click New calendar. Edit Calendar Name below to rename the saved calendar.</p>
         </div>
     </div>
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260918-viewport-p0"></script>
     <script defer src="js/tab-warnings.js?v=20260915-event-day-notify"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20261013-homework-copy-options"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20261015-hdr-row"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/nav-tab-layout.js?v=20260720-nav-layout-v1"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260720-cross-zone-preview"></script>
@@ -2976,7 +3124,8 @@
     <script defer src="js/day-notes-save.js?v=20260622-day-notes-save"></script>
     <script defer src="js/class-color-palette.js?v=20260629-classmanager-redesign"></script>
     <script defer src="js/class-color-tile.js?v=20260807-deconflict-min"></script>
-    <script defer src="app.js?v=20261013-homework-copy-options"></script>
+    <script defer src="js/print-center.js?v=20261014-p6-hierarchy"></script>
+    <script defer src="app.js?v=20261015-hdr-row"></script>
 </body>
 </html>
 

@@ -69,6 +69,71 @@ function rowToResponse(row) {
     };
 }
 
+/** Reserved calendar_id row for prefs that follow the user across calendars. */
+export const USER_PREFS_CALENDAR_ID = '__user__';
+const CLASS_SCOPE_VALUES = ['all', 'mine'];
+
+export function isReservedCalendarId(calendarId) {
+    return String(calendarId || '') === USER_PREFS_CALENDAR_ID;
+}
+
+export function sanitizeUserPrefsBody(body) {
+    const src = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+    const out = {};
+    if (Object.prototype.hasOwnProperty.call(src, 'classScope')) {
+        const scope = String(src.classScope == null ? '' : src.classScope).trim();
+        out.classScope = CLASS_SCOPE_VALUES.includes(scope) ? scope : null;
+    }
+    return out;
+}
+
+function userRowToResponse(row) {
+    const parsed = row ? parsePrefsJson(row.prefs_json) : {};
+    return {
+        classScope: CLASS_SCOPE_VALUES.includes(parsed.classScope) ? parsed.classScope : null,
+        updatedAt: (row && row.updated_at) || null
+    };
+}
+
+async function readUserPrefsRow(env, userId) {
+    return dbOne(
+        env,
+        `SELECT prefs_json, updated_at
+         FROM user_ui_prefs
+         WHERE user_id = ? AND calendar_id = ?`,
+        userId,
+        USER_PREFS_CALENDAR_ID
+    );
+}
+
+export async function getUserPrefs(env, userId) {
+    if (!userId) {
+        return userRowToResponse(null);
+    }
+    return userRowToResponse(await readUserPrefsRow(env, userId));
+}
+
+export async function putUserPrefs(env, userId, body) {
+    if (!userId) {
+        return userRowToResponse(null);
+    }
+    const existing = parsePrefsJson((await readUserPrefsRow(env, userId))?.prefs_json);
+    const merged = Object.assign({}, sanitizeUserPrefsBody(existing), sanitizeUserPrefsBody(body));
+    await dbRun(
+        env,
+        `INSERT INTO user_ui_prefs (user_id, calendar_id, prefs_json, updated_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(user_id, calendar_id) DO UPDATE SET
+            prefs_json = excluded.prefs_json,
+            updated_at = excluded.updated_at`,
+        userId,
+        USER_PREFS_CALENDAR_ID,
+        JSON.stringify(merged),
+        nowIso()
+    );
+    return getUserPrefs(env, userId);
+}
+
 export async function getPrefs(env, userId, calendarId) {
     if (!userId || !calendarId) {
         return emptyPrefs();

@@ -28,4 +28,20 @@ assert.strictEqual(tmsBridgeAllowedOrigin('https://classmanager.live'), 'https:/
 assert.strictEqual(tmsBridgeAllowedOrigin('https://evil.example'), '');
 assert.ok(tmsBridgeAllowedOrigin('http://localhost:9999'));
 
+const helper = { mode: 'helper' };
+assert.strictEqual(tmsBridgeAllowedOrigin('https://classmanager.live', helper), 'https://classmanager.live');
+assert.strictEqual(
+    tmsBridgeAllowedOrigin('https://www.classmanager.live', helper),
+    'https://www.classmanager.live'
+);
+assert.strictEqual(
+    tmsBridgeAllowedOrigin('https://classcalendarmultiuser.nathanksimpson.workers.dev', helper),
+    'https://classcalendarmultiuser.nathanksimpson.workers.dev'
+);
+assert.strictEqual(tmsBridgeAllowedOrigin('http://localhost:9999', helper), 'http://localhost:9999');
+assert.strictEqual(tmsBridgeAllowedOrigin('http://127.0.0.1:8080', helper), 'http://127.0.0.1:8080');
+assert.strictEqual(tmsBridgeAllowedOrigin('https://localhost:8443', helper), 'https://localhost:8443');
+assert.strictEqual(tmsBridgeAllowedOrigin('https://127.0.0.1:443', helper), 'https://127.0.0.1:443');
+assert.strictEqual(tmsBridgeAllowedOrigin('https://evil.example', helper), '');
+
 console.log('tms-bridge-security.test.mjs: ok');

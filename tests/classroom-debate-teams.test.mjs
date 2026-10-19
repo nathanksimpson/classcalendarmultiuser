@@ -1135,8 +1135,8 @@ function loadDebateTeamsModule() {
     assert(again.changed === false, 'a second pass does not rewrite names that already include Korean');
 
     const kais = [
-        { id: 'kai-1', name: '김시호', nameEn: 'Kai' },
-        { id: 'kai-2', name: '유제훈', nameEn: 'Kai' }
+        { id: 'kai-1', name: '윤테가', nameEn: 'Kai' },
+        { id: 'kai-2', name: '정테바', nameEn: 'Kai' }
     ];
     const kaiSession = {
         students: ['Kai', 'Kai'],
@@ -1173,12 +1173,12 @@ function loadDebateTeamsModule() {
         ]
     };
     const kaiNamed = api.applyDisambiguatedNames(kaiSession, kais);
-    assert(kaiNamed.sessionState.students[0] === 'Kai (김시호)', 'Kai list follows class order');
-    assert(kaiNamed.sessionState.students[1] === 'Kai (유제훈)', 'second Kai list entry gets the other Korean name');
+    assert(kaiNamed.sessionState.students[0] === 'Kai (윤테가)', 'Kai list follows class order');
+    assert(kaiNamed.sessionState.students[1] === 'Kai (정테바)', 'second Kai list entry gets the other Korean name');
     const kaiPm = kaiNamed.sessionState.debates[0].benches[0].members[0];
     const kaiLo = kaiNamed.sessionState.debates[0].benches[1].members[0];
-    assert(kaiPm.name === 'Kai (유제훈)' && kaiPm.role.abbr === 'PM', 'saved student id keeps the PM Kai');
-    assert(kaiLo.name === 'Kai (김시호)' && kaiLo.role.abbr === 'LO', 'saved student id keeps the LO Kai');
+    assert(kaiPm.name === 'Kai (정테바)' && kaiPm.role.abbr === 'PM', 'saved student id keeps the PM Kai');
+    assert(kaiLo.name === 'Kai (윤테가)' && kaiLo.role.abbr === 'LO', 'saved student id keeps the LO Kai');
     assert(kaiPm.present === 'Open' && kaiLo.present === 'Reply', 'Kai duties stay on the same seats');
     assert(!String(kaiPm.name).includes('·') && !String(kaiLo.name).includes('·'), 'each Kai role has one Korean name');
 
@@ -1204,8 +1204,8 @@ function loadDebateTeamsModule() {
     const paired = api.applyDisambiguatedNames(unlabeled, kais);
     const pairedPm = paired.sessionState.debates[0].benches[0].members[0];
     const pairedLo = paired.sessionState.debates[0].benches[1].members[0];
-    assert(pairedPm.name === 'Kai (김시호)' && pairedPm.studentId === 'kai-1', 'first Kai seat gets the first student id');
-    assert(pairedLo.name === 'Kai (유제훈)' && pairedLo.studentId === 'kai-2', 'second Kai seat gets the second student id');
+    assert(pairedPm.name === 'Kai (윤테가)' && pairedPm.studentId === 'kai-1', 'first Kai seat gets the first student id');
+    assert(pairedLo.name === 'Kai (정테바)' && pairedLo.studentId === 'kai-2', 'second Kai seat gets the second student id');
     assert(pairedPm.role.abbr === 'PM' && pairedPm.present === 'A', 'first Kai keeps the PM role');
     assert(pairedLo.role.abbr === 'LO' && pairedLo.present === 'B', 'second Kai keeps the LO role');
 }

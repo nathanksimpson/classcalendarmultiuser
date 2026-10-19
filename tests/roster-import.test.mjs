@@ -75,26 +75,26 @@ function findStudent(result, cohortName, studentName) {
 {
     const result = RI.parseRosterPaste(FIXTURE);
 
-    const yongju = findStudent(result, 'Yeoul T', '조용준★');
-    assert(yongju.nameEn === 'Yongju', 'yongju nameEn');
-    assert(yongju.memo === '수호X', 'yongju memo');
-    assert(yongju.locationTag === '잠실', 'yongju location');
+    const starred = findStudent(result, 'Yeoul T', '최테나★');
+    assert(starred.nameEn === 'Stuajz', 'starred student nameEn');
+    assert(starred.memo === '수호X', 'starred student memo');
+    assert(starred.locationTag === '잠실', 'starred student location');
 
-    const tony = findStudent(result, 'Yeoul T', '김서진B');
-    assert(tony.nameEn === 'Tony', 'kim seojin B');
+    const dupB = findStudent(result, 'Yeoul T', '조테가B');
+    assert(dupB.nameEn === 'Stuctz', 'duplicate Korean name, suffix B');
 
-    const ellena = findStudent(result, 'Saemmul T', '김서진A');
-    assert(ellena.nameEn === 'Ellena', 'kim seojin A');
+    const dupA = findStudent(result, 'Saemmul T', '조테가A');
+    assert(dupA.nameEn === 'Stualz', 'duplicate Korean name, suffix A');
 
-    const jihang = findStudent(result, 'Green M', '이지행');
-    assert(jihang.nameEn === '', 'ijihang empty english');
-    assert(jihang.memo.includes('수호X'), 'ijihang suho memo');
+    const noEnglish = findStudent(result, 'Green M', '조테바');
+    assert(noEnglish.nameEn === '', 'empty english name');
+    assert(noEnglish.memo.includes('수호X'), 'suho memo without english');
 
-    const haan = findStudent(result, 'Byeolmaru M', '이하안');
-    assert(haan.nameEn === 'Ha-an', 'byeolmaru ha-an');
+    const hyphenated = findStudent(result, 'Byeolmaru M', '김테카');
+    assert(hyphenated.nameEn === 'Stucsz', 'byeolmaru hyphenated english');
 
-    const ahRin = findStudent(result, 'Purple T', '김아린★');
-    assert(ahRin.memo === '수호O', 'ah-rin suho');
+    const suhoO = findStudent(result, 'Purple T', '최테다★');
+    assert(suhoO.memo === '수호O', 'suho O memo');
 
     // Noise not captured as names
     for (const cohort of result.cohorts) {
@@ -137,6 +137,34 @@ function findStudent(result, cohortName, studentName) {
     assert(noiseOnly.error === 'noStudents', 'noise only');
 }
 
+// 4- and 5-syllable Korean names (compound surnames / long given names) are kept whole
+{
+    const block = [
+        'Long T',
+        '1. 잠실 ',
+        'Test Point',
+        '촬영 알림',
+        '선우테가',
+        '(Stulong)',
+        'SMS',
+        ' ',
+        '2. 잠실 ',
+        'Test Point',
+        '촬영 알림',
+        '남궁테가나★',
+        '(Stulonger)',
+        'SMS',
+        ' '
+    ].join('\n');
+    const parsed = RI.parseRosterPasteSingle(block);
+    assert(!parsed.error, parsed.error || 'long-name parse');
+    const names = parsed.cohort.students.map((s) => s.name);
+    assert(names.includes('선우테가'), `4-syllable name kept, got ${names.join(',')}`);
+    assert(names.some((n) => n.replace('★', '') === '남궁테가나'), `5-syllable name kept, got ${names.join(',')}`);
+    const longer = parsed.cohort.students.find((s) => s.name.includes('남궁테가나'));
+    assert(longer && longer.nameEn === 'Stulonger', 'english for 5-syllable name');
+}
+
 // tab-separated web copy with homework tail (Green M)
 {
     const tabPaste = readFileSync(path.join(__dirname, 'fixtures', 'roster-paste-green-m-tab.txt'), 'utf8');
@@ -144,14 +172,14 @@ function findStudent(result, cohortName, studentName) {
     assert(!parsed.error, parsed.error || 'tab paste parse');
     assert(parsed.cohort.students.length === 8, `expected 8 students, got ${parsed.cohort.students.length}`);
 
-    const yoon = parsed.cohort.students.find((s) => s.name.includes('길나윤'));
-    assert(yoon && yoon.nameEn === 'Rumi' && yoon.locationTag === '잠실', 'rumi parsed');
+    const first = parsed.cohort.students.find((s) => s.name.includes('박테바'));
+    assert(first && first.nameEn === 'Studdz' && first.locationTag === '잠실', 'first tab student parsed');
 
-    const jihang = parsed.cohort.students.find((s) => s.name === '이지행');
-    assert(jihang && jihang.memo.includes('수호X'), 'ijihang suho');
+    const noEnglish = parsed.cohort.students.find((s) => s.name === '조테바');
+    assert(noEnglish && noEnglish.memo.includes('수호X'), 'tab paste suho X');
 
-    const jaewan = parsed.cohort.students.find((s) => s.name.includes('최재완'));
-    assert(jaewan && jaewan.nameEn === 'Jackso' && jaewan.memo.includes('수호O'), 'jaewan suho en');
+    const suhoEn = parsed.cohort.students.find((s) => s.name.includes('장테바'));
+    assert(suhoEn && suhoEn.nameEn === 'Stuazz' && suhoEn.memo.includes('수호O'), 'tab paste suho O with english');
 
     const withHomeworkTail = tabPaste + '\nGreen M\nSession 2\n';
     const tailParsed = RI.parseRosterPasteSingle(withHomeworkTail, { fallbackCohortName: 'GreenM' });
@@ -262,7 +290,7 @@ function findStudent(result, cohortName, studentName) {
         {
             id: 'c1',
             name: 'NavyM',
-            students: [{ id: 'stu_star', name: '정태희★', nameEn: 'Taeheu', sortOrder: 0, active: true, tags: [], memo: '' }]
+            students: [{ id: 'stu_star', name: '윤테사★', nameEn: 'Stubdz', sortOrder: 0, active: true, tags: [], memo: '' }]
         }
     ];
     const plan = [
@@ -270,7 +298,7 @@ function findStudent(result, cohortName, studentName) {
             importKey: 'name:NavyM',
             importCohortName: 'NavyM',
             students: [
-                { id: 'stu_paste', name: '정태희', nameEn: 'Taeheui', sortOrder: 0, active: true, tags: [], memo: '' }
+                { id: 'stu_paste', name: '윤테사', nameEn: 'Testeui', sortOrder: 0, active: true, tags: [], memo: '' }
             ],
             userAction: 'map',
             userTargetId: 'c1',
@@ -284,7 +312,7 @@ function findStudent(result, cohortName, studentName) {
     const applied = RI.applyRosterImport(calendar, plan);
     assert(applied.cohorts[0].students.length === 1, 'still one student');
     assert(applied.cohorts[0].students[0].id === 'stu_star', 'kept CM id');
-    assert(applied.cohorts[0].students[0].name === '정태희', 'paste/TMS name wins');
+    assert(applied.cohorts[0].students[0].name === '윤테사', 'paste/TMS name wins');
 }
 
 console.log('roster-import.test.mjs: all passed');

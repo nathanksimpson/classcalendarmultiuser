@@ -10,6 +10,13 @@ const TMS_BRIDGE_CORS_ORIGINS = new Set([
     'http://127.0.0.1:8080'
 ]);
 
+/** Live sites, plus any http(s) localhost / 127.0.0.1 port (see isLocalWebOrigin). */
+const TMS_HELPER_CORS_ORIGINS = new Set([
+    'https://classmanager.live',
+    'https://www.classmanager.live',
+    'https://classcalendarmultiuser.nathanksimpson.workers.dev'
+]);
+
 function isLoopbackAddress(addr) {
     const raw = String(addr || '').trim().toLowerCase();
     if (!raw) {
@@ -32,32 +39,41 @@ function isLoopbackRequest(req) {
     return candidates.some((a) => isLoopbackAddress(a));
 }
 
-function tmsBridgeAllowedOrigin(origin) {
+function isLocalWebOrigin(origin) {
+    try {
+        const u = new URL(origin);
+        return (
+            (u.protocol === 'http:' || u.protocol === 'https:') &&
+            (u.hostname === 'localhost' || u.hostname === '127.0.0.1')
+        );
+    } catch (_) {
+        return false;
+    }
+}
+
+function tmsBridgeAllowedOrigin(origin, options) {
     const o = String(origin || '')
         .trim()
         .replace(/\/$/, '');
     if (!o) {
         return '';
     }
-    if (TMS_BRIDGE_CORS_ORIGINS.has(o)) {
-        return o;
-    }
-    try {
-        const u = new URL(o);
-        if (
-            (u.hostname === 'localhost' || u.hostname === '127.0.0.1') &&
-            (u.protocol === 'http:' || u.protocol === 'https:')
-        ) {
+    const mode = options && options.mode;
+    if (mode === 'helper') {
+        if (TMS_HELPER_CORS_ORIGINS.has(o) || isLocalWebOrigin(o)) {
             return o;
         }
-    } catch (_) {
-        /* ignore */
+        return '';
+    }
+    if (TMS_BRIDGE_CORS_ORIGINS.has(o) || isLocalWebOrigin(o)) {
+        return o;
     }
     return '';
 }
 
 module.exports = {
     TMS_BRIDGE_CORS_ORIGINS,
+    TMS_HELPER_CORS_ORIGINS,
     isLoopbackAddress,
     isLoopbackRequest,
     tmsBridgeAllowedOrigin

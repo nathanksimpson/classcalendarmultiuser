@@ -320,15 +320,14 @@
         }
     }
 
-    function getEssayAssignmentMap() {
-        const data = getAppData();
-        if (!data.ui) {
-            data.ui = {};
+    function getSavedEssayAssignmentId(cId) {
+        const api = global.CCPAssignments;
+        if (api && api.getSelected) {
+            return api.getSelected('essay', cId, getAppData());
         }
-        if (!data.ui.essayAssignmentByClassId || typeof data.ui.essayAssignmentByClassId !== 'object') {
-            data.ui.essayAssignmentByClassId = {};
-        }
-        return data.ui.essayAssignmentByClassId;
+        const ui = getAppData().ui || {};
+        const map = ui.essayAssignmentByClassId || {};
+        return map[cId] || '';
     }
 
     function rowExistsInClass(classData, rowId) {
@@ -349,8 +348,7 @@
         const today = d.todayISO ? d.todayISO() : '';
         const preferred = String(preferredDate || '').trim();
         const refDate = preferred || today;
-        const map = getEssayAssignmentMap();
-        const savedId = map[classData.id] || '';
+        const savedId = getSavedEssayAssignmentId(classData.id);
         if (savedId && rowExistsInClass(classData, savedId)) {
             const saved = d
                 .getEssayRowsFromSyllabus(classData.syllabusRows, { classData })
@@ -368,8 +366,10 @@
     }
 
     function persistEssayAssignmentForClass(cId, rowId) {
-        const map = getEssayAssignmentMap();
-        map[cId] = rowId;
+        const api = global.CCPAssignments;
+        if (api && api.select) {
+            api.select('essay', cId, rowId, { silent: true, appData: getAppData() });
+        }
         if (hooks && hooks.setUiPref) {
             hooks.setUiPref('classroomTabEssaySyllabusRowId', rowId);
         }
@@ -2929,14 +2929,6 @@
             if (!target || !mount.contains(target)) {
                 return;
             }
-            if (target.id === 'classroomEssaysAssignmentSelect') {
-                const opt = target.selectedOptions && target.selectedOptions[0];
-                const rowId = target.value || '';
-                const date = opt ? opt.getAttribute('data-lesson-date') || '' : '';
-                if (rowId && rowId !== syllabusRowId) {
-                    void selectAssignment(panel, rowId, date);
-                }
-            }
             if (target.id === 'classroomEssaysSsDue' && draftSubmission) {
                 draftSubmission.ssDueDate = target.value;
                 const dueDomain = domain();
@@ -2987,14 +2979,6 @@
                 void persistEssaySubject(name);
             }
         });
-        mount.addEventListener('click', (e) => {
-            const btn = e.target && e.target.closest ? e.target.closest('#classroomEssaysAddAssignmentBtn') : null;
-            if (!btn || !mount.contains(btn)) {
-                return;
-            }
-            e.preventDefault();
-            openAddAssignmentModal(panel);
-        });
     }
 
     function renderContextBar(panel) {
@@ -3017,25 +3001,10 @@
             ? draftSubmission.teacherEvalDueDate || (summary && summary.teacherEvalDueDate) || ''
             : '';
 
-        const assignments =
-            classData && d ? d.listEssayAssignmentsForClass(classData, getAppData()) : [];
-        const assignmentOpts = assignments.length
-            ? assignments
-                .map((row) => {
-                    const sel = row.syllabusRowId === syllabusRowId ? ' selected' : '';
-                    const subjectBit = essaySubjectLabel(row.displaySubject);
-                    const label = subjectBit
-                        ? `${row.assignmentLabel || ''} · ${subjectBit}`
-                        : row.assignmentLabel || '';
-                    return `<option value="${escapeAttr(row.syllabusRowId)}" data-lesson-date="${escapeAttr(row.lessonDate || '')}"${sel}>${escapeHtml(label)}</option>`;
-                })
-                .join('')
-            : `<option value="">${escapeHtml(t('classroomEssayNoAssignment'))}</option>`;
-
-        // Rebuild if missing inner shell, Add button, or leftover local class picker (migrated away).
+        // Rebuild if missing inner shell, still holding the old local assignment picker, or leftover local class picker.
         const needsShell =
             !mount.querySelector('.classroom-essays-context-bar-inner') ||
-            !mount.querySelector('#classroomEssaysAddAssignmentBtn') ||
+            !!mount.querySelector('#classroomEssaysAssignmentSelect') ||
             !mount.querySelector('#classroomEssaysSubjectSelect') ||
             !mount.querySelector('#classroomEssaysListMonth') ||
             !!mount.querySelector('.classroom-essay-class-picker');
@@ -3051,13 +3020,6 @@
         if (needsShell) {
             mount.innerHTML = `
                 <div class="classroom-essays-context-bar-inner">
-                    <div class="classroom-essay-context-field classroom-essay-context-field--grow">
-                        <span class="classroom-essay-context-label">${escapeHtml(t('classroomEssayAssignmentLabel'))}</span>
-                        <div class="classroom-essay-assignment-row">
-                            <select id="classroomEssaysAssignmentSelect" class="field-select field-control classroom-essay-datefield" aria-label="${escapeAttr(t('classroomEssayAssignmentLabel'))}">${assignmentOpts}</select>
-                            <button type="button" id="classroomEssaysAddAssignmentBtn" class="btn btn-outline btn-compact"${editable && classData ? '' : ' disabled'}>${escapeHtml(t('classroomEssayAddAssignmentBtn'))}</button>
-                        </div>
-                    </div>
                     <label class="classroom-essay-context-field classroom-essay-context-field--subject">
                         <span class="classroom-essay-context-label">${escapeHtml(t('classroomEssaySubjectLabel'))}</span>
                         <select id="classroomEssaysSubjectSelect" class="field-select field-control classroom-essay-datefield" aria-label="${escapeAttr(t('classroomEssaySubjectLabel'))}"${subjectDisabled}>${subjectOpts}</select>
@@ -3080,16 +3042,6 @@
                     </label>
                 </div>`;
         } else {
-            const select = mount.querySelector('#classroomEssaysAssignmentSelect');
-            if (select) {
-                select.innerHTML = assignmentOpts;
-                select.disabled = !assignments.length || !editable;
-            }
-            const addBtn = mount.querySelector('#classroomEssaysAddAssignmentBtn');
-            if (addBtn) {
-                addBtn.disabled = !(editable && classData);
-                addBtn.textContent = t('classroomEssayAddAssignmentBtn');
-            }
             const ssInput = mount.querySelector('#classroomEssaysSsDue');
             if (ssInput) {
                 if (ssInput.value !== ss) {
@@ -5001,11 +4953,18 @@
         const userEl = document.getElementById('essayTmsUsername');
         const passEl = document.getElementById('essayTmsPassword');
         const rememberEl = document.getElementById('essayTmsRememberUser');
-        return {
+        const dom = {
             username: userEl ? String(userEl.value || '').trim() : '',
             password: passEl ? String(passEl.value || '') : '',
             rememberUser: Boolean(rememberEl && rememberEl.checked)
         };
+        if ((userEl || passEl) && (dom.username || dom.password)) {
+            return dom;
+        }
+        if (global.CCPTmsSyncCenter && global.CCPTmsSyncCenter.getCredentials) {
+            return global.CCPTmsSyncCenter.getCredentials();
+        }
+        return dom;
     }
 
     function persistEssayTmsUsername(username, remember) {
@@ -5018,67 +4977,6 @@
         } catch (_) {
             /* ignore */
         }
-    }
-
-    function isLocalClassManagerHost() {
-        try {
-            if (typeof location === 'undefined') {
-                return false;
-            }
-            const host = String(location.hostname || '').toLowerCase();
-            return host === 'localhost' || host === '127.0.0.1';
-        } catch (_) {
-            return false;
-        }
-    }
-
-    function tmsBridgeFetchInit(extra) {
-        return Object.assign(
-            {
-                credentials: 'omit',
-                targetAddressSpace: 'loopback'
-            },
-            extra || {}
-        );
-    }
-
-    async function probeEssayTmsLocalBridge() {
-        if (isLocalClassManagerHost()) {
-            return null;
-        }
-        const bases = ['http://127.0.0.1:8080', 'http://localhost:8080'];
-        for (const base of bases) {
-            const controller =
-                typeof AbortController !== 'undefined' ? new AbortController() : null;
-            const timer = controller ? setTimeout(() => controller.abort(), 3000) : null;
-            try {
-                const res = await fetch(
-                    `${base}/api/tms/bridge/ping`,
-                    tmsBridgeFetchInit({
-                        method: 'GET',
-                        signal: controller ? controller.signal : undefined
-                    })
-                );
-                if (timer) {
-                    clearTimeout(timer);
-                }
-                if (!res.ok) {
-                    continue;
-                }
-                const body = await res.json().catch(() => null);
-                if (body && body.ok === true && body.bridge === true) {
-                    return {
-                        base,
-                        previewUrl: `${base}/api/tms/bridge/essays/preview`
-                    };
-                }
-            } catch (_) {
-                if (timer) {
-                    clearTimeout(timer);
-                }
-            }
-        }
-        return null;
     }
 
     function essayTmsUnmatchedReason(row) {
@@ -5786,83 +5684,20 @@
                 payload.username = creds.username;
                 payload.password = creds.password;
             }
-            const onLocalHost = isLocalClassManagerHost();
-            const bridge = await probeEssayTmsLocalBridge();
-            let res;
-            let usedBridge = false;
-            const previewUrl = bridge
-                ? bridge.previewUrl
-                : onLocalHost
-                  ? '/api/tms/essays/preview'
-                  : '';
-
-            if (bridge || onLocalHost) {
-                if (bridge) {
-                    usedBridge = true;
-                    setEssayTmsStatus(t('classroomEssayTmsBridgeLoading'));
-                }
-                stillTimer = setTimeout(() => {
-                    if (essayTmsLoading) {
-                        setEssayTmsStatus(t('classroomEssayTmsBridgeStillLoading'));
-                    }
-                }, ESSAY_TMS_BRIDGE_STILL_LOADING_MS);
-                if (controller) {
-                    abortTimer = setTimeout(() => controller.abort(), ESSAY_TMS_BRIDGE_TIMEOUT_MS);
-                }
-                const fetchInit = bridge
-                    ? tmsBridgeFetchInit({
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify(payload),
-                          signal: controller ? controller.signal : undefined
-                      })
-                    : {
-                          method: 'POST',
-                          credentials: 'same-origin',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify(payload),
-                          signal: controller ? controller.signal : undefined
-                      };
-                res = await fetch(previewUrl, fetchInit);
-                if (typeof console !== 'undefined' && console.info) {
-                    console.info('[TMS essay bridge]', previewUrl, 'HTTP', res.status, {
-                        usedBridge
-                    });
-                }
-            } else {
-                setEssayTmsError(
-                    `${t('rosterTmsBridgeMissingHint')} ${t('rosterTmsBridgeLocalNetworkHint')}`
-                );
-                setEssayTmsStatus('');
-                finishLoadUi();
-                return;
+            const bridgeState = global.CCPTmsSync ? await global.CCPTmsSync.detectBridge() : { status: 'missing' };
+            const usedBridge = bridgeState.status === 'ready' || bridgeState.status === 'same-origin';
+            if (bridgeState.status === 'ready') {
+                setEssayTmsStatus(t('classroomEssayTmsBridgeLoading'));
             }
-
-            const contentType = String(res.headers.get('content-type') || '').toLowerCase();
-            const body = contentType.includes('application/json')
-                ? await res.json().catch(() => null)
-                : null;
-            if (!res.ok) {
-                const code = body && body.code;
-                if (code === 'TMS_CREDS_MISSING') {
-                    setEssayTmsError(t('rosterTmsSyncCredsMissing'));
-                } else if (code === 'TMS_LOGIN_FAILED' || res.status === 401) {
-                    setEssayTmsError(t('rosterTmsSyncLoginFailed'));
-                } else if (isEssayTmsStaleBridgeError(null, res, body) && usedBridge) {
-                    setEssayTmsError(t('classroomEssayTmsBridgeStaleHint'));
-                } else if (res.status === 404 || !body) {
-                    setEssayTmsError(
-                        usedBridge
-                            ? t('classroomEssayTmsBridgeStaleHint')
-                            : t('rosterTmsSyncUnavailable')
-                    );
-                } else {
-                    setEssayTmsError((body && body.error) || t('rosterTmsSyncError'));
+            stillTimer = setTimeout(() => {
+                if (essayTmsLoading) {
+                    setEssayTmsStatus(t('classroomEssayTmsBridgeStillLoading'));
                 }
-                setEssayTmsStatus('');
-                finishLoadUi();
-                return;
-            }
+            }, ESSAY_TMS_BRIDGE_STILL_LOADING_MS);
+            const body = await global.CCPTmsSync.run('essays', payload, {
+                timeoutMs: ESSAY_TMS_BRIDGE_TIMEOUT_MS,
+                signal: controller ? controller.signal : undefined
+            });
             if (!body || !Array.isArray(body.assignments)) {
                 setEssayTmsError(
                     usedBridge
@@ -5899,8 +5734,17 @@
                 console.warn('[TMS essay bridge] load failed', err);
             }
             const aborted = err && err.name === 'AbortError';
+            const code = err && err.code;
             if (aborted) {
                 setEssayTmsError(t('classroomEssayTmsBridgeTimeout'));
+            } else if (code === 'TMS_CREDS_MISSING') {
+                setEssayTmsError(t('rosterTmsSyncCredsMissing'));
+            } else if (code === 'TMS_LOGIN_FAILED' || (err && err.status === 401)) {
+                setEssayTmsError(t('rosterTmsSyncLoginFailed'));
+            } else if (code === 'TMS_BRIDGE_OUTDATED') {
+                setEssayTmsError(t('tmsSyncOutdatedHint'));
+            } else if (code === 'TMS_BRIDGE_REQUIRED') {
+                setEssayTmsError(t('tmsSyncMissingHint'));
             } else if (isEssayTmsStaleBridgeError(err, null, null)) {
                 setEssayTmsError(t('classroomEssayTmsBridgeStaleHint'));
             } else {
@@ -6090,9 +5934,20 @@
         }
         essayTmsBound = true;
         document.getElementById('classroomEssaysTmsSyncBtn')?.addEventListener('click', () => {
+            if (global.CCPTmsSyncCenter && global.CCPTmsSyncCenter.open) {
+                void global.CCPTmsSyncCenter.open({
+                    kinds: ['essays'],
+                    scope: { mode: 'class', classId: classId }
+                });
+                return;
+            }
             openEssayTmsSyncModal(classId);
         });
         document.getElementById('classroomEssaysTmsSyncAllBtn')?.addEventListener('click', () => {
+            if (global.CCPTmsSyncCenter && global.CCPTmsSyncCenter.open) {
+                void global.CCPTmsSyncCenter.open({ kinds: ['essays'], scope: {} });
+                return;
+            }
             openEssayTmsSyncModal('');
         });
         document.getElementById('essayTmsLoadBtn')?.addEventListener('click', () => {
@@ -6131,9 +5986,6 @@
             if (hooks && hooks.closeModal) {
                 hooks.closeModal(document.getElementById('essayTmsSyncModal'));
             }
-        });
-        document.getElementById('essayTmsBridgeTestBtn')?.addEventListener('click', () => {
-            window.open('http://127.0.0.1:8080/api/tms/bridge/ping', '_blank', 'noopener,noreferrer');
         });
     }
 
@@ -6191,6 +6043,38 @@
                 }
             });
         }
+        if (!initTab._assignmentSubscribed) {
+            initTab._assignmentSubscribed = true;
+            if (global.CCPAssignments && global.CCPAssignments.subscribe) {
+                global.CCPAssignments.subscribe(onSharedAssignmentChanged);
+            }
+            if (typeof global.addEventListener === 'function') {
+                global.addEventListener('ccp:essayNewCustomAssignment', () => {
+                    const essaysPanel = panelRef || document.getElementById('panel-essays');
+                    if (essaysPanel && !essaysPanel.hidden) {
+                        openAddAssignmentModal(essaysPanel);
+                    }
+                });
+            }
+        }
+    }
+
+    function onSharedAssignmentChanged(detail) {
+        if (!detail || detail.kind !== 'essay' || !detail.id || detail.classId !== classId) {
+            return;
+        }
+        const essaysPanel = panelRef || document.getElementById('panel-essays');
+        if (!essaysPanel || essaysPanel.hidden || detail.id === syllabusRowId) {
+            return;
+        }
+        const d = domain();
+        const classData = getClassData();
+        const row = classData && d
+            ? d.getEssayRowsFromSyllabus(classData.syllabusRows, { classData }).find(
+                  (r) => d.getSyllabusRowKey(r) === detail.id
+              )
+            : null;
+        void selectAssignment(essaysPanel, detail.id, row ? row.date || '' : '');
     }
 
     const ESSAY_STATUS_PING_KEY = 'ccp-essay-status-ping';
@@ -6361,9 +6245,28 @@
         });
     }
 
+    function ensureSyncUi(h) {
+        if (h) {
+            hooks = h;
+        }
+        bindEssayTmsSyncUi();
+    }
+
+    async function loadTmsPreview(creds, options) {
+        if (options && Object.prototype.hasOwnProperty.call(options, 'classId')) {
+            essayTmsFilterClassId = options.classId || '';
+        }
+        if (creds && (creds.username || creds.password)) {
+            /* Center credentials are read by readEssayTmsCreds. */
+        }
+        return loadEssayTmsPreview();
+    }
+
     global.CCPClassroomEssays = {
         initTab,
         render,
+        ensureSyncUi,
+        loadTmsPreview,
         flushBeforeLeave,
         isReceivedStatus,
         applyStagedBatchToRecord,
@@ -6373,7 +6276,7 @@
         ESSAY_AUTOSAVE_DELAY_MS,
         resolveEssayAssignmentForClass,
         rowExistsInClass,
-        getEssayAssignmentMap,
+        getSavedEssayAssignmentId,
         persistEssayAssignmentForClass,
         studentMatchesFilter,
         buildDueCell,

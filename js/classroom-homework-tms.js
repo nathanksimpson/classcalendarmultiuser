@@ -76,11 +76,18 @@
         const userEl = document.getElementById('homeworkTmsUsername');
         const passEl = document.getElementById('homeworkTmsPassword');
         const rememberEl = document.getElementById('homeworkTmsRememberUser');
-        return {
+        const dom = {
             username: userEl ? String(userEl.value || '').trim() : '',
             password: passEl ? String(passEl.value || '') : '',
             rememberUser: Boolean(rememberEl && rememberEl.checked)
         };
+        if ((userEl || passEl) && (dom.username || dom.password)) {
+            return dom;
+        }
+        if (global.CCPTmsSyncCenter && global.CCPTmsSyncCenter.getCredentials) {
+            return global.CCPTmsSyncCenter.getCredentials();
+        }
+        return dom;
     }
 
     function persistUsername(username, remember) {
@@ -93,67 +100,6 @@
         } catch (_) {
             /* ignore */
         }
-    }
-
-    function isLocalClassManagerHost() {
-        try {
-            if (typeof location === 'undefined') {
-                return false;
-            }
-            const host = String(location.hostname || '').toLowerCase();
-            return host === 'localhost' || host === '127.0.0.1';
-        } catch (_) {
-            return false;
-        }
-    }
-
-    function tmsBridgeFetchInit(extra) {
-        return Object.assign(
-            {
-                credentials: 'omit',
-                targetAddressSpace: 'loopback'
-            },
-            extra || {}
-        );
-    }
-
-    async function probeLocalBridge() {
-        if (isLocalClassManagerHost()) {
-            return null;
-        }
-        const bases = ['http://127.0.0.1:8080', 'http://localhost:8080'];
-        for (const base of bases) {
-            const controller =
-                typeof AbortController !== 'undefined' ? new AbortController() : null;
-            const timer = controller ? setTimeout(() => controller.abort(), 3000) : null;
-            try {
-                const res = await fetch(
-                    `${base}/api/tms/bridge/ping`,
-                    tmsBridgeFetchInit({
-                        method: 'GET',
-                        signal: controller ? controller.signal : undefined
-                    })
-                );
-                if (timer) {
-                    clearTimeout(timer);
-                }
-                if (!res.ok) {
-                    continue;
-                }
-                const body = await res.json().catch(() => null);
-                if (body && body.ok === true && body.bridge === true) {
-                    return {
-                        base,
-                        previewUrl: `${base}/api/tms/bridge/homework/preview`
-                    };
-                }
-            } catch (_) {
-                if (timer) {
-                    clearTimeout(timer);
-                }
-            }
-        }
-        return null;
     }
 
     function linkedTmsClassIds() {
@@ -258,22 +204,8 @@
             if (className) {
                 payload.className = className;
             }
-            const onLocalHost = isLocalClassManagerHost();
-            const bridge = await probeLocalBridge();
-            const previewUrl = bridge
-                ? bridge.previewUrl
-                : onLocalHost
-                  ? '/api/tms/homework/preview'
-                  : '';
-            if (!bridge && !onLocalHost) {
-                setError(
-                    `${t('rosterTmsBridgeMissingHint')} ${t('rosterTmsBridgeLocalNetworkHint')}`
-                );
-                setStatus('');
-                finish();
-                return;
-            }
-            if (bridge) {
+            const bridgeState = global.CCPTmsSync ? await global.CCPTmsSync.detectBridge() : { status: 'missing' };
+            if (bridgeState.status === 'ready') {
                 setStatus(t('classroomHomeworkTmsBridgeLoading'));
             }
             stillTimer = setTimeout(() => {
@@ -281,43 +213,10 @@
                     setStatus(t('classroomHomeworkTmsBridgeLoading'));
                 }
             }, STILL_LOADING_MS);
-            if (controller) {
-                abortTimer = setTimeout(() => controller.abort(), BRIDGE_TIMEOUT_MS);
-            }
-            const fetchInit = bridge
-                ? tmsBridgeFetchInit({
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(payload),
-                      signal: controller.signal
-                  })
-                : {
-                      method: 'POST',
-                      credentials: 'same-origin',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(payload),
-                      signal: controller ? controller.signal : undefined
-                  };
-            const res = await fetch(previewUrl, fetchInit);
-            const contentType = String(res.headers.get('content-type') || '').toLowerCase();
-            const body = contentType.includes('application/json')
-                ? await res.json().catch(() => null)
-                : null;
-            if (!res.ok) {
-                const code = body && body.code;
-                if (code === 'TMS_CREDS_MISSING') {
-                    setError(t('rosterTmsSyncCredsMissing'));
-                } else if (code === 'TMS_LOGIN_FAILED' || res.status === 401) {
-                    setError(t('rosterTmsSyncLoginFailed'));
-                } else if (code === 'TMS_BRIDGE_REQUIRED') {
-                    setError(t('briefingErrorBridgeRequired'));
-                } else {
-                    setError((body && body.error) || t('rosterTmsSyncFailed') || res.statusText);
-                }
-                setStatus('');
-                finish();
-                return;
-            }
+            const body = await global.CCPTmsSync.run('homework', payload, {
+                timeoutMs: BRIDGE_TIMEOUT_MS,
+                signal: controller ? controller.signal : undefined
+            });
             const d = domain();
             if (!d || !d.previewTmsHomeworkSyncPlan) {
                 setError(t('classroomModuleMissing'));
@@ -350,9 +249,24 @@
                 );
                 setConfirmEnabled(matched > 0);
             }
+            return body;
         } catch (err) {
-            setError(err && err.message ? err.message : String(err));
+            const code = err && err.code;
+            if (code === 'TMS_CREDS_MISSING') {
+                setError(t('rosterTmsSyncCredsMissing'));
+            } else if (code === 'TMS_LOGIN_FAILED' || (err && err.status === 401)) {
+                setError(t('rosterTmsSyncLoginFailed'));
+            } else if (code === 'TMS_BRIDGE_OUTDATED') {
+                setError(t('tmsSyncOutdatedHint'));
+            } else if (code === 'TMS_BRIDGE_REQUIRED') {
+                setError(t('tmsSyncMissingHint'));
+            } else if (err && err.name === 'AbortError') {
+                setError(t('classroomHomeworkTmsBridgeTimeout') || (err && err.message) || '');
+            } else {
+                setError(err && err.message ? err.message : String(err));
+            }
             setStatus('');
+            return null;
         } finally {
             finish();
         }
@@ -404,6 +318,14 @@
         }
         bound = true;
         document.getElementById('classroomHomeworkTmsSyncBtn')?.addEventListener('click', () => {
+            if (global.CCPTmsSyncCenter && global.CCPTmsSyncCenter.open) {
+                const classId = ctxApi && ctxApi.getClassId ? ctxApi.getClassId() : '';
+                void global.CCPTmsSyncCenter.open({
+                    kinds: ['homework'],
+                    scope: classId ? { mode: 'class', classId: classId } : {}
+                });
+                return;
+            }
             openModal();
         });
         document.getElementById('homeworkTmsLoadBtn')?.addEventListener('click', () => {
@@ -424,9 +346,6 @@
         document.getElementById('closeHomeworkTmsSyncModal')?.addEventListener('click', () => {
             closeModal();
         });
-        document.getElementById('homeworkTmsBridgeTestBtn')?.addEventListener('click', () => {
-            window.open('http://127.0.0.1:8080/api/tms/bridge/ping', '_blank', 'noopener,noreferrer');
-        });
     }
 
     function init(h, api) {
@@ -435,8 +354,17 @@
         bindUi();
     }
 
+    function ensureSyncUi(h) {
+        if (h) {
+            hooks = h;
+        }
+        bindUi();
+    }
+
     global.CCPClassroomHomeworkTms = {
         init,
-        openModal
+        openModal,
+        ensureSyncUi,
+        loadPreview
     };
 })(typeof window !== 'undefined' ? window : globalThis);

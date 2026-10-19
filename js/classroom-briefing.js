@@ -11,9 +11,6 @@
     'use strict';
 
     const TMS_USERNAME_STORAGE_KEY = 'ccp.tmsRosterUsername';
-    const BRIDGE_PING_PATH = '/api/tms/bridge/ping';
-    const BRIDGE_COUNSEL_PATH = '/api/tms/bridge/counsel';
-    const SERVER_COUNSEL_PATH = '/api/tms/counsel/preview';
     const TRANSLATE_PATH = '/translate';
     const TRANSLATE_GAP_MS = 150;
     const TRANSLATE_CONCURRENCY = 2;
@@ -115,6 +112,9 @@
     }
 
     function estimateSyncMinutes(studentCount) {
+        if (global.CCPTmsSync && global.CCPTmsSync.estimateSyncMinutes) {
+            return global.CCPTmsSync.estimateSyncMinutes(studentCount);
+        }
         const count = Math.max(1, studentCount || 1);
         return Math.max(2, Math.ceil((count * SYNC_SECONDS_PER_STUDENT) / 60));
     }
@@ -536,49 +536,6 @@
         return (options && options.classId) || (data.ui && data.ui.classroomTabClassId) || '';
     }
 
-    function tmsBridgeFetchInit(extra) {
-        return Object.assign(
-            {
-                credentials: 'omit',
-                targetAddressSpace: 'loopback'
-            },
-            extra || {}
-        );
-    }
-
-    function getTmsBridgeBaseCandidates() {
-        return ['http://127.0.0.1:8080', 'http://localhost:8080'];
-    }
-
-    function isLocalClassManagerHost() {
-        try {
-            const host = String(location.hostname || '').toLowerCase();
-            return host === 'localhost' || host === '127.0.0.1';
-        } catch (_) {
-            return false;
-        }
-    }
-
-    async function pingBridge() {
-        for (const base of getTmsBridgeBaseCandidates()) {
-            try {
-                const res = await fetch(
-                    base + BRIDGE_PING_PATH,
-                    tmsBridgeFetchInit({ method: 'GET', mode: 'cors' })
-                );
-                if (res.ok) {
-                    const json = await res.json().catch(() => null);
-                    if (json && json.bridge === true) {
-                        return { available: true, base };
-                    }
-                }
-            } catch (_) {
-                /* try next */
-            }
-        }
-        return { available: false, base: '' };
-    }
-
     function persistTmsUsernamePreference(username, remember) {
         try {
             if (remember && username) {
@@ -622,11 +579,18 @@
         const userEl = document.getElementById('briefingTmsUsername');
         const passEl = document.getElementById('briefingTmsPassword');
         const rememberEl = document.getElementById('briefingTmsRememberUser');
-        return {
+        const dom = {
             username: userEl ? String(userEl.value || '').trim() : '',
             password: passEl ? String(passEl.value || '') : '',
             rememberUser: Boolean(rememberEl && rememberEl.checked)
         };
+        if ((userEl || passEl) && (dom.username || dom.password)) {
+            return dom;
+        }
+        if (global.CCPTmsSyncCenter && global.CCPTmsSyncCenter.getCredentials) {
+            return global.CCPTmsSyncCenter.getCredentials();
+        }
+        return dom;
     }
 
     function syncModalConfirmEnabled() {
@@ -707,33 +671,17 @@
         pendingSyncPlan = null;
     }
 
-    async function fetchCounselProfiles(plan, credentials, bridge, options) {
+    async function fetchCounselProfiles(plan, credentials, options) {
         const opts = options || {};
         const payload = {
             classes: plan,
             username: credentials.username,
             password: credentials.password
         };
-        const useBridge = Boolean(bridge && bridge.available);
-        const url = useBridge ? bridge.base + BRIDGE_COUNSEL_PATH : SERVER_COUNSEL_PATH;
-        const fetchOpts = {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            mode: useBridge ? 'cors' : 'same-origin',
-            credentials: useBridge ? 'omit' : 'include',
-            body: JSON.stringify(payload)
-        };
-        if (opts.signal) {
-            fetchOpts.signal = opts.signal;
-        }
-        const res = await fetch(url, tmsBridgeFetchInit(fetchOpts));
-        if (!res.ok) {
-            const errBody = await res.json().catch(() => ({}));
-            const err = new Error(errBody.error || `HTTP ${res.status}`);
-            err.code = errBody && errBody.code;
-            throw err;
-        }
-        return res.json();
+        return global.CCPTmsSync.run('counsel', payload, {
+            timeoutMs: COUNSEL_SYNC_TIMEOUT_MS,
+            signal: opts.signal
+        });
     }
 
     async function translateOne(text) {
@@ -1497,12 +1445,23 @@
             showStatus(t('briefingNoClassesToSync', 'No classes with linked rosters to sync.'), true);
             return;
         }
+        if (global.CCPTmsSyncCenter && global.CCPTmsSyncCenter.open) {
+            void global.CCPTmsSyncCenter.open({
+                kinds: ['counsel'],
+                scope: classId ? { mode: 'class', classId: classId } : {}
+            });
+            return;
+        }
         openTmsLoginModal(plan);
     }
 
     async function confirmTmsLogin(planOverride) {
         const creds = readTmsCredFields();
-        if (!creds.username || !creds.password) {
+        const bridgeState = global.CCPTmsSync && global.CCPTmsSync.getBridgeState
+            ? global.CCPTmsSync.getBridgeState()
+            : null;
+        const allowBlankCreds = bridgeState && bridgeState.status === 'same-origin';
+        if ((!creds.username || !creds.password) && !allowBlankCreds) {
             showModalError(t('briefingErrorCredsRequired', 'Enter your TMS username and password.'));
             return;
         }
@@ -1527,18 +1486,6 @@
         showModalError('');
         showModalSyncProgress(plan);
 
-        const bridge = await pingBridge();
-        if (!bridge.available && !isLocalClassManagerHost()) {
-            hideModalSyncProgress();
-            showModalError(
-                t('briefingErrorBridgeRequired', 'TMS bridge required. Run npm start on the work PC.')
-            );
-            if (confirmBtn) {
-                syncModalConfirmEnabled();
-            }
-            return;
-        }
-
         let summary = '';
         let warnings = [];
         const abortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -1548,7 +1495,7 @@
         }
 
         try {
-            const result = await fetchCounselProfiles(plan, creds, bridge, {
+            const result = await fetchCounselProfiles(plan, creds, {
                 signal: abortController ? abortController.signal : undefined
             });
             applyBatchSyncResult(result);
@@ -1571,6 +1518,8 @@
                 );
             } else if (code === 'TMS_LOGIN_FAILED') {
                 msg = t('briefingErrorLoginFailed', 'TMS login failed. Check your username and password.');
+            } else if (code === 'TMS_BRIDGE_OUTDATED') {
+                msg = t('tmsSyncOutdatedHint', 'Update the local ClassManager (restart npm start).');
             } else if (code === 'TMS_BRIDGE_REQUIRED' || code === 'TMS_CREDS_MISSING') {
                 msg = t(
                     'briefingErrorBridgeRequired',
@@ -1652,8 +1601,28 @@
         }
     }
 
+    function ensureSyncUi(h) {
+        if (h) {
+            hooks = h;
+        }
+        bindEventsOnce();
+    }
+
+    async function runSync(creds, options) {
+        const onlyClassId = options && options.classId ? String(options.classId) : '';
+        let plan = buildAllClassesSyncPlan();
+        if (onlyClassId) {
+            plan = plan.filter((batch) => String(batch.classId) === onlyClassId);
+        }
+        pendingSyncPlan = plan;
+        return confirmTmsLogin(plan);
+    }
+
     global.CCPClassroomBriefing = {
         initTab,
-        render: renderIdle
+        render: renderIdle,
+        ensureSyncUi,
+        runSync,
+        estimateSyncMinutes
     };
 })(typeof window !== 'undefined' ? window : globalThis);

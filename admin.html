@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <base href="/">
-    <title>Admin ??ClassManager</title>
+    <title>Admin — ClassManager</title>
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <link rel="stylesheet" href="styles.css?v=20260629-classmanager-redesign">
@@ -26,12 +26,12 @@
     </div>
     <div class="admin-page page-shell">
         <nav class="admin-nav page-shell-nav" id="adminNav" aria-label="Admin toolbar">
-            <a href="/" data-i18n="backToCalendar">??Back to calendar</a>
+            <a href="/" data-i18n="backToCalendar">← Back to calendar</a>
             <span aria-hidden="true">·</span>
             <a href="login.html" id="adminSignInLink" data-i18n="signIn">Sign in</a>
             <span class="admin-nav-spacer" aria-hidden="true"></span>
-            <button type="button" id="adminLangToggle" class="btn btn-outline btn-small btn-lang" data-i18n="langToggle" data-i18n-title="langToggleTitle" title="Switch to Korean">?�� ?�국??/button>
-            <button type="button" id="adminThemeToggle" class="btn btn-outline btn-small btn-header-theme" aria-pressed="false" data-i18n-title="themeToggleTitle" title="Switch light/dark theme">?�� Dark</button>
+            <button type="button" id="adminLangToggle" class="btn btn-outline btn-small btn-lang" data-i18n="langToggle" data-i18n-title="langToggleTitle" title="Switch to Korean">🌐 한국어</button>
+            <button type="button" id="adminThemeToggle" class="btn btn-outline btn-small btn-header-theme" aria-pressed="false" data-i18n-title="themeToggleTitle" title="Switch light/dark theme">🌙 Dark</button>
         </nav>
         <h1 data-i18n="adminHeading">Admin</h1>
         <p class="admin-hint" data-i18n="adminIntro">Manage teachers, groups, and which calendars each person can open.</p>
@@ -111,7 +111,7 @@
                 </label>
                 <div id="addUserPermissionsSection" class="admin-permissions-section" hidden>
                     <h3 class="admin-permissions-heading" data-i18n="customPermissionsHeading">Custom permissions</h3>
-                    <p class="section-hint" data-i18n="customPermissionsHint">Changing role resets permissions to that role?�s preset. Adjust checkboxes afterward for custom access. Force-unlock still follows the role (super admin / head teacher), not checkboxes alone.</p>
+                    <p class="section-hint" data-i18n="customPermissionsHint">Changing role resets permissions to that role’s preset. Adjust checkboxes afterward for custom access. Force-unlock still follows the role (super admin / head teacher), not checkboxes alone.</p>
                     <div id="addUserPermissionsList" class="admin-permissions-list" role="group"></div>
                 </div>
                 <div id="addUserElevationBox" class="admin-elevation-box" hidden>
@@ -151,12 +151,12 @@
 
         <section class="admin-tab-panel admin-section" id="calendarsPanel" role="tabpanel" aria-labelledby="adminTabCalendars" hidden>
             <h2 data-i18n="calendarAccessHeading">Calendars</h2>
-            <p class="admin-hint" data-i18n="calendarAccessHint">Choose a calendar, then set each teacher or group to Viewer, Suggester, or Editor. Head teachers with ?�all calendars??are not listed here.</p>
+            <p class="admin-hint" data-i18n="calendarAccessHint">Choose a calendar, then set each teacher or group to Viewer, Suggester, or Editor. Head teachers with “all calendars” are not listed here.</p>
             <details class="admin-help-details">
                 <summary data-i18n="calendarsHelpSummary">Access levels</summary>
-                <p class="admin-hint admin-hint--tight" data-i18n="accessLevelViewerHint">Viewer ??open and print only.</p>
-                <p class="admin-hint admin-hint--tight" data-i18n="accessLevelSuggesterHint">Suggester ??view only; changes via suggestions (API).</p>
-                <p class="admin-hint admin-hint--tight" data-i18n="accessLevelEditorHint">Editor ??can edit when holding the team lock.</p>
+                <p class="admin-hint admin-hint--tight" data-i18n="accessLevelViewerHint">Viewer — open and print only.</p>
+                <p class="admin-hint admin-hint--tight" data-i18n="accessLevelSuggesterHint">Suggester — view only; changes via suggestions (API).</p>
+                <p class="admin-hint admin-hint--tight" data-i18n="accessLevelEditorHint">Editor — can edit when holding the team lock.</p>
             </details>
             <form class="admin-form" id="calendarAccessForm">
                 <label><span data-i18n="calendarLabel">Calendar</span>
@@ -263,7 +263,7 @@
                     </div>
                     <div id="editUserPermissionsSection" class="admin-permissions-section" hidden>
                         <h3 class="admin-permissions-heading" data-i18n="customPermissionsHeading">Custom permissions</h3>
-                        <p class="section-hint" data-i18n="customPermissionsHint">Changing role resets permissions to that role?�s preset. Adjust checkboxes afterward for custom access. Force-unlock still follows the role (super admin / head teacher), not checkboxes alone.</p>
+                        <p class="section-hint" data-i18n="customPermissionsHint">Changing role resets permissions to that role’s preset. Adjust checkboxes afterward for custom access. Force-unlock still follows the role (super admin / head teacher), not checkboxes alone.</p>
                         <div id="editUserPermissionsList" class="admin-permissions-list" role="group" aria-labelledby="editUserPermissionsHeading"></div>
                     </div>
                     <div id="editUserElevationBox" class="admin-elevation-box" hidden>

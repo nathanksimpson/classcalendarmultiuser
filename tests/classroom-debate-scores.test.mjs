@@ -116,7 +116,7 @@ assert(Array.isArray(data.debateScores) && data.debateScores.length === 0, 'deba
 
 const students = [
     { id: 's-pm', name: '김민수', nameEn: 'Minsu' },
-    { id: 's-lo', name: '이서연', nameEn: 'Seoyeon' },
+    { id: 's-lo', name: '최테차', nameEn: 'Seoyeon' },
     { id: 's-legacy', name: '박지훈', nameEn: '' }
 ];
 

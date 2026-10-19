@@ -42,6 +42,10 @@
                         <input type="hidden" id="classTextColor" value="">
                         <div id="classColorPaletteGrid" class="class-color-palette-host" role="group" aria-label="Class color"></div>
                         <div id="classColorPreviewRow" class="class-color-preview-host" aria-live="polite"></div>
+                        <p id="classColorLevelHint" class="section-hint level-auto-hint" hidden>
+                            <span class="level-auto-hint-text"></span>
+                            <button type="button" class="btn btn-outline btn-small" data-level-reset="colors" data-i18n="levelResetToAuto" hidden>Reset to auto</button>
+                        </p>
                     </div>
                 </section>
 
@@ -78,6 +82,7 @@
                         <div class="form-group form-group-meeting-days">
                             <label data-i18n="meetingDays">Meeting days</label>
                             <p class="section-hint form-group--full-only" data-i18n="meetingDaysHint"></p>
+                            <p id="classScheduleLevelHint" class="section-hint level-auto-hint" role="status" hidden></p>
                             <div class="meeting-days-block">
                                 <div class="meeting-days-presets"></div>
                                 <div id="classMeetingDaysRow" class="meeting-days-row" role="group" aria-label="Meeting days"></div>
@@ -96,6 +101,7 @@
                             <select id="classLevel" class="field-select">
                                 <option value="" data-i18n="selectLevel">Select level</option>
                             </select>
+                            <p id="classLevelAutoStatus" class="section-hint level-auto-hint" role="status" hidden></p>
                         </div>
 
                         <div class="form-group">
@@ -108,6 +114,10 @@
                             <select id="classGrade" class="field-select">
                                 <option value="" data-i18n="selectGrade">Select grade (optional)</option>
                             </select>
+                            <p id="classGradeLevelHint" class="section-hint level-auto-hint" hidden>
+                                <span class="level-auto-hint-text"></span>
+                                <button type="button" class="btn btn-outline btn-small" data-level-reset="grade" data-i18n="levelResetToAuto" hidden>Reset to auto</button>
+                            </p>
                         </div>
                     </div>
                     <div class="form-row">
@@ -135,6 +145,7 @@
                             <button type="button" id="applyCurriculumToClassBtn" class="btn btn-primary btn-small" disabled data-i18n="applyCurriculumToClass">Apply from curriculum</button>
                         </div>
                         <p id="classCurriculumPreview" class="section-hint class-curriculum-preview" role="status" hidden></p>
+                        <p id="classCurriculumLevelHint" class="section-hint" role="status" hidden></p>
                         <p id="classCurriculumWarning" class="class-curriculum-warning section-hint" role="alert" hidden></p>
                         <p id="classCurriculumPipelineHint" class="section-hint" data-i18n="classCurriculumPipelineHint">Flow: Curriculum (shared books) → this class (link) → Syllabus tab (dated lessons).</p>
                         <p id="classCurriculumHint" class="section-hint" data-i18n="classCurriculumHint">Choose Section (level) above, then pick a book. Apply updates settings; Save updates the syllabus from this book when the link changes.</p>

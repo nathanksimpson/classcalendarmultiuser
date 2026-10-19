@@ -52,7 +52,7 @@ const D = loadDomain();
             levelPreset: 'yeoul',
             students: [
                 { id: 'stu_1', name: '김민수', nameEn: 'Minsu', tmsMpidx: '1001' },
-                { id: 'stu_2', name: '이서연', nameEn: 'Seoyeon', tmsMpidx: '' }
+                { id: 'stu_2', name: '최테차', nameEn: 'Seoyeon', tmsMpidx: '' }
             ]
         },
         {
@@ -69,8 +69,8 @@ const D = loadDomain();
             levelPreset: 'garam',
             students: [
                 { name: '김민수', nameEn: 'Minsu', mpidx: '1001' },
-                { name: '이서연', nameEn: 'Seoyeon', mpidx: '2002' },
-                { name: '최유나', nameEn: 'Yuna', mpidx: '3003' }
+                { name: '최테차', nameEn: 'Seoyeon', mpidx: '2002' },
+                { name: '최유나', nameEn: 'Studcz', mpidx: '3003' }
             ]
         }
     ];
@@ -82,7 +82,7 @@ const D = loadDomain();
     assert(byMpidx.fromCohortId === 'coh_old_a', 'from yeoul');
     assert(byMpidx.likelyLevelUp === true, 'level up yeoul → garam');
     const byName = plan.moves.find((m) => m.matchedBy === 'name');
-    assert(byName && byName.studentId === 'stu_2', 'name match 이서연');
+    assert(byName && byName.studentId === 'stu_2', 'name match 최테차');
     assert(plan.adds.length === 1 && plan.adds[0].tmsName === '최유나', 'new student add');
     assert(
         plan.unmatchedPrevious.some((u) => u.studentId === 'stu_3'),
@@ -114,13 +114,13 @@ const D = loadDomain();
                 tmsMpidx: '9'
             }
         ],
-        adds: [{ toCohortId: 'coh_new', tmsName: '이서연', tmsNameEn: 'Seoyeon', tmsMpidx: '10' }]
+        adds: [{ toCohortId: 'coh_new', tmsName: '최테차', tmsNameEn: 'Seoyeon', tmsMpidx: '10' }]
     });
     assert(!applied.errors.length, 'no apply errors');
     const neu = applied.cohorts.find((c) => c.id === 'coh_new');
     const old = applied.cohorts.find((c) => c.id === 'coh_old');
     assert(neu.students.some((s) => s.id === 'stu_1' && s.tmsMpidx === '9'), 'preserved stu id');
-    assert(neu.students.some((s) => s.name === '이서연'), 'added new');
+    assert(neu.students.some((s) => s.name === '최테차'), 'added new');
     assert(!(old.students || []).some((s) => s.id === 'stu_1'), 'removed from old');
 }
 
@@ -145,25 +145,25 @@ const D = loadDomain();
     assert(mapped.period === 2, 'fixture block maps to period 2');
     assert(typeof tms.parseClassPopupHomeroomName === 'function', 'homeroom parser');
     const hr = tms.parseClassPopupHomeroomName(html);
-    assert(hr === '최미영', `expected 최미영 got ${hr}`);
+    assert(hr === '최테카', `expected 최테카 got ${hr}`);
 
     const yellowHtml = readFileSync(
         path.join(__dirname, 'fixtures', 'tms', 'class-popup-yellow-schedule-snippet.html'),
         'utf8'
     );
     const yellowHr = tms.parseClassPopupHomeroomName(yellowHtml);
-    assert(yellowHr === '최미영', `yellow fixture 담임 got ${yellowHr}`);
+    assert(yellowHr === '최테카', `yellow fixture 담임 got ${yellowHr}`);
 }
 
 {
     const merged = D.mergeRosterByKoreanName(
-        [{ id: 'stu_x', name: '권이안', nameEn: '', tmsMpidx: '555' }],
-        [{ name: '권이안◆', nameEn: 'Kwon', mpidx: '555' }]
+        [{ id: 'stu_x', name: '이테카', nameEn: '', tmsMpidx: '555' }],
+        [{ name: '이테카◆', nameEn: 'Kwon', mpidx: '555' }]
     );
     assert(merged.summary.matched.length === 1, 'mpidx merge matched');
     assert(merged.summary.matched[0].matchedBy === 'mpidx', 'matched by mpidx');
     assert(merged.students[0].tmsMpidx === '555', 'keeps mpidx');
-    assert(merged.students[0].name === '권이안', 'stores Korean identity without mark');
+    assert(merged.students[0].name === '이테카', 'stores Korean identity without mark');
     assert(
         Array.isArray(merged.students[0].tags) && merged.students[0].tags.includes('transfer_in'),
         '◆ becomes transfer_in tag'

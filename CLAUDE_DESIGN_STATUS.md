@@ -115,7 +115,7 @@ Navigation is **two-level**: **zones** (top folder tabs) → **segments** (sub-t
 
 | Segment | Panel ID | Layout pattern |
 |---------|----------|----------------|
-| Data | `#panel-data` | Calendar backup export/import sections |
+| Data | `#panel-data` | Import & export index, calendar backup, lesson plans, reports, Danger zone |
 
 **Data zone rule:** Admin **Data** only — segment tabs are never moved into Data.
 
@@ -154,14 +154,19 @@ The shell lives in `#appTopBar` (sticky, `z-index: 200`, frosted glass). Content
 
 - **Brand:** `◳` icon + “ClassManager” (`.app-brand-name`).
 - **Lock / sync (inline):** `#teamLockSyncBar.team-lock-sync-bar--inline` — team-wide edit lock + saved indicator (shell chrome, not a content band).
-- **Calendar menu:** `#teamCalendarMenuBtn` — switch/create team calendars (popover).
-- **My schedule:** `#headerMyScheduleBtn` — teacher-filtered view (role-gated).
-- **Print:** `.btn-header-print` — blue-tinted button (`#eff6ff` / `#1d4ed8`).
+Order (Phase 6): `[logo] [save/lock pill] [Sync ●] … [bell] [+ New ▾ · Day notes · Calendar ▾ · Print · Help · ◐] [All | Mine] [Term settings] [Helper ●] [Account ▾]`.
+
+- **+ New:** `#headerNewMenuBtn` (`.btn-primary`) → `#headerNewPopover` (`.header-fixed-popover`): Class · Event · Cohort (calendar lock) │ Day note · Custom essay assignment (no lock). Essay item awaits Tools → Essays, then dispatches `ccp:essayNewCustomAssignment`.
+- **Day notes:** `#headerDayNotesBtn` — opens Classroom → Notes for the shared active class (phones: notes page).
+- **Calendar menu:** `#teamCalendarMenuBtn` — switch calendars + **New calendar** only. Add class/event moved to + New; Back up / Remove moved to Data.
+- **Print:** `#openPrintBtn` (`.btn-header-print`, blue tint) → **Print Center** `#printCenterModal` (every printable, "For this tab" first; rows open the owning tab and click its own print control).
 - **Help:** link to `help.html`, outline style.
-- **Theme:** `.btn-header-theme` — toggles `[data-theme="dark"]` on `<html>`.
-- **Account:** avatar trigger → sign out, admin link, view-as (role-gated).
+- **Theme:** `.btn-header-theme` icon — toggles `[data-theme="dark"]` on `<html>` (labelled version in Account → Preferences).
+- **Scope switch:** `#headerClassScope` (pinned, `.calendar-view-switch` + `.syllabus-segment-btn`, `role="radiogroup"`) — All classes / My classes, saved per teacher (`/api/me/ui-prefs`). Local "My classes only" boxes become per-screen overrides until the header changes.
+- **Account:** avatar trigger → Preferences (Theme, Language, During-class popup, Hide tabs, Reset tab layout) → My timetable · Mobile day notes · Schedule planner → Admin · Edit name · Change password · Sign out.
 - **Notifications bell:** `#appWarningsBtn` — setup warnings inbox popover (`#tabWarningsPopover`).
-- **Phone:** utilities collapse behind `#headerToolsOverflowBtn`; brand + lock/sync stay visible.
+- **Term strip:** `#termSummaryStrip` is a button that opens Term settings (holidays now import from Schedule → Events).
+- **Phone:** `#headerToolsOverflowBtn` (⋮) holds + New, Day notes, Calendar, Print, Help, theme; scope switch, Term, Helper and Account stay pinned.
 
 ### Lock / sync bar
 
@@ -285,6 +290,13 @@ Field order: name → colors → curriculum → term dates → period/level/grad
 
 **Class colors:** 12-color calm palette (`js/class-color-palette.js`); grid picker + live chip preview.
 
+**Level defaults (Phase 7):** every level-dependent default comes from `js/level-profile.js` (`CCPLevelProfile.resolve`). In the form:
+
+- **Grade** and **Class color** are *Auto* (follow the Section level) until set by hand. Under each field: one `.section-hint.level-auto-hint` line — "Auto · from {level}" or "Custom · set by hand" plus a small `.btn.btn-outline.btn-small` **Reset to auto**. Saved classes start Auto when the stored value equals the level default, else Custom. Changing the level updates only Auto fields and shows "Updated N automatic settings" under the level select.
+- **Book:** a new class pre-selects the single matching curriculum book (hint "Suggested for {level}: {book}"); several matches → "{count} books match {level}. Pick one."; saved classes get the hint only. **Apply from curriculum** still sets total lessons / class type.
+- **Meeting days (new classes only):** linked cohort pattern first ("From cohort: MWF"); no cohort and the level runs MWF + TTh → hint "Usual days for {level}:" above the preset buttons, nothing auto-picked. Picking a cohort re-runs this while days are empty.
+- Nothing is written on load; `levelOverrides` / `levelProfileMigrated` are saved with the next normal class save. Debate Teams defaults are unchanged (golden test `tests/level-debate-defaults.test.mjs`).
+
 ---
 
 ### Cohorts (`#panel-cohorts`)
@@ -334,8 +346,11 @@ Most classroom tabs share:
 ### Data (`#panel-data`)
 
 - Sections with `.print-data-section` styling (tinted accent borders per category).
-- Calendar backup: export/import JSON, read-only hint when locked.
+- **Import & export** (`.print-data-section--import-export`, first, full width): `#dataImportExportList` rendered by `CCPDataTransfer` (`js/print-center.js`) — Import / Export columns grouped by area. **Run** rows click the original control (Data-tab actions, whole-calendar downloads, TMS Sync Center); **Go** rows open the owning tab, scroll to the control and outline it for 2 s (`.data-io-highlight`).
+- Calendar backup: export/import JSON, read-only hint when locked, plus **Back up to Drive now** (`#teamBackupBtn`, server snapshot).
 - Curriculum link section (role-gated).
+- **Danger zone** (`.print-data-section--danger`, `--danger` accent): Remove this calendar… (`#teamDeleteCalendarBtn`) and Clear All Data — both respect the calendar lock.
+- Tab-layout reset moved to Account → Preferences (no `--nav-layout` section).
 
 ---
 
@@ -384,7 +399,9 @@ Most classroom tabs share:
 | `#termCloneModal` | Small | Clone term wizard |
 | `#newCalendarModal` | Small | Create team calendar |
 | `#deleteCalendarModal` | Small | Confirm delete |
-| Print modal | Wide scrollable | Print options (tinted section tabs) |
+| `#printCenterModal` | Scrollable | Print Center — every printable, "For this tab" first, then Schedule / Classes / Classroom / Tools / Term reports; footer links to the planner |
+| Print modal (`#printOptionsModal`) | Wide scrollable | Calendar print options (tinted section tabs), opened from Print Center → Calendar… |
+| `#headerNewPopover` | Header popover | + New menu (Class, Event, Cohort │ Day note, Custom essay assignment) |
 | `#lessonFilterPopover` | Fixed popover | Calendar display filters |
 | `#tabWarningsPopover` | Header popover | Notification inbox |
 | Team calendar / account popovers | Dropdown panels | Calendar picker, account menu |

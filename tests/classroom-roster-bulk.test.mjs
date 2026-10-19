@@ -28,7 +28,7 @@ const D = loadDomain();
             name: 'Navy',
             students: [
                 { id: 's1', name: '김민수', tags: ['new'], active: true },
-                { id: 's2', name: '이서연', tags: [], active: true },
+                { id: 's2', name: '최테차', tags: [], active: true },
                 { id: 's3', name: '박지훈', tags: ['interested'], active: true }
             ]
         }
@@ -55,7 +55,7 @@ const D = loadDomain();
             name: 'Navy',
             students: [
                 { id: 's1', name: '김민수', tags: [], active: true },
-                { id: 's2', name: '이서연', tags: [], active: true }
+                { id: 's2', name: '최테차', tags: [], active: true }
             ]
         }
     ];
