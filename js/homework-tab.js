@@ -603,6 +603,57 @@
         return (raw.slice(0, start) + raw.slice(after)).replace(/\n{3,}/g, '\n\n').trimEnd();
     }
 
+    const HOMEWORK_SAVED_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+    const HOMEWORK_SAVED_CATEGORIES = { grading: true, assign: true };
+
+    /** Stable id for one class, one reference date, and one block (grading or assign). */
+    function homeworkSavedMarkId(classId, dateStr, category) {
+        const id = String(classId || '').trim();
+        const date = String(dateStr || '').trim();
+        const kind = HOMEWORK_SAVED_CATEGORIES[category] ? category : '';
+        if (!id || !HOMEWORK_SAVED_DATE_RE.test(date) || !kind) {
+            return '';
+        }
+        return date + ':' + id + ':' + kind;
+    }
+
+    /** Missing rows and saved:false both count as not saved. */
+    function isHomeworkSavedForClass(marks, classId, dateStr, category) {
+        const id = homeworkSavedMarkId(classId, dateStr, category);
+        if (!id || !Array.isArray(marks)) {
+            return false;
+        }
+        const row = marks.find((mark) => mark && String(mark.id) === id);
+        return !!(row && row.saved === true);
+    }
+
+    /**
+     * Return a new marks list with this class/date/block set.
+     * Turning saved off keeps the row (saved: false) so a merge cannot turn it back on.
+     */
+    function setHomeworkSavedMark(marks, classId, dateStr, category, saved, updatedAt) {
+        const id = homeworkSavedMarkId(classId, dateStr, category);
+        const list = Array.isArray(marks) ? marks.slice() : [];
+        if (!id) {
+            return list;
+        }
+        const row = {
+            id,
+            classId: String(classId || '').trim(),
+            date: String(dateStr || '').trim(),
+            category,
+            saved: saved === true,
+            updatedAt: String(updatedAt || new Date().toISOString())
+        };
+        const idx = list.findIndex((mark) => mark && String(mark.id) === id);
+        if (idx >= 0) {
+            list[idx] = row;
+        } else {
+            list.push(row);
+        }
+        return list;
+    }
+
     /** Append (or replace) the auto-inserted speaking-order block. */
     function injectDebateTeamsIntoAssignText(text, teamsBlock) {
         const cleaned = stripDebateTeamsBlock(text).trimEnd();
@@ -638,6 +689,9 @@
         isDebateHomeworkClass,
         assignHomeworkIncludesDebateDay3,
         stripDebateTeamsBlock,
-        injectDebateTeamsIntoAssignText
+        injectDebateTeamsIntoAssignText,
+        homeworkSavedMarkId,
+        isHomeworkSavedForClass,
+        setHomeworkSavedMark
     };
 })(typeof window !== 'undefined' ? window : globalThis);

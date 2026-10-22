@@ -688,4 +688,31 @@ function meetingHooks(holidayMap) {
     assert(essayPkt.assignNeedsEssayCheck === true, 'essay homework packet warns');
 }
 
+{
+    assert(HT.homeworkSavedMarkId('class-1', '2026-10-22', 'grading') === '2026-10-22:class-1:grading', 'grading saved mark id');
+    assert(HT.homeworkSavedMarkId('class-1', '2026-10-22', 'assign') === '2026-10-22:class-1:assign', 'assign saved mark id');
+    assert(HT.homeworkSavedMarkId('class-1', '2026-10-22', 'other') === '', 'saved mark id needs a known block');
+    assert(HT.homeworkSavedMarkId('', '2026-10-22', 'grading') === '', 'saved mark id needs a class');
+    assert(HT.homeworkSavedMarkId('class-1', '10/22', 'grading') === '', 'saved mark id needs an ISO date');
+    assert(HT.isHomeworkSavedForClass([], 'class-1', '2026-10-22', 'grading') === false, 'missing mark is not saved');
+    const stamped = '2026-10-22T00:00:00.000Z';
+    const graded = HT.setHomeworkSavedMark([], 'class-1', '2026-10-22', 'grading', true, stamped);
+    assert(graded.length === 1, 'check adds one row');
+    assert(graded[0].id === '2026-10-22:class-1:grading', 'check row id');
+    assert(graded[0].category === 'grading', 'check stores the block');
+    assert(graded[0].saved === true, 'check stores saved true');
+    assert(graded[0].updatedAt === stamped, 'check keeps the given timestamp');
+    assert(HT.isHomeworkSavedForClass(graded, 'class-1', '2026-10-22', 'grading') === true, 'checked block reads saved');
+    assert(HT.isHomeworkSavedForClass(graded, 'class-1', '2026-10-22', 'assign') === false, 'the other block stays unsaved');
+    assert(HT.isHomeworkSavedForClass(graded, 'class-1', '2026-10-23', 'grading') === false, 'another day is not saved');
+    const unchecked = HT.setHomeworkSavedMark(graded, 'class-1', '2026-10-22', 'grading', false, '2026-10-22T01:00:00.000Z');
+    assert(graded.length === 1 && graded[0].saved === true, 'set does not mutate the previous list');
+    assert(unchecked.length === 1 && unchecked[0].saved === false, 'turning saved off keeps the row as saved false');
+    assert(HT.isHomeworkSavedForClass(unchecked, 'class-1', '2026-10-22', 'grading') === false, 'unsaved block reads not saved');
+    const both = HT.setHomeworkSavedMark(unchecked, 'class-1', '2026-10-22', 'assign', true, '2026-10-22T02:00:00.000Z');
+    assert(both.length === 2, 'grade and assign are separate rows');
+    assert(HT.isHomeworkSavedForClass(both, 'class-1', '2026-10-22', 'assign') === true, 'assign block reads saved');
+    assert(HT.setHomeworkSavedMark(both, 'class-2', 'bad-date', 'grading', true).length === both.length, 'bad date does not add a row');
+}
+
 console.log('homework-tab.test.mjs: all passed');

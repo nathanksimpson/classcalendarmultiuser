@@ -502,6 +502,10 @@
             local.pendingDebateBookChecks,
             server.pendingDebateBookChecks
         );
+        merged.homeworkSavedMarks = mergeArrayById(
+            local.homeworkSavedMarks,
+            server.homeworkSavedMarks
+        );
         if (local.ui || server.ui) {
             merged.ui = Object.assign({}, server.ui || {}, local.ui || {});
         }

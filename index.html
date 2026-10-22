@@ -1053,6 +1053,7 @@
                             <input type="date" id="homeworkReferenceDate" class="homework-ref-date-input homework-ref-date-input--hidden" aria-describedby="homeworkReferenceDateHelp">
                         </div>
                         <p id="homeworkReferenceDateHelp" class="homework-working-from-help section-hint" data-i18n="homeworkTabReferenceDateHelp">Sets which lesson counts as &ldquo;this class&rdquo; for every block below.</p>
+                        <p id="homeworkSavedWarn" class="homework-tab-message homework-saved-warn" role="status" hidden></p>
                         <div id="homeworkReferenceDatePopover" class="homework-ref-date-popover" hidden role="dialog" data-i18n-aria-label="homeworkTabMiniCalendarLabel" aria-label="Pick reference date">
                             <div id="homeworkReferenceMiniCalendar" class="homework-ref-mini-calendar" role="application" aria-label="Pick reference date"></div>
                         </div>
@@ -1138,7 +1139,10 @@
                                         <p class="homework-copy-block-subtitle section-hint" data-i18n="homeworkTabGradingSubtitle">Homework due at this class</p>
                                         <p class="homework-copy-block-dest section-hint" data-i18n="homeworkTabGradingDest">Paste into the Simson grading site</p>
                                     </div>
-                                    <button type="button" class="btn btn-outline btn-small homework-copy-btn" id="homeworkCopyGradingBtn" data-i18n="homeworkTabCopy">Copy</button>
+                                    <div class="homework-copy-block-actions">
+                                        <button type="button" class="btn btn-outline btn-small homework-saved-btn" id="homeworkGradingSavedBtn" data-homework-saved="grading" aria-pressed="false" hidden data-i18n="homeworkTabSavedCheck">Saved</button>
+                                        <button type="button" class="btn btn-outline btn-small homework-copy-btn" id="homeworkCopyGradingBtn" data-i18n="homeworkTabCopy">Copy</button>
+                                    </div>
                                 </div>
                                 <textarea id="homeworkGradingText" class="homework-copy-textarea" rows="8" spellcheck="false" aria-describedby="homeworkGradingSourceHint"></textarea>
                                 <p id="homeworkGradingSourceHint" class="homework-source-hint section-hint" hidden></p>
@@ -1148,6 +1152,9 @@
                                     <div class="homework-copy-block-titles">
                                         <h4 class="homework-copy-block-title"><span class="homework-copy-block-num" aria-hidden="true">2</span> <span data-i18n="homeworkTabAssignTitle">Assign now</span></h4>
                                         <p class="homework-copy-block-subtitle section-hint" data-i18n="homeworkTabAssignSubtitle">Homework to assign for next class</p>
+                                    </div>
+                                    <div class="homework-copy-block-actions">
+                                        <button type="button" class="btn btn-outline btn-small homework-saved-btn" id="homeworkAssignSavedBtn" data-homework-saved="assign" aria-pressed="false" hidden data-i18n="homeworkTabSavedCheck">Saved</button>
                                     </div>
                                 </div>
                                 <div id="homeworkAssignEssayWarn" class="homework-tab-message homework-assign-essay-warn" role="status" hidden>
