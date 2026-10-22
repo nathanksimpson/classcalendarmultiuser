@@ -104,6 +104,7 @@
         });
 
         cloned.events = [];
+        cloned.homeworkSavedMarks = [];
 
         if (options.clearClassroom) {
             cloned.attendanceSessions = [];

@@ -264,6 +264,7 @@ function applyLanguage() {
     syncEventTypeHint();
     if (getActiveTab() === 'homework') {
         renderHomeworkReferenceMiniCalendar();
+        renderHomeworkClassList();
     }
     if (getActiveTab() === 'timetable') {
         refreshTimetablePanels();
@@ -719,6 +720,7 @@ function getDefaultAppData() {
         dayNotes: [],
         dayNoteCategories: [],
         attendanceSessions: [],
+        homeworkSavedMarks: [],
         homeworkCompletions: [],
         essaySubmissions: [],
         essayGroups: [],
@@ -17834,7 +17836,142 @@ function computeHomeworkPacketForClass(classData) {
     return computeHomeworkPacketForClassOnDate(classData, getHomeworkReferenceDateFromUi());
 }
 
+function isClassHomeworkSaved(classId, dateStr, category) {
+    const mod = getHomeworkTabModule();
+    if (!mod || typeof mod.isHomeworkSavedForClass !== 'function') {
+        return false;
+    }
+    return mod.isHomeworkSavedForClass(appData && appData.homeworkSavedMarks, classId, dateStr, category);
+}
+
+function isViewerHomeworkClass(classData) {
+    if (!classData || !classData.id) {
+        return false;
+    }
+    const mine = getClassIdsAssignedToViewer();
+    if (!Array.isArray(mine)) {
+        return false;
+    }
+    return mine.indexOf(classData.id) !== -1;
+}
+
+function homeworkSavedAppliesToClass(classData, dateStr) {
+    return !!(
+        classData
+        && dateStr
+        && isViewerHomeworkClass(classData)
+        && classOccursOnIsoDate(classData, dateStr)
+    );
+}
+
+function persistHomeworkSavedMark(classId, dateStr, category, saved) {
+    const mod = getHomeworkTabModule();
+    if (!mod || typeof mod.homeworkSavedMarkId !== 'function' || typeof mod.setHomeworkSavedMark !== 'function') {
+        return;
+    }
+    if (!mod.homeworkSavedMarkId(classId, dateStr, category)) {
+        return;
+    }
+    if (!Array.isArray(appData.homeworkSavedMarks)) {
+        appData.homeworkSavedMarks = [];
+    }
+    appData.homeworkSavedMarks = mod.setHomeworkSavedMark(
+        appData.homeworkSavedMarks,
+        classId,
+        dateStr,
+        category,
+        saved === true
+    );
+    saveData();
+}
+
+function homeworkSavedMissingLabel(classData, dateStr) {
+    const parts = [];
+    if (!isClassHomeworkSaved(classData.id, dateStr, 'grading')) {
+        parts.push(t('homeworkTabGradingTitle'));
+    }
+    if (!isClassHomeworkSaved(classData.id, dateStr, 'assign')) {
+        parts.push(t('homeworkTabAssignTitle'));
+    }
+    if (!parts.length) {
+        return '';
+    }
+    return formatI18n('homeworkTabSavedMissing', {
+        name: classData.name || classData.id,
+        parts: parts.join(', ')
+    });
+}
+
+function renderHomeworkSavedWarning() {
+    const el = document.getElementById('homeworkSavedWarn');
+    if (!el) {
+        return;
+    }
+    const selectedIso = getHomeworkReferenceDateFromUi();
+    const unsaved = [];
+    if (selectedIso) {
+        getClassesInDisplayOrder().forEach((classData) => {
+            if (!homeworkSavedAppliesToClass(classData, selectedIso)) {
+                return;
+            }
+            const label = homeworkSavedMissingLabel(classData, selectedIso);
+            if (label) {
+                unsaved.push(label);
+            }
+        });
+    }
+    if (!unsaved.length) {
+        el.hidden = true;
+        el.textContent = '';
+        return;
+    }
+    el.hidden = false;
+    el.textContent = formatI18n('homeworkTabSavedWarn', {
+        date: formatHomeworkWorkingFromLabel(selectedIso),
+        classes: unsaved.join(', ')
+    });
+}
+
+function syncHomeworkSavedButtons(classData) {
+    const dateStr = getHomeworkReferenceDateFromUi();
+    const show = homeworkSavedAppliesToClass(classData, dateStr);
+    document.querySelectorAll('[data-homework-saved]').forEach((btn) => {
+        if (btn.dataset.homeworkSavedBound !== '1') {
+            btn.dataset.homeworkSavedBound = '1';
+            btn.addEventListener('click', () => {
+                const category = btn.getAttribute('data-homework-saved');
+                const selectedId = getHomeworkTabSelectedClassId();
+                const selectedDate = getHomeworkReferenceDateFromUi();
+                const selected = selectedId
+                    ? (appData.classes || []).find((c) => c.id === selectedId)
+                    : null;
+                if (!homeworkSavedAppliesToClass(selected, selectedDate)) {
+                    return;
+                }
+                const nextSaved = !isClassHomeworkSaved(selected.id, selectedDate, category);
+                persistHomeworkSavedMark(selected.id, selectedDate, category, nextSaved);
+                syncHomeworkSavedButtons(selected);
+                renderHomeworkSavedWarning();
+            });
+        }
+        const category = btn.getAttribute('data-homework-saved');
+        const saved = show && isClassHomeworkSaved(classData.id, dateStr, category);
+        const blockLabel = category === 'assign' ? t('homeworkTabAssignTitle') : t('homeworkTabGradingTitle');
+        btn.hidden = !show;
+        btn.setAttribute('aria-pressed', saved ? 'true' : 'false');
+        btn.setAttribute('aria-label', t('homeworkTabSavedCheck') + ', ' + blockLabel);
+        btn.classList.toggle('btn-primary', saved);
+        btn.classList.toggle('btn-outline', !saved);
+    });
+}
+
 function renderHomeworkClassList() {
+    renderHomeworkSavedWarning();
+    const savedClassId = getHomeworkTabSelectedClassId();
+    const savedClass = savedClassId
+        ? (appData.classes || []).find((c) => c.id === savedClassId)
+        : null;
+    syncHomeworkSavedButtons(savedClass || null);
     const list = document.getElementById('homeworkClassList');
     if (!list) {
         return;
@@ -18459,6 +18596,7 @@ function renderHomeworkEditor() {
             lastHomeworkEditorScrolledClassId = classId || null;
             scrollHomeworkCopyPaneToTop();
         }
+        syncHomeworkSavedButtons(null);
         return;
     }
     const effective = getEffectiveClassForViewer(classData);
@@ -18471,6 +18609,7 @@ function renderHomeworkEditor() {
     if (titleEl) {
         titleEl.textContent = classData.name;
     }
+    syncHomeworkSavedButtons(classData);
     if (classMetaEl) {
         classMetaEl.textContent = [formatClassLabelWithPeriod(classData), classData.grade, effective.book || classData.book]
             .filter(Boolean)
@@ -39663,6 +39802,10 @@ function migrateData(data) {
         if (CCPTermDates.migrateTermFields(data, getScheduleTermConfig())) {
             migrated = true;
         }
+    }
+
+    if (!Array.isArray(data.homeworkSavedMarks)) {
+        data.homeworkSavedMarks = [];
     }
 
     if (!Array.isArray(data.dayNotes)) {
