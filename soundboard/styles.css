@@ -470,6 +470,38 @@ body.body--overlay-open {
   margin: -4px 0 8px 0;
 }
 
+.hotkey-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.hotkey-field .field__input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.hotkey-field__clear {
+  flex: 0 0 auto;
+  width: var(--touch-target-min);
+  height: var(--touch-target-min);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.hotkey-field__clear:hover {
+  border-color: var(--danger);
+}
+
+.hotkey-field__hint {
+  margin: var(--space-2) 0 0 0;
+}
+
 .modal__actions--wrap {
   flex-wrap: wrap;
 }

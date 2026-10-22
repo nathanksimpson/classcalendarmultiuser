@@ -138,10 +138,14 @@
           <span class="field__label">Category</span>
           <input type="text" name="category" class="field__input" list="category-options">
         </label>
-        <label class="field">
-          <span class="field__label">Hotkey</span>
-          <input type="text" name="hotkey" class="field__input" placeholder="Hold keys: Q, Shift+A, A+B, Shift+A+B">
-        </label>
+        <div class="field">
+          <span class="field__label" id="hotkey-label">Hotkey</span>
+          <div class="hotkey-field">
+            <input type="text" name="hotkey" id="hotkey-input" class="field__input" placeholder="Hold keys: Q, Shift+A, A+B, Shift+A+B" aria-labelledby="hotkey-label">
+            <button type="button" id="hotkey-clear" class="hotkey-field__clear" aria-label="Clear hotkey">×</button>
+          </div>
+          <p class="field__hint hotkey-field__hint">Hold the keys, then let go. They stay in the box. Press × to clear.</p>
+        </div>
         <label class="field">
           <span class="field__label">Tile color</span>
           <input type="color" name="color" class="field__input field__color" value="#4a9eff">
