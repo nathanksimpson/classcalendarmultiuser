@@ -1140,7 +1140,10 @@
                                         <p class="homework-copy-block-dest section-hint" data-i18n="homeworkTabGradingDest">Paste into the Simson grading site</p>
                                     </div>
                                     <div class="homework-copy-block-actions">
-                                        <button type="button" class="btn btn-outline btn-small homework-saved-btn" id="homeworkGradingSavedBtn" data-homework-saved="grading" aria-pressed="false" hidden data-i18n="homeworkTabSavedCheck">Saved</button>
+                                        <label class="checkbox-label homework-saved-check">
+                                            <input type="checkbox" id="homeworkGradingSavedCheck" data-homework-saved="grading">
+                                            <span data-i18n="homeworkTabSavedCheck">Saved</span>
+                                        </label>
                                         <button type="button" class="btn btn-outline btn-small homework-copy-btn" id="homeworkCopyGradingBtn" data-i18n="homeworkTabCopy">Copy</button>
                                     </div>
                                 </div>
@@ -1154,7 +1157,10 @@
                                         <p class="homework-copy-block-subtitle section-hint" data-i18n="homeworkTabAssignSubtitle">Homework to assign for next class</p>
                                     </div>
                                     <div class="homework-copy-block-actions">
-                                        <button type="button" class="btn btn-outline btn-small homework-saved-btn" id="homeworkAssignSavedBtn" data-homework-saved="assign" aria-pressed="false" hidden data-i18n="homeworkTabSavedCheck">Saved</button>
+                                        <label class="checkbox-label homework-saved-check">
+                                            <input type="checkbox" id="homeworkAssignSavedCheck" data-homework-saved="assign">
+                                            <span data-i18n="homeworkTabSavedCheck">Saved</span>
+                                        </label>
                                     </div>
                                 </div>
                                 <div id="homeworkAssignEssayWarn" class="homework-tab-message homework-assign-essay-warn" role="status" hidden>

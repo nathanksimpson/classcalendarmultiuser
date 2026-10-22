@@ -17934,34 +17934,33 @@ function renderHomeworkSavedWarning() {
 
 function syncHomeworkSavedButtons(classData) {
     const dateStr = getHomeworkReferenceDateFromUi();
-    const show = homeworkSavedAppliesToClass(classData, dateStr);
-    document.querySelectorAll('[data-homework-saved]').forEach((btn) => {
-        if (btn.dataset.homeworkSavedBound !== '1') {
-            btn.dataset.homeworkSavedBound = '1';
-            btn.addEventListener('click', () => {
-                const category = btn.getAttribute('data-homework-saved');
+    document.querySelectorAll('[data-homework-saved]').forEach((input) => {
+        if (input.dataset.homeworkSavedBound !== '1') {
+            input.dataset.homeworkSavedBound = '1';
+            input.addEventListener('change', () => {
+                const category = input.getAttribute('data-homework-saved');
                 const selectedId = getHomeworkTabSelectedClassId();
                 const selectedDate = getHomeworkReferenceDateFromUi();
                 const selected = selectedId
                     ? (appData.classes || []).find((c) => c.id === selectedId)
                     : null;
-                if (!homeworkSavedAppliesToClass(selected, selectedDate)) {
+                if (!selected || !selectedDate) {
+                    input.checked = false;
                     return;
                 }
-                const nextSaved = !isClassHomeworkSaved(selected.id, selectedDate, category);
-                persistHomeworkSavedMark(selected.id, selectedDate, category, nextSaved);
-                syncHomeworkSavedButtons(selected);
+                persistHomeworkSavedMark(selected.id, selectedDate, category, input.checked);
                 renderHomeworkSavedWarning();
             });
         }
-        const category = btn.getAttribute('data-homework-saved');
-        const saved = show && isClassHomeworkSaved(classData.id, dateStr, category);
+        const category = input.getAttribute('data-homework-saved');
         const blockLabel = category === 'assign' ? t('homeworkTabAssignTitle') : t('homeworkTabGradingTitle');
-        btn.hidden = !show;
-        btn.setAttribute('aria-pressed', saved ? 'true' : 'false');
-        btn.setAttribute('aria-label', t('homeworkTabSavedCheck') + ', ' + blockLabel);
-        btn.classList.toggle('btn-primary', saved);
-        btn.classList.toggle('btn-outline', !saved);
+        input.hidden = false;
+        const label = input.closest('.homework-saved-check');
+        if (label) {
+            label.hidden = false;
+        }
+        input.checked = !!(classData && dateStr && isClassHomeworkSaved(classData.id, dateStr, category));
+        input.setAttribute('aria-label', t('homeworkTabSavedCheck') + ', ' + blockLabel);
     });
 }
 
