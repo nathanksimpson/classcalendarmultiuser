@@ -758,6 +758,7 @@
     modalForm.hotkey.value = Hotkeys && Hotkeys.normalizeHotkeyInput
       ? Hotkeys.normalizeHotkeyInput(sound.hotkey || '')
       : (sound.hotkey || '');
+    if (Hotkeys && Hotkeys.resetHotkeyCapture) Hotkeys.resetHotkeyCapture(modalForm.hotkey);
     modalForm.color.value = sound.color || '#4a9eff';
     modalForm.volume.value = Math.round((sound.volume != null ? sound.volume : 1) * 100);
     modalForm.playbackRate.value = sound.playbackRate != null ? sound.playbackRate : 1;
@@ -1197,6 +1198,14 @@
       });
       modalForm.hotkey.addEventListener('change', function () {
         modalForm.hotkey.value = Hotkeys.normalizeHotkeyInput(modalForm.hotkey.value);
+      });
+    }
+
+    const hotkeyClearBtn = document.getElementById('hotkey-clear');
+    if (hotkeyClearBtn && modalForm.hotkey && Hotkeys && Hotkeys.clearHotkeyField) {
+      hotkeyClearBtn.addEventListener('click', function () {
+        Hotkeys.clearHotkeyField(modalForm.hotkey);
+        modalForm.hotkey.focus();
       });
     }
 

@@ -258,6 +258,40 @@
     return true;
   }
 
+  function modifierNameFromEventKey(key) {
+    if (key === 'Shift') return 'Shift';
+    if (key === 'Control') return 'Ctrl';
+    if (key === 'Alt') return 'Alt';
+    if (key === 'Meta') return 'Meta';
+    return '';
+  }
+
+  function emptyHotkeyGesture() {
+    return { keys: new Set(), modifiers: [], locked: false };
+  }
+
+  function resetHotkeyCapture(input) {
+    if (!input) return;
+    delete input._hotkeyGesture;
+  }
+
+  function clearHotkeyField(input) {
+    if (!input) return;
+    input.value = '';
+    resetHotkeyCapture(input);
+  }
+
+  function rememberGestureModifier(gesture, mod) {
+    if (mod && gesture.modifiers.indexOf(mod) === -1) gesture.modifiers.push(mod);
+  }
+
+  /**
+   * Record a shortcut into a text field.
+   * The field updates only on keydown. The first keyup locks that chord so
+   * releasing one key does not shrink it. The next keydown starts a new chord.
+   * Modifier-only presses do not replace a shortcut already in the box.
+   * A fourth part is ignored instead of clearing the field.
+   */
   function captureHotkeyFromInputKeydown(e, onEnter) {
     if (!e) return;
     const key = e.key || '';
@@ -269,39 +303,84 @@
     }
     if (key === 'Backspace' || key === 'Delete') {
       e.preventDefault();
-      if (e.target) e.target.value = '';
+      clearHotkeyField(e.target);
       return;
     }
     if (key === 'Escape') {
       if (e.target && typeof e.target.blur === 'function') e.target.blur();
       return;
     }
+    if (!e.target) return;
+    if (e.repeat) {
+      e.preventDefault();
+      return;
+    }
+
+    const modKey = modifierNameFromEventKey(key);
+    if (modKey) {
+      e.preventDefault();
+      let gesture = e.target._hotkeyGesture;
+      if (!gesture || gesture.locked) {
+        gesture = emptyHotkeyGesture();
+        e.target._hotkeyGesture = gesture;
+      }
+      if (!gesture.keys.size) {
+        rememberGestureModifier(gesture, modKey);
+        return;
+      }
+      const nextMods = gesture.modifiers.slice();
+      if (nextMods.indexOf(modKey) === -1) nextMods.push(modKey);
+      const signature = buildChordSignature(nextMods, Array.from(gesture.keys));
+      if (!signature) return;
+      gesture.modifiers = nextMods;
+      e.target.value = signature;
+      return;
+    }
+
     const token = getKeyTokenFromKeyboardEvent(e);
     if (!token) return;
     e.preventDefault();
 
-    const captureSet = e.target && e.target._hotkeyCaptureSet instanceof Set
-      ? e.target._hotkeyCaptureSet
-      : new Set();
-    if (e.target) e.target._hotkeyCaptureSet = captureSet;
-    captureSet.add(token);
+    let gesture = e.target._hotkeyGesture;
+    if (!gesture || gesture.locked) {
+      gesture = emptyHotkeyGesture();
+      e.target._hotkeyGesture = gesture;
+    }
 
-    const signature = buildChordSignature(getModifiersFromEvent(e), Array.from(captureSet));
-    if (e.target) e.target.value = signature;
+    const modsBefore = gesture.modifiers.slice();
+    getModifiersFromEvent(e).forEach(function (m) { rememberGestureModifier(gesture, m); });
+
+    const nextKeys = Array.from(gesture.keys);
+    if (nextKeys.indexOf(token) === -1) nextKeys.push(token);
+    const signature = buildChordSignature(gesture.modifiers, nextKeys);
+    if (!signature) {
+      gesture.modifiers = modsBefore;
+      return;
+    }
+    gesture.keys.add(token);
+    e.target.value = signature;
   }
 
   function captureHotkeyFromInputKeyup(e) {
     if (!e || !e.target) return;
-    const captureSet = e.target._hotkeyCaptureSet;
-    if (!(captureSet instanceof Set)) return;
+    const modKey = modifierNameFromEventKey(e.key || '');
+    if (modKey === 'Alt' || modKey === 'Ctrl' || modKey === 'Meta') e.preventDefault();
+
+    const gesture = e.target._hotkeyGesture;
+    if (!gesture || gesture.locked) return;
+
     const token = getKeyTokenFromKeyboardEvent(e);
-    if (token) captureSet.delete(token);
-    if (!captureSet.size) {
-      delete e.target._hotkeyCaptureSet;
+    const belongs = (modKey && gesture.modifiers.indexOf(modKey) !== -1)
+      || (token && gesture.keys.has(token));
+
+    if (!gesture.keys.size) {
+      if (belongs || modKey) delete e.target._hotkeyGesture;
       return;
     }
-    const signature = buildChordSignature(getModifiersFromEvent(e), Array.from(captureSet));
-    e.target.value = signature;
+
+    // Lock on the first release so later keyups cannot shrink the chord.
+    // A mismatched keyup token (Korean IME) still locks once a real key is recorded.
+    if (belongs || token || modKey) gesture.locked = true;
   }
 
   function isTypingTarget(target) {
@@ -402,6 +481,8 @@
     buildChordSignature,
     captureHotkeyFromInputKeydown,
     captureHotkeyFromInputKeyup,
+    resetHotkeyCapture,
+    clearHotkeyField,
     initKeyboard
   };
 })();
