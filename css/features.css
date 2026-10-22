@@ -6328,6 +6328,24 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
     gap: var(--space-3);
 }
 
+.homework-copy-block-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    flex: 0 0 auto;
+}
+
+.homework-copy-block-actions .homework-saved-check {
+    min-height: var(--touch-min);
+    margin: 0;
+}
+
+.homework-saved-warn {
+    flex: 1 0 100%;
+}
+
 .homework-copy-block-titles {
     display: flex;
     flex-direction: column;
@@ -6588,19 +6606,6 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
     flex-direction: column;
     gap: 4px;
     min-width: 0;
-}
-
-.homework-saved-warn {
-    flex: 1 0 100%;
-}
-
-.homework-copy-block-actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: flex-end;
-    gap: var(--space-2);
-    flex: 0 0 auto;
 }
 
 .homework-class-title {
