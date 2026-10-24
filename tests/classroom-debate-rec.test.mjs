@@ -12,6 +12,7 @@ const root = path.join(__dirname, '..');
 await import(pathToFileURL(path.join(root, 'js', 'debate-periods.js')).href);
 await import(pathToFileURL(path.join(root, 'js', 'classroom-domain.js')).href);
 await import(pathToFileURL(path.join(root, 'js', 'classroom-essay-class-summary-print.js')).href);
+await import(pathToFileURL(path.join(root, 'js', 'classroom-parent-messages.js')).href);
 await import(pathToFileURL(path.join(root, 'js', 'classroom-debate-rec-print.js')).href);
 
 const d = globalThis.CCPClassroomDomain;
@@ -291,7 +292,9 @@ function check(data, tms) {
     eq(view.counts.not_recorded, 1, 'view not_recorded');
     eq(view.counts.needs_confirmation, 1, 'view needs_confirmation');
     eq(view.counts.not_checked, 0, 'all checked');
-    eq(view.rows.length, 2, 'two rows');
+    eq(view.rows.length, 3, 'full roster (3 students) on the past Day 4');
+    eq(view.counts.present, 1, 's3 recorded in class');
+    eq(view.rows.find((r) => r.student.id === 's3').displayStatus, 'present', 'present display status');
     eq(view.dayCounts.r4.open, 2, 'Day 4 open count');
 
     const bell = d.countOpenDebateRecWarnings(data, 'c1');
@@ -406,21 +409,84 @@ function check(data, tms) {
     assert(text.includes('Recorded in class'), 'copy includes completed');
 }
 
-// ── Parent message ────────────────────────────────────────────────────
+// ── Parent messages (Debate + Essays) ─────────────────────────────────
 {
     const P = globalThis.CCPClassroomDebateRecPrint;
+    const M = globalThis.CCPParentMessages;
     const msg = P.buildParentMessage({ studentName: '김민준', nameEn: 'Minjun', className: 'Purple M', date: '2026-10-21', teacherName: 'Nathan' });
     const lines = msg.split('\n');
     eq(lines[0], '[Simson Academy] Debate recording not finished', 'Simson Academy at the top');
     assert(msg.includes('This is Nathan, the debate teacher for Minjun (김민준) at Simson Academy.'), 'teacher intro');
     assert(msg.includes('On Wednesday, October 21, the Purple M class recorded their debate speeches (Debate Day 4).'), 'what was missed');
     assert(msg.includes('Minjun will need to make up the recording here at Simson Academy.'), 'recorded at the academy');
-    assert(msg.includes('come in a little early before class or stay a little after class'), 'asks parents to arrange early/late');
+    assert(msg.includes("Please contact Minjun's homeroom teacher to arrange a time"), 'contact homeroom teacher');
+    assert(msg.includes('come in a little early before class or stay a little after class'), 'early or late');
     assert(!/at home|send us the video/.test(msg), 'no home recording');
     eq(lines[lines.length - 1], 'Simson Academy', 'sign-off');
     const noEn = P.buildParentMessage({ studentName: '이엽타', date: '2026-09-17' });
     assert(noEn.includes('This is the debate teacher for 이엽타 at Simson Academy.'), 'no teacher / no English name');
     assert(noEn.includes('On Thursday, September 17, the class recorded'), 'no class name');
+
+    const overdue = M.essay({ kind: 'overdue', studentName: '김민준', nameEn: 'Minjun', className: 'Purple M', assignedDate: '2026-10-21', dueDate: '2026-10-23', teacherName: 'Nathan' });
+    eq(overdue.split('\n')[0], '[Simson Academy] Essay not submitted', 'essay overdue header');
+    assert(overdue.includes('Minjun has not yet submitted the essay assigned on Wednesday, October 21 in the Purple M class. It was due on Friday, October 23.'), 'essay overdue body');
+    assert(overdue.includes("please contact Minjun's homeroom teacher"), 'essay overdue homeroom');
+    const resub = M.essay({ kind: 'resubmit', studentName: '김민준', nameEn: 'Minjun', className: 'Purple M', assignedDate: '2026-10-21', teacherName: 'Nathan' });
+    eq(resub.split('\n')[0], '[Simson Academy] Essay needs to be resubmitted', 'essay resubmit header');
+    assert(resub.includes('needs some corrections'), 'essay resubmit body');
+    assert(resub.includes("please contact Minjun's homeroom teacher"), 'essay resubmit homeroom');
+    [msg, overdue, resub].forEach((m) => {
+        assert(!/Ms\.|Mr\.|담임/.test(m), 'never names the homeroom teacher');
+    });
+}
+
+// ── Before any TMS check: full roster, Not checked, teacher can set ────
+{
+    const data = makeData();
+    let view = d.computeDebateRecView(data, 'c1', new Map(), { todayIso: TODAY });
+    eq(view.rows.length, 3, 'roster shown before TMS check');
+    assert(view.rows.every((r) => r.displayStatus === 'not_checked'), 'everyone Not checked');
+    eq(view.dayCounts.r4.checked, false, 'Day 4 not checked');
+    eq(view.dayCounts.r8.past, false, 'future Day 4 has no rows');
+
+    // Teacher marks s1 Not recorded and s2 Recorded before syncing.
+    data.essaySubmissions = d.setDebateRecTeacherStatus(data.essaySubmissions, {
+        classId: 'c1', syllabusRowId: 'r4', studentId: 's1', status: 'not_recorded', userId: 'u1', nowIso: NOW
+    }).submissions;
+    data.essaySubmissions = d.setDebateRecTeacherStatus(data.essaySubmissions, {
+        classId: 'c1', syllabusRowId: 'r4', studentId: 's2', status: 'recorded', userId: 'u1', nowIso: NOW
+    }).submissions;
+    view = d.computeDebateRecView(data, 'c1', new Map(), { todayIso: TODAY });
+    eq(view.counts.not_recorded, 1, 'manual Not recorded before sync');
+    eq(view.counts.recorded, 1, 'manual Recorded before sync');
+    eq(view.counts.not_checked, 1, 's3 still Not checked');
+    eq(d.countOpenDebateRecWarnings(data, 'c1').notRecorded, 1, 'bell counts manual Not recorded');
+
+    // TMS says the opposite for both; teacher choices are kept. Nobody else absent.
+    check(data, new Map([
+        ['s1', []],
+        ['s2', [{ date: '2026-10-21', status: '결석' }]],
+        ['s3', []]
+    ]));
+    view = d.computeDebateRecView(data, 'c1', new Map(), { todayIso: TODAY });
+    eq(view.dayCounts.r4.checked, true, 'Day 4 marked checked even with no TMS flags for unflagged students');
+    eq(view.rows.find((r) => r.student.id === 's1').displayStatus, 'not_recorded', 'manual Not recorded kept');
+    eq(view.rows.find((r) => r.student.id === 's2').displayStatus, 'recorded', 'manual Recorded kept over TMS 결석');
+    eq(view.rows.find((r) => r.student.id === 's3').displayStatus, 'present', 'unflagged → Recorded in class after check');
+
+    // Marker survives normalization (save/load round trip).
+    const sub = d.findEssaySubmission(data.essaySubmissions, 'c1', 'r4');
+    assert(d.normalizeEssaySubmission(sub).debateRecCheckedAt, 'checked marker persisted');
+
+    // Report: unchecked days show Not checked, not Recorded in class.
+    const fresh = makeData();
+    const g = d.buildDebateRecClassSummary(fresh, ['c1|r4'], {});
+    assert(g[0].classes[0].assignments[0].students.every((r) => r.status === 'not_checked'), 'report Not checked before sync');
+    eq(d.buildDebateRecClassSummary(fresh, ['c1|r4'], { show: 'completed' }).length, 0, 'Not checked is not completed');
+    const entry = d.listDebateRecReportEntries(fresh, fresh.classes, {}, { todayIso: TODAY })[0].entries[0];
+    eq(entry.checked, false, 'entry unchecked');
+    eq(entry.notChecked, 3, 'entry notChecked count');
+    eq(entry.completed, 0, 'entry completed count');
 }
 
 console.log(`classroom-debate-rec.test.mjs: ok (${passed} assertions)`);

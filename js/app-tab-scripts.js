@@ -73,7 +73,8 @@
             'js/classroom-essay-class-summary-print.js?v=20261005-essay-demerit',
             'js/classroom-header.js?v=20260807-hr-tools',
             'js/classroom-essay-scrape-editor.js?v=20261013-tms-sync',
-            'js/classroom-essays.js?v=20261024-debate-rec'
+            'js/classroom-parent-messages.js?v=20261024-parent-messages',
+            'js/classroom-essays.js?v=20261024-parent-messages'
         ],
         ledger: [
             'js/classroom-access.js?v=20260911-essay-groups',
@@ -122,8 +123,9 @@
             'js/classroom-header.js?v=20260807-hr-tools',
             'js/classroom-briefing.js?v=20261024-debate-rec',
             'js/classroom-essay-class-summary-print.js?v=20261005-essay-demerit',
-            'js/classroom-debate-rec-print.js?v=20261024-debate-rec-class-summary',
-            'js/classroom-debate-rec.js?v=20261024-debate-rec-class-summary'
+            'js/classroom-parent-messages.js?v=20261024-parent-messages',
+            'js/classroom-debate-rec-print.js?v=20261024-debate-rec-roster',
+            'js/classroom-debate-rec.js?v=20261024-debate-rec-roster'
         ],
         'debate-books': [
             'js/classroom-access.js?v=20260911-essay-groups',

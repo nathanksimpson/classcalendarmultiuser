@@ -22637,6 +22637,27 @@ th[data-cohort-col] {
     margin: 0 0 var(--space-2, 8px);
 }
 
+#panel-debate-rec .debate-rec-sync-warn {
+    margin: 0 0 var(--space-2, 8px);
+    padding: var(--space-2, 8px) var(--space-3, 12px);
+    border: 1px solid color-mix(in srgb, var(--warn-badge-bg) 50%, var(--border-color));
+    border-left-width: 4px;
+    border-radius: var(--radius-md, 8px);
+    background: color-mix(in srgb, var(--warn-badge-bg) 10%, var(--bg-card));
+    color: var(--text-primary);
+    font-size: 0.8125rem;
+}
+
+#panel-debate-rec .debate-rec-status--not-checked {
+    background: var(--bg-card);
+    border-style: dashed;
+    color: var(--text-muted);
+}
+
+#panel-debate-rec .debate-rec-row--not_checked {
+    box-shadow: inset 3px 0 0 var(--border-color);
+}
+
 #panel-debate-rec .classroom-sheet--debate-rec .classroom-sheet-col-student {
     width: 18%;
 }
@@ -22667,6 +22688,20 @@ th[data-cohort-col] {
     flex-wrap: wrap;
     align-items: center;
     gap: var(--space-1, 4px) var(--space-2, 8px);
+}
+
+#panel-essays .classroom-essay-student-cell {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1, 4px) var(--space-2, 8px);
+}
+
+#panel-essays .classroom-essay-msg-btn {
+    gap: 4px;
+    min-height: 28px;
+    padding: 2px 8px;
+    font-size: 0.6875rem;
 }
 
 #panel-debate-rec .debate-rec-msg-btn {

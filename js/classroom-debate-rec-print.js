@@ -16,7 +16,8 @@
         present: 'essay-status--complete',
         recorded: 'essay-status--complete',
         received: 'essay-status--complete',
-        exempt: 'essay-status--exempt'
+        exempt: 'essay-status--exempt',
+        not_checked: 'essay-status--not'
     };
 
     function escapeHtml(text) {
@@ -78,13 +79,14 @@
         const counts = (a.students || []).reduce((acc, r) => {
             if (r.status === 'not_recorded' || r.status === 'needs_confirmation') {
                 acc.open += 1;
-            } else {
+            } else if (r.status !== 'not_checked') {
                 acc.done += 1;
             }
             return acc;
         }, { open: 0, done: 0 });
         const src = a.dateSource === 'tms' ? labels.dateFromTms : labels.dateFromSyllabus;
-        return `${fill(labels.dayHeading, { date: shortDate(a.date) })} (${src}) · ${fill(labels.dayCounts, { done: counts.done, open: counts.open })}`;
+        const unchecked = a.checked === false && labels.notCheckedNote ? ` · ${labels.notCheckedNote}` : '';
+        return `${fill(labels.dayHeading, { date: shortDate(a.date) })} (${src}) · ${fill(labels.dayCounts, { done: counts.done, open: counts.open })}${unchecked}`;
     }
 
     function homeroomHeading(g, labels) {
@@ -194,57 +196,14 @@
         return plain(lines.join('\n').trimEnd());
     }
 
-    // ── Parent message (English, copy & paste) ─────────────────────────
-
-    const ACADEMY_NAME = 'Simson Academy';
-
-    function longDate(iso) {
-        const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
-        if (!m) {
-            return String(iso || '');
-        }
-        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August',
-            'September', 'October', 'November', 'December'];
-        const dt = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
-        return `${days[dt.getUTCDay()]}, ${months[dt.getUTCMonth()]} ${dt.getUTCDate()}`;
-    }
-
-    /**
-     * Polite English text for a parent whose child has not finished the
-     * Debate Day 4 recording. Make-ups are recorded at the academy, so it asks
-     * the parent to arrange a time to come early or stay late.
-     * @param {{ studentName: string, nameEn?: string, className?: string, date: string, teacherName?: string }} info
-     */
+    /** Parent text for a missed Debate Day 4 recording (see classroom-parent-messages.js). */
     function buildParentMessage(info) {
-        const i = info || {};
-        const child = String(i.nameEn || i.studentName || '').trim() || 'your child';
-        const korean = String(i.studentName || '').trim();
-        const who = i.nameEn && korean && korean !== i.nameEn ? `${i.nameEn} (${korean})` : child;
-        const cls = String(i.className || '').trim();
-        const teacher = String(i.teacherName || '').trim();
-        const lines = [
-            `[${ACADEMY_NAME}] Debate recording not finished`,
-            '',
-            'Hello,',
-            teacher
-                ? `This is ${teacher}, the debate teacher for ${who} at ${ACADEMY_NAME}.`
-                : `This is the debate teacher for ${who} at ${ACADEMY_NAME}.`,
-            '',
-            `On ${longDate(i.date)}, ${cls ? `the ${cls} class` : 'the class'} recorded their debate speeches (Debate Day 4). ${child} was not able to record that day, so the debate recording is not finished yet.`,
-            '',
-            `${child} will need to make up the recording here at ${ACADEMY_NAME}. Could you please let us know when ${child} can come in a little early before class or stay a little after class to record it?`,
-            '',
-            'Thank you very much for your help. Please let us know if you have any questions.',
-            '',
-            ACADEMY_NAME
-        ];
-        return lines.join('\n');
+        const api = global.CCPParentMessages;
+        return api ? api.debateRecording(info) : '';
     }
 
     global.CCPClassroomDebateRecPrint = {
         CHIP_CLASS,
-        ACADEMY_NAME,
         buildParentMessage,
         renderDocumentHtml,
         formatCopyText,
