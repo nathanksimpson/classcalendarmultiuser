@@ -48,6 +48,8 @@
         exempt: { cls: 'debate-rec-status--exempt', key: 'debateRecStatusExempt' }
     };
 
+    const MSG_ICON = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+
     /** Teacher choices offered per current status. */
     const CHOICES_FOR = {
         not_recorded: ['received', 'exempt'],
@@ -805,6 +807,57 @@
             </div>`;
     }
 
+    // ── Parent message ──────────────────────────────────────────────────
+
+    function copyText(text, doneMessage) {
+        const fallback = () => {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            let ok = false;
+            try {
+                ok = document.execCommand('copy');
+            } catch (_) {
+                ok = false;
+            }
+            document.body.removeChild(ta);
+            return ok;
+        };
+        const done = (ok) => {
+            if (hooks.showToast) {
+                hooks.showToast(ok ? doneMessage : t('classroomEssayWarnCopyFailed'), !ok);
+            }
+        };
+        // Called straight from the click so the browser allows the clipboard write.
+        if (global.navigator && global.navigator.clipboard && global.navigator.clipboard.writeText) {
+            global.navigator.clipboard.writeText(text).then(() => done(true), () => done(fallback()));
+        } else {
+            done(fallback());
+        }
+    }
+
+    function copyParentMessage(rowId, studentId) {
+        const api = printApi();
+        const view = getView();
+        const row = view.rows.find((r) => r.day.rowId === rowId && r.student.id === studentId);
+        const classData = getClassData();
+        if (!api || !row) {
+            return;
+        }
+        const text = api.buildParentMessage({
+            studentName: row.student.name,
+            nameEn: row.student.nameEn,
+            className: classData ? classData.name : '',
+            date: row.day.date,
+            teacherName: teacherName(currentUserId())
+        });
+        copyText(text, tf('debateRecParentMsgCopied', { name: row.student.nameEn || row.student.name }));
+    }
+
     // ── Render ─────────────────────────────────────────────────────────
 
     function renderContextBar(view) {
@@ -939,9 +992,13 @@
             const rowId = r.day.rowId;
             const key = `${rowId}|${sid}`;
             const rec = r.rec;
-            const name = r.student.nameEn
+            const nameText = r.student.nameEn
                 ? `${escapeHtml(r.student.name)} <span class="classroom-student-name-en">${escapeHtml(r.student.nameEn)}</span>`
                 : escapeHtml(r.student.name);
+            const msgBtn = rec.debateRecStatus === 'not_recorded'
+                ? ` <button type="button" class="btn btn-outline btn-small debate-rec-msg-btn" data-action="copy-parent-msg" data-row-id="${escapeAttr(rowId)}" data-student-id="${escapeAttr(sid)}" title="${escapeAttr(t('debateRecParentMsgTitle'))}" aria-label="${escapeAttr(tf('debateRecParentMsgAria', { name: r.student.nameEn || r.student.name }))}">${MSG_ICON}${escapeHtml(t('debateRecParentMsgBtn'))}</button>`
+                : '';
+            const name = `<div class="debate-rec-student-cell"><span>${nameText}</span>${msgBtn}</div>`;
             const tmsLine = rec.debateRecTmsStatus
                 ? `${escapeHtml(rec.debateRecTmsStatus)}${rec.debateRecTmsMemo ? ` · <span class="debate-rec-tms-memo">${escapeHtml(rec.debateRecTmsMemo)}</span>` : ''}`
                 : '—';
@@ -1089,6 +1146,11 @@
                     rowId: setBtn.getAttribute('data-row-id'),
                     studentId: setBtn.getAttribute('data-student-id')
                 }], setBtn.getAttribute('data-status'));
+                return;
+            }
+            const msgBtn = target.closest('[data-action="copy-parent-msg"]');
+            if (msgBtn) {
+                copyParentMessage(msgBtn.getAttribute('data-row-id'), msgBtn.getAttribute('data-student-id'));
                 return;
             }
             const resetBtn = target.closest('[data-action="reset"]');

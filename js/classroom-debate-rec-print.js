@@ -194,8 +194,57 @@
         return plain(lines.join('\n').trimEnd());
     }
 
+    // ── Parent message (English, copy & paste) ─────────────────────────
+
+    const ACADEMY_NAME = 'Simson Academy';
+
+    function longDate(iso) {
+        const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!m) {
+            return String(iso || '');
+        }
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August',
+            'September', 'October', 'November', 'December'];
+        const dt = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+        return `${days[dt.getUTCDay()]}, ${months[dt.getUTCMonth()]} ${dt.getUTCDate()}`;
+    }
+
+    /**
+     * Polite English text for a parent whose child has not finished the
+     * Debate Day 4 recording.
+     * @param {{ studentName: string, nameEn?: string, className?: string, date: string, teacherName?: string }} info
+     */
+    function buildParentMessage(info) {
+        const i = info || {};
+        const child = String(i.nameEn || i.studentName || '').trim() || 'your child';
+        const korean = String(i.studentName || '').trim();
+        const who = i.nameEn && korean && korean !== i.nameEn ? `${i.nameEn} (${korean})` : child;
+        const cls = String(i.className || '').trim();
+        const teacher = String(i.teacherName || '').trim();
+        const lines = [
+            `[${ACADEMY_NAME}] Debate recording not finished`,
+            '',
+            'Hello,',
+            teacher
+                ? `This is ${teacher}, the debate teacher for ${who} at ${ACADEMY_NAME}.`
+                : `This is the debate teacher for ${who} at ${ACADEMY_NAME}.`,
+            '',
+            `On ${longDate(i.date)}, ${cls ? `the ${cls} class` : 'the class'} recorded their debate speeches (Debate Day 4). ${child} was not able to record that day, so the debate recording is not finished yet.`,
+            '',
+            `Could you please help ${child} record their debate speech at home and send us the video before the next class? A short phone video is fine.`,
+            '',
+            'Thank you very much for your help. Please let us know if you have any questions.',
+            '',
+            ACADEMY_NAME
+        ];
+        return lines.join('\n');
+    }
+
     global.CCPClassroomDebateRecPrint = {
         CHIP_CLASS,
+        ACADEMY_NAME,
+        buildParentMessage,
         renderDocumentHtml,
         formatCopyText,
         get PRINT_STYLES() {

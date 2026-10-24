@@ -406,4 +406,19 @@ function check(data, tms) {
     assert(text.includes('Recorded in class'), 'copy includes completed');
 }
 
+// ── Parent message ────────────────────────────────────────────────────
+{
+    const P = globalThis.CCPClassroomDebateRecPrint;
+    const msg = P.buildParentMessage({ studentName: '김민준', nameEn: 'Minjun', className: 'Purple M', date: '2026-10-21', teacherName: 'Nathan' });
+    const lines = msg.split('\n');
+    eq(lines[0], '[Simson Academy] Debate recording not finished', 'Simson Academy at the top');
+    assert(msg.includes('This is Nathan, the debate teacher for Minjun (김민준) at Simson Academy.'), 'teacher intro');
+    assert(msg.includes('On Wednesday, October 21, the Purple M class recorded their debate speeches (Debate Day 4).'), 'what was missed');
+    assert(msg.includes('Could you please help Minjun record their debate speech at home'), 'polite request');
+    eq(lines[lines.length - 1], 'Simson Academy', 'sign-off');
+    const noEn = P.buildParentMessage({ studentName: '이서연', date: '2026-09-17' });
+    assert(noEn.includes('This is the debate teacher for 이서연 at Simson Academy.'), 'no teacher / no English name');
+    assert(noEn.includes('On Thursday, September 17, the class recorded'), 'no class name');
+}
+
 console.log(`classroom-debate-rec.test.mjs: ok (${passed} assertions)`);
