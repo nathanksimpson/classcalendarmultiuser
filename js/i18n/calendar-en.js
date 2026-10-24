@@ -408,7 +408,7 @@
         debateRecColRecording: 'Recording',
         debateRecAlertCf: 'CF:{count}',
         debateRecAlertNc: 'NC:{count}',
-        debateRecAlertNcTitle: 'Day 4s not checked against TMS yet',
+        debateRecAlertNcTitle: 'Students not verified since the recording date (no TMS check or teacher status yet)',
         debateRecZoneOnly: 'Has Debate Day 4',
         debateRecStatusNotRecorded: 'Not recorded',
         debateRecStatusNeedsConfirmation: 'Needs confirmation',

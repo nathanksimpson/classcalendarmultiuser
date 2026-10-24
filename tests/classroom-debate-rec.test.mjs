@@ -597,7 +597,9 @@ const PRESENT = [{ date: '2026-08-01', status: '출석' }];
     const data = makeData();
     let c = d.debateRecAlertCountsForClass(data, data.classes[0], { todayIso: TODAY });
     eq(c.days, 1, 'one past Day 4 (Nov Day 4 is in the future)');
-    eq(c.nc, 1, 'before a TMS check: NC 1');
+    eq(c.nc, 3, 'before a TMS check: NC = 3 unverified students');
+    const marked = Object.assign({}, data, { essaySubmissions: d.setDebateRecTeacherStatus([], { classId: 'c1', syllabusRowId: 'r4', studentId: 's3', status: 'recorded', userId: 'u1' }).submissions });
+    eq(d.debateRecAlertCountsForClass(marked, marked.classes[0], { todayIso: TODAY }).nc, 2, 'teacher-marked student is verified');
     eq(c.allComplete, false, 'not complete before a check');
     data.essaySubmissions = d.applyDebateRecTmsCheck(data, 'c1', new Map([
         ['s1', [{ date: '2026-10-21', status: '결석' }]],
@@ -623,10 +625,17 @@ const PRESENT = [{ date: '2026-08-01', status: '출석' }];
     const zoneData = makeData();
     zoneData.classes.push(plain);
     zoneData.ui = {};
-    Z.init({ getAppData: () => zoneData, t: (k) => k });
+    const L = { classroomEssayAlertNv: 'NV:{count}', debateRecAlertNc: 'NC:{count}', debateRecAlertCf: 'CF:{count}' };
+    Z.init({ getAppData: () => zoneData, t: (k) => L[k] || k });
     Z.syncVisibility('debate-rec');
     const html = Z.buildDebateRecAlertBadgesHtml(zoneData.classes[0]);
-    assert(html.includes('classroom-essay-alert-as'), 'NC pill before a check');
+    assert(html.includes('debate-rec-alert--high') && html.includes('NC:3'), 'NC pill is red (high) before a check');
+    const zoneChecked = Object.assign(zoneData, { essaySubmissions: d.applyDebateRecTmsCheck(zoneData, 'c1', new Map([
+        ['s1', [{ date: '2026-10-21', status: '결석' }]], ['s2', [{ date: '2026-10-21', status: '지각' }]], ['s3', PRESENT]
+    ]), { todayIso: TODAY }).submissions });
+    const html2 = Z.buildDebateRecAlertBadgesHtml(zoneChecked.classes[0]);
+    assert(/debate-rec-alert--high[^>]*>NV:1<\/span><span[^>]*debate-rec-alert--medium[^>]*>CF:1/.test(html2), `NV red first, CF amber after (got ${html2})`);
+    zoneData.essaySubmissions = [];
     eq(Z.buildDebateRecAlertBadgesHtml(plain), '', 'no pills for a non-debate class');
     const names = (list) => list.map((x) => x.id).join(',');
     {

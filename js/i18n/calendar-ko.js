@@ -408,7 +408,7 @@
         debateRecColRecording: '녹화',
         debateRecAlertCf: 'CF:{count}',
         debateRecAlertNc: 'NC:{count}',
-        debateRecAlertNcTitle: '아직 TMS 출결을 확인하지 않은 Day 4',
+        debateRecAlertNcTitle: '녹화일 이후 아직 확인되지 않은 학생 (TMS 출결 확인이나 선생님 상태 없음)',
         debateRecZoneOnly: 'Debate Day 4 있는 수업',
         debateRecStatusNotRecorded: '녹화 안 됨',
         debateRecStatusNeedsConfirmation: '확인 필요',
