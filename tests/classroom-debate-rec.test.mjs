@@ -414,7 +414,9 @@ function check(data, tms) {
     eq(lines[0], '[Simson Academy] Debate recording not finished', 'Simson Academy at the top');
     assert(msg.includes('This is Nathan, the debate teacher for Minjun (김민준) at Simson Academy.'), 'teacher intro');
     assert(msg.includes('On Wednesday, October 21, the Purple M class recorded their debate speeches (Debate Day 4).'), 'what was missed');
-    assert(msg.includes('Could you please help Minjun record their debate speech at home'), 'polite request');
+    assert(msg.includes('Minjun will need to make up the recording here at Simson Academy.'), 'recorded at the academy');
+    assert(msg.includes('come in a little early before class or stay a little after class'), 'asks parents to arrange early/late');
+    assert(!/at home|send us the video/.test(msg), 'no home recording');
     eq(lines[lines.length - 1], 'Simson Academy', 'sign-off');
     const noEn = P.buildParentMessage({ studentName: '이엽타', date: '2026-09-17' });
     assert(noEn.includes('This is the debate teacher for 이엽타 at Simson Academy.'), 'no teacher / no English name');

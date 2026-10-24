@@ -86,7 +86,7 @@ The password is used for that sync only. It is not saved in a file on the PC.
 
 **Reports ▾** prints this class, opens a **Class summary** in the same layout as the Essays class summary (filter by homeroom teacher, month and your classes, tick each class's Day 4 per month, show everyone, still needed or completed, then print or copy), or copies this class as text for KakaoTalk.
 
-Beside each **Not recorded** student, **Message** copies a polite English text for the parents, headed "[Simson Academy]", that says which Day 4 debate recording was missed and asks them to send a video. Paste it into KakaoTalk or a text.
+Beside each **Not recorded** student, **Message** copies a polite English text for the parents, headed "[Simson Academy]", that says which Day 4 debate recording was missed and asks them to arrange a time for the student to come early or stay late to record it at the academy. Paste it into KakaoTalk or a text.
 
 Your choice is never changed by a later TMS check. Use **Reset to TMS** if you want the next check to decide again. Class teachers and homeroom (담임) teachers see a bell warning while anything is still open. ClassManager only reads from TMS; it never writes to it.
 

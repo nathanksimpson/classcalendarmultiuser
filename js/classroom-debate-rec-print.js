@@ -212,7 +212,8 @@
 
     /**
      * Polite English text for a parent whose child has not finished the
-     * Debate Day 4 recording.
+     * Debate Day 4 recording. Make-ups are recorded at the academy, so it asks
+     * the parent to arrange a time to come early or stay late.
      * @param {{ studentName: string, nameEn?: string, className?: string, date: string, teacherName?: string }} info
      */
     function buildParentMessage(info) {
@@ -232,7 +233,7 @@
             '',
             `On ${longDate(i.date)}, ${cls ? `the ${cls} class` : 'the class'} recorded their debate speeches (Debate Day 4). ${child} was not able to record that day, so the debate recording is not finished yet.`,
             '',
-            `Could you please help ${child} record their debate speech at home and send us the video before the next class? A short phone video is fine.`,
+            `${child} will need to make up the recording here at ${ACADEMY_NAME}. Could you please let us know when ${child} can come in a little early before class or stay a little after class to record it?`,
             '',
             'Thank you very much for your help. Please let us know if you have any questions.',
             '',
