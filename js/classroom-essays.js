@@ -461,10 +461,11 @@
         }
         const name = entry.student.nameEn || entry.student.name;
         const icon = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
-        return `<button type="button" class="btn btn-outline btn-small classroom-essay-msg-btn" data-action="copy-essay-parent-msg" data-student-id="${escapeAttr(entry.student.id)}" data-kind="${escapeAttr(kind)}" title="${escapeAttr(t(kind === 'resubmit' ? 'classroomEssayParentMsgTitleResubmit' : 'classroomEssayParentMsgTitleOverdue'))}" aria-label="${escapeAttr(tf('classroomEssayParentMsgAria', { name }))}">${icon}${escapeHtml(t('classroomEssayParentMsgBtn'))}</button>`;
+        const btn = (lang, label) => `<button type="button" class="btn btn-outline btn-small classroom-essay-msg-btn" data-action="copy-essay-parent-msg" data-lang="${lang}" data-student-id="${escapeAttr(entry.student.id)}" data-kind="${escapeAttr(kind)}" title="${escapeAttr(t(lang === 'ko' ? 'parentMsgTitleKo' : 'parentMsgTitleEn'))}" aria-label="${escapeAttr(tf(lang === 'ko' ? 'parentMsgAriaKo' : 'parentMsgAriaEn', { name }))}">${lang === 'en' ? icon : ''}${escapeHtml(label)}</button>`;
+        return `<span class="classroom-essay-msg-group" role="group" aria-label="${escapeAttr(t(kind === 'resubmit' ? 'classroomEssayParentMsgTitleResubmit' : 'classroomEssayParentMsgTitleOverdue'))}">${btn('en', 'English')}${btn('ko', '한국어')}</span>`;
     }
 
-    function copyEssayParentMessage(studentId, kind) {
+    function copyEssayParentMessage(studentId, kind, lang) {
         const api = global.CCPParentMessages;
         const d = domain();
         const entry = getStudents().find((e) => e && e.student && e.student.id === studentId);
@@ -483,7 +484,7 @@
             className: classData ? classData.name : '',
             assignedDate: row ? row.date : '',
             teacherName: hooks && hooks.getUserDisplayName ? hooks.getUserDisplayName(userId) : ''
-        });
+        }, lang === 'ko' ? 'ko' : 'en');
         void copyTextToClipboard(text, 'classroomEssayParentMsgCopied');
     }
 
@@ -4742,7 +4743,7 @@
         if (!cell) {
             return;
         }
-        const old = cell.querySelector('[data-action="copy-essay-parent-msg"]');
+        const old = cell.querySelector('.classroom-essay-msg-group');
         if (old) {
             old.remove();
         }
@@ -4752,12 +4753,11 @@
             return;
         }
         cell.insertAdjacentHTML('beforeend', html);
-        const btn = cell.querySelector('[data-action="copy-essay-parent-msg"]');
-        if (btn) {
+        cell.querySelectorAll('[data-action="copy-essay-parent-msg"]').forEach((btn) => {
             btn.addEventListener('click', () => {
-                copyEssayParentMessage(studentId, btn.getAttribute('data-kind'));
+                copyEssayParentMessage(studentId, btn.getAttribute('data-kind'), btn.getAttribute('data-lang'));
             });
-        }
+        });
     }
 
     function bindSelectionControls(panel, rowsMount, visibleStudents) {
@@ -4882,7 +4882,7 @@
 
         rowsMount.querySelectorAll('[data-action="copy-essay-parent-msg"]').forEach((btn) => {
             btn.addEventListener('click', () => {
-                copyEssayParentMessage(btn.getAttribute('data-student-id'), btn.getAttribute('data-kind'));
+                copyEssayParentMessage(btn.getAttribute('data-student-id'), btn.getAttribute('data-kind'), btn.getAttribute('data-lang'));
             });
         });
 

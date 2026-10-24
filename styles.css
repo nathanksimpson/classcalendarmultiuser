@@ -22704,6 +22704,13 @@ th[data-cohort-col] {
     font-size: 0.6875rem;
 }
 
+#panel-debate-rec .debate-rec-msg-group,
+#panel-essays .classroom-essay-msg-group {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
 #panel-debate-rec .debate-rec-msg-btn {
     gap: 4px;
     min-height: 28px;

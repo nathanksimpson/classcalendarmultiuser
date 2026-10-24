@@ -457,6 +457,32 @@ function check(data, tms) {
     });
 }
 
+// ── Korean parent messages (user chooses the language) ────────────────
+{
+    const M = globalThis.CCPParentMessages;
+    const P = globalThis.CCPClassroomDebateRecPrint;
+    const base = { studentName: '김민준', nameEn: 'Minjun', className: 'Purple M', date: '2026-10-21', assignedDate: '2026-10-21', teacherName: 'Nathan Simpson (Admin)' };
+    eq(M.koDate('2026-10-21'), '10월 21일(수)', 'Korean date');
+
+    const deb = P.buildParentMessage(base, 'ko');
+    eq(deb.split('\n')[0], '[Simson Academy] 토론 녹화 미완료 안내', 'KO debate header');
+    assert(deb.includes('Simson Academy 김민준 학생의 토론 담당 Nathan Simpson 선생님입니다.'), 'KO debate intro, no (Admin)');
+    assert(deb.includes('10월 21일(수) Purple M반 수업에서 토론 스피치 녹화(Debate Day 4)를 진행했는데'), 'KO what was missed');
+    assert(deb.includes('담임 선생님께 연락 주셔서'), 'KO contact homeroom');
+    assert(deb.includes('수업 전에 조금 일찍 오거나 수업 후에 조금 남아'), 'KO early/late');
+    assert(P.buildParentMessage(base).startsWith('[Simson Academy] Debate recording not finished'), 'English stays the default');
+
+    const od = M.essay(Object.assign({ kind: 'overdue' }, base), 'ko');
+    eq(od.split('\n')[0], '[Simson Academy] 에세이 미제출 안내', 'KO essay overdue header');
+    assert(od.includes('김민준 학생이 10월 21일(수) Purple M반에서 나간 에세이를 아직 제출하지 않았습니다.'), 'KO essay overdue body');
+    assert(od.includes('담임 선생님께 연락해 주세요'), 'KO essay homeroom');
+    const rs = M.essay(Object.assign({ kind: 'resubmit' }, base), 'ko');
+    eq(rs.split('\n')[0], '[Simson Academy] 에세이 재제출 안내', 'KO essay resubmit header');
+    assert(rs.includes('수정이 필요하여 다시 제출해야 합니다'), 'KO resubmit body');
+    [deb, od, rs].forEach((m) => assert(!/admin/i.test(m) && !/마감|due/i.test(m), 'KO: no admin label, no due date'));
+    eq(M.essay({ kind: 'overdue', studentName: '이서연', className: '2반' }, 'ko').includes('2반에서 나간'), true, 'no double 반');
+}
+
 // ── Before any TMS check: full roster, Not checked, teacher can set ────
 {
     const data = makeData();

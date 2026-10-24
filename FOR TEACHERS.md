@@ -88,7 +88,7 @@ The password is used for that sync only. It is not saved in a file on the PC.
 
 The list shows every student on each Day 4. Before TMS is checked, students show as **Not checked** with a warning, and you can already mark them yourself.
 
-Beside each **Not recorded** student, **Message** copies a polite English text for the parents, headed "[Simson Academy]", that says which Day 4 debate recording was missed and asks them to contact the homeroom teacher to arrange a time to come early or stay late and record it at the academy. Tools → Essays has the same **Message** button for essays that are overdue or need to be resubmitted. Paste it into KakaoTalk or a text.
+Beside each **Not recorded** student, **English** or **한국어** copies a polite text for the parents in that language, headed "[Simson Academy]", that says which Day 4 debate recording was missed and asks them to contact the homeroom teacher to arrange a time to come early or stay late and record it at the academy. Tools → Essays has the same **English** / **한국어** buttons for essays that are overdue or need to be resubmitted. Paste it into KakaoTalk or a text.
 
 Your choice is never changed by a later TMS check. Use **Reset to TMS** if you want the next check to decide again. Class teachers and homeroom (담임) teachers see a bell warning while anything is still open. ClassManager only reads from TMS; it never writes to it.
 
