@@ -251,10 +251,23 @@
             return;
         }
         setSaveStatus('saving');
+        const day = rowContext(rowId);
+        let tmsRecords = null;
+        try {
+            const briefing = global.CCPClassroomBriefing;
+            if (briefing && typeof briefing.getCachedAttendanceByStudent === 'function') {
+                const byStudent = await briefing.getCachedAttendanceByStudent(classId);
+                tmsRecords = byStudent.get(String(studentId)) || null;
+            }
+        } catch (_) {
+            tmsRecords = null;
+        }
         const res = d.resetDebateRecToTms(getAppData().essaySubmissions || [], {
             classId,
             syllabusRowId: rowId,
-            studentId
+            studentId,
+            date: day ? day.date : '',
+            tmsRecords
         });
         if (!res.error && (await saveSubmissions(res.submissions))) {
             if (hooks.showToast) {

@@ -9868,6 +9868,20 @@
             || null;
     }
 
+    /**
+     * True when a student's TMS absence list reaches back to `date`. The TMS list is a
+     * single page of recent days, so an older Day 4 drops off it; that is "no data",
+     * not "present".
+     */
+    function tmsAttendanceCoversDate(records, date) {
+        const want = normalizeStr(date);
+        const dates = (Array.isArray(records) ? records : [])
+            .map((r) => normalizeStr(r && r.date))
+            .filter(Boolean)
+            .sort();
+        return Boolean(want && dates.length && compareDateStr(dates[0], want) <= 0);
+    }
+
     function findClassForDebateRec(appData, classId) {
         const cid = normalizeStr(classId);
         return ((appData && appData.classes) || []).find((c) => c && c.id === cid) || null;
@@ -9943,7 +9957,8 @@
                 : blankDebateRecSubmission(classData.id, day, opts.newSubmissionId);
             const records = submission.records;
             let touched = false;
-            if (students.some((entry) => entry && entry.student && byStudent.has(normalizeStr(entry.student.id)))) {
+            const coversDay = (sid) => byStudent.has(sid) && tmsAttendanceCoversDate(byStudent.get(sid), day.date);
+            if (students.some((entry) => entry && entry.student && coversDay(normalizeStr(entry.student.id)))) {
                 submission.debateRecCheckedAt = nowIso;
                 touched = true;
             }
@@ -9957,7 +9972,8 @@
                 const prev = idx >= 0 ? records[idx] : null;
                 const prevRec = prev ? normalizeDebateRecFields(prev) : null;
 
-                if (!byStudent.has(sid)) {
+                if (!coversDay(sid)) {
+                    // No TMS data for this date (not loaded, or older than TMS's list): keep what we have.
                     if (prevRec && prevRec.debateRecSource === 'teacher') {
                         summary.skippedTeacher += 1;
                     } else {
@@ -10088,13 +10104,29 @@
      * (결석 → Not recorded, 지각/조퇴/… → Needs confirmation), or no status when
      * TMS had no absence / no check has run yet. Later checks update it as usual.
      */
+    /**
+     * options.tmsRecords (optional): this student's cached TMS attendance. When it covers
+     * the Day 4 date it wins over the stored TMS result (which may predate a fix).
+     */
     function resetDebateRecToTms(submissions, options) {
+        const o = options || {};
+        const date = normalizeStr(o.date);
+        const fresh = date && tmsAttendanceCoversDate(o.tmsRecords, date);
         return patchDebateRecRecord(submissions, options, (prev) => {
-            const tmsStatus = normalizeStr(prev.debateRecTmsStatus);
+            let tmsStatus = normalizeStr(prev.debateRecTmsStatus);
+            let tmsMemo = normalizeStr(prev.debateRecTmsMemo);
+            if (fresh) {
+                const hit = pickTmsAttendanceForDate(o.tmsRecords, date);
+                tmsStatus = hit ? normalizeStr(hit.status) : '';
+                tmsMemo = hit ? normalizeStr(hit.memo) : '';
+            }
             const restored = tmsStatus ? debateRecStatusFromTms(tmsStatus) : '';
             return Object.assign({}, prev, {
                 debateRecStatus: restored,
                 debateRecSource: restored ? 'tms' : '',
+                debateRecTmsStatus: tmsStatus,
+                debateRecTmsMemo: tmsMemo,
+                debateRecDate: prev.debateRecDate || date,
                 debateRecUpdatedBy: '',
                 debateRecUpdatedAt: '',
                 debateVideoMissing: restored === 'not_recorded'
@@ -10762,6 +10794,7 @@
         setDebateRecTeacherStatus,
         setDebateRecNote,
         resetDebateRecToTms,
+        tmsAttendanceCoversDate,
         debateRecPatchForNvToggle,
         computeDebateRecView,
         countOpenDebateRecWarnings,
