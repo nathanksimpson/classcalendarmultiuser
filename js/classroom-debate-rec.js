@@ -176,9 +176,67 @@
 
     // ── Persist ─────────────────────────────────────────────────────────
 
-    async function saveSubmissions(list) {
+    /**
+     * Upsert mutations for only the submissions that changed, each carrying the
+     * students whose records changed (the server merges just those students).
+     */
+    function buildSubmissionMutations(prevList, nextList) {
+        const prevById = new Map();
+        (prevList || []).forEach((sub) => {
+            if (sub && sub.id != null) {
+                prevById.set(String(sub.id), sub);
+            }
+        });
+        const ts = Date.now();
+        const mutations = [];
+        (nextList || []).forEach((sub) => {
+            if (!sub || sub.id == null) {
+                return;
+            }
+            const prev = prevById.get(String(sub.id));
+            if (prev === sub || (prev && JSON.stringify(prev) === JSON.stringify(sub))) {
+                return;
+            }
+            const payload = Object.assign({}, sub);
+            if (prev) {
+                const prevRecs = new Map((prev.records || []).filter(Boolean).map((r) => [String(r.studentId), JSON.stringify(r)]));
+                const touched = (sub.records || [])
+                    .filter((r) => r && JSON.stringify(r) !== prevRecs.get(String(r.studentId)))
+                    .map((r) => String(r.studentId));
+                if (touched.length) {
+                    payload.touchedStudentIds = touched;
+                }
+            }
+            mutations.push({ entity: 'essaySubmissions', action: 'upsert', payload: { submission: payload }, timestamp: ts });
+        });
+        return mutations;
+    }
+
+    /**
+     * Apply locally and re-render right away, then wait for the server. Only the
+     * changed submissions/students are sent.
+     */
+    async function saveSubmissions(list, options) {
+        const skipRender = Boolean(options && options.skipRender);
+        const prevList = getAppData().essaySubmissions || [];
+        const mutations = buildSubmissionMutations(prevList, list);
+        if (!mutations.length) {
+            setSaveStatus('saved');
+            return true;
+        }
+        let pending;
         try {
-            await hooks.saveClassroom({ essaySubmissions: list });
+            // saveClassroom updates appData synchronously before its first await.
+            pending = hooks.saveClassroom({ essaySubmissions: list, mutations });
+        } catch (err) {
+            pending = Promise.reject(err);
+        }
+        if (!skipRender) {
+            render();
+        }
+        refreshZoneContextBar();
+        try {
+            await pending;
             setSaveStatus('saved');
             refreshZoneContextBar();
             if (typeof hooks.refreshTabWarnings === 'function') {
@@ -190,6 +248,7 @@
             if (hooks.showToast) {
                 hooks.showToast((err && err.message) || String(err), true);
             }
+            render();
             return false;
         }
     }
@@ -301,7 +360,7 @@
             note
         });
         if (!res.error) {
-            await saveSubmissions(res.submissions);
+            await saveSubmissions(res.submissions, { skipRender: true });
         }
     }
 
@@ -1331,6 +1390,7 @@
 
     global.CCPClassroomDebateRec = {
         initTab,
+        buildSubmissionMutations,
         render,
         refreshIfActive
     };
