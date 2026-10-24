@@ -368,21 +368,18 @@
         }
         const month = getUiToggles().debateRecMonth || '';
         const c = d.debateRecAlertCountsForClass(getAppData(), classData, month ? { month } : undefined);
+        // Ordered and coloured by importance: absent / not verified (red) → needs confirmation (amber).
+        const pill = (level, title, text) =>
+            `<span class="classroom-essay-alert-badge debate-rec-alert debate-rec-alert--${level}" title="${escapeAttr(title)}">${escapeHtml(text)}</span>`;
         const parts = [];
         if (c.nv > 0) {
-            parts.push(
-                `<span class="classroom-essay-alert-badge classroom-essay-alert-nv" title="${escapeAttr(t('debateRecStatusNotRecorded'))}">${escapeHtml(tf('classroomEssayAlertNv', { count: c.nv }))}</span>`
-            );
-        }
-        if (c.cf > 0) {
-            parts.push(
-                `<span class="classroom-essay-alert-badge classroom-essay-alert-od" title="${escapeAttr(t('debateRecStatusNeedsConfirmation'))}">${escapeHtml(tf('debateRecAlertCf', { count: c.cf }))}</span>`
-            );
+            parts.push(pill('high', t('debateRecStatusNotRecorded'), tf('classroomEssayAlertNv', { count: c.nv })));
         }
         if (c.nc > 0) {
-            parts.push(
-                `<span class="classroom-essay-alert-badge classroom-essay-alert-as" title="${escapeAttr(t('debateRecAlertNcTitle'))}">${escapeHtml(tf('debateRecAlertNc', { count: c.nc }))}</span>`
-            );
+            parts.push(pill('high', t('debateRecAlertNcTitle'), tf('debateRecAlertNc', { count: c.nc })));
+        }
+        if (c.cf > 0) {
+            parts.push(pill('medium', t('debateRecStatusNeedsConfirmation'), tf('debateRecAlertCf', { count: c.cf })));
         }
         if (c.allComplete) {
             parts.push(

@@ -10183,7 +10183,7 @@
             const past = compareDateStr(day.date, today) <= 0;
             const submission = findEssaySubmission(appData.essaySubmissions, classData.id, day.rowId);
             const checked = debateRecDayChecked(submission);
-            const perDay = { open: 0, resolved: 0, notChecked: 0, past, checked };
+            const perDay = { open: 0, notRecorded: 0, needsConfirmation: 0, resolved: 0, notChecked: 0, past, checked };
             dayCounts[day.rowId] = perDay;
             if (!past) {
                 return;
@@ -10201,6 +10201,11 @@
                     perDay.notChecked += 1;
                 } else if (DEBATE_REC_OPEN_STATUSES.includes(displayStatus)) {
                     perDay.open += 1;
+                    if (displayStatus === 'not_recorded') {
+                        perDay.notRecorded += 1;
+                    } else {
+                        perDay.needsConfirmation += 1;
+                    }
                 } else {
                     perDay.resolved += 1;
                 }
@@ -10249,7 +10254,8 @@
     /**
      * Class-list pills for Tools → Debate Rec (same idea as essayAlertCountsForClass).
      * Past Day 4s only; options.month ('YYYY-MM') limits to Day 4s in that month.
-     * nv = Not recorded, cf = Needs confirmation, nc = past Day 4s with no TMS check yet,
+     * nv = Not recorded, cf = Needs confirmation, nc = students on a past Day 4 not verified yet
+ * (no TMS check and no teacher status),
      * allComplete = every past Day 4 checked and nothing open.
      */
     function debateRecAlertCountsForClass(appData, classData, options) {
@@ -10271,18 +10277,16 @@
             .forEach((day) => {
                 out.days += 1;
                 const submission = findEssaySubmission((appData && appData.essaySubmissions) || [], classData.id, day.rowId);
-                if (!debateRecDayChecked(submission)) {
-                    out.nc += 1;
-                }
-                ((submission && submission.records) || []).forEach((r) => {
-                    if (!r || !activeIds.has(normalizeStr(r.studentId))) {
-                        return;
-                    }
-                    const status = normalizeDebateRecFields(r).debateRecStatus;
+                const checked = debateRecDayChecked(submission);
+                activeIds.forEach((sid) => {
+                    const status = normalizeDebateRecFields(getEssayRecordForStudent(submission, sid) || {}).debateRecStatus;
                     if (status === 'not_recorded') {
                         out.nv += 1;
                     } else if (status === 'needs_confirmation') {
                         out.cf += 1;
+                    } else if (!status && !checked) {
+                        // Past the recording date with nothing verified yet.
+                        out.nc += 1;
                     }
                 });
             });

@@ -977,11 +977,18 @@
             let cls = '';
             if (!c.past) {
                 cls = ' debate-rec-day-chip--future';
-            } else if (c.open) {
-                badge = ` <span class="debate-rec-day-badge debate-rec-day-badge--open">${c.open}</span>`;
-                cls = ' debate-rec-day-chip--open';
-            } else if (c.notChecked) {
-                badge = ' <span class="debate-rec-day-badge">?</span>';
+            } else if (c.open || c.notChecked) {
+                // Red: absent (Not recorded) or not verified yet; amber: needs confirmation.
+                if (c.notRecorded) {
+                    badge += ` <span class="debate-rec-day-badge debate-rec-day-badge--high" title="${escapeAttr(t('debateRecStatusNotRecorded'))}">${c.notRecorded}</span>`;
+                }
+                if (c.notChecked) {
+                    badge += ` <span class="debate-rec-day-badge debate-rec-day-badge--high" title="${escapeAttr(t('debateRecAlertNcTitle'))}">?${c.notChecked}</span>`;
+                }
+                if (c.needsConfirmation) {
+                    badge += ` <span class="debate-rec-day-badge debate-rec-day-badge--medium" title="${escapeAttr(t('debateRecStatusNeedsConfirmation'))}">${c.needsConfirmation}</span>`;
+                }
+                cls = c.notRecorded || c.notChecked ? ' debate-rec-day-chip--open' : ' debate-rec-day-chip--confirm';
             } else {
                 badge = ' <span class="debate-rec-day-badge debate-rec-day-badge--ok" aria-hidden="true">✓</span>';
             }
