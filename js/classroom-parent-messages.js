@@ -38,8 +38,22 @@
         return { child, full };
     }
 
+    /**
+     * Teacher name as parents should see it: drop account labels such as
+     * "(Admin)", "[관리자]", "(Test)" that are only there to tell accounts apart.
+     * "Nathan Simpson (Admin)" → "Nathan Simpson".
+     */
+    function cleanTeacherName(name) {
+        const ROLE = '(?:admin(?:istrator)?|super\\s*admin|test(?:er)?|user|staff|manager|teacher|관리자|운영자|원장|테스트|선생님)';
+        return str(name)
+            .replace(new RegExp(`\\s*[\\(\\[\\{（［]\\s*${ROLE}\\s*[\\)\\]\\}）］]`, 'gi'), '')
+            .replace(new RegExp(`\\s*[-–—:·|/]\\s*${ROLE}\\s*$`, 'i'), '')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+    }
+
     function intro(info, role, full) {
-        const teacher = str(info && info.teacherName);
+        const teacher = cleanTeacherName(info && info.teacherName);
         if (role) {
             return teacher
                 ? `This is ${teacher}, the ${role} for ${full} at ${ACADEMY_NAME}.`
@@ -123,6 +137,7 @@
     global.CCPParentMessages = {
         ACADEMY_NAME,
         longDate,
+        cleanTeacherName,
         debateRecording,
         essay
     };
