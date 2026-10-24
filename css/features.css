@@ -20093,6 +20093,208 @@ th[data-cohort-col] {
     box-shadow: inset 3px 0 0 var(--border-color);
 }
 
+/* Tools → Debate Rec (Debate Day 4 recording check) */
+#panel-debate-rec .classroom-debate-rec-stats-bar {
+    margin-bottom: var(--space-2, 8px);
+}
+
+#panel-debate-rec .debate-rec-stats,
+#panel-debate-rec .debate-rec-day-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2, 8px);
+}
+
+#panel-debate-rec .debate-rec-stat {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1, 4px);
+    min-height: 36px;
+    padding: var(--space-1, 4px) var(--space-2, 8px);
+    border-radius: var(--radius-md, 8px);
+    border: 1px solid var(--border-color, #e3e8ef);
+    background: var(--bg-card, #fff);
+    font-size: 0.8125rem;
+}
+
+#panel-debate-rec .debate-rec-stat--not-recorded {
+    border-color: color-mix(in srgb, var(--danger) 45%, var(--border-color));
+    color: var(--danger);
+}
+
+#panel-debate-rec .debate-rec-stat--confirm {
+    border-color: color-mix(in srgb, var(--warn-badge-bg) 50%, var(--border-color));
+    color: color-mix(in srgb, var(--warn-badge-bg) 80%, var(--text-primary, #111));
+}
+
+#panel-debate-rec .debate-rec-stat--received,
+#panel-debate-rec .debate-rec-stat--recorded {
+    border-color: color-mix(in srgb, var(--success) 40%, var(--border-color));
+}
+
+#panel-debate-rec .debate-rec-stat--not-checked,
+#panel-debate-rec .debate-rec-stat--exempt {
+    color: var(--text-muted);
+}
+
+#panel-debate-rec .debate-rec-day-chip.is-active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--text-on-primary);
+}
+
+#panel-debate-rec .debate-rec-day-chip--open:not(.is-active) {
+    border-color: color-mix(in srgb, var(--danger) 45%, var(--border-color));
+}
+
+#panel-debate-rec .debate-rec-day-chip--future:not(.is-active) {
+    color: var(--text-muted);
+}
+
+#panel-debate-rec .debate-rec-day-badge {
+    display: inline-block;
+    min-width: 1.25em;
+    margin-left: var(--space-1, 4px);
+    padding: 0 4px;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    background: color-mix(in srgb, var(--text-muted) 18%, transparent);
+}
+
+#panel-debate-rec .debate-rec-day-badge--open {
+    background: var(--danger);
+    color: var(--text-on-primary);
+}
+
+#panel-debate-rec .debate-rec-day-badge--ok {
+    background: color-mix(in srgb, var(--success) 18%, transparent);
+    color: var(--success);
+}
+
+#panel-debate-rec .debate-rec-intro {
+    margin: 0 0 var(--space-2, 8px);
+}
+
+#panel-debate-rec .classroom-sheet--debate-rec .classroom-sheet-col-student {
+    width: 18%;
+}
+
+#panel-debate-rec .classroom-sheet--debate-rec .debate-rec-col-date {
+    width: 8.5rem;
+    white-space: nowrap;
+}
+
+#panel-debate-rec .classroom-sheet--debate-rec .debate-rec-col-tms {
+    width: 12%;
+}
+
+#panel-debate-rec .classroom-sheet--debate-rec .debate-rec-col-status {
+    min-width: 300px;
+}
+
+#panel-debate-rec .classroom-sheet--debate-rec .classroom-sheet-col-notes {
+    width: 18%;
+}
+
+#panel-debate-rec .debate-rec-note {
+    width: 100%;
+}
+
+#panel-debate-rec .debate-rec-student-cell {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1, 4px) var(--space-2, 8px);
+}
+
+#panel-debate-rec .debate-rec-msg-btn {
+    gap: 4px;
+    min-height: 28px;
+    padding: 2px 8px;
+    font-size: 0.6875rem;
+}
+
+#panel-debate-rec .debate-rec-status {
+    display: inline-block;
+    padding: 2px var(--space-2, 8px);
+    border-radius: var(--radius-sm, 6px);
+    font-size: 0.75rem;
+    font-weight: 700;
+    border: 1px solid var(--border-color);
+}
+
+#panel-debate-rec .debate-rec-status--not-recorded {
+    background: color-mix(in srgb, var(--danger) 12%, var(--bg-card));
+    border-color: color-mix(in srgb, var(--danger) 45%, var(--border-color));
+    color: var(--danger);
+}
+
+#panel-debate-rec .debate-rec-status--confirm {
+    background: color-mix(in srgb, var(--warn-badge-bg) 14%, var(--bg-card));
+    border-color: color-mix(in srgb, var(--warn-badge-bg) 50%, var(--border-color));
+    color: color-mix(in srgb, var(--warn-badge-bg) 80%, var(--text-primary, #111));
+}
+
+#panel-debate-rec .debate-rec-status--received,
+#panel-debate-rec .debate-rec-status--recorded {
+    background: color-mix(in srgb, var(--success) 12%, var(--bg-card));
+    border-color: color-mix(in srgb, var(--success) 40%, var(--border-color));
+    color: var(--success);
+}
+
+#panel-debate-rec .debate-rec-status--exempt {
+    background: color-mix(in srgb, var(--text-muted) 10%, var(--bg-card));
+    color: var(--text-secondary);
+}
+
+#panel-debate-rec .debate-rec-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1, 4px);
+    margin-top: var(--space-1, 4px);
+}
+
+#panel-debate-rec .debate-rec-choice {
+    min-height: var(--touch-min-compact, 36px);
+    font-size: 0.6875rem;
+    font-weight: 600;
+}
+
+#panel-debate-rec .debate-rec-choice.is-active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--text-on-primary);
+}
+
+#panel-debate-rec .debate-rec-setby {
+    margin-top: 2px;
+    font-size: 0.6875rem;
+}
+
+#panel-debate-rec .debate-rec-row--not_recorded {
+    box-shadow: inset 3px 0 0 var(--danger);
+}
+
+#panel-debate-rec .debate-rec-row--needs_confirmation {
+    box-shadow: inset 3px 0 0 var(--warn-badge-bg);
+}
+
+#panel-debate-rec .debate-rec-row--focus {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+}
+
+#panel-debate-rec .debate-rec-empty {
+    padding: var(--space-4, 16px);
+    text-align: center;
+}
+
+html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-rec .debate-rec-choice {
+    min-height: var(--touch-min, 44px);
+}
+
+
 html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-books .classroom-debate-book-stage {
     min-height: var(--touch-min, 44px);
     padding: var(--space-2) var(--space-3);
