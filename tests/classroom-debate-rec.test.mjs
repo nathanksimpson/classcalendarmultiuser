@@ -444,6 +444,19 @@ function check(data, tms) {
     });
 }
 
+// ── Teacher name without account labels ───────────────────────────────
+{
+    const M = globalThis.CCPParentMessages;
+    eq(M.cleanTeacherName('Nathan Simpson (Admin)'), 'Nathan Simpson', 'drops (Admin)');
+    eq(M.cleanTeacherName('Nathan Simpson [관리자]'), 'Nathan Simpson', 'drops [관리자]');
+    eq(M.cleanTeacherName('Kim Minsu (김민수)'), 'Kim Minsu (김민수)', 'keeps a real name in brackets');
+    const deb = M.debateRecording({ studentName: '김민준', nameEn: 'Minjun', date: '2026-10-21', teacherName: 'Nathan Simpson (Admin)' });
+    const ess = M.essay({ kind: 'overdue', studentName: '김민준', nameEn: 'Minjun', teacherName: 'Nathan Simpson (Admin)' });
+    [deb, ess].forEach((m) => {
+        assert(m.includes('Nathan Simpson') && !/admin/i.test(m), 'no (Admin) in parent message');
+    });
+}
+
 // ── Before any TMS check: full roster, Not checked, teacher can set ────
 {
     const data = makeData();
