@@ -10,6 +10,8 @@
     'use strict';
 
     const ACADEMY_NAME = 'Simson Academy';
+    /** Academy name used in the Korean messages. */
+    const ACADEMY_NAME_KO = '심슨 어학원';
     const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August',
         'September', 'October', 'November', 'December'];
@@ -170,12 +172,12 @@
         const teacher = cleanTeacherName(i.teacherName);
         const cls = koClass(i.className);
         return [
-            `[${ACADEMY_NAME}] 토론 녹화 미완료 안내`,
+            `[${ACADEMY_NAME_KO}] 토론 녹화 미완료 안내`,
             '',
             '안녕하세요, 학부모님.',
             teacher
-                ? `${ACADEMY_NAME} ${student}의 토론 담당 ${teacher} 선생님입니다.`
-                : `${ACADEMY_NAME} ${student}의 토론 담당 선생님입니다.`,
+                ? `${ACADEMY_NAME_KO} ${student}의 토론 담당 ${teacher} 선생님입니다.`
+                : `${ACADEMY_NAME_KO} ${student}의 토론 담당 선생님입니다.`,
             '',
             `${koDate(i.date)} ${cls ? `${cls} ` : ''}수업에서 토론 스피치 녹화(Debate Day 4)를 진행했는데, ${student}이 그날 녹화를 하지 못해 아직 토론 녹화가 완료되지 않았습니다.`,
             '',
@@ -183,7 +185,7 @@
             '',
             '도움 주셔서 감사합니다.',
             '',
-            ACADEMY_NAME
+            ACADEMY_NAME_KO
         ].join('\n');
     }
 
@@ -196,11 +198,11 @@
             .filter(Boolean).join(' ');
         const which = assigned ? `${assigned} 나간 에세이` : '에세이';
         const opening = teacher
-            ? `${ACADEMY_NAME} ${teacher} 선생님입니다. ${student} 관련하여 연락드립니다.`
-            : `${ACADEMY_NAME}입니다. ${student} 관련하여 연락드립니다.`;
+            ? `${ACADEMY_NAME_KO} ${teacher} 선생님입니다. ${student} 관련하여 연락드립니다.`
+            : `${ACADEMY_NAME_KO}입니다. ${student} 관련하여 연락드립니다.`;
         if (i.kind === 'resubmit') {
             return [
-                `[${ACADEMY_NAME}] 에세이 재제출 안내`,
+                `[${ACADEMY_NAME_KO}] 에세이 재제출 안내`,
                 '',
                 '안녕하세요, 학부모님.',
                 opening,
@@ -211,11 +213,11 @@
                 '',
                 '감사합니다.',
                 '',
-                ACADEMY_NAME
+                ACADEMY_NAME_KO
             ].join('\n');
         }
         return [
-            `[${ACADEMY_NAME}] 에세이 미제출 안내`,
+            `[${ACADEMY_NAME_KO}] 에세이 미제출 안내`,
             '',
             '안녕하세요, 학부모님.',
             opening,
@@ -226,7 +228,7 @@
             '',
             '감사합니다.',
             '',
-            ACADEMY_NAME
+            ACADEMY_NAME_KO
         ].join('\n');
     }
 
@@ -241,6 +243,7 @@
 
     global.CCPParentMessages = {
         ACADEMY_NAME,
+        ACADEMY_NAME_KO,
         longDate,
         koDate,
         cleanTeacherName,
