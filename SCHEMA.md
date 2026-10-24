@@ -173,7 +173,7 @@ Stored on the **Debate Day 4** essay record. Written only once a record has been
 | Field | Type | Notes |
 |-------|------|--------|
 | `debateRecStatus` | string | `not_recorded` (TMS 결석 or teacher), `needs_confirmation` (TMS 지각/조퇴/미참석/other), `recorded`, `received`, `exempt`, or empty |
-| `debateRecSource` | string | `tms` or `teacher`. **A `teacher` status is never overwritten by a TMS check**; only a teacher change or "Reset to TMS" clears it. A legacy record with `debateVideoMissing: true` and no status reads as `not_recorded` / `teacher`. |
+| `debateRecSource` | string | `tms` or `teacher`. **A `teacher` status is never overwritten by a TMS check** (the check still stores `debateRecTmsStatus` / `debateRecTmsMemo`). "Reset to TMS" restores the last stored TMS result (결석 → `not_recorded`, other absences → `needs_confirmation`, none → no status). A legacy record with `debateVideoMissing: true` and no status reads as `not_recorded` / `teacher`. |
 | `debateRecDate` | string | `YYYY-MM-DD` the Day 4 homework was assigned (TMS essay link date when mapped by Essays Sync, else syllabus date) |
 | `debateRecTmsStatus` / `debateRecTmsMemo` | string | Raw TMS attendance status and memo for that date |
 | `debateRecCheckedAt` | string | ISO-8601 of the TMS check that last set this record |
