@@ -8335,6 +8335,31 @@ let dayNoteSaveInFlight = false;
 let dayNotesPersistChain = Promise.resolve();
 /** @type {Promise<unknown>} */
 let classroomPersistChain = Promise.resolve();
+/** Explicit classroom mutation sets saved locally but not yet confirmed by the server. */
+const pendingClassroomMutationSets = [];
+
+/**
+ * After a server reply replaces classroom fields, re-apply local changes that are still
+ * queued so an older reply can't undo a newer click.
+ */
+function reapplyPendingClassroomMutations() {
+    if (!pendingClassroomMutationSets.length || typeof CCPCalendarMutations === 'undefined') {
+        return;
+    }
+    pendingClassroomMutationSets.forEach((mutations) => {
+        const entities = Array.from(new Set(mutations.map((m) => m && m.entity).filter(Boolean)));
+        const subset = {};
+        entities.forEach((key) => {
+            subset[key] = appData[key];
+        });
+        const applied = CCPCalendarMutations.applyCalendarMutations(subset, mutations);
+        entities.forEach((key) => {
+            if (Object.prototype.hasOwnProperty.call(applied, key)) {
+                appData[key] = applied[key];
+            }
+        });
+    });
+}
 /** @type {ReturnType<typeof CCPDayNotesSave.createDayNotesSave>|null} */
 let dayNotesSaver = null;
 
@@ -21971,6 +21996,16 @@ async function saveClassroomPartial(fields, options) {
         return notesPromise;
     }
 
+    const pendingSet = explicitMutations && explicitMutations.length ? explicitMutations : null;
+    if (pendingSet) {
+        pendingClassroomMutationSets.push(pendingSet);
+    }
+    const settlePending = () => {
+        const i = pendingSet ? pendingClassroomMutationSets.indexOf(pendingSet) : -1;
+        if (i >= 0) {
+            pendingClassroomMutationSets.splice(i, 1);
+        }
+    };
     const task = async () => {
         try {
             let doc = null;
@@ -21983,8 +22018,10 @@ async function saveClassroomPartial(fields, options) {
             } else if (fieldBag && CalendarSync.saveClassroomData) {
                 doc = await CalendarSync.saveClassroomData(fieldBag, opts);
             }
+            settlePending();
             if (doc && doc.data) {
                 mergeClassroomFieldsFromServer(doc.data, opts);
+                reapplyPendingClassroomMutations();
                 saveDataToLocalCache();
             }
             if (notesPromise) {
@@ -21992,6 +22029,7 @@ async function saveClassroomPartial(fields, options) {
             }
             return doc;
         } catch (err) {
+            settlePending();
             // Local write already succeeded. Keep it when team sync is unavailable or fails
             // for non-conflict reasons (auth, network, missing calendar).
             if (err && Number(err.status) === 409) {

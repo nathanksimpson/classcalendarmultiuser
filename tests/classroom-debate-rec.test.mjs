@@ -638,4 +638,54 @@ const PRESENT = [{ date: '2026-08-01', status: '출석' }];
     }
 }
 
+// ── Saves send only what changed; queued clicks survive an older server reply ──
+{
+    globalThis.document = globalThis.document || { getElementById: () => null };
+    await import(pathToFileURL(path.join(root, 'js', 'classroom-debate-rec.js')).href);
+    await import(pathToFileURL(path.join(root, 'js', 'calendar-mutations.js')).href);
+    const { createRequire } = await import('module');
+    const server = createRequire(import.meta.url)(path.join(root, 'shared', 'calendar-mutations.cjs'));
+    const R = globalThis.CCPClassroomDebateRec;
+    const CM = globalThis.CCPCalendarMutations;
+
+    const data = makeData();
+    const other = { id: 'e-other', classId: 'c2', syllabusRowId: 'x1', records: [{ studentId: 'z1', status: 'complete' }] };
+    data.essaySubmissions = d.applyDebateRecTmsCheck(data, 'c1', new Map([
+        ['s1', [{ date: '2026-10-21', status: '결석' }]], ['s2', PRESENT], ['s3', PRESENT]
+    ]), { todayIso: TODAY }).submissions.concat([other]);
+
+    const set = (list, sid, status) => d.setDebateRecTeacherStatus(list, { classId: 'c1', syllabusRowId: 'r4', studentId: sid, status, userId: 'u1' }).submissions;
+    const reset = (list, sid) => d.resetDebateRecToTms(list, { classId: 'c1', syllabusRowId: 'r4', studentId: sid }).submissions;
+
+    const m1list = set(data.essaySubmissions, 's1', 'received');
+    const m1 = R.buildSubmissionMutations(data.essaySubmissions, m1list);
+    eq(m1.length, 1, 'only the changed Day 4 submission is sent (not other classes)');
+    eq(m1[0].payload.submission.touchedStudentIds.join(','), 's1', 'only the changed student is touched');
+
+    // Server: doc after each mutation set (shared code the Worker runs).
+    let serverDoc = { essaySubmissions: data.essaySubmissions };
+    const serverApply = (muts) => { serverDoc = Object.assign({}, serverDoc, server.applyCalendarMutations(serverDoc, muts)); return JSON.parse(JSON.stringify(serverDoc)); };
+
+    // Client: click Received, then Reset before the first reply arrives.
+    const local = { essaySubmissions: m1list };
+    const pending = [m1];
+    const m2list = reset(local.essaySubmissions, 's1');
+    const m2 = R.buildSubmissionMutations(local.essaySubmissions, m2list);
+    local.essaySubmissions = m2list;
+    pending.push(m2);
+
+    // First reply (contains only Received) lands while Reset is still queued.
+    const reply1 = serverApply(m1);
+    pending.shift();
+    local.essaySubmissions = reply1.essaySubmissions;
+    pending.forEach((muts) => { local.essaySubmissions = CM.applyCalendarMutations({ essaySubmissions: local.essaySubmissions }, muts).essaySubmissions; });
+    const shownLocal = () => d.computeDebateRecView(Object.assign({}, data, local), 'c1', null, { todayIso: TODAY }).rows.find((r) => r.student.id === 's1').displayStatus;
+    eq(shownLocal(), 'not_recorded', 'older reply does not undo the queued Reset');
+
+    const reply2 = serverApply(m2);
+    local.essaySubmissions = reply2.essaySubmissions;
+    eq(shownLocal(), 'not_recorded', 'server ends at Not recorded after Reset');
+    assert(local.essaySubmissions.some((s) => s.id === 'e-other'), 'other classes untouched');
+}
+
 console.log(`classroom-debate-rec.test.mjs: ok (${passed} assertions)`);
