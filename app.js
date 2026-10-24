@@ -37496,6 +37496,7 @@ function loadUiStateFromLocalStorageIntoData(data) {
     if (typeof CCPActiveContext !== 'undefined' && CCPActiveContext.hydrateUiFromStorage) {
         CCPActiveContext.hydrateUiFromStorage(data.ui);
     }
+    uiStateHydratedFromStorage = true;
     return data;
 }
 
@@ -37753,7 +37754,18 @@ function captureAppSessionExtras() {
     CCPSessionRestore.capturePageSession();
 }
 
+/**
+ * False until this viewer's saved UI prefs have been read into appData.ui.
+ * Early boot work (e.g. loadTheme → renderCalendarNow → setCalendarFocusedMonthIndex) runs
+ * against default appData and would otherwise overwrite the saved tab/segment with defaults,
+ * so a page refresh always landed on Schedule → Calendar.
+ */
+var uiStateHydratedFromStorage = false;
+
 function saveUiStateToLocalStorage() {
+    if (!uiStateHydratedFromStorage) {
+        return;
+    }
     ensureUiState();
     syncDismissedNavTabWarningsIntoUi(appData.ui);
     if (appData.ui.navNotificationMeta && typeof appData.ui.navNotificationMeta === 'object') {
