@@ -11,7 +11,7 @@
 
     const ACADEMY_NAME = 'Simson Academy';
     /** Academy name used in the Korean messages. */
-    const ACADEMY_NAME_KO = '심슨 어학원';
+    const ACADEMY_NAME_KO = '심슨어학원';
     const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August',
         'September', 'October', 'November', 'December'];
@@ -166,26 +166,44 @@
         return /반$/.test(cls) ? cls : `${cls}반`;
     }
 
+    /** "심슨어학원 Purple M반 토론 수업을 담당하고 있는 Nathan Simpson 선생님입니다." */
+    function koIntro(teacher, cls, subject) {
+        if (!teacher) {
+            return `${ACADEMY_NAME_KO}입니다.`;
+        }
+        const what = [cls, subject].filter(Boolean).join(' ');
+        return what
+            ? `${ACADEMY_NAME_KO} ${what} 수업을 담당하고 있는 ${teacher} 선생님입니다.`
+            : `${ACADEMY_NAME_KO} ${teacher} 선생님입니다.`;
+    }
+
+    /** Sign-off: academy name, then "Nathan Simpson 드림" when a teacher is known. */
+    function koSignOff(teacher) {
+        return teacher ? [ACADEMY_NAME_KO, `${teacher} 드림`] : [ACADEMY_NAME_KO];
+    }
+
     function debateRecordingKo(info) {
         const i = info || {};
         const student = koStudent(i);
         const teacher = cleanTeacherName(i.teacherName);
         const cls = koClass(i.className);
+        const when = str(i.date) ? `${koDate(i.date)} 수업에서` : '토론 수업에서';
         return [
-            `[${ACADEMY_NAME_KO}] 토론 녹화 미완료 안내`,
+            `[${ACADEMY_NAME_KO}] 토론 영상 촬영 미완료 안내`,
             '',
             '안녕하세요, 학부모님.',
-            teacher
-                ? `${ACADEMY_NAME_KO} ${teacher} 선생님입니다. ${student} 관련하여 연락드립니다.`
-                : `${ACADEMY_NAME_KO}입니다. ${student} 관련하여 연락드립니다.`,
             '',
-            `${koDate(i.date)} ${cls ? `${cls} ` : ''}수업에서 토론 스피치 녹화(Debate Day 4)를 진행했는데, ${student}이 그날 녹화를 하지 못해 아직 토론 녹화가 완료되지 않았습니다.`,
+            koIntro(teacher, cls, '토론'),
             '',
-            `녹화는 학원에서 보충으로 진행해야 합니다. 반담임 선생님께 연락 주셔서 ${student}이 수업 전에 조금 일찍 오거나 수업 후에 조금 남아 녹화할 수 있는 시간을 정해 주시면 감사하겠습니다.`,
+            `${when} 토론 스피치 영상 촬영(Debate Day 4)이 진행되었으나, ${student}은 당일 촬영에 참여하지 못하여 아직 영상 촬영이 완료되지 않은 상태입니다.`,
             '',
-            '도움 주셔서 감사합니다.',
+            '이에 학원에서 별도로 보충 촬영을 진행하고자 합니다.',
             '',
-            ACADEMY_NAME_KO
+            `번거로우시겠지만 반담임 선생님과 상의하시어, ${student}이 수업 시작 전 조금 일찍 등원하거나 수업 종료 후 잠시 남아 촬영할 수 있도록 일정을 조율해 주시면 감사하겠습니다.`,
+            '',
+            '협조해 주셔서 감사합니다.',
+            '',
+            ...koSignOff(teacher)
         ].join('\n');
     }
 
@@ -194,41 +212,33 @@
         const student = koStudent(i);
         const teacher = cleanTeacherName(i.teacherName);
         const cls = koClass(i.className);
-        const assigned = [str(i.assignedDate) ? koDate(i.assignedDate) : '', cls ? `${cls}에서` : '']
-            .filter(Boolean).join(' ');
-        const which = assigned ? `${assigned} 나간 에세이` : '에세이';
-        const opening = teacher
-            ? `${ACADEMY_NAME_KO} ${teacher} 선생님입니다. ${student} 관련하여 연락드립니다.`
-            : `${ACADEMY_NAME_KO}입니다. ${student} 관련하여 연락드립니다.`;
-        if (i.kind === 'resubmit') {
-            return [
-                `[${ACADEMY_NAME_KO}] 에세이 재제출 안내`,
-                '',
-                '안녕하세요, 학부모님.',
-                opening,
-                '',
-                `${student}이 ${which}에 수정이 필요하여 다시 제출해야 합니다. 수정본을 제출해야 에세이가 완료됩니다.`,
-                '',
-                '수정 후 가능한 한 빨리 다시 제출할 수 있도록 지도 부탁드립니다. 도움이나 시간이 더 필요하면 반담임 선생님께 연락해 주세요.',
-                '',
-                '감사합니다.',
-                '',
-                ACADEMY_NAME_KO
-            ].join('\n');
-        }
+        const when = str(i.assignedDate) ? `${koDate(i.assignedDate)} 수업에서 안내된 에세이를` : '';
+        const help = '도움이나 시간이 더 필요하시면 반담임 선생님과 상의해 주시기 바랍니다.';
+        const resubmit = i.kind === 'resubmit';
+        const body = resubmit
+            ? (when
+                ? `${when} ${student}이 제출하였으나, 수정이 필요하여 다시 제출해야 합니다. 수정본이 제출되어야 에세이가 완료됩니다.`
+                : `${student}이 제출한 에세이에 수정이 필요하여 다시 제출해야 합니다. 수정본이 제출되어야 에세이가 완료됩니다.`)
+            : (when
+                ? `${when} ${student}이 아직 제출하지 않은 상태입니다.`
+                : `${student}이 아직 에세이를 제출하지 않은 상태입니다.`);
+        const ask = resubmit
+            ? `번거로우시겠지만 ${student}이 에세이를 수정하여 가능한 한 빨리 다시 제출할 수 있도록 지도 부탁드립니다. ${help}`
+            : `번거로우시겠지만 ${student}이 에세이를 마무리하여 가능한 한 빨리 제출할 수 있도록 지도 부탁드립니다. ${help}`;
         return [
-            `[${ACADEMY_NAME_KO}] 에세이 미제출 안내`,
+            `[${ACADEMY_NAME_KO}] ${resubmit ? '에세이 재제출 안내' : '에세이 미제출 안내'}`,
             '',
             '안녕하세요, 학부모님.',
-            opening,
             '',
-            `${student}이 ${which}를 아직 제출하지 않았습니다.`,
+            koIntro(teacher, cls, ''),
             '',
-            '에세이를 마무리해서 가능한 한 빨리 제출할 수 있도록 지도 부탁드립니다. 도움이나 시간이 더 필요하면 반담임 선생님께 연락해 주세요.',
+            body,
             '',
-            '감사합니다.',
+            ask,
             '',
-            ACADEMY_NAME_KO
+            '협조해 주셔서 감사합니다.',
+            '',
+            ...koSignOff(teacher)
         ].join('\n');
     }
 

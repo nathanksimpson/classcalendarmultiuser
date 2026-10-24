@@ -468,22 +468,24 @@ const PRESENT = [{ date: '2026-08-01', status: '출석' }];
     eq(M.koDate('2026-10-21'), '10월 21일(수)', 'Korean date');
 
     const deb = P.buildParentMessage(base, 'ko');
-    eq(deb.split('\n')[0], '[심슨 어학원] 토론 녹화 미완료 안내', 'KO debate header');
-    assert(deb.includes('심슨 어학원 Nathan Simpson 선생님입니다. 김민준 학생 관련하여 연락드립니다.'), 'KO debate intro, no (Admin)');
-    assert(deb.includes('10월 21일(수) Purple M반 수업에서 토론 스피치 녹화(Debate Day 4)를 진행했는데'), 'KO what was missed');
-    assert(deb.includes('반담임 선생님께 연락 주셔서') && !deb.includes('토론 담당'), 'KO contact homeroom');
-    assert(deb.includes('수업 전에 조금 일찍 오거나 수업 후에 조금 남아'), 'KO early/late');
+    eq(deb.split('\n')[0], '[심슨어학원] 토론 영상 촬영 미완료 안내', 'KO debate header');
+    assert(deb.includes('심슨어학원 Purple M반 토론 수업을 담당하고 있는 Nathan Simpson 선생님입니다.'), 'KO debate intro, no (Admin)');
+    assert(deb.includes('10월 21일(수) 수업에서 토론 스피치 영상 촬영(Debate Day 4)이 진행되었으나, 김민준 학생은 당일 촬영에 참여하지 못하여') && deb.endsWith('심슨어학원\nNathan Simpson 드림') && !deb.includes('지난'), 'KO what was missed');
+    assert(deb.includes('번거로우시겠지만 반담임 선생님과 상의하시어') && !deb.includes('토론 담당'), 'KO contact homeroom');
+    assert(deb.includes('수업 시작 전 조금 일찍 등원하거나 수업 종료 후 잠시 남아 촬영할 수 있도록'), 'KO early/late');
     assert(P.buildParentMessage(base).startsWith('[Simson Academy] Debate recording not finished'), 'English stays the default');
 
     const od = M.essay(Object.assign({ kind: 'overdue' }, base), 'ko');
-    eq(od.split('\n')[0], '[심슨 어학원] 에세이 미제출 안내', 'KO essay overdue header');
-    assert(od.includes('김민준 학생이 10월 21일(수) Purple M반에서 나간 에세이를 아직 제출하지 않았습니다.'), 'KO essay overdue body');
-    assert(od.includes('반담임 선생님께 연락해 주세요'), 'KO essay homeroom');
+    eq(od.split('\n')[0], '[심슨어학원] 에세이 미제출 안내', 'KO essay overdue header');
+    assert(od.includes('10월 21일(수) 수업에서 안내된 에세이를 김민준 학생이 아직 제출하지 않은 상태입니다.') && od.includes('심슨어학원 Purple M반 수업을 담당하고 있는 Nathan Simpson 선생님입니다.'), 'KO essay overdue body');
+    assert(od.includes('반담임 선생님과 상의해 주시기 바랍니다'), 'KO essay homeroom');
     const rs = M.essay(Object.assign({ kind: 'resubmit' }, base), 'ko');
-    eq(rs.split('\n')[0], '[심슨 어학원] 에세이 재제출 안내', 'KO essay resubmit header');
-    assert(rs.includes('수정이 필요하여 다시 제출해야 합니다'), 'KO resubmit body');
+    eq(rs.split('\n')[0], '[심슨어학원] 에세이 재제출 안내', 'KO essay resubmit header');
+    assert(rs.includes('제출하였으나, 수정이 필요하여 다시 제출해야 합니다'), 'KO resubmit body');
     [deb, od, rs].forEach((m) => assert(!/admin/i.test(m) && !/마감|due/i.test(m), 'KO: no admin label, no due date'));
-    eq(M.essay({ kind: 'overdue', studentName: '이서연', className: '2반' }, 'ko').includes('2반에서 나간'), true, 'no double 반');
+    eq(M.essay({ kind: 'overdue', studentName: '이서연', className: '2반', teacherName: 'Kim' }, 'ko').includes(' 2반 수업을 담당'), true, 'no double 반');
+    eq(M.debateRecording({ studentName: '이서연' }, 'ko').split('\n')[4], '심슨어학원입니다.', 'KO no-teacher intro');
+    assert(!M.debateRecording({ studentName: '이서연' }, 'ko').includes('드림'), 'KO no 드림 without a teacher');
 }
 
 // ── Before any TMS check: full roster, Not checked, teacher can set ────
