@@ -438,6 +438,56 @@
         return `${row.date || ''} — ${row.planTitle || row.planDetail || ''}`.trim();
     }
 
+    /** Which parent reminder (if any) fits this student right now: 'overdue', 'resubmit' or ''. */
+    function parentMessageKind(rec) {
+        const d = domain();
+        if (!d || !draftSubmission) {
+            return '';
+        }
+        const r = rec || { status: 'not_submitted', submissionLate: false, overdueDismissed: false };
+        if (r.status === 'resubmit_required' && !r.submittedRetest) {
+            return 'resubmit';
+        }
+        if (r.status === 'not_submitted' && !r.overdueDismissed
+            && d.isEssaySubmissionOverdue(r, draftSubmission.ssDueDate || '')) {
+            return 'overdue';
+        }
+        return '';
+    }
+
+    function buildParentMessageButton(entry, kind) {
+        if (!kind || !global.CCPParentMessages) {
+            return '';
+        }
+        const name = entry.student.nameEn || entry.student.name;
+        const icon = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+        return `<button type="button" class="btn btn-outline btn-small classroom-essay-msg-btn" data-action="copy-essay-parent-msg" data-student-id="${escapeAttr(entry.student.id)}" data-kind="${escapeAttr(kind)}" title="${escapeAttr(t(kind === 'resubmit' ? 'classroomEssayParentMsgTitleResubmit' : 'classroomEssayParentMsgTitleOverdue'))}" aria-label="${escapeAttr(tf('classroomEssayParentMsgAria', { name }))}">${icon}${escapeHtml(t('classroomEssayParentMsgBtn'))}</button>`;
+    }
+
+    function copyEssayParentMessage(studentId, kind) {
+        const api = global.CCPParentMessages;
+        const d = domain();
+        const entry = getStudents().find((e) => e && e.student && e.student.id === studentId);
+        if (!api || !d || !entry) {
+            return;
+        }
+        const classData = getClassData();
+        const row = classData
+            ? d.getEssayRowsFromSyllabus(classData.syllabusRows, { classData }).find((r) => d.getSyllabusRowKey(r) === syllabusRowId)
+            : null;
+        const userId = hooks && hooks.getCurrentUserId ? hooks.getCurrentUserId() : '';
+        const text = api.essay({
+            kind,
+            studentName: entry.student.name,
+            nameEn: entry.student.nameEn,
+            className: classData ? classData.name : '',
+            assignedDate: row ? row.date : '',
+            dueDate: draftSubmission ? draftSubmission.ssDueDate || '' : '',
+            teacherName: hooks && hooks.getUserDisplayName ? hooks.getUserDisplayName(userId) : ''
+        });
+        void copyTextToClipboard(text, 'classroomEssayParentMsgCopied');
+    }
+
     async function syncResubmitDayNote() {
         const d = domain();
         const today = d ? d.todayISO() : '';
@@ -4683,7 +4733,32 @@
         if (submittedCell) {
             submittedCell.innerHTML = formatSubmittedAtCell(rec);
         }
+        refreshParentMessageButton(row, studentId, rec);
         bindEssayRowHandlers(panel, row, studentId);
+    }
+
+    /** Add, update or remove the parent Message button after a status change. */
+    function refreshParentMessageButton(row, studentId, rec) {
+        const cell = row.querySelector('.classroom-essay-student-cell');
+        if (!cell) {
+            return;
+        }
+        const old = cell.querySelector('[data-action="copy-essay-parent-msg"]');
+        if (old) {
+            old.remove();
+        }
+        const entry = getStudents().find((e) => e && e.student && e.student.id === studentId);
+        const html = entry ? buildParentMessageButton(entry, parentMessageKind(rec)) : '';
+        if (!html) {
+            return;
+        }
+        cell.insertAdjacentHTML('beforeend', html);
+        const btn = cell.querySelector('[data-action="copy-essay-parent-msg"]');
+        if (btn) {
+            btn.addEventListener('click', () => {
+                copyEssayParentMessage(studentId, btn.getAttribute('data-kind'));
+            });
+        }
     }
 
     function bindSelectionControls(panel, rowsMount, visibleStudents) {
@@ -4795,7 +4870,7 @@
                     <input type="checkbox" class="classroom-essay-select" data-student-id="${escapeHtml(sid)}" aria-label="${escapeHtml(t('classroomEssayBatchSelectCol'))}"${checked}${disabled} />
                 </td>
                 <td class="classroom-sheet-col-index">${index + 1}</td>
-                <td class="classroom-sheet-col-student">${identity}</td>
+                <td class="classroom-sheet-col-student"><div class="classroom-essay-student-cell">${identity}${buildParentMessageButton(entry, parentMessageKind(rec))}</div></td>
                 <td class="classroom-sheet-col-status">${buildStatusCell(sid, editable)}</td>
                 <td class="classroom-sheet-col-due">${buildDueCell(sid)}</td>
                 <td class="classroom-sheet-col-submitted">${formatSubmittedAtCell(rec)}</td>
@@ -4805,6 +4880,12 @@
             </tr>`;
             })
             .join('');
+
+        rowsMount.querySelectorAll('[data-action="copy-essay-parent-msg"]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                copyEssayParentMessage(btn.getAttribute('data-student-id'), btn.getAttribute('data-kind'));
+            });
+        });
 
         bindSelectionControls(panel, rowsMount, filtered);
 

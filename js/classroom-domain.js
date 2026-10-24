@@ -4002,7 +4002,9 @@
             teacherEvalDueDate: normalizeStr(raw.teacherEvalDueDate),
             records,
             authorUserId: normalizeStr(raw.authorUserId),
-            updatedAt: normalizeStr(raw.updatedAt)
+            updatedAt: normalizeStr(raw.updatedAt),
+            // Debate Rec: when a TMS attendance check last covered this Day 4 (even if nobody was absent).
+            ...(normalizeStr(raw.debateRecCheckedAt) ? { debateRecCheckedAt: normalizeStr(raw.debateRecCheckedAt) } : {})
         };
     }
 
@@ -9831,6 +9833,18 @@
             .sort((a, b) => compareDateStr(a.date, b.date));
     }
 
+    /** True when a TMS attendance check has covered this Day 4 submission. */
+    function debateRecDayChecked(submission) {
+        if (!submission) {
+            return false;
+        }
+        if (normalizeStr(submission.debateRecCheckedAt)) {
+            return true;
+        }
+        // Checks made before the Day 4 marker existed left a time on flagged records.
+        return (submission.records || []).some((r) => r && normalizeStr(r.debateRecCheckedAt));
+    }
+
     /** One TMS attendance status → Debate Rec status ('' = present / nothing to do). */
     function debateRecStatusFromTms(tmsStatus) {
         const s = normalizeStr(tmsStatus).replace(/\s+/g, '');
@@ -9929,6 +9943,10 @@
                 : blankDebateRecSubmission(classData.id, day, opts.newSubmissionId);
             const records = submission.records;
             let touched = false;
+            if (students.some((entry) => entry && entry.student && byStudent.has(normalizeStr(entry.student.id)))) {
+                submission.debateRecCheckedAt = nowIso;
+                touched = true;
+            }
 
             students.forEach((entry) => {
                 const sid = normalizeStr(entry && entry.student && entry.student.id);
@@ -10081,13 +10099,19 @@
      * "Not checked" = active student on a past Day 4 with no Debate Rec status and
      * no TMS data loaded this session.
      */
+    /**
+     * Table rows + counts for one class: the full active roster for every past Day 4.
+     * A student with no Debate Rec status shows as 'present' (Recorded in class)
+     * once TMS was checked for that Day 4, otherwise 'not_checked'.
+     * Rows carry displayStatus; rec.debateRecStatus stays the stored status.
+     */
     function computeDebateRecView(appData, classId, tmsAttendanceByStudentId, options) {
         const opts = options || {};
         const today = normalizeStr(opts.todayIso) || todayISO();
-        const byStudent = tmsAttendanceByStudentId instanceof Map ? tmsAttendanceByStudentId : new Map();
         const counts = {
             not_recorded: 0,
             needs_confirmation: 0,
+            present: 0,
             recorded: 0,
             received: 0,
             exempt: 0,
@@ -10103,29 +10127,31 @@
         const dayCounts = {};
         days.forEach((day) => {
             const past = compareDateStr(day.date, today) <= 0;
-            const perDay = { open: 0, resolved: 0, notChecked: 0, past };
             const submission = findEssaySubmission(appData.essaySubmissions, classData.id, day.rowId);
+            const checked = debateRecDayChecked(submission);
+            const perDay = { open: 0, resolved: 0, notChecked: 0, past, checked };
+            dayCounts[day.rowId] = perDay;
+            if (!past) {
+                return;
+            }
             students.forEach((entry) => {
                 const student = entry && entry.student;
                 if (!student || !student.id) {
                     return;
                 }
                 const raw = getEssayRecordForStudent(submission, student.id);
-                const rec = raw ? normalizeDebateRecFields(raw) : null;
-                if (rec && rec.debateRecStatus) {
-                    counts[rec.debateRecStatus] += 1;
-                    if (rec.debateRecStatus === 'not_recorded' || rec.debateRecStatus === 'needs_confirmation') {
-                        perDay.open += 1;
-                    } else {
-                        perDay.resolved += 1;
-                    }
-                    rows.push({ day, student, cohortName: entry.cohortName || '', rec });
-                } else if (past && !byStudent.has(normalizeStr(student.id)) && !(rec && rec.debateRecCheckedAt)) {
-                    counts.not_checked += 1;
+                const rec = normalizeDebateRecFields(raw || {});
+                const displayStatus = rec.debateRecStatus || (checked ? DEBATE_REC_PRESENT : 'not_checked');
+                counts[displayStatus] += 1;
+                if (displayStatus === 'not_checked') {
                     perDay.notChecked += 1;
+                } else if (DEBATE_REC_OPEN_STATUSES.includes(displayStatus)) {
+                    perDay.open += 1;
+                } else {
+                    perDay.resolved += 1;
                 }
+                rows.push({ day, student, cohortName: entry.cohortName || '', rec, displayStatus, dayChecked: checked });
             });
-            dayCounts[day.rowId] = perDay;
         });
         rows.sort((a, b) => {
             const byDate = compareDateStr(a.day.date, b.day.date);
@@ -10214,9 +10240,12 @@
     }
 
     /** Status shown in the report for one roster seat on one Day 4. */
-    function debateRecReportStatus(rec) {
+    function debateRecReportStatus(rec, dayChecked) {
         const status = rec ? normalizeDebateRecFields(rec).debateRecStatus : '';
-        return status || DEBATE_REC_PRESENT;
+        if (status) {
+            return status;
+        }
+        return dayChecked === false ? 'not_checked' : DEBATE_REC_PRESENT;
     }
 
     function debateRecShowMatches(show, status) {
@@ -10225,7 +10254,7 @@
             return open;
         }
         if (show === 'completed') {
-            return !open;
+            return !open && status !== 'not_checked';
         }
         return true;
     }
@@ -10261,9 +10290,14 @@
                 .filter((day) => !f.month || yearMonthKey(day.date) === f.month)
                 .map((day) => {
                     const sub = findEssaySubmission(appData.essaySubmissions, classData.id, day.rowId);
+                    const dayChecked = debateRecDayChecked(sub);
                     let open = 0;
+                    let notChecked = 0;
                     students.forEach((e) => {
-                        const st = debateRecReportStatus(getEssayRecordForStudent(sub, e.student.id));
+                        const st = debateRecReportStatus(getEssayRecordForStudent(sub, e.student.id), dayChecked);
+                        if (st === 'not_checked') {
+                            notChecked += 1;
+                        }
                         if (DEBATE_REC_OPEN_STATUSES.includes(st)) {
                             open += 1;
                         }
@@ -10275,8 +10309,10 @@
                         month: yearMonthKey(day.date),
                         dateSource: day.dateSource,
                         total: students.length,
-                        completed: students.length - open,
-                        open
+                        completed: students.length - open - notChecked,
+                        open,
+                        notChecked,
+                        checked: dayChecked
                     };
                 });
             if (entries.length) {
@@ -10320,10 +10356,11 @@
                 .filter((day) => rowIds.has(day.rowId))
                 .map((day) => {
                     const sub = findEssaySubmission(appData.essaySubmissions, classData.id, day.rowId);
+                    const dayChecked = debateRecDayChecked(sub);
                     const rows = students.map((e, idx) => {
                         const raw = getEssayRecordForStudent(sub, e.student.id);
                         const rec = raw ? normalizeDebateRecFields(raw) : normalizeDebateRecFields({});
-                        const status = debateRecReportStatus(raw);
+                        const status = debateRecReportStatus(raw, dayChecked);
                         return {
                             rosterIndex: idx + 1,
                             studentId: e.student.id,
@@ -10338,7 +10375,7 @@
                             updatedAt: rec.debateRecUpdatedAt
                         };
                     }).filter((row) => debateRecShowMatches(show, row.status));
-                    return { rowId: day.rowId, date: day.date, dateSource: day.dateSource, students: rows };
+                    return { rowId: day.rowId, date: day.date, dateSource: day.dateSource, checked: dayChecked, students: rows };
                 })
                 .filter((a) => a.students.length);
             if (!assignments.length) {
@@ -10709,6 +10746,7 @@
         debateRecHomeroomUserId,
         debateRecReportFilterOptions,
         debateRecReportStatus,
+        debateRecDayChecked,
         listDebateRecReportEntries,
         buildDebateRecClassSummary,
         isHomeroomTeacherForClass,

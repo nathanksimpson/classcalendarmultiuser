@@ -19,7 +19,7 @@
 
     let hooks = null;
     let classId = '';
-    let selectedRowId = ''; // '' = all Day 4 dates
+    let selectedRowId = null; // null = pick the latest past Day 4, '' = all Day 4 dates
     let panelRef = null;
     let mountEventsBound = false;
     let contextSubscribed = false;
@@ -45,7 +45,9 @@
         needs_confirmation: { cls: 'debate-rec-status--confirm', key: 'debateRecStatusNeedsConfirmation' },
         recorded: { cls: 'debate-rec-status--recorded', key: 'debateRecStatusRecorded' },
         received: { cls: 'debate-rec-status--received', key: 'debateRecStatusReceived' },
-        exempt: { cls: 'debate-rec-status--exempt', key: 'debateRecStatusExempt' }
+        exempt: { cls: 'debate-rec-status--exempt', key: 'debateRecStatusExempt' },
+        present: { cls: 'debate-rec-status--recorded', key: 'debateRecStatusPresent' },
+        not_checked: { cls: 'debate-rec-status--not-checked', key: 'debateRecStatusNotChecked' }
     };
 
     const MSG_ICON = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
@@ -56,7 +58,9 @@
         needs_confirmation: ['recorded', 'not_recorded'],
         recorded: ['recorded', 'not_recorded', 'exempt'],
         received: ['received', 'not_recorded', 'exempt'],
-        exempt: ['exempt', 'not_recorded', 'received']
+        exempt: ['exempt', 'not_recorded', 'received'],
+        present: ['not_recorded', 'exempt'],
+        not_checked: ['recorded', 'not_recorded', 'exempt']
     };
 
     function domain() {
@@ -403,7 +407,9 @@
             setBy: t('debateRecSetBy'),
             noStudents: t('debateRecReportNoRows'),
             noStudentsInSection: t('debateRecReportNoRowsClass'),
+            notCheckedNote: t('debateRecReportNotCheckedNote'),
             statusLabels: {
+                not_checked: t('debateRecStatusNotChecked'),
                 not_recorded: t('debateRecStatusNotRecorded'),
                 needs_confirmation: t('debateRecStatusNeedsConfirmation'),
                 present: t('debateRecStatusPresent'),
@@ -926,6 +932,7 @@
                 ${tile('not_recorded', 'debateRecStatusNotRecorded', 'not-recorded')}
                 ${tile('needs_confirmation', 'debateRecStatusNeedsConfirmation', 'confirm')}
                 ${tile('received', 'debateRecStatusReceived', 'received')}
+                ${tile('present', 'debateRecStatusPresent', 'recorded')}
                 ${tile('recorded', 'debateRecStatusRecorded', 'recorded')}
                 ${tile('exempt', 'debateRecStatusExempt', 'exempt')}
                 ${tile('not_checked', 'debateRecStatusNotChecked', 'not-checked')}
@@ -960,8 +967,8 @@
         return `<span class="debate-rec-status ${meta.cls}">${escapeHtml(t(meta.key))}</span>`;
     }
 
-    function choiceButtons(rowId, studentId, rec, editable) {
-        const status = rec.debateRecStatus;
+    function choiceButtons(rowId, studentId, rec, editable, displayStatus) {
+        const status = displayStatus || rec.debateRecStatus;
         const choices = CHOICES_FOR[status] || [];
         const disabled = editable ? '' : ' disabled';
         return choices.map((choice) => {
@@ -979,9 +986,7 @@
         const editable = canEdit();
         const rows = view.rows.filter((r) => !selectedRowId || r.day.rowId === selectedRowId);
         if (!rows.length) {
-            const msg = view.days.length
-                ? (Number(view.counts.not_checked) ? t('debateRecEmptyNotChecked') : t('debateRecEmptyAllClear'))
-                : '';
+            const msg = view.days.length ? t('debateRecEmptyNoPastDay4') : '';
             mount.innerHTML = msg
                 ? `<tr><td colspan="6" class="section-hint debate-rec-empty">${escapeHtml(msg)}</td></tr>`
                 : '';
@@ -995,7 +1000,8 @@
             const nameText = r.student.nameEn
                 ? `${escapeHtml(r.student.name)} <span class="classroom-student-name-en">${escapeHtml(r.student.nameEn)}</span>`
                 : escapeHtml(r.student.name);
-            const msgBtn = rec.debateRecStatus === 'not_recorded'
+            const shown = r.displayStatus || rec.debateRecStatus;
+            const msgBtn = shown === 'not_recorded'
                 ? ` <button type="button" class="btn btn-outline btn-small debate-rec-msg-btn" data-action="copy-parent-msg" data-row-id="${escapeAttr(rowId)}" data-student-id="${escapeAttr(sid)}" title="${escapeAttr(t('debateRecParentMsgTitle'))}" aria-label="${escapeAttr(tf('debateRecParentMsgAria', { name: r.student.nameEn || r.student.name }))}">${MSG_ICON}${escapeHtml(t('debateRecParentMsgBtn'))}</button>`
                 : '';
             const name = `<div class="debate-rec-student-cell"><span>${nameText}</span>${msgBtn}</div>`;
@@ -1008,21 +1014,21 @@
                     name: teacherName(rec.debateRecUpdatedBy) || t('debateRecTeacher'),
                     date: formatShortDate(String(rec.debateRecUpdatedAt || '').slice(0, 10))
                 }))}</div>`
-                : `<div class="debate-rec-setby section-hint">${escapeHtml(t('debateRecFromTmsHint'))}</div>`;
+                : `<div class="debate-rec-setby section-hint">${escapeHtml(shown === 'not_checked' ? t('debateRecNotCheckedHint') : t('debateRecFromTmsHint'))}</div>`;
             const resetBtn = isTeacher
                 ? `<button type="button" class="btn btn-outline btn-small debate-rec-reset" data-action="reset" data-row-id="${escapeAttr(rowId)}" data-student-id="${escapeAttr(sid)}" title="${escapeAttr(t('debateRecResetHint'))}"${editable ? '' : ' disabled'}>↺ ${escapeHtml(t('debateRecResetToTms'))}</button>`
                 : '';
             const focus = focusStudentId && focusStudentId === sid ? ' debate-rec-row--focus' : '';
             const day = r.day;
             const dateSrc = day.dateSource === 'tms' ? t('debateRecDateFromTms') : t('debateRecDateFromSyllabus');
-            return `<tr class="debate-rec-row debate-rec-row--${escapeAttr(rec.debateRecStatus)}${focus}" data-row-id="${escapeAttr(rowId)}" data-student-id="${escapeAttr(sid)}">
+            return `<tr class="debate-rec-row debate-rec-row--${escapeAttr(shown)}${focus}" data-row-id="${escapeAttr(rowId)}" data-student-id="${escapeAttr(sid)}">
                 <td class="classroom-sheet-col-select"><input type="checkbox" class="debate-rec-select" data-key="${escapeAttr(key)}" ${selectedKeys.has(key) ? 'checked' : ''}${editable ? '' : ' disabled'} aria-label="${escapeAttr(r.student.name)}" /></td>
                 <td class="classroom-sheet-col-student">${name}</td>
                 <td class="debate-rec-col-date">${escapeHtml(formatShortDate(day.date))} <span class="section-hint">(${escapeHtml(dateSrc)})</span></td>
                 <td class="debate-rec-col-tms">${tmsLine}</td>
                 <td class="classroom-sheet-col-status debate-rec-col-status">
-                    <div class="debate-rec-status-line">${statusChip(rec.debateRecStatus)}</div>
-                    <div class="debate-rec-choices" role="group" aria-label="${escapeAttr(t('debateRecColRecording'))}">${choiceButtons(rowId, sid, rec, editable)}${resetBtn}</div>
+                    <div class="debate-rec-status-line">${statusChip(shown)}</div>
+                    <div class="debate-rec-choices" role="group" aria-label="${escapeAttr(t('debateRecColRecording'))}">${choiceButtons(rowId, sid, rec, editable, shown)}${resetBtn}</div>
                     ${who}
                 </td>
                 <td class="classroom-sheet-col-notes"><input type="text" class="field-control debate-rec-note" data-row-id="${escapeAttr(rowId)}" data-student-id="${escapeAttr(sid)}" value="${escapeAttr(rec.debateRecNote || '')}" placeholder="${escapeAttr(t('debateRecNotePlaceholder'))}"${editable ? '' : ' disabled'} /></td>
@@ -1035,6 +1041,25 @@
             }
             focusStudentId = '';
         }
+    }
+
+    /** Warn when a shown Day 4 has not been checked against TMS yet. */
+    function renderSyncWarning(view) {
+        const el = panelRef.querySelector('#classroomDebateRecSyncWarn');
+        if (!el) {
+            return;
+        }
+        const unchecked = view.days.filter((day) => {
+            const c = view.dayCounts[day.rowId] || {};
+            return c.past && !c.checked && (!selectedRowId || selectedRowId === day.rowId);
+        });
+        if (!unchecked.length) {
+            el.hidden = true;
+            el.textContent = '';
+            return;
+        }
+        el.hidden = false;
+        el.textContent = tf('debateRecSyncWarn', { dates: unchecked.map((day) => formatShortDate(day.date)).join(', ') });
     }
 
     function renderBatch() {
@@ -1066,7 +1091,11 @@
         panelRef = panel;
         const view = getView();
         if (selectedRowId && !view.days.some((day) => day.rowId === selectedRowId)) {
-            selectedRowId = '';
+            selectedRowId = null;
+        }
+        if (selectedRowId === null) {
+            const past = view.days.filter((day) => (view.dayCounts[day.rowId] || {}).past);
+            selectedRowId = past.length ? past[past.length - 1].rowId : '';
         }
         const validKeys = new Set(view.rows.map((r) => `${r.day.rowId}|${r.student.id}`));
         Array.from(selectedKeys).forEach((k) => {
@@ -1079,6 +1108,7 @@
         renderToolbarState();
         renderReportsMenu();
         renderRows(view);
+        renderSyncWarning(view);
         renderBatch();
         const selectAll = panel.querySelector('#classroomDebateRecSelectAll');
         if (selectAll) {
@@ -1229,7 +1259,7 @@
                 return;
             }
             classId = nextClassId;
-            selectedRowId = '';
+            selectedRowId = null;
             selectedKeys.clear();
             await loadAttendance();
             if (seq !== contextSeq) {
@@ -1253,7 +1283,11 @@
         } else if (options && options.classId && global.CCPClassroomZoneContext && global.CCPClassroomZoneContext.setActiveClassId) {
             global.CCPClassroomZoneContext.setActiveClassId(options.classId);
         }
-        classId = resolveClassId(options);
+        const nextClassId = resolveClassId(options);
+        if (nextClassId !== classId) {
+            selectedRowId = null;
+        }
+        classId = nextClassId;
         focusStudentId = (options && options.focusStudentId) || '';
         selectedKeys.clear();
         render();
