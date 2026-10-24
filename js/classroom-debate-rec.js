@@ -30,16 +30,12 @@
     let reportsMenuOpen = false;
     let reportModalBound = false;
     let reportFilters = null;
-    const reportDeselected = new Set(); // class ids unticked in the all-classes report
+    const reportDeselected = new Set(); // `${classId}|${rowId}` entries unticked in the class summary
     const REPORT_FILTER_DEFAULTS = {
-        search: '',
-        month: '',
-        grade: '',
-        levelLabel: '',
         homeroomUserId: '',
+        month: '',
         classScope: 'mine',
-        show: 'open',
-        withItemsOnly: true
+        show: 'all'
     };
     let docClickBound = false;
     const selectedKeys = new Set(); // `${rowId}|${studentId}`
@@ -382,7 +378,7 @@
         }
     }
 
-    // ── Reports (print / copy) ──────────────────────────────────────────
+    // ── Reports (print / copy) — Essays class summary layout ─────────────
 
     function printApi() {
         return global.CCPClassroomDebateRecPrint;
@@ -392,37 +388,28 @@
         return {
             title: t('debateRecReportTitle'),
             generatedAt: t('debateRecReportPrinted'),
-            legend: t('debateRecReportLegend'),
+            hrHeading: t('debateRecReportHrHeading'),
+            noHomeroom: t('debateRecReportNoHomeroom'),
             dayHeading: t('debateRecReportDayHeading'),
-            homeroom: t('debateRecReportHomeroom'),
+            dayCounts: t('debateRecReportDayCounts'),
             dateFromTms: t('debateRecDateFromTms'),
             dateFromSyllabus: t('debateRecDateFromSyllabus'),
-            colDone: t('debateRecReportColDone'),
             colStudent: t('classroomColStudent'),
+            colStatus: t('debateRecColRecording'),
             colTms: t('debateRecColTms'),
-            colRecording: t('debateRecColRecording'),
-            colNote: t('classroomColNotes'),
+            colNotes: t('classroomColNotes'),
             setBy: t('debateRecSetBy'),
-            teacher: t('debateRecTeacher'),
-            fromTms: t('debateRecFromTmsHint'),
-            noRows: t('debateRecReportNoRows'),
-            noRowsClass: t('debateRecReportNoRowsClass'),
-            status: {
+            noStudents: t('debateRecReportNoRows'),
+            noStudentsInSection: t('debateRecReportNoRowsClass'),
+            statusLabels: {
                 not_recorded: t('debateRecStatusNotRecorded'),
                 needs_confirmation: t('debateRecStatusNeedsConfirmation'),
+                present: t('debateRecStatusPresent'),
                 recorded: t('debateRecStatusRecorded'),
                 received: t('debateRecStatusReceived'),
                 exempt: t('debateRecStatusExempt')
             }
         };
-    }
-
-    function reportGroups(classIds, openOnly, month) {
-        return domain().listDebateRecReportGroups(getAppData(), classIds, {
-            openOnly,
-            month: month || '',
-            nameForUser: teacherName
-        });
     }
 
     function calendarName() {
@@ -466,28 +453,51 @@
         }
     }
 
-    /** Print this class: every flagged student per Day 4, resolved included. */
-    function printClassReport() {
+    function summaryGroups(keys, show) {
+        return domain().buildDebateRecClassSummary(getAppData(), keys, {
+            show: show || 'all',
+            nameForUser: teacherName
+        });
+    }
+
+    /** All past Day 4 keys for the current class. */
+    function currentClassKeys() {
+        const d = domain();
+        const classData = getClassData();
+        if (!classData) {
+            return [];
+        }
+        return d.listDebateRecReportEntries(getAppData(), [classData], { show: 'all' }, {})
+            .reduce((keys, c) => keys.concat(c.entries.map((e) => e.key)), []);
+    }
+
+    function printGroups(title, groups, scopeNote) {
         const api = printApi();
         if (!api) {
             return;
         }
-        const groups = reportGroups(classId ? [classId] : [], false);
-        if (!groups.some((g) => g.days.length)) {
+        if (!groups.length) {
             if (hooks.showToast) {
                 hooks.showToast(t('debateRecReportNoRows'), true);
             }
             return;
         }
-        const classData = getClassData();
-        const title = tf('debateRecReportTitleClass', { name: classData ? classData.name : '' });
         openPrintDocument(title, api.renderDocumentHtml({
             title,
             calendarName: calendarName(),
             generatedAt: domain().todayISO(),
-            scopeNote: t('debateRecReportScopeClass'),
+            scopeNote,
             groups
         }, reportLabels()), api.PRINT_STYLES);
+    }
+
+    function printClassReport() {
+        const classData = getClassData();
+        printGroups(
+            tf('debateRecReportTitleClass', { name: classData ? classData.name : '' }),
+            summaryGroups(currentClassKeys(), 'all'),
+            ''
+        );
     }
 
     async function copyGroups(groups) {
@@ -495,7 +505,8 @@
         if (!api) {
             return;
         }
-        const count = (groups || []).reduce((n, g) => n + g.days.reduce((m, day) => m + day.rows.length, 0), 0);
+        const count = (groups || []).reduce((n, g) => n + g.classes.reduce((m, c) =>
+            m + c.assignments.reduce((k, a) => k + a.students.length, 0), 0), 0);
         if (!count) {
             if (hooks.showToast) {
                 hooks.showToast(t('debateRecReportNoRows'), true);
@@ -527,11 +538,11 @@
         }
     }
 
-    function copyOpenList() {
-        return copyGroups(reportGroups(classId ? [classId] : [], true));
+    function copyClassList() {
+        return copyGroups(summaryGroups(currentClassKeys(), 'all'));
     }
 
-    // ── All-classes report window (filters like the Essays summary) ─────
+    // ── Class summary window (same as the Essays class summary) ─────────
 
     function loadReportFilters() {
         if (reportFilters) {
@@ -542,35 +553,35 @@
             ? ui.debateRecReportFilters
             : {};
         reportFilters = Object.assign({}, REPORT_FILTER_DEFAULTS, saved);
+        delete reportFilters.deselected;
         reportDeselected.clear();
-        (Array.isArray(saved.deselectedClassIds) ? saved.deselectedClassIds : []).forEach((id) => reportDeselected.add(id));
+        (Array.isArray(saved.deselected) ? saved.deselected : []).forEach((k) => reportDeselected.add(k));
         return reportFilters;
     }
 
     function saveReportFilters() {
         if (hooks && typeof hooks.setUiPref === 'function') {
             hooks.setUiPref('debateRecReportFilters', Object.assign({}, reportFilters, {
-                deselectedClassIds: Array.from(reportDeselected)
+                deselected: Array.from(reportDeselected)
             }));
         }
     }
 
     function reportVisibleClasses() {
-        const data = getAppData();
         const d = domain();
-        return (data.classes || []).filter((c) => c && d.classUsesDebateTeamAssignments(c));
+        return (getAppData().classes || []).filter((c) => c && d.classUsesDebateTeamAssignments(c));
     }
 
-    function reportFilteredClasses() {
-        return domain().filterDebateRecReportClasses(getAppData(), reportVisibleClasses(), loadReportFilters(), {
+    function reportEntries() {
+        return domain().listDebateRecReportEntries(getAppData(), reportVisibleClasses(), loadReportFilters(), {
             isMine: (c) => canEdit(c)
         });
     }
 
-    function reportSelectedGroups() {
-        const f = loadReportFilters();
-        const ids = reportFilteredClasses().map((c) => c.id).filter((id) => !reportDeselected.has(id));
-        return reportGroups(ids, f.show !== 'all', f.month).filter((g) => g.days.length);
+    function selectedReportKeys() {
+        return reportEntries()
+            .reduce((keys, c) => keys.concat(c.entries.map((e) => e.key)), [])
+            .filter((k) => !reportDeselected.has(k));
     }
 
     function formatMonthLabel(ym) {
@@ -601,31 +612,9 @@
 
     function reportScopeNote() {
         const f = loadReportFilters();
-        const parts = [];
-        parts.push(f.month ? formatMonthLabel(f.month) : t('debateRecReportAllMonths'));
-        parts.push(f.show === 'all' ? t('debateRecReportShowAll') : t('debateRecReportShowOpen'));
-        if (f.grade) {
-            parts.push(f.grade);
-        }
-        if (f.levelLabel) {
-            parts.push(f.levelLabel);
-        }
-        if (f.homeroomUserId) {
-            parts.push(tf('debateRecReportHomeroom', { name: teacherName(f.homeroomUserId) || f.homeroomUserId }));
-        }
+        const parts = [f.month ? formatMonthLabel(f.month) : t('debateRecReportAllMonths')];
+        parts.push(f.show === 'open' ? t('debateRecReportShowOpen') : f.show === 'completed' ? t('debateRecReportShowCompleted') : t('debateRecReportShowAll'));
         return parts.join(' · ');
-    }
-
-    function ensureReportPreviewStyles() {
-        const api = printApi();
-        if (!api || typeof document === 'undefined' || !document.head || document.getElementById('debateRecPrintPreviewStyles')) {
-            return;
-        }
-        const st = document.createElement('style');
-        st.id = 'debateRecPrintPreviewStyles';
-        // Report classes are all dr-print-*, so these rules only touch the preview.
-        st.textContent = api.PRINT_STYLES.replace(/@page[^}]*}/g, '');
-        document.head.appendChild(st);
     }
 
     function renderReportModal() {
@@ -633,81 +622,64 @@
         if (!modal) {
             return;
         }
-        const d = domain();
         const f = loadReportFilters();
-        const data = getAppData();
-        const opts = d.debateRecReportFilterOptions(data, reportVisibleClasses());
-        const all = { value: '', label: t('debateRecReportFilterAll') };
+        const opts = domain().debateRecReportFilterOptions(getAppData(), reportVisibleClasses());
+        const homerooms = opts.homerooms
+            .map((id) => ({ value: id, label: teacherName(id) || id }))
+            .sort((a, b) => a.label.localeCompare(b.label, 'ko'));
+        if (opts.noHomeroom) {
+            homerooms.push({ value: '__none__', label: t('debateRecReportNoHomeroom') });
+        }
+        fillSelect(modal.querySelector('#debateRecReportHomeroom'),
+            [{ value: '', label: t('debateRecReportFilterAll') }].concat(homerooms), f.homeroomUserId);
         fillSelect(modal.querySelector('#debateRecReportMonth'),
             [{ value: '', label: t('debateRecReportAllMonths') }].concat(opts.months.map((m) => ({ value: m, label: formatMonthLabel(m) }))), f.month);
-        fillSelect(modal.querySelector('#debateRecReportGrade'), [all].concat(opts.grades.map((g) => ({ value: g, label: g }))), f.grade);
-        fillSelect(modal.querySelector('#debateRecReportLevel'), [all].concat(opts.levels.map((l) => ({ value: l, label: l }))), f.levelLabel);
-        fillSelect(modal.querySelector('#debateRecReportHomeroom'),
-            [all].concat(opts.homerooms.map((id) => ({ value: id, label: teacherName(id) || id }))), f.homeroomUserId);
         fillSelect(modal.querySelector('#debateRecReportScope'), [
             { value: 'mine', label: t('debateRecReportScopeMine') },
             { value: 'all', label: t('debateRecReportScopeAllClasses') },
             { value: 'other', label: t('debateRecReportScopeOther') }
         ], f.classScope);
         fillSelect(modal.querySelector('#debateRecReportShow'), [
+            { value: 'all', label: t('debateRecReportShowAll') },
             { value: 'open', label: t('debateRecReportShowOpen') },
-            { value: 'all', label: t('debateRecReportShowAll') }
+            { value: 'completed', label: t('debateRecReportShowCompleted') }
         ], f.show);
-        const search = modal.querySelector('#debateRecReportSearch');
-        if (search && search.value !== f.search) {
-            search.value = f.search;
-        }
-        const withItems = modal.querySelector('#debateRecReportWithItems');
-        if (withItems) {
-            withItems.checked = Boolean(f.withItemsOnly);
-        }
-        renderReportClassList();
+        renderReportList();
     }
 
-    function renderReportClassList() {
+    function renderReportList() {
         const modal = document.getElementById('debateRecReportModal');
         if (!modal) {
             return;
         }
-        const d = domain();
-        const f = loadReportFilters();
-        const data = getAppData();
-        const classes = reportFilteredClasses();
         const listEl = modal.querySelector('#debateRecReportClassList');
+        const grouped = reportEntries();
         if (listEl) {
-            listEl.innerHTML = classes.length
-                ? classes.map((c) => {
-                    const groups = reportGroups([c.id], f.show !== 'all', f.month);
-                    const n = groups.length ? groups[0].days.reduce((m, day) => m + day.rows.length, 0) : 0;
-                    const meta = [c.grade, d.resolveClassLevelLabel(c), teacherName(d.debateRecHomeroomUserId(data, c))]
-                        .filter(Boolean).join(' · ');
-                    const checked = reportDeselected.has(c.id) ? '' : ' checked';
-                    return `<label class="debate-rec-report-class-row checkbox-label">
-                        <input type="checkbox" data-report-class-id="${escapeAttr(c.id)}"${checked} />
-                        <span class="debate-rec-report-class-name">${escapeHtml(c.name || c.id)}${meta ? ` <span class="section-hint">(${escapeHtml(meta)})</span>` : ''}</span>
-                        <span class="debate-rec-report-class-count${n ? ' has-items' : ''}">${n}</span>
-                    </label>`;
+            listEl.innerHTML = grouped.length
+                ? grouped.map((c) => {
+                    const rows = c.entries.map((e) => {
+                        const checked = reportDeselected.has(e.key) ? '' : ' checked';
+                        const src = e.dateSource === 'tms' ? t('debateRecDateFromTms') : t('debateRecDateFromSyllabus');
+                        const label = `${formatMonthLabel(e.month)} · ${tf('debateRecReportDayHeading', { date: formatShortDate(e.date) })} (${src})`;
+                        const hint = tf('debateRecReportEntryHint', { complete: e.completed, total: e.total, open: e.open });
+                        return `<label class="classroom-essay-progress-assignment-row">
+                            <input type="checkbox" data-report-key="${escapeAttr(e.key)}"${checked} />
+                            <span>${escapeHtml(label)} <span class="section-hint">(${escapeHtml(hint)})</span></span>
+                        </label>`;
+                    }).join('');
+                    return `<div class="classroom-essay-progress-class-group">
+                        <h4 class="classroom-essay-progress-class-name">${escapeHtml(c.className)}</h4>
+                        ${rows}
+                    </div>`;
                 }).join('')
                 : `<p class="section-hint">${escapeHtml(t('debateRecReportNoClasses'))}</p>`;
         }
-        const groups = reportSelectedGroups();
-        const students = groups.reduce((n, g) => n + g.days.reduce((m, day) => m + day.rows.length, 0), 0);
-        const countEl = modal.querySelector('#debateRecReportCount');
-        if (countEl) {
-            const selectedCount = classes.filter((c) => !reportDeselected.has(c.id)).length;
-            countEl.textContent = tf('debateRecReportCountLine', { classes: selectedCount, total: classes.length, students });
-        }
+        const groups = summaryGroups(selectedReportKeys(), loadReportFilters().show);
         const previewEl = modal.querySelector('#debateRecReportPreview');
         if (previewEl) {
-            ensureReportPreviewStyles();
-            previewEl.innerHTML = groups.length && printApi()
-                ? printApi().renderDocumentHtml({
-                    title: t('debateRecReportTitleAll'),
-                    calendarName: calendarName(),
-                    generatedAt: domain().todayISO(),
-                    scopeNote: reportScopeNote(),
-                    groups
-                }, reportLabels())
+            const api = printApi();
+            previewEl.innerHTML = groups.length && api
+                ? api.renderDocumentHtml({ groups }, reportLabels())
                 : `<p class="section-hint">${escapeHtml(t('debateRecReportNoRows'))}</p>`;
         }
         ['#debateRecReportPrintBtn', '#debateRecReportCopyBtn'].forEach((sel) => {
@@ -752,48 +724,38 @@
             return;
         }
         reportModalBound = true;
+        const val = (id) => {
+            const el = modal.querySelector(id);
+            return el ? el.value : '';
+        };
         const onFilter = () => {
             const f = loadReportFilters();
-            const val = (id) => {
-                const el = modal.querySelector(id);
-                return el ? el.value : '';
-            };
-            f.search = val('#debateRecReportSearch');
-            f.month = val('#debateRecReportMonth');
-            f.grade = val('#debateRecReportGrade');
-            f.levelLabel = val('#debateRecReportLevel');
             f.homeroomUserId = val('#debateRecReportHomeroom');
+            f.month = val('#debateRecReportMonth');
             f.classScope = val('#debateRecReportScope') || 'mine';
-            f.show = val('#debateRecReportShow') || 'open';
-            const withItems = modal.querySelector('#debateRecReportWithItems');
-            f.withItemsOnly = Boolean(withItems && withItems.checked);
+            f.show = val('#debateRecReportShow') || 'all';
             saveReportFilters();
-            renderReportClassList();
+            renderReportList();
         };
-        ['#debateRecReportMonth', '#debateRecReportGrade', '#debateRecReportLevel', '#debateRecReportHomeroom',
-            '#debateRecReportScope', '#debateRecReportShow', '#debateRecReportWithItems'].forEach((id) => {
+        ['#debateRecReportHomeroom', '#debateRecReportMonth', '#debateRecReportScope', '#debateRecReportShow'].forEach((id) => {
             const el = modal.querySelector(id);
             if (el) {
                 el.addEventListener('change', onFilter);
             }
         });
-        const search = modal.querySelector('#debateRecReportSearch');
-        if (search) {
-            search.addEventListener('input', onFilter);
-        }
         modal.addEventListener('change', (event) => {
-            const box = event.target instanceof Element ? event.target.closest('[data-report-class-id]') : null;
+            const box = event.target instanceof Element ? event.target.closest('[data-report-key]') : null;
             if (!box) {
                 return;
             }
-            const id = box.getAttribute('data-report-class-id');
+            const key = box.getAttribute('data-report-key');
             if (box.checked) {
-                reportDeselected.delete(id);
+                reportDeselected.delete(key);
             } else {
-                reportDeselected.add(id);
+                reportDeselected.add(key);
             }
             saveReportFilters();
-            renderReportClassList();
+            renderReportList();
         });
         const on = (id, fn) => {
             const el = modal.querySelector(id);
@@ -801,35 +763,23 @@
                 el.addEventListener('click', fn);
             }
         };
+        const visibleKeys = () => reportEntries().reduce((keys, c) => keys.concat(c.entries.map((e) => e.key)), []);
         on('#debateRecReportSelectAll', () => {
-            reportFilteredClasses().forEach((c) => reportDeselected.delete(c.id));
+            visibleKeys().forEach((k) => reportDeselected.delete(k));
             saveReportFilters();
-            renderReportClassList();
+            renderReportList();
         });
         on('#debateRecReportClearAll', () => {
-            reportFilteredClasses().forEach((c) => reportDeselected.add(c.id));
+            visibleKeys().forEach((k) => reportDeselected.add(k));
             saveReportFilters();
-            renderReportClassList();
+            renderReportList();
         });
         on('#debateRecReportClose', closeReportModal);
         on('#debateRecReportPrintBtn', () => {
-            const api = printApi();
-            const groups = reportSelectedGroups();
-            if (!api || !groups.length) {
-                return;
-            }
-            const title = t('debateRecReportTitleAll');
-            openPrintDocument(title, api.renderDocumentHtml({
-                title,
-                calendarName: calendarName(),
-                generatedAt: domain().todayISO(),
-                scopeNote: reportScopeNote(),
-                groups
-            }, reportLabels()), api.PRINT_STYLES);
+            printGroups(t('debateRecReportTitleAll'), summaryGroups(selectedReportKeys(), loadReportFilters().show), reportScopeNote());
         });
         on('#debateRecReportCopyBtn', () => {
-            const groups = reportSelectedGroups();
-            void copyGroups(groups);
+            void copyGroups(summaryGroups(selectedReportKeys(), loadReportFilters().show));
         });
         modal.addEventListener('click', (event) => {
             if (event.target === modal) {
@@ -850,7 +800,7 @@
                 <div class="classroom-essay-reports-dropdown" role="menu"${reportsMenuOpen ? '' : ' hidden'}>
                     <button type="button" class="classroom-essay-reports-item" data-report-action="print-class" role="menuitem"${classId ? '' : ' disabled'}>${escapeHtml(t('debateRecReportPrintClass'))}</button>
                     <button type="button" class="classroom-essay-reports-item" data-report-action="all-report" role="menuitem">${escapeHtml(t('debateRecReportAllClasses'))}</button>
-                    <button type="button" class="classroom-essay-reports-item" data-report-action="copy-open" role="menuitem"${classId ? '' : ' disabled'}>${escapeHtml(t('debateRecReportCopy'))}</button>
+                    <button type="button" class="classroom-essay-reports-item" data-report-action="copy-class" role="menuitem"${classId ? '' : ' disabled'}>${escapeHtml(t('debateRecReportCopy'))}</button>
                 </div>
             </div>`;
     }
@@ -1118,8 +1068,8 @@
                     printClassReport();
                 } else if (action === 'all-report') {
                     openReportModal();
-                } else if (action === 'copy-open') {
-                    void copyOpenList();
+                } else if (action === 'copy-class') {
+                    void copyClassList();
                 }
                 return;
             }
