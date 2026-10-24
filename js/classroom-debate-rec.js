@@ -846,7 +846,7 @@
         }
     }
 
-    function copyParentMessage(rowId, studentId) {
+    function copyParentMessage(rowId, studentId, lang) {
         const api = printApi();
         const view = getView();
         const row = view.rows.find((r) => r.day.rowId === rowId && r.student.id === studentId);
@@ -860,7 +860,7 @@
             className: classData ? classData.name : '',
             date: row.day.date,
             teacherName: teacherName(currentUserId())
-        });
+        }, lang === 'ko' ? 'ko' : 'en');
         copyText(text, tf('debateRecParentMsgCopied', { name: row.student.nameEn || row.student.name }));
     }
 
@@ -1001,8 +1001,9 @@
                 ? `${escapeHtml(r.student.name)} <span class="classroom-student-name-en">${escapeHtml(r.student.nameEn)}</span>`
                 : escapeHtml(r.student.name);
             const shown = r.displayStatus || rec.debateRecStatus;
+            const msgLangBtn = (lang, label) => `<button type="button" class="btn btn-outline btn-small debate-rec-msg-btn" data-action="copy-parent-msg" data-lang="${lang}" data-row-id="${escapeAttr(rowId)}" data-student-id="${escapeAttr(sid)}" title="${escapeAttr(t(lang === 'ko' ? 'parentMsgTitleKo' : 'parentMsgTitleEn'))}" aria-label="${escapeAttr(tf(lang === 'ko' ? 'parentMsgAriaKo' : 'parentMsgAriaEn', { name: r.student.nameEn || r.student.name }))}">${lang === 'en' ? MSG_ICON : ''}${escapeHtml(label)}</button>`;
             const msgBtn = shown === 'not_recorded'
-                ? ` <button type="button" class="btn btn-outline btn-small debate-rec-msg-btn" data-action="copy-parent-msg" data-row-id="${escapeAttr(rowId)}" data-student-id="${escapeAttr(sid)}" title="${escapeAttr(t('debateRecParentMsgTitle'))}" aria-label="${escapeAttr(tf('debateRecParentMsgAria', { name: r.student.nameEn || r.student.name }))}">${MSG_ICON}${escapeHtml(t('debateRecParentMsgBtn'))}</button>`
+                ? ` <span class="debate-rec-msg-group" role="group" aria-label="${escapeAttr(t('debateRecParentMsgTitle'))}">${msgLangBtn('en', 'English')}${msgLangBtn('ko', '한국어')}</span>`
                 : '';
             const name = `<div class="debate-rec-student-cell"><span>${nameText}</span>${msgBtn}</div>`;
             const tmsLine = rec.debateRecTmsStatus
@@ -1180,7 +1181,7 @@
             }
             const msgBtn = target.closest('[data-action="copy-parent-msg"]');
             if (msgBtn) {
-                copyParentMessage(msgBtn.getAttribute('data-row-id'), msgBtn.getAttribute('data-student-id'));
+                copyParentMessage(msgBtn.getAttribute('data-row-id'), msgBtn.getAttribute('data-student-id'), msgBtn.getAttribute('data-lang'));
                 return;
             }
             const resetBtn = target.closest('[data-action="reset"]');

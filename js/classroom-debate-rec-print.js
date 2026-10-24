@@ -197,9 +197,9 @@
     }
 
     /** Parent text for a missed Debate Day 4 recording (see classroom-parent-messages.js). */
-    function buildParentMessage(info) {
+    function buildParentMessage(info, lang) {
         const api = global.CCPParentMessages;
-        return api ? api.debateRecording(info) : '';
+        return api ? api.debateRecording(info, lang) : '';
     }
 
     global.CCPClassroomDebateRecPrint = {
