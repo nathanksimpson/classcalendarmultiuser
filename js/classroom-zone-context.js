@@ -90,7 +90,12 @@
         }
         const warnMonthRaw = String(ui.classroomZoneEssayWarnMonth || '').trim();
         const essayWarnMonth = /^\d{4}-\d{2}$/.test(warnMonthRaw) ? warnMonthRaw : '';
+        const recOnlyPref = ui.classroomZoneDebateRecOnly;
+        const recMonthRaw = String(ui.classroomZoneDebateRecMonth || '').trim();
         return {
+            // Debate Rec: "Has Debate Day 4" defaults on until the teacher turns it off.
+            debateRecOnly: !(recOnlyPref === false || recOnlyPref === '0'),
+            debateRecMonth: /^\d{4}-\d{2}$/.test(recMonthRaw) ? recMonthRaw : '',
             myClassesOnly: global.CCPClassScope
                 ? global.CCPClassScope.effectiveMine('classroom')
                 : ui.classroomZoneMyClassesOnly === true || ui.classroomZoneMyClassesOnly === '1',
@@ -164,10 +169,15 @@
             opts.essaysOnly = toggles.essaysOnly;
         }
         const api = global.CCPEssayClassFilter;
-        if (!api || !api.filterClassesForZoneContext) {
-            return base;
+        let list = api && api.filterClassesForZoneContext
+            ? api.filterClassesForZoneContext(base, opts, getFilterCtx())
+            : base;
+        const d = domain();
+        if (activeTabId === 'debate-rec' && toggles.debateRecOnly && d && d.listDebateRecordingDays) {
+            const data = getAppData();
+            list = list.filter((c) => c && !c.isEssayGroup && d.listDebateRecordingDays(data, c).length > 0);
         }
-        return api.filterClassesForZoneContext(base, opts, getFilterCtx());
+        return list;
     }
 
     function getActiveClassId() {
@@ -350,22 +360,33 @@
         return '';
     }
 
-    /** Debate Rec pills: not recorded (red) / needs confirmation (amber). */
+    /** Debate Rec pills (same chrome as Essays): NV / CF / NC / All complete. */
     function buildDebateRecAlertBadgesHtml(classData) {
         const d = domain();
-        if (!classData || !d || !d.countOpenDebateRecWarnings) {
+        if (!classData || !d || !d.debateRecAlertCountsForClass) {
             return '';
         }
-        const c = d.countOpenDebateRecWarnings(getAppData(), classData.id);
+        const month = getUiToggles().debateRecMonth || '';
+        const c = d.debateRecAlertCountsForClass(getAppData(), classData, month ? { month } : undefined);
         const parts = [];
-        if (c.notRecorded > 0) {
+        if (c.nv > 0) {
             parts.push(
-                `<span class="classroom-essay-alert-badge classroom-essay-alert-nv" title="${escapeAttr(t('debateRecStatusNotRecorded'))}">${escapeHtml(tf('classroomEssayAlertNv', { count: c.notRecorded }))}</span>`
+                `<span class="classroom-essay-alert-badge classroom-essay-alert-nv" title="${escapeAttr(t('debateRecStatusNotRecorded'))}">${escapeHtml(tf('classroomEssayAlertNv', { count: c.nv }))}</span>`
             );
         }
-        if (c.needsConfirmation > 0) {
+        if (c.cf > 0) {
             parts.push(
-                `<span class="classroom-essay-alert-badge classroom-essay-alert-od" title="${escapeAttr(t('debateRecStatusNeedsConfirmation'))}">? ${escapeHtml(String(c.needsConfirmation))}</span>`
+                `<span class="classroom-essay-alert-badge classroom-essay-alert-od" title="${escapeAttr(t('debateRecStatusNeedsConfirmation'))}">${escapeHtml(tf('debateRecAlertCf', { count: c.cf }))}</span>`
+            );
+        }
+        if (c.nc > 0) {
+            parts.push(
+                `<span class="classroom-essay-alert-badge classroom-essay-alert-as" title="${escapeAttr(t('debateRecAlertNcTitle'))}">${escapeHtml(tf('debateRecAlertNc', { count: c.nc }))}</span>`
+            );
+        }
+        if (c.allComplete) {
+            parts.push(
+                `<span class="classroom-essay-alert-badge classroom-essay-alert-done">${escapeHtml(t('classroomEssayAlertDone'))}</span>`
             );
         }
         return parts.length
@@ -907,6 +928,22 @@
                   )
               ].join('')
             : '';
+        const showDebateRecToggle = activeTabId === 'debate-rec';
+        const debateRecMonth = toggles.debateRecMonth || '';
+        let debateRecMonthOptionsHtml = '';
+        if (showDebateRecToggle) {
+            const d = domain();
+            const months = d && d.listDebateRecWarnMonths
+                ? d.listDebateRecWarnMonths(getAppData(), getBaseAccessibleClasses())
+                : [];
+            if (debateRecMonth && !months.includes(debateRecMonth)) {
+                months.unshift(debateRecMonth);
+            }
+            debateRecMonthOptionsHtml = [
+                `<option value="">${escapeHtml(t('classroomEssayClassSummaryFilterAllMonths'))}</option>`,
+                ...months.map((m) => `<option value="${escapeAttr(m)}"${m === debateRecMonth ? ' selected' : ''}>${escapeHtml(m)}</option>`)
+            ].join('');
+        }
         const comboboxValue = comboboxOpen ? classSearchQuery : getSelectedClassName({ classId, classes });
         const sessionDate = getSessionDate() || todayISO();
         const closedTabBadges =
@@ -947,6 +984,14 @@
                     ${showEssaysToggle ? `<label class="checkbox-label classroom-zone-toggle">
                         <input type="checkbox" id="classroomZoneEssaysOnly"${toggles.essaysOnly ? ' checked' : ''} />
                         <span>${escapeHtml(t('classroomZoneEssaysOnly'))}</span>
+                    </label>` : ''}
+                    ${showDebateRecToggle ? `<label class="checkbox-label classroom-zone-toggle">
+                        <input type="checkbox" id="classroomZoneDebateRecOnly"${toggles.debateRecOnly ? ' checked' : ''} />
+                        <span>${escapeHtml(t('debateRecZoneOnly'))}</span>
+                    </label>
+                    <label class="classroom-essay-resubmit-filter-field classroom-zone-essay-warn-month">
+                        <span class="section-hint">${escapeHtml(t('classroomEssayClassSummaryFilterMonth'))}</span>
+                        <select id="classroomZoneDebateRecMonth" class="field-select field-control--compact">${debateRecMonthOptionsHtml}</select>
                     </label>` : ''}
                     ${showEssaysToggle ? `<label class="classroom-essay-resubmit-filter-field classroom-zone-essay-warn-month">
                         <span class="section-hint">${escapeHtml(t('classroomEssayClassSummaryFilterMonth'))}</span>
@@ -990,6 +1035,20 @@
                 hooks.setUiPref('classroomZoneEssaysOnly', e.target.checked ? '1' : '');
             }
             ensureActiveClassVisible();
+            render(mountEl);
+        });
+        mountEl.querySelector('#classroomZoneDebateRecOnly')?.addEventListener('change', (e) => {
+            if (hooks && hooks.setUiPref) {
+                hooks.setUiPref('classroomZoneDebateRecOnly', e.target.checked ? '1' : '0');
+            }
+            ensureActiveClassVisible();
+            render(mountEl);
+        });
+        mountEl.querySelector('#classroomZoneDebateRecMonth')?.addEventListener('change', (e) => {
+            const raw = String(e.target.value || '').trim();
+            if (hooks && hooks.setUiPref) {
+                hooks.setUiPref('classroomZoneDebateRecMonth', /^\d{4}-\d{2}$/.test(raw) ? raw : '');
+            }
             render(mountEl);
         });
         mountEl.querySelector('#classroomZoneEssayWarnMonth')?.addEventListener('change', (e) => {
@@ -1075,6 +1134,7 @@
         getEssayClassDisplayLabel,
         buildEssayAlertBadgesHtml,
         buildDebateBookAlertBadgesHtml,
+        buildDebateRecAlertBadgesHtml,
         getDebateBookAlertCounts,
         getEssayAlertCounts,
         withEssayAlertSubmissions,

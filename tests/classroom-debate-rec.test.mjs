@@ -592,4 +592,50 @@ const PRESENT = [{ date: '2026-08-01', status: '출석' }];
     eq(shown(data), 'not_recorded', 'reset with TMS list not reaching the date falls back to the stored 결석');
 }
 
+// ── Class list pills (Tools → Debate Rec), same idea as Essays ─────────
+{
+    const data = makeData();
+    let c = d.debateRecAlertCountsForClass(data, data.classes[0], { todayIso: TODAY });
+    eq(c.days, 1, 'one past Day 4 (Nov Day 4 is in the future)');
+    eq(c.nc, 1, 'before a TMS check: NC 1');
+    eq(c.allComplete, false, 'not complete before a check');
+    data.essaySubmissions = d.applyDebateRecTmsCheck(data, 'c1', new Map([
+        ['s1', [{ date: '2026-10-21', status: '결석' }]],
+        ['s2', [{ date: '2026-10-21', status: '지각' }]],
+        ['s3', PRESENT]
+    ]), { todayIso: TODAY }).submissions;
+    c = d.debateRecAlertCountsForClass(data, data.classes[0], { todayIso: TODAY });
+    eq(`${c.nv}/${c.cf}/${c.nc}/${c.allComplete}`, '1/1/0/false', 'after check: NV 1, CF 1');
+    eq(d.debateRecAlertCountsForClass(data, data.classes[0], { todayIso: TODAY, month: '2026-09' }).days, 0, 'month filter');
+    ['s1', 's2'].forEach((sid) => {
+        data.essaySubmissions = d.setDebateRecTeacherStatus(data.essaySubmissions, { classId: 'c1', syllabusRowId: 'r4', studentId: sid, status: 'received', userId: 'u1' }).submissions;
+    });
+    c = d.debateRecAlertCountsForClass(data, data.classes[0], { todayIso: TODAY });
+    eq(c.allComplete, true, 'all resolved → All complete');
+    eq(d.debateRecAlertCountsForClass(data, { id: 'x', name: 'Plain', syllabusRows: [] }, { todayIso: TODAY }).days, 0, 'non-debate class: no pills');
+    eq(d.listDebateRecWarnMonths(data, data.classes, { todayIso: TODAY }).join(','), '2026-10', 'month options');
+
+    // Zone class list: pills + "Has Debate Day 4" filter.
+    globalThis.document = globalThis.document || { getElementById: () => null };
+    await import(pathToFileURL(path.join(root, 'js', 'classroom-zone-context.js')).href);
+    const Z = globalThis.CCPClassroomZoneContext;
+    const plain = { id: 'c9', name: 'Plain', syllabusRows: [] };
+    const zoneData = makeData();
+    zoneData.classes.push(plain);
+    zoneData.ui = {};
+    Z.init({ getAppData: () => zoneData, t: (k) => k });
+    Z.syncVisibility('debate-rec');
+    const html = Z.buildDebateRecAlertBadgesHtml(zoneData.classes[0]);
+    assert(html.includes('classroom-essay-alert-as'), 'NC pill before a check');
+    eq(Z.buildDebateRecAlertBadgesHtml(plain), '', 'no pills for a non-debate class');
+    const names = (list) => list.map((x) => x.id).join(',');
+    {
+        eq(names(Z.getBaseAccessibleClasses()), 'c1,c9', 'both classes accessible');
+        const visible = names(Z.getVisibleClasses());
+        assert(!visible.includes('c9'), `Has Debate Day 4 hides non-debate classes (got ${visible})`);
+        zoneData.ui.classroomZoneDebateRecOnly = '0';
+        eq(names(Z.getVisibleClasses()), 'c1,c9', 'toggle off shows them');
+    }
+}
+
 console.log(`classroom-debate-rec.test.mjs: ok (${passed} assertions)`);

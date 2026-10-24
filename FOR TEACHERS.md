@@ -80,6 +80,8 @@ The password is used for that sync only. It is not saved in a file on the PC.
 
 **Tools → Debate Rec** finds students who missed the Day 4 debate recording.
 
+The class list shows warning pills like the Essays tab: **NV** (not recorded), **CF** (needs confirmation), **NC** (past Day 4s not checked against TMS yet) and **All complete**. **Has Debate Day 4** (on by default) hides classes without a Day 4, and **Month** limits the pills to one month's Day 4s.
+
 1. Pick a debate class and press **Check TMS attendance…**. The Sync window opens with only attendance selected. Sign in, press **Load**, then close the window.
 2. Students marked **결석** on the day the Day 4 homework was assigned show as **Not recorded**. Late, early leave and other statuses show as **Needs confirmation**.
 3. Mark each student **Received** (make-up video turned in), **Recorded** (they were there after all) or **Exempt**.

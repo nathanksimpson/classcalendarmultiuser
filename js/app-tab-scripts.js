@@ -125,7 +125,7 @@
             'js/classroom-essay-class-summary-print.js?v=20261005-essay-demerit',
             'js/classroom-parent-messages.js?v=20261024-ko-template',
             'js/classroom-debate-rec-print.js?v=20261024-parent-msg-ko',
-            'js/classroom-debate-rec.js?v=20261024-reset-window'
+            'js/classroom-debate-rec.js?v=20261024-rec-pills'
         ],
         'debate-books': [
             'js/classroom-access.js?v=20260911-essay-groups',

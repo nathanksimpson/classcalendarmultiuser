@@ -10246,6 +10246,62 @@
         return out;
     }
 
+    /**
+     * Class-list pills for Tools → Debate Rec (same idea as essayAlertCountsForClass).
+     * Past Day 4s only; options.month ('YYYY-MM') limits to Day 4s in that month.
+     * nv = Not recorded, cf = Needs confirmation, nc = past Day 4s with no TMS check yet,
+     * allComplete = every past Day 4 checked and nothing open.
+     */
+    function debateRecAlertCountsForClass(appData, classData, options) {
+        const opts = options || {};
+        const out = { nv: 0, cf: 0, nc: 0, days: 0, allComplete: false };
+        if (!classData || classData.isEssayGroup || !classUsesDebateTeamAssignments(classData)) {
+            return out;
+        }
+        const today = normalizeStr(opts.todayIso) || todayISO();
+        const month = /^\d{4}-\d{2}$/.test(normalizeStr(opts.month)) ? normalizeStr(opts.month) : '';
+        const activeIds = new Set(
+            resolveStudentsForClass(classData, (appData && appData.cohorts) || [])
+                .map((e) => normalizeStr(e && e.student && e.student.id))
+                .filter(Boolean)
+        );
+        listDebateRecordingDays(appData, classData)
+            .filter((day) => compareDateStr(day.date, today) <= 0)
+            .filter((day) => !month || String(day.date).slice(0, 7) === month)
+            .forEach((day) => {
+                out.days += 1;
+                const submission = findEssaySubmission((appData && appData.essaySubmissions) || [], classData.id, day.rowId);
+                if (!debateRecDayChecked(submission)) {
+                    out.nc += 1;
+                }
+                ((submission && submission.records) || []).forEach((r) => {
+                    if (!r || !activeIds.has(normalizeStr(r.studentId))) {
+                        return;
+                    }
+                    const status = normalizeDebateRecFields(r).debateRecStatus;
+                    if (status === 'not_recorded') {
+                        out.nv += 1;
+                    } else if (status === 'needs_confirmation') {
+                        out.cf += 1;
+                    }
+                });
+            });
+        out.allComplete = out.days > 0 && !out.nv && !out.cf && !out.nc;
+        return out;
+    }
+
+    /** Distinct months ('YYYY-MM', newest first) of past Day 4s across classes. */
+    function listDebateRecWarnMonths(appData, classes, options) {
+        const today = normalizeStr(options && options.todayIso) || todayISO();
+        const months = new Set();
+        (Array.isArray(classes) ? classes : []).forEach((c) => {
+            listDebateRecordingDays(appData, c)
+                .filter((day) => compareDateStr(day.date, today) <= 0)
+                .forEach((day) => months.add(String(day.date).slice(0, 7)));
+        });
+        return Array.from(months).filter(Boolean).sort((a, b) => b.localeCompare(a));
+    }
+
     const DEBATE_REC_OPEN_STATUSES = ['not_recorded', 'needs_confirmation'];
     /** Report-only status for a student with no TMS absence on a past Day 4. */
     const DEBATE_REC_PRESENT = 'present';
@@ -10798,6 +10854,8 @@
         debateRecPatchForNvToggle,
         computeDebateRecView,
         countOpenDebateRecWarnings,
+        debateRecAlertCountsForClass,
+        listDebateRecWarnMonths,
         debateRecHomeroomUserId,
         debateRecReportFilterOptions,
         debateRecReportStatus,
