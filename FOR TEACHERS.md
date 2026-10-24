@@ -84,6 +84,8 @@ The password is used for that sync only. It is not saved in a file on the PC.
 2. Students marked **결석** on the day the Day 4 homework was assigned show as **Not recorded**. Late, early leave and other statuses show as **Needs confirmation**.
 3. Mark each student **Received** (make-up video turned in), **Recorded** (they were there after all) or **Exempt**.
 
+**Reports ▾** prints this class (every flagged student on each Day 4, with a tick box), prints what is still open across all your debate classes, or copies the open list as text for KakaoTalk.
+
 Your choice is never changed by a later TMS check. Use **Reset to TMS** if you want the next check to decide again. Class teachers and homeroom (담임) teachers see a bell warning while anything is still open. ClassManager only reads from TMS; it never writes to it.
 
 ## More help
