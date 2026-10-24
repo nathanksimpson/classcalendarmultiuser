@@ -331,6 +331,43 @@
         }
     }
 
+    /**
+     * Debate Rec: students absent / needing confirmation on a Debate Day 4.
+     * Shown to the class's teachers and to homeroom (담임) teachers of linked cohorts.
+     */
+    function pushDebateRecWarning(out, classData, ctx, appData) {
+        const domainApi = global.CCPClassroomDomain;
+        if (!classData || !classData.id || !domainApi
+            || typeof domainApi.countOpenDebateRecWarnings !== 'function') {
+            return;
+        }
+        const viewerUserId = ctx && ctx.viewerSelector && ctx.viewerSelector.userId
+            ? String(ctx.viewerSelector.userId)
+            : '';
+        const isHomeroom = Boolean(viewerUserId && typeof domainApi.isHomeroomTeacherForClass === 'function'
+            && domainApi.isHomeroomTeacherForClass(appData, classData, viewerUserId));
+        if (!classAppliesToViewer(classData.id, ctx) && !isHomeroom) {
+            return;
+        }
+        const open = domainApi.countOpenDebateRecWarnings(appData, classData.id);
+        if (!open.notRecorded && !open.needsConfirmation) {
+            return;
+        }
+        out.push({
+            // Counts in the id so a newly flagged student notifies again after a dismissal.
+            id: `class:${classData.id}:debate_rec:${open.notRecorded}:${open.needsConfirmation}`,
+            tabId: 'debate-rec',
+            severity: 'warn',
+            messageKey: 'tabWarnDebateRec',
+            params: {
+                name: classData.name || '',
+                notRecorded: open.notRecorded,
+                needsConfirmation: open.needsConfirmation
+            },
+            navigate: { type: 'class', tabId: 'debate-rec', classId: classData.id }
+        });
+    }
+
     function pushCohortWarningsForCohort(out, cohort, appData, cohortApi) {
         if (!cohort || !cohort.id || !cohortApi || !cohortApi.collectCohortSetupWarnings) {
             return;
@@ -452,6 +489,7 @@
         hooks.getClassesInDisplayOrder().forEach((cls) => {
             pushClassWarnings(warnings, cls, ctx);
             pushClassExtraWarnings(warnings, cls, ctx);
+            pushDebateRecWarning(warnings, cls, ctx, appData);
         });
 
         const cohortApi = hooks.getTimetableApi();

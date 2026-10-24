@@ -2120,6 +2120,15 @@
         if (!normalizeEssaySubmittedAt(base.submittedAt) && normalizeEssaySubmittedAt(other.submittedAt)) {
             base.submittedAt = normalizeEssaySubmittedAt(other.submittedAt);
         }
+        // Debate Rec: a teacher decision beats a TMS one; otherwise keep any status over none.
+        const baseRec = normalizeDebateRecFields(base);
+        const otherRec = normalizeDebateRecFields(other);
+        const preferOther = (otherRec.debateRecSource === 'teacher' && baseRec.debateRecSource !== 'teacher')
+            || (!baseRec.debateRecStatus && otherRec.debateRecStatus);
+        const finalRec = preferOther ? otherRec : baseRec;
+        if (finalRec.debateRecStatus) {
+            Object.assign(base, finalRec, { debateVideoMissing: finalRec.debateRecStatus === 'not_recorded' });
+        }
         return base;
     }
 
@@ -3953,7 +3962,8 @@
         const status = normalizeStr(raw.status);
         const validStatus = ESSAY_STATUSES.includes(status) ? status : 'not_submitted';
         const demeritFlags = essayDemeritFlags(validStatus, raw);
-        return {
+        const debateRec = normalizeDebateRecFields(raw);
+        const out = {
             studentId: normalizeStr(raw.studentId),
             status: validStatus,
             submittedRetest: Boolean(raw.submittedRetest),
@@ -3965,6 +3975,11 @@
             overdueDismissed: Boolean(raw.overdueDismissed),
             submittedAt: normalizeEssaySubmittedAt(raw.submittedAt)
         };
+        // Debate Rec fields are only written once used, so untouched records stay unchanged.
+        if (debateRec.debateRecStatus || debateRec.debateRecCheckedAt || debateRec.debateRecNote) {
+            Object.assign(out, debateRec);
+        }
+        return out;
     }
 
     function normalizeEssaySubmission(raw) {
@@ -9715,6 +9730,458 @@
         return { cohorts: list, applied, errors };
     }
 
+    // ─── Debate Rec (Tools → Debate Rec) ────────────────────────────────────
+    // Warns when a student was absent (TMS) on the Debate Day 4 assigned date.
+    // State lives on the Day 4 essay record (essaySubmissions[].records[].debateRec*).
+    // READ-ONLY TOWARD TMS: these helpers only consume attendance already scraped.
+    // Teacher-sourced statuses are never overwritten by a TMS check.
+
+    const DEBATE_REC_STATUSES = ['not_recorded', 'needs_confirmation', 'recorded', 'received', 'exempt'];
+    const DEBATE_REC_TEACHER_STATUSES = ['not_recorded', 'recorded', 'received', 'exempt'];
+    const DEBATE_REC_SOURCES = ['tms', 'teacher'];
+    const TMS_ABSENT_STATUSES = ['결석'];
+    const TMS_PRESENT_STATUSES = ['출석'];
+
+    function normalizeDebateRecFields(raw) {
+        const src = raw || {};
+        let status = normalizeStr(src.debateRecStatus);
+        let source = normalizeStr(src.debateRecSource);
+        if (!DEBATE_REC_STATUSES.includes(status)) {
+            status = '';
+        }
+        if (!DEBATE_REC_SOURCES.includes(source)) {
+            source = '';
+        }
+        // Legacy: NV ticked by hand before Debate Rec existed → teacher decision.
+        if (!status && src.debateVideoMissing) {
+            status = 'not_recorded';
+            source = 'teacher';
+        }
+        if (status && !source) {
+            source = 'teacher';
+        }
+        return {
+            debateRecStatus: status,
+            debateRecSource: status ? source : '',
+            debateRecDate: normalizeStr(src.debateRecDate),
+            debateRecTmsStatus: normalizeStr(src.debateRecTmsStatus),
+            debateRecTmsMemo: normalizeStr(src.debateRecTmsMemo),
+            debateRecCheckedAt: normalizeStr(src.debateRecCheckedAt),
+            debateRecUpdatedBy: normalizeStr(src.debateRecUpdatedBy),
+            debateRecUpdatedAt: normalizeStr(src.debateRecUpdatedAt),
+            debateRecNote: normalizeStr(src.debateRecNote)
+        };
+    }
+
+    /** Day 4 syllabus row that requires a debate recording (dated lesson, not Day 3). */
+    function isDebateRecordingRow(row) {
+        if (!row || !isEssayTrackableSyllabusRow(row) || !normalizeStr(row.date)) {
+            return false;
+        }
+        const title = row.planTitle || row.label || '';
+        const isDay4 = isDebateDayFourTitle(title);
+        if (!isDay4 && isDebateDayThreeTitle(title)) {
+            return false;
+        }
+        return isDay4 || Number(row.sessionNumber) === 4;
+    }
+
+    /**
+     * Date the Day 4 homework was assigned: TMS essay link date when Essays → Sync
+     * mapped this row, otherwise the syllabus date.
+     */
+    function resolveDebateRecAssignedDate(appData, classId, row) {
+        const links = normalizeTmsEssayLinks(appData && appData.tmsEssayLinks);
+        const rowId = getSyllabusRowKey(row);
+        const cid = normalizeStr(classId);
+        const hit = Object.keys(links)
+            .map((k) => links[k])
+            .find((l) => l && l.action === 'map' && l.classId === cid
+                && l.syllabusRowId === rowId && normalizeStr(l.lessonDate));
+        return {
+            date: hit ? normalizeStr(hit.lessonDate) : normalizeStr(row && row.date),
+            source: hit ? 'tms' : 'syllabus'
+        };
+    }
+
+    /** @returns {{ rowId: string, row: object, date: string, dateSource: 'tms'|'syllabus' }[]} */
+    function listDebateRecordingDays(appData, classData) {
+        if (!classData || !classUsesDebateTeamAssignments(classData)) {
+            return [];
+        }
+        const seen = new Set();
+        return getLessonRowsFromSyllabus(classData.syllabusRows)
+            .filter(isDebateRecordingRow)
+            .map((row) => {
+                const resolved = resolveDebateRecAssignedDate(appData, classData.id, row);
+                return {
+                    rowId: getSyllabusRowKey(row),
+                    row,
+                    date: resolved.date,
+                    dateSource: resolved.source
+                };
+            })
+            .filter((day) => {
+                if (!day.rowId || !day.date || seen.has(day.rowId)) {
+                    return false;
+                }
+                seen.add(day.rowId);
+                return true;
+            })
+            .sort((a, b) => compareDateStr(a.date, b.date));
+    }
+
+    /** One TMS attendance status → Debate Rec status ('' = present / nothing to do). */
+    function debateRecStatusFromTms(tmsStatus) {
+        const s = normalizeStr(tmsStatus).replace(/\s+/g, '');
+        if (!s || TMS_PRESENT_STATUSES.includes(s)) {
+            return '';
+        }
+        // TMS cells sometimes carry a reason, e.g. "결석(병결)".
+        if (TMS_ABSENT_STATUSES.some((kw) => s.includes(kw))) {
+            return 'not_recorded';
+        }
+        return 'needs_confirmation';
+    }
+
+    /** Strongest TMS record on a date (absent beats late/early leave/other). */
+    function pickTmsAttendanceForDate(records, date) {
+        const want = normalizeStr(date);
+        const onDate = (Array.isArray(records) ? records : [])
+            .filter((r) => r && normalizeStr(r.date) === want);
+        return onDate.find((r) => debateRecStatusFromTms(r.status) === 'not_recorded')
+            || onDate.find((r) => debateRecStatusFromTms(r.status) === 'needs_confirmation')
+            || null;
+    }
+
+    function findClassForDebateRec(appData, classId) {
+        const cid = normalizeStr(classId);
+        return ((appData && appData.classes) || []).find((c) => c && c.id === cid) || null;
+    }
+
+    function blankDebateRecSubmission(classId, day, newSubmissionId) {
+        return {
+            id: typeof newSubmissionId === 'function' ? newSubmissionId() : newId('essay'),
+            classId: normalizeStr(classId),
+            syllabusRowId: day.rowId,
+            lessonDate: normalizeStr(day.row && day.row.date) || day.date,
+            ssDueDate: '',
+            teacherEvalDueDate: '',
+            records: [],
+            authorUserId: '',
+            updatedAt: ''
+        };
+    }
+
+    function blankDebateRecRecord(studentId) {
+        return {
+            studentId: normalizeStr(studentId),
+            status: 'not_submitted',
+            submittedRetest: false,
+            retestAssigned: false,
+            retestPassed: false,
+            debateVideoMissing: false,
+            note: '',
+            submissionLate: false,
+            overdueDismissed: false
+        };
+    }
+
+    /**
+     * Cross-reference TMS attendance with Debate Day 4 assigned dates for one class.
+     * Pure: returns a new essaySubmissions list + summary. Never writes to TMS.
+     * Teacher-sourced statuses are never changed.
+     *
+     * @param {object} appData
+     * @param {string} classId
+     * @param {Map<string, object[]>} tmsAttendanceByStudentId studentId → TMS attendanceRecords
+     * @param {{ nowIso?: string, todayIso?: string, newSubmissionId?: () => string }} [options]
+     */
+    function applyDebateRecTmsCheck(appData, classId, tmsAttendanceByStudentId, options) {
+        const opts = options || {};
+        const nowIso = opts.nowIso || new Date().toISOString();
+        const today = normalizeStr(opts.todayIso) || todayISO();
+        const byStudent = tmsAttendanceByStudentId instanceof Map ? tmsAttendanceByStudentId : new Map();
+        let submissions = Array.isArray(appData && appData.essaySubmissions)
+            ? appData.essaySubmissions.slice()
+            : [];
+        const summary = {
+            days: 0,
+            flagged: 0,
+            needsConfirmation: 0,
+            cleared: 0,
+            skippedTeacher: 0,
+            noTmsData: 0
+        };
+        const classData = findClassForDebateRec(appData, classId);
+        if (!classData) {
+            return { submissions, summary };
+        }
+        const students = resolveStudentsForClass(classData, appData.cohorts);
+        const days = listDebateRecordingDays(appData, classData)
+            .filter((day) => compareDateStr(day.date, today) <= 0);
+        summary.days = days.length;
+
+        days.forEach((day) => {
+            const existing = findEssaySubmission(submissions, classData.id, day.rowId);
+            const submission = existing
+                ? Object.assign({}, existing, { records: (existing.records || []).slice() })
+                : blankDebateRecSubmission(classData.id, day, opts.newSubmissionId);
+            const records = submission.records;
+            let touched = false;
+
+            students.forEach((entry) => {
+                const sid = normalizeStr(entry && entry.student && entry.student.id);
+                if (!sid) {
+                    return;
+                }
+                const idx = records.findIndex((r) => r && r.studentId === sid);
+                const prev = idx >= 0 ? records[idx] : null;
+                const prevRec = prev ? normalizeDebateRecFields(prev) : null;
+
+                if (prevRec && prevRec.debateRecSource === 'teacher') {
+                    summary.skippedTeacher += 1;
+                    return;
+                }
+                if (!byStudent.has(sid)) {
+                    summary.noTmsData += 1;
+                    return;
+                }
+
+                const hit = pickTmsAttendanceForDate(byStudent.get(sid), day.date);
+                const nextStatus = hit ? debateRecStatusFromTms(hit.status) : '';
+                const hadTmsStatus = Boolean(prevRec && prevRec.debateRecSource === 'tms' && prevRec.debateRecStatus);
+
+                if (!nextStatus && !hadTmsStatus) {
+                    return;
+                }
+
+                const next = Object.assign({}, prev || blankDebateRecRecord(sid), {
+                    debateRecStatus: nextStatus,
+                    debateRecSource: nextStatus ? 'tms' : '',
+                    debateRecDate: day.date,
+                    debateRecTmsStatus: hit ? normalizeStr(hit.status) : '',
+                    debateRecTmsMemo: hit ? normalizeStr(hit.memo) : '',
+                    debateRecCheckedAt: nowIso,
+                    debateVideoMissing: nextStatus === 'not_recorded'
+                });
+
+                if (nextStatus === 'not_recorded') {
+                    summary.flagged += 1;
+                } else if (nextStatus === 'needs_confirmation') {
+                    summary.needsConfirmation += 1;
+                } else {
+                    summary.cleared += 1;
+                }
+
+                if (JSON.stringify(prev) === JSON.stringify(next)) {
+                    return;
+                }
+                if (idx >= 0) {
+                    records[idx] = next;
+                } else {
+                    records.push(next);
+                }
+                touched = true;
+            });
+
+            if (touched) {
+                submissions = upsertEssaySubmission(submissions, submission);
+            }
+        });
+
+        return { submissions, summary };
+    }
+
+    function patchDebateRecRecord(submissions, options, patchFn) {
+        const o = options || {};
+        const classId = normalizeStr(o.classId);
+        const syllabusRowId = normalizeStr(o.syllabusRowId);
+        const studentId = normalizeStr(o.studentId);
+        const list = Array.isArray(submissions) ? submissions.slice() : [];
+        if (!classId || !syllabusRowId || !studentId) {
+            return { error: 'invalid', submissions: list, record: null };
+        }
+        const existing = findEssaySubmission(list, classId, syllabusRowId);
+        const submission = existing
+            ? Object.assign({}, existing, { records: (existing.records || []).slice() })
+            : blankDebateRecSubmission(
+                classId,
+                { rowId: syllabusRowId, row: { date: o.lessonDate }, date: normalizeStr(o.date) },
+                o.newSubmissionId
+            );
+        const idx = submission.records.findIndex((r) => r && r.studentId === studentId);
+        const prev = idx >= 0 ? submission.records[idx] : blankDebateRecRecord(studentId);
+        const next = patchFn(prev);
+        if (idx >= 0) {
+            submission.records[idx] = next;
+        } else {
+            submission.records.push(next);
+        }
+        return { error: null, submissions: upsertEssaySubmission(list, submission), record: next };
+    }
+
+    /** Teacher decision — final until a teacher changes it or resets to TMS. */
+    function setDebateRecTeacherStatus(submissions, options) {
+        const o = options || {};
+        const status = normalizeStr(o.status);
+        if (!DEBATE_REC_TEACHER_STATUSES.includes(status)) {
+            return {
+                error: 'invalid',
+                submissions: Array.isArray(submissions) ? submissions.slice() : [],
+                record: null
+            };
+        }
+        return patchDebateRecRecord(submissions, o, (prev) => Object.assign({}, prev, {
+            debateRecStatus: status,
+            debateRecSource: 'teacher',
+            debateRecDate: normalizeStr(o.date) || normalizeStr(prev.debateRecDate),
+            debateRecUpdatedBy: normalizeStr(o.userId),
+            debateRecUpdatedAt: o.nowIso || new Date().toISOString(),
+            debateVideoMissing: status === 'not_recorded'
+        }));
+    }
+
+    function setDebateRecNote(submissions, options) {
+        const o = options || {};
+        return patchDebateRecRecord(submissions, o, (prev) => Object.assign({}, prev, {
+            debateRecNote: normalizeStr(o.note)
+        }));
+    }
+
+    /** Hand the student back to the automatic TMS check (next check decides). */
+    function resetDebateRecToTms(submissions, options) {
+        return patchDebateRecRecord(submissions, options, (prev) => Object.assign({}, prev, {
+            debateRecStatus: '',
+            debateRecSource: '',
+            debateRecTmsStatus: '',
+            debateRecTmsMemo: '',
+            debateRecUpdatedBy: '',
+            debateRecUpdatedAt: '',
+            debateVideoMissing: false
+        }));
+    }
+
+    /**
+     * Patch for an Essays-tab NV toggle: the teacher's choice becomes a Debate Rec
+     * teacher decision so later TMS checks keep it.
+     */
+    function debateRecPatchForNvToggle(checked, userId, nowIso) {
+        return {
+            debateVideoMissing: Boolean(checked),
+            debateRecStatus: checked ? 'not_recorded' : 'received',
+            debateRecSource: 'teacher',
+            debateRecUpdatedBy: normalizeStr(userId),
+            debateRecUpdatedAt: nowIso || new Date().toISOString()
+        };
+    }
+
+    /**
+     * Table rows + counts for one class.
+     * "Not checked" = active student on a past Day 4 with no Debate Rec status and
+     * no TMS data loaded this session.
+     */
+    function computeDebateRecView(appData, classId, tmsAttendanceByStudentId, options) {
+        const opts = options || {};
+        const today = normalizeStr(opts.todayIso) || todayISO();
+        const byStudent = tmsAttendanceByStudentId instanceof Map ? tmsAttendanceByStudentId : new Map();
+        const counts = {
+            not_recorded: 0,
+            needs_confirmation: 0,
+            recorded: 0,
+            received: 0,
+            exempt: 0,
+            not_checked: 0
+        };
+        const classData = findClassForDebateRec(appData, classId);
+        if (!classData) {
+            return { days: [], rows: [], counts, dayCounts: {} };
+        }
+        const students = resolveStudentsForClass(classData, appData.cohorts);
+        const days = listDebateRecordingDays(appData, classData);
+        const rows = [];
+        const dayCounts = {};
+        days.forEach((day) => {
+            const past = compareDateStr(day.date, today) <= 0;
+            const perDay = { open: 0, resolved: 0, notChecked: 0, past };
+            const submission = findEssaySubmission(appData.essaySubmissions, classData.id, day.rowId);
+            students.forEach((entry) => {
+                const student = entry && entry.student;
+                if (!student || !student.id) {
+                    return;
+                }
+                const raw = getEssayRecordForStudent(submission, student.id);
+                const rec = raw ? normalizeDebateRecFields(raw) : null;
+                if (rec && rec.debateRecStatus) {
+                    counts[rec.debateRecStatus] += 1;
+                    if (rec.debateRecStatus === 'not_recorded' || rec.debateRecStatus === 'needs_confirmation') {
+                        perDay.open += 1;
+                    } else {
+                        perDay.resolved += 1;
+                    }
+                    rows.push({ day, student, cohortName: entry.cohortName || '', rec });
+                } else if (past && !byStudent.has(normalizeStr(student.id)) && !(rec && rec.debateRecCheckedAt)) {
+                    counts.not_checked += 1;
+                    perDay.notChecked += 1;
+                }
+            });
+            dayCounts[day.rowId] = perDay;
+        });
+        rows.sort((a, b) => {
+            const byDate = compareDateStr(a.day.date, b.day.date);
+            if (byDate !== 0) {
+                return byDate;
+            }
+            return compareStudentNames(a.student, b.student);
+        });
+        return { days, rows, counts, dayCounts };
+    }
+
+    /** Open items for the bell: active students only. */
+    function countOpenDebateRecWarnings(appData, classId) {
+        const out = { notRecorded: 0, needsConfirmation: 0 };
+        const classData = findClassForDebateRec(appData, classId);
+        if (!classData || !classUsesDebateTeamAssignments(classData)) {
+            return out;
+        }
+        const activeIds = new Set(
+            resolveStudentsForClass(classData, appData.cohorts)
+                .map((e) => normalizeStr(e && e.student && e.student.id))
+                .filter(Boolean)
+        );
+        const rowIds = new Set(listDebateRecordingDays(appData, classData).map((d) => d.rowId));
+        ((appData && appData.essaySubmissions) || [])
+            .filter((s) => s && s.classId === classData.id && rowIds.has(s.syllabusRowId))
+            .forEach((s) => (s.records || []).forEach((r) => {
+                if (!r || !activeIds.has(normalizeStr(r.studentId))) {
+                    return;
+                }
+                const status = normalizeDebateRecFields(r).debateRecStatus;
+                if (status === 'not_recorded') {
+                    out.notRecorded += 1;
+                } else if (status === 'needs_confirmation') {
+                    out.needsConfirmation += 1;
+                }
+            }));
+        return out;
+    }
+
+    /** Homeroom (담임) of the class itself or of any linked cohort. */
+    function isHomeroomTeacherForClass(appData, classData, userId) {
+        const uid = normalizeStr(userId);
+        if (!uid || !classData) {
+            return false;
+        }
+        if (normalizeStr(classData.homeroomTeacherUserId) === uid) {
+            return true;
+        }
+        const cohorts = (appData && appData.cohorts) || [];
+        return getCohortIdsForClass(classData).some((cid) => {
+            const cohort = cohorts.find((c) => c && normalizeStr(c.id) === cid);
+            return Boolean(cohort && normalizeStr(cohort.homeroomTeacherUserId) === uid);
+        });
+    }
+
     const api = {
         ATTENDANCE_STATUSES,
         HOMEWORK_GRADES,
@@ -10016,6 +10483,22 @@
         getDebateScoreCriteria,
         getDebateScoreMaxTotal,
         migrateClassroomData,
+        DEBATE_REC_STATUSES,
+        DEBATE_REC_TEACHER_STATUSES,
+        normalizeDebateRecFields,
+        isDebateRecordingRow,
+        resolveDebateRecAssignedDate,
+        listDebateRecordingDays,
+        debateRecStatusFromTms,
+        pickTmsAttendanceForDate,
+        applyDebateRecTmsCheck,
+        setDebateRecTeacherStatus,
+        setDebateRecNote,
+        resetDebateRecToTms,
+        debateRecPatchForNvToggle,
+        computeDebateRecView,
+        countOpenDebateRecWarnings,
+        isHomeroomTeacherForClass,
         newId
     };
 

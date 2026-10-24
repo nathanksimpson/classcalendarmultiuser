@@ -162,9 +162,25 @@ One record per class per syllabus lesson row (essay assignment). Keyed by `class
 | `lessonDate` | string | `YYYY-MM-DD` (display / filter) |
 | `ssDueDate` | string | Student submission due (`YYYY-MM-DD`, optional override) |
 | `teacherEvalDueDate` | string | Teacher evaluation due (`YYYY-MM-DD`, optional override) |
-| `records[]` | array | `{ studentId, status, submittedRetest, debateVideoMissing, note, submissionLate, overdueDismissed }` — status: `not_submitted`, `submitted`, `complete`, `resubmit_required` (+ `incomplete`, `exempt` in code). `submissionLate`: teacher marked the submission late (not inferred from when Received was clicked). `overdueDismissed`: teacher cleared overdue after verifying e.g. TMS shows on time. `debateVideoMissing`: teacher marked debate video missing (NV warning). |
+| `records[]` | array | `{ studentId, status, submittedRetest, debateVideoMissing, note, submissionLate, overdueDismissed }` — status: `not_submitted`, `submitted`, `complete`, `resubmit_required` (+ `incomplete`, `exempt` in code). `submissionLate`: teacher marked the submission late (not inferred from when Received was clicked). `overdueDismissed`: teacher cleared overdue after verifying e.g. TMS shows on time. `debateVideoMissing`: debate video missing (NV warning) — set by a teacher or by Debate Rec for `debateRecStatus: not_recorded`. Debate Rec fields (`debateRec*`) are listed below. |
 | `authorUserId` | string | Last editor |
 | `updatedAt` | string | ISO-8601 |
+
+#### Debate Rec fields on `essaySubmissions[].records[]` (Tools → Debate Rec)
+
+Stored on the **Debate Day 4** essay record. Written only once a record has been checked or decided, so untouched records carry none of these fields.
+
+| Field | Type | Notes |
+|-------|------|--------|
+| `debateRecStatus` | string | `not_recorded` (TMS 결석 or teacher), `needs_confirmation` (TMS 지각/조퇴/미참석/other), `recorded`, `received`, `exempt`, or empty |
+| `debateRecSource` | string | `tms` or `teacher`. **A `teacher` status is never overwritten by a TMS check**; only a teacher change or "Reset to TMS" clears it. A legacy record with `debateVideoMissing: true` and no status reads as `not_recorded` / `teacher`. |
+| `debateRecDate` | string | `YYYY-MM-DD` the Day 4 homework was assigned (TMS essay link date when mapped by Essays Sync, else syllabus date) |
+| `debateRecTmsStatus` / `debateRecTmsMemo` | string | Raw TMS attendance status and memo for that date |
+| `debateRecCheckedAt` | string | ISO-8601 of the TMS check that last set this record |
+| `debateRecUpdatedBy` / `debateRecUpdatedAt` | string | Teacher user id and ISO-8601 of the teacher decision |
+| `debateRecNote` | string | Teacher note |
+
+Debate Rec is **read-only toward TMS**: it reuses the Briefing attendance scrape (GET requests after the standard sign-in) and writes only to ClassManager calendar data.
 
 ### `essayGroups[]` (optional)
 

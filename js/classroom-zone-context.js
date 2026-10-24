@@ -13,6 +13,7 @@
         'debate-teams',
         'debate-scores',
         'debate-books',
+        'debate-rec',
         'speaking-test'
     ]);
 
@@ -343,11 +344,37 @@
         if (activeTabId === 'debate-books') {
             return buildDebateBookAlertBadgesHtml(getDebateBookAlertCounts(classData));
         }
+        if (activeTabId === 'debate-rec') {
+            return buildDebateRecAlertBadgesHtml(classData);
+        }
         return '';
     }
 
+    /** Debate Rec pills: not recorded (red) / needs confirmation (amber). */
+    function buildDebateRecAlertBadgesHtml(classData) {
+        const d = domain();
+        if (!classData || !d || !d.countOpenDebateRecWarnings) {
+            return '';
+        }
+        const c = d.countOpenDebateRecWarnings(getAppData(), classData.id);
+        const parts = [];
+        if (c.notRecorded > 0) {
+            parts.push(
+                `<span class="classroom-essay-alert-badge classroom-essay-alert-nv" title="${escapeAttr(t('debateRecStatusNotRecorded'))}">${escapeHtml(tf('classroomEssayAlertNv', { count: c.notRecorded }))}</span>`
+            );
+        }
+        if (c.needsConfirmation > 0) {
+            parts.push(
+                `<span class="classroom-essay-alert-badge classroom-essay-alert-od" title="${escapeAttr(t('debateRecStatusNeedsConfirmation'))}">? ${escapeHtml(String(c.needsConfirmation))}</span>`
+            );
+        }
+        return parts.length
+            ? `<span class="classroom-essay-alert-badges">${parts.join('')}</span>`
+            : '';
+    }
+
     function usesTabAlertBadges() {
-        return activeTabId === 'essays' || activeTabId === 'debate-books';
+        return activeTabId === 'essays' || activeTabId === 'debate-books' || activeTabId === 'debate-rec';
     }
 
     function getEssayClassDisplayLabel(classData) {

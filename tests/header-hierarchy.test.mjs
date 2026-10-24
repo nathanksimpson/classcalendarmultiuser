@@ -131,6 +131,7 @@ function block(id) {
         'command-center',
         'curriculum',
         'debate-books',
+        'debate-rec',
         'debate-scores',
         'debate-teams',
         'essays',
