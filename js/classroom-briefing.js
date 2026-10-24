@@ -349,7 +349,11 @@
         return countPlanUniqueMpidx(batches);
     }
 
+    /** ms timestamp of the last successful TMS scrape applied in this page (0 = none). */
+    let lastSyncAppliedAt = 0;
+
     function applyBatchSyncResult(result) {
+        lastSyncAppliedAt = Date.now();
         const classes = (result && result.classes) || {};
         Object.keys(classes).forEach((key) => {
             const bucket = classes[key];
@@ -1618,11 +1622,36 @@
         return confirmTmsLogin(plan);
     }
 
+    /**
+     * Read-only accessor for Tools → Debate Rec: studentId → TMS attendanceRecords
+     * for one class, from the cache filled by the last scrape. Never contacts TMS.
+     */
+    async function getCachedAttendanceByStudent(classId) {
+        const cid = String(classId || '');
+        if (!_cache.size) {
+            await loadBriefingCache();
+        }
+        const map = new Map();
+        (_cache.get(`briefing-${cid}`) || []).forEach((profile) => {
+            if (!profile || !profile.studentId || profile.error || !Array.isArray(profile.attendanceRecords)) {
+                return;
+            }
+            map.set(String(profile.studentId), profile.attendanceRecords);
+        });
+        return map;
+    }
+
+    function getLastSyncAppliedAt() {
+        return lastSyncAppliedAt;
+    }
+
     global.CCPClassroomBriefing = {
         initTab,
         render: renderIdle,
         ensureSyncUi,
         runSync,
-        estimateSyncMinutes
+        estimateSyncMinutes,
+        getCachedAttendanceByStudent,
+        getLastSyncAppliedAt
     };
 })(typeof window !== 'undefined' ? window : globalThis);

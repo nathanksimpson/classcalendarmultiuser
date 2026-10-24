@@ -14329,6 +14329,7 @@ const APP_TEACHING_ONLY_TAB_IDS = [
     'tests',
     'debate-teams',
     'debate-scores',
+    'debate-rec',
     'debate-books',
     'speaking-test',
     'soundboard'
@@ -14374,6 +14375,7 @@ const ZONE_SEGMENT_TO_TAB = {
         essays: 'essays',
         'debate-teams': 'debate-teams',
         'debate-scores': 'debate-scores',
+        'debate-rec': 'debate-rec',
         'debate-books': 'debate-books',
         'speaking-test': 'speaking-test',
         soundboard: 'soundboard'
@@ -14921,6 +14923,7 @@ const LEGACY_TAB_ZONE_REDIRECT = {
     tests: { zone: APP_ZONE_CLASSROOM, segment: 'tests' },
     'debate-teams': { zone: APP_ZONE_TOOLS, segment: 'debate-teams' },
     'debate-scores': { zone: APP_ZONE_TOOLS, segment: 'debate-scores' },
+    'debate-rec': { zone: APP_ZONE_TOOLS, segment: 'debate-rec' },
     'debate-books': { zone: APP_ZONE_TOOLS, segment: 'debate-books' },
     'speaking-test': { zone: APP_ZONE_TOOLS, segment: 'speaking-test' },
     soundboard: { zone: APP_ZONE_TOOLS, segment: 'soundboard' },
@@ -16561,6 +16564,7 @@ async function navigateToTabBody(tabId, options = {}) {
         || tabId === 'debate-teams'
         || tabId === 'debate-scores'
         || tabId === 'debate-books'
+        || tabId === 'debate-rec'
         || tabId === 'speaking-test'
     ) {
         tabInitPromise = initClassroomTabControls(tabId, options);
@@ -22068,6 +22072,10 @@ function getClassroomHooks() {
         refreshTabWarnings() {
             scheduleTabWarningsRefresh();
         },
+        /** Teacher display name for a user id (Debate Rec "set by"). */
+        getUserDisplayName(userId) {
+            return resolveHomeroomTeacherDisplayName(userId);
+        },
         getLessonDates(classData, options) {
             return calculateLessonDates(classData, options);
         },
@@ -22192,6 +22200,8 @@ async function initClassroomTabControls(tabId, options = {}) {
             await CCPClassroomDebateScores.initTab(hooks, options);
         } else if (tabId === 'debate-books' && typeof CCPClassroomDebateBooks !== 'undefined') {
             await CCPClassroomDebateBooks.initTab(hooks, options);
+        } else if (tabId === 'debate-rec' && typeof CCPClassroomDebateRec !== 'undefined') {
+            await CCPClassroomDebateRec.initTab(hooks, options);
         } else if (tabId === 'speaking-test' && typeof CCPClassroomSpeakingTest !== 'undefined') {
             await CCPClassroomSpeakingTest.initTab(hooks, options);
         } else {
@@ -38190,6 +38200,7 @@ function refreshActiveTabAfterHydration() {
         || tab === 'debate-teams'
         || tab === 'debate-scores'
         || tab === 'debate-books'
+        || tab === 'debate-rec'
         || tab === 'speaking-test'
     ) {
         void initClassroomTabControls(tab);

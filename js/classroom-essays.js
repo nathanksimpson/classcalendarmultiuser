@@ -4617,7 +4617,16 @@
             scheduleStatusSave();
         });
         row.querySelector('.classroom-essay-debate-video')?.addEventListener('change', (event) => {
-            setRecord(sid, { debateVideoMissing: event.currentTarget.checked });
+            const checked = event.currentTarget.checked;
+            const d = domain();
+            // A manual NV choice is a teacher decision: Tools → Debate Rec TMS checks keep it.
+            const patch = d && d.debateRecPatchForNvToggle
+                ? d.debateRecPatchForNvToggle(
+                    checked,
+                    hooks && hooks.getCurrentUserId ? hooks.getCurrentUserId() : ''
+                )
+                : { debateVideoMissing: checked };
+            setRecord(sid, patch);
             afterEssayStatusChange(panel, sid);
         });
         const noteInput = row.querySelector('.classroom-essay-note');

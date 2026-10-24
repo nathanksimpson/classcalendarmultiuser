@@ -76,6 +76,16 @@ TMS only accepts the school network. Install the **Sync Helper** once on the sch
 
 The password is used for that sync only. It is not saved in a file on the PC.
 
+## Debate Rec (missed debate recordings)
+
+**Tools → Debate Rec** finds students who missed the Day 4 debate recording.
+
+1. Pick a debate class and press **Check TMS attendance…**. The Sync window opens with only attendance selected. Sign in, press **Load**, then close the window.
+2. Students marked **결석** on the day the Day 4 homework was assigned show as **Not recorded**. Late, early leave and other statuses show as **Needs confirmation**.
+3. Mark each student **Received** (make-up video turned in), **Recorded** (they were there after all) or **Exempt**.
+
+Your choice is never changed by a later TMS check. Use **Reset to TMS** if you want the next check to decide again. Class teachers and homeroom (담임) teachers see a bell warning while anything is still open. ClassManager only reads from TMS; it never writes to it.
+
 ## More help
 
 - In the app: **Help** opens [help.html](help.html) — sections 1–14 = planner, **17–19** = team sign-in and locks, **20–21** = Admin and roles.

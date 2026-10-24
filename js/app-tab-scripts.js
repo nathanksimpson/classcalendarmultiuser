@@ -52,7 +52,7 @@
         briefing: [
             'js/classroom-access.js?v=20260911-essay-groups',
             'js/classroom-header.js?v=20260807-hr-tools',
-            'js/classroom-briefing.js?v=20261013-tms-sync'
+            'js/classroom-briefing.js?v=20261024-debate-rec'
         ],
         'homework-tracking': [
             'js/classroom-access.js?v=20260911-essay-groups',
@@ -73,7 +73,7 @@
             'js/classroom-essay-class-summary-print.js?v=20261005-essay-demerit',
             'js/classroom-header.js?v=20260807-hr-tools',
             'js/classroom-essay-scrape-editor.js?v=20261013-tms-sync',
-            'js/classroom-essays.js?v=20261014-debate-period'
+            'js/classroom-essays.js?v=20261024-debate-rec'
         ],
         ledger: [
             'js/classroom-access.js?v=20260911-essay-groups',
@@ -116,6 +116,12 @@
             SCRIPT_DEBATE_DUTIES_PPTX,
             'js/classroom-access.js?v=20260911-essay-groups',
             'js/classroom-debate-scores.js?v=20261014-debate-period'
+        ],
+        'debate-rec': [
+            'js/classroom-access.js?v=20260911-essay-groups',
+            'js/classroom-header.js?v=20260807-hr-tools',
+            'js/classroom-briefing.js?v=20261024-debate-rec',
+            'js/classroom-debate-rec.js?v=20261024-debate-rec'
         ],
         'debate-books': [
             'js/classroom-access.js?v=20260911-essay-groups',

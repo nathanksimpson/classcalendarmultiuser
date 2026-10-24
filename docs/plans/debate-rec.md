@@ -2,7 +2,7 @@
 
 **Feature:** Tools → **Debate Rec** sub-tab
 **Goal:** Warn when a student was absent on the day the Debate **Day 4** homework was assigned (the day the debate is recorded in class), so teachers can collect a make-up recording.
-**Status:** Plan approved — implementation on branch `plan/debate-rec`
+**Status:** Implemented on branch `plan/debate-rec` (see §15 for differences from the plan)
 **Owner:** Nathan
 **Last updated:** 2026-10-24
 
@@ -913,3 +913,16 @@ test('counsel scrape only issues GET (plus sign-in POST)', async () => {
 | `SCHEMA.md`, `help/guide-content.json`, `FOR TEACHERS*.md` | Docs |
 
 **Not touched:** `server/`, `worker/src/`, `shared/tms-*.cjs`, D1 schema. The server already passes essay record fields through and validates by class; no new TMS endpoint is added.
+
+---
+
+## 15. Implementation notes (differences from the plan)
+
+- **TMS check entry point.** Briefing's `runSync()` reads credentials from its own sign-in fields, so Debate Rec does not call it directly. "Check TMS attendance…" opens the shared **TMS Sync window** (`CCPTmsSyncCenter.open({ kinds: ['counsel'], scope })`) with only attendance ticked. When the window closes, Debate Rec checks `CCPClassroomBriefing.getLastSyncAppliedAt()`; if no scrape ran after the button was pressed, nothing is checked or saved.
+- **Class picker.** `debate-rec` was added to the shared Classroom class bar (`classroom-zone-context.js`), which also shows per-class NV / "?" pills while the tab is open.
+- **Bell id.** The warning id includes the open counts (`class:<id>:debate_rec:<notRecorded>:<needsConfirmation>`) so a newly flagged student notifies again after a dismissal.
+- **"Not checked".** Counted for past Day 4 dates where a student has no Debate Rec status and no attendance in this browser's Briefing cache.
+- **Essays NV toggle** saves `debateRecStatus` `not_recorded` (on) or `received` (off) with source `teacher`.
+- **New hook** `getUserDisplayName(userId)` on the classroom hooks (uses the existing teacher-name resolver) for the "Set by" line.
+- **Tests.** `tests/classroom-debate-rec.test.mjs` (domain, including teacher-override and reset) and `tests/debate-rec-tms-readonly.test.mjs` (static + runtime read-only check with stubbed TMS HTTP, plus scrape → flag end to end). `tests/header-hierarchy.test.mjs` tab snapshot updated.
+
