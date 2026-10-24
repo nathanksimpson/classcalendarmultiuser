@@ -121,7 +121,8 @@
             'js/classroom-access.js?v=20260911-essay-groups',
             'js/classroom-header.js?v=20260807-hr-tools',
             'js/classroom-briefing.js?v=20261024-debate-rec',
-            'js/classroom-debate-rec.js?v=20261024-debate-rec'
+            'js/classroom-debate-rec-print.js?v=20261024-debate-rec-print',
+            'js/classroom-debate-rec.js?v=20261024-debate-rec-print'
         ],
         'debate-books': [
             'js/classroom-access.js?v=20260911-essay-groups',

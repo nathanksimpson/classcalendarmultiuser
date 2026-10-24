@@ -10166,6 +10166,76 @@
         return out;
     }
 
+    const DEBATE_REC_OPEN_STATUSES = ['not_recorded', 'needs_confirmation'];
+
+    /**
+     * Report rows for Debate Rec print / copy, grouped class → Day 4 date.
+     * @param {object} appData
+     * @param {string[]} classIds
+     * @param {{ openOnly?: boolean, nameForUser?: (id: string) => string }} [options]
+     * @returns {{ classId, className, homeroomUserId, counts, days: { date, dateSource, rows }[] }[]}
+     */
+    function listDebateRecReportGroups(appData, classIds, options) {
+        const opts = options || {};
+        const nameFor = typeof opts.nameForUser === 'function' ? opts.nameForUser : () => '';
+        const out = [];
+        (Array.isArray(classIds) ? classIds : []).forEach((cid) => {
+            const classData = findClassForDebateRec(appData, cid);
+            if (!classData || !classUsesDebateTeamAssignments(classData)) {
+                return;
+            }
+            const view = computeDebateRecView(appData, classData.id, new Map(), opts);
+            const byDay = new Map();
+            const counts = {};
+            view.rows.forEach((r) => {
+                const status = r.rec.debateRecStatus;
+                if (opts.openOnly && !DEBATE_REC_OPEN_STATUSES.includes(status)) {
+                    return;
+                }
+                counts[status] = (counts[status] || 0) + 1;
+                if (!byDay.has(r.day.rowId)) {
+                    byDay.set(r.day.rowId, { date: r.day.date, dateSource: r.day.dateSource, rows: [] });
+                }
+                byDay.get(r.day.rowId).rows.push({
+                    studentId: r.student.id,
+                    studentName: normalizeStr(r.student.name),
+                    nameEn: normalizeStr(r.student.nameEn),
+                    status,
+                    source: r.rec.debateRecSource,
+                    tmsStatus: r.rec.debateRecTmsStatus,
+                    tmsMemo: r.rec.debateRecTmsMemo,
+                    note: r.rec.debateRecNote,
+                    updatedBy: r.rec.debateRecUpdatedBy,
+                    updatedByName: r.rec.debateRecUpdatedBy ? nameFor(r.rec.debateRecUpdatedBy) : '',
+                    updatedAt: r.rec.debateRecUpdatedAt
+                });
+            });
+            const statusOrder = { not_recorded: 0, needs_confirmation: 1, received: 2, recorded: 3, exempt: 4 };
+            const days = Array.from(byDay.values())
+                .sort((a, b) => compareDateStr(a.date, b.date))
+                .map((day) => Object.assign(day, {
+                    rows: day.rows.sort((a, b) =>
+                        (statusOrder[a.status] - statusOrder[b.status])
+                        || a.studentName.localeCompare(b.studentName, 'ko'))
+                }));
+            const cohorts = (appData && appData.cohorts) || [];
+            const hrCohort = getCohortIdsForClass(classData)
+                .map((id) => cohorts.find((c) => c && normalizeStr(c.id) === id))
+                .find((c) => c && normalizeStr(c.homeroomTeacherUserId));
+            const homeroomUserId = normalizeStr(classData.homeroomTeacherUserId)
+                || (hrCohort ? normalizeStr(hrCohort.homeroomTeacherUserId) : '');
+            out.push({
+                classId: classData.id,
+                className: normalizeStr(classData.name),
+                homeroomUserId,
+                homeroomName: homeroomUserId ? nameFor(homeroomUserId) : '',
+                counts,
+                days
+            });
+        });
+        return out;
+    }
+
     /** Homeroom (담임) of the class itself or of any linked cohort. */
     function isHomeroomTeacherForClass(appData, classData, userId) {
         const uid = normalizeStr(userId);
@@ -10498,6 +10568,7 @@
         debateRecPatchForNvToggle,
         computeDebateRecView,
         countOpenDebateRecWarnings,
+        listDebateRecReportGroups,
         isHomeroomTeacherForClass,
         newId
     };

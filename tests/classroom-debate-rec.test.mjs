@@ -11,6 +11,7 @@ const root = path.join(__dirname, '..');
 
 await import(pathToFileURL(path.join(root, 'js', 'debate-periods.js')).href);
 await import(pathToFileURL(path.join(root, 'js', 'classroom-domain.js')).href);
+await import(pathToFileURL(path.join(root, 'js', 'classroom-debate-rec-print.js')).href);
 
 const d = globalThis.CCPClassroomDomain;
 
@@ -303,6 +304,61 @@ function check(data, tms) {
     assert(d.isHomeroomTeacherForClass(data, data.classes[0], 'hr1'), 'cohort homeroom');
     assert(!d.isHomeroomTeacherForClass(data, data.classes[0], 'someone'), 'not homeroom');
     assert(d.isHomeroomTeacherForClass(data, Object.assign({}, data.classes[0], { homeroomTeacherUserId: 'x' }), 'x'), 'class homeroom');
+}
+
+// ── Reports: grouping, open-only filter, print + copy rendering ────────
+{
+    const data = makeData();
+    check(data, new Map([
+        ['s1', [{ date: '2026-10-21', status: '결석', memo: '병결' }]],
+        ['s2', [{ date: '2026-10-21', status: '지각' }]],
+        ['s3', [{ date: '2026-10-21', status: '결석' }]]
+    ]));
+    data.essaySubmissions = d.setDebateRecTeacherStatus(data.essaySubmissions, {
+        classId: 'c1', syllabusRowId: 'r4', studentId: 's3', status: 'received', userId: 'u1', nowIso: NOW
+    }).submissions;
+    data.essaySubmissions = d.setDebateRecNote(data.essaySubmissions, {
+        classId: 'c1', syllabusRowId: 'r4', studentId: 's1', note: 'Mom will send video'
+    }).submissions;
+
+    const names = { u1: 'Nathan', hr1: 'Ms. Kim' };
+    const all = d.listDebateRecReportGroups(data, ['c1', 'missing'], { nameForUser: (id) => names[id] || '' });
+    eq(all.length, 1, 'unknown class skipped');
+    eq(all[0].homeroomName, 'Ms. Kim', 'homeroom name');
+    eq(all[0].days.length, 1, 'one Day 4 with rows');
+    const rows = all[0].days[0].rows;
+    eq(rows.length, 3, 'all flagged students in class report');
+    eq(rows[0].status, 'not_recorded', 'not recorded sorted first');
+    eq(rows[2].status, 'received', 'resolved last');
+    eq(rows[2].updatedByName, 'Nathan', 'set-by name resolved');
+    eq(all[0].counts.received, 1, 'received count');
+
+    const open = d.listDebateRecReportGroups(data, ['c1'], { openOnly: true });
+    eq(open[0].days[0].rows.length, 2, 'open-only drops resolved');
+
+    const P = globalThis.CCPClassroomDebateRecPrint;
+    const labels = {
+        title: 'Debate recordings', generatedAt: 'Printed', legend: 'legend', dayHeading: 'Day 4 · {date}',
+        homeroom: 'Homeroom: {name}', dateFromTms: 'TMS', dateFromSyllabus: 'syllabus', colDone: 'Done',
+        colStudent: 'Student', colTms: 'TMS', colRecording: 'Recording', colNote: 'Notes',
+        setBy: 'Set by {name} · {date}', teacher: 'teacher', fromTms: 'From TMS check',
+        noRows: 'Nothing', noRowsClass: 'None',
+        status: { not_recorded: 'Not recorded', needs_confirmation: 'Needs confirmation', received: 'Received', recorded: 'Recorded', exempt: 'Exempt' }
+    };
+    const html = P.renderDocumentHtml({ title: 'Report <x>', generatedAt: TODAY, groups: all }, labels);
+    assert(html.includes('Report &lt;x&gt;'), 'title escaped');
+    assert(html.includes('Day 4 · 10/21'), 'day heading');
+    assert(html.includes('결석 · 병결'), 'TMS status + memo');
+    assert(html.includes('Mom will send video'), 'note printed');
+    assert(html.includes('Set by Nathan'), 'set-by printed');
+    assert(html.includes('Homeroom: Ms. Kim'), 'homeroom printed');
+    assert(P.renderDocumentHtml({ groups: [] }, labels).includes('Nothing'), 'empty report message');
+    assert(typeof P.PRINT_STYLES === 'string' && P.PRINT_STYLES.includes('@page'), 'print styles');
+
+    const text = P.formatCopyText(open, labels);
+    assert(text.startsWith('Purple M'), 'copy starts with class');
+    assert(text.includes('- 김민준: Not recorded (결석 · 병결) — Mom will send video'), `copy line: ${text}`);
+    assert(!text.includes('박지호'), 'copy open-only excludes resolved');
 }
 
 console.log(`classroom-debate-rec.test.mjs: ok (${passed} assertions)`);

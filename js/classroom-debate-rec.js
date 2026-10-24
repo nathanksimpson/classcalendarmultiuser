@@ -27,6 +27,8 @@
     let checkRunning = false;
     let focusStudentId = '';
     let attendanceByStudent = new Map();
+    let reportsMenuOpen = false;
+    let docClickBound = false;
     const selectedKeys = new Set(); // `${rowId}|${studentId}`
 
     const STATUS_META = {
@@ -367,6 +369,180 @@
         }
     }
 
+    // ── Reports (print / copy) ──────────────────────────────────────────
+
+    function printApi() {
+        return global.CCPClassroomDebateRecPrint;
+    }
+
+    function reportLabels() {
+        return {
+            title: t('debateRecReportTitle'),
+            generatedAt: t('debateRecReportPrinted'),
+            legend: t('debateRecReportLegend'),
+            dayHeading: t('debateRecReportDayHeading'),
+            homeroom: t('debateRecReportHomeroom'),
+            dateFromTms: t('debateRecDateFromTms'),
+            dateFromSyllabus: t('debateRecDateFromSyllabus'),
+            colDone: t('debateRecReportColDone'),
+            colStudent: t('classroomColStudent'),
+            colTms: t('debateRecColTms'),
+            colRecording: t('debateRecColRecording'),
+            colNote: t('classroomColNotes'),
+            setBy: t('debateRecSetBy'),
+            teacher: t('debateRecTeacher'),
+            fromTms: t('debateRecFromTmsHint'),
+            noRows: t('debateRecReportNoRows'),
+            noRowsClass: t('debateRecReportNoRowsClass'),
+            status: {
+                not_recorded: t('debateRecStatusNotRecorded'),
+                needs_confirmation: t('debateRecStatusNeedsConfirmation'),
+                recorded: t('debateRecStatusRecorded'),
+                received: t('debateRecStatusReceived'),
+                exempt: t('debateRecStatusExempt')
+            }
+        };
+    }
+
+    function myDebateClassIds() {
+        const d = domain();
+        return (getAppData().classes || [])
+            .filter((c) => c && c.id && d.classUsesDebateTeamAssignments(c) && canEdit(c))
+            .map((c) => c.id);
+    }
+
+    function reportGroups(classIds, openOnly) {
+        return domain().listDebateRecReportGroups(getAppData(), classIds, {
+            openOnly,
+            nameForUser: teacherName
+        });
+    }
+
+    function calendarName() {
+        if (hooks && hooks.getCalendarName) {
+            return hooks.getCalendarName() || '';
+        }
+        return getAppData().calendarName || '';
+    }
+
+    function openPrintDocument(title, bodyHtml, css) {
+        if (hooks && typeof hooks.openPrintDocument === 'function') {
+            hooks.openPrintDocument(title, bodyHtml, css);
+            return;
+        }
+        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
+            <style>${css || ''}</style></head><body class="print-color-mode-light">${bodyHtml}</body></html>`;
+        const win = global.open('', '_blank');
+        if (!win) {
+            if (hooks.showToast) {
+                hooks.showToast(t('printSyllabusBlocked'), true);
+            }
+            return;
+        }
+        win.document.open();
+        win.document.write(html);
+        win.document.close();
+        win.document.title = title;
+        const go = () => {
+            try {
+                win.focus();
+                win.print();
+            } catch (_) {
+                /* ignore */
+            }
+        };
+        if (win.document.readyState === 'complete') {
+            setTimeout(go, 50);
+        } else {
+            win.addEventListener('load', () => setTimeout(go, 50));
+            setTimeout(go, 300);
+        }
+    }
+
+    function printReport(scope) {
+        const api = printApi();
+        if (!api) {
+            return;
+        }
+        const all = scope === 'all';
+        const classIds = all ? myDebateClassIds() : (classId ? [classId] : []);
+        const groups = reportGroups(classIds, all);
+        if (!groups.some((g) => g.days.length)) {
+            if (hooks.showToast) {
+                hooks.showToast(t('debateRecReportNoRows'), true);
+            }
+            return;
+        }
+        const classData = getClassData();
+        const title = all
+            ? t('debateRecReportTitleAll')
+            : tf('debateRecReportTitleClass', { name: classData ? classData.name : '' });
+        const labels = reportLabels();
+        const body = api.renderDocumentHtml({
+            title,
+            calendarName: calendarName(),
+            generatedAt: domain().todayISO(),
+            scopeNote: all ? t('debateRecReportScopeAll') : t('debateRecReportScopeClass'),
+            groups
+        }, labels);
+        openPrintDocument(title, body, api.PRINT_STYLES);
+    }
+
+    async function copyOpenList() {
+        const api = printApi();
+        if (!api) {
+            return;
+        }
+        const groups = reportGroups(classId ? [classId] : [], true);
+        const count = groups.reduce((n, g) => n + g.days.reduce((m, day) => m + day.rows.length, 0), 0);
+        if (!count) {
+            if (hooks.showToast) {
+                hooks.showToast(t('debateRecReportNoRows'), true);
+            }
+            return;
+        }
+        const text = api.formatCopyText(groups, reportLabels());
+        try {
+            if (global.navigator && global.navigator.clipboard && global.navigator.clipboard.writeText) {
+                await global.navigator.clipboard.writeText(text);
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.setAttribute('readonly', '');
+                ta.style.position = 'fixed';
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+            }
+            if (hooks.showToast) {
+                hooks.showToast(tf('debateRecReportCopied', { count }));
+            }
+        } catch (_) {
+            if (hooks.showToast) {
+                hooks.showToast(t('classroomEssayWarnCopyFailed'), true);
+            }
+        }
+    }
+
+    function renderReportsMenu() {
+        const mount = panelRef && panelRef.querySelector('#classroomDebateRecReportsWrap');
+        if (!mount) {
+            return;
+        }
+        const icon = '<svg class="classroom-essay-reports-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>';
+        mount.innerHTML = `
+            <div class="classroom-essay-reports-menu${reportsMenuOpen ? ' is-open' : ''}">
+                <button type="button" id="classroomDebateRecReportsBtn" class="btn btn-outline btn-compact classroom-essay-reports-btn" aria-expanded="${reportsMenuOpen ? 'true' : 'false'}" aria-haspopup="menu">${icon}${escapeHtml(t('debateRecReportsBtn'))} ▾</button>
+                <div class="classroom-essay-reports-dropdown" role="menu"${reportsMenuOpen ? '' : ' hidden'}>
+                    <button type="button" class="classroom-essay-reports-item" data-report-action="print-class" role="menuitem"${classId ? '' : ' disabled'}>${escapeHtml(t('debateRecReportPrintClass'))}</button>
+                    <button type="button" class="classroom-essay-reports-item" data-report-action="print-all" role="menuitem">${escapeHtml(t('debateRecReportPrintAll'))}</button>
+                    <button type="button" class="classroom-essay-reports-item" data-report-action="copy-open" role="menuitem"${classId ? '' : ' disabled'}>${escapeHtml(t('debateRecReportCopy'))}</button>
+                </div>
+            </div>`;
+    }
+
     // ── Render ─────────────────────────────────────────────────────────
 
     function renderContextBar(view) {
@@ -582,6 +758,7 @@
         renderContextBar(view);
         renderStats(view);
         renderToolbarState();
+        renderReportsMenu();
         renderRows(view);
         renderBatch();
         const selectAll = panel.querySelector('#classroomDebateRecSelectAll');
@@ -599,9 +776,39 @@
             return;
         }
         mountEventsBound = true;
+        if (!docClickBound && typeof document !== 'undefined' && document.addEventListener) {
+            docClickBound = true;
+            document.addEventListener('click', (event) => {
+                const target = event.target instanceof Element ? event.target : null;
+                if (reportsMenuOpen && !(target && target.closest && target.closest('#classroomDebateRecReportsWrap'))) {
+                    reportsMenuOpen = false;
+                    renderReportsMenu();
+                }
+            });
+        }
         panel.addEventListener('click', (event) => {
             const target = event.target instanceof Element ? event.target : null;
             if (!target) {
+                return;
+            }
+            if (target.closest('#classroomDebateRecReportsBtn')) {
+                event.stopPropagation();
+                reportsMenuOpen = !reportsMenuOpen;
+                renderReportsMenu();
+                return;
+            }
+            const reportItem = target.closest('[data-report-action]');
+            if (reportItem) {
+                const action = reportItem.getAttribute('data-report-action');
+                reportsMenuOpen = false;
+                renderReportsMenu();
+                if (action === 'print-class') {
+                    printReport('class');
+                } else if (action === 'print-all') {
+                    printReport('all');
+                } else if (action === 'copy-open') {
+                    void copyOpenList();
+                }
                 return;
             }
             const dayChip = target.closest('.debate-rec-day-chip');
