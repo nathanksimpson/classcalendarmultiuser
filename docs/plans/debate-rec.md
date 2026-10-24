@@ -2,7 +2,7 @@
 
 **Feature:** Tools → **Debate Rec** sub-tab
 **Goal:** Warn when a student was absent on the day the Debate **Day 4** homework was assigned (the day the debate is recorded in class), so teachers can collect a make-up recording.
-**Status:** Plan — not yet implemented
+**Status:** Plan approved — implementation on branch `plan/debate-rec`
 **Owner:** Nathan
 **Last updated:** 2026-10-24
 
@@ -50,7 +50,7 @@ TMS attendance is recorded per **day**, not per class. An absence on a date mean
 
 - Manually ticking/clearing **NV** on the Essays tab also counts as a teacher decision.
 - Every teacher decision stores **who** and **when**.
-- Optional **"Reset to TMS"** row action hands the student back to automatic checking (see §12, open question 1).
+- A per-row **"Reset to TMS"** action hands the student back to automatic checking (confirmed).
 
 ### 2.4 Read-only toward TMS
 
@@ -367,7 +367,7 @@ function setDebateRecTeacherStatus(submissions, options) {
     }));
 }
 
-/** Optional (§12 Q1): hand the student back to the automatic TMS check. */
+/** Hand the student back to the automatic TMS check. */
 function resetDebateRecToTms(submissions, options) {
     return patchEssayRecord(submissions, options, (prev) => Object.assign({}, prev, {
         debateRecStatus: '',
@@ -503,12 +503,9 @@ global.CCPClassroomBriefing = {
 ```js
 async function runTmsCheck(classIds) {
     const briefing = global.CCPClassroomBriefing;
-    // Reuse a recent Briefing scrape if it's fresh (< 6 h), otherwise run it.
-    const fresh = Date.now() - briefing.getCacheSavedAt() < 6 * 60 * 60 * 1000;
-    if (!fresh) {
-        // Same sign-in modal + Sync Helper path as Briefing. Read-only GETs.
-        await briefing.runSync(await promptTmsCredentials(), { classIds, counselOnly: true });
-    }
+    // Always scrape fresh (confirmed): same sign-in modal + Sync Helper path as Briefing.
+    // Read-only GETs plus the standard sign-in.
+    await briefing.runSync(await promptTmsCredentials(), { classIds, counselOnly: true });
     let data = hooks.getAppData();
     let totals = { flagged: 0, needsConfirmation: 0, cleared: 0, skippedTeacher: 0, noTmsData: 0 };
     for (const classId of classIds) {
@@ -551,7 +548,7 @@ Batch: [Mark received] [Mark exempt] [Mark recorded]
   - `not_recorded` → Received / Exempt
   - `needs_confirmation` → Recorded / Not recorded
   - teacher-set → any; shows "by {name} {date}"
-- **↺ Reset to TMS** shown only on teacher-set rows (if §12 Q1 = yes).
+- **↺ Reset to TMS** shown on every teacher-set row.
 - **All** chip = cross-date view of every open item for the class.
 - Summary across classes: reuse the Essays class-summary report pattern (`classroom-essay-class-summary.js`) for a "Debate Rec — all classes" report.
 
@@ -714,7 +711,9 @@ Also add `'debate-rec'` alongside `'debate-books'` in the class-scoped tab check
 
 (Copy the exact current `?v=` strings for shared scripts from the `essays` / `briefing` entries; `npm run build` re-stamps them.)
 
-### 8.5 Bell warning — `js/tab-warnings.js` → `pushClassExtraWarnings()`
+### 8.5 Bell warning — `js/tab-warnings.js`
+
+Shown to the class's assigned teachers **and** homeroom (담임) teachers of any cohort linked to the class (confirmed). Homeroom is resolved by `isHomeroomTeacherForClass(appData, classData, userId)` in the domain (class `homeroomTeacherUserId` or a linked cohort's `homeroomTeacherUserId`), because `classroom-access.js` is not loaded on every page.
 
 ```js
 if (domainApi && typeof domainApi.countOpenDebateRecWarnings === 'function') {
@@ -869,11 +868,11 @@ test('counsel scrape only issues GET (plus sign-in POST)', async () => {
 
 ---
 
-## 12. Open questions
+## 12. Decisions
 
-1. **Reset to TMS** — include the per-row "Reset to TMS" action (recommended), or make teacher decisions permanent with no reset?
-2. **Check freshness** — reuse a Briefing scrape if it's under **6 hours** old, or always scrape fresh on "Check TMS attendance"?
-3. **Who sees the bell warning** — the class's teachers only (current `classAppliesToViewer` behaviour), or the homeroom (담임) teacher too?
+1. **Reset to TMS** — yes, per-row action on teacher-set rows.
+2. **Check freshness** — always scrape TMS fresh when "Check TMS attendance" runs (no cache reuse for the check).
+3. **Bell warning audience** — the class's teachers **and** homeroom (담임) teachers of linked cohorts.
 
 ---
 
