@@ -429,7 +429,8 @@ function check(data, tms) {
 
     const overdue = M.essay({ kind: 'overdue', studentName: '김민준', nameEn: 'Minjun', className: 'Purple M', assignedDate: '2026-10-21', dueDate: '2026-10-23', teacherName: 'Nathan' });
     eq(overdue.split('\n')[0], '[Simson Academy] Essay not submitted', 'essay overdue header');
-    assert(overdue.includes('Minjun has not yet submitted the essay assigned on Wednesday, October 21 in the Purple M class. It was due on Friday, October 23.'), 'essay overdue body');
+    assert(overdue.includes('Minjun has not yet submitted the essay assigned on Wednesday, October 21 in the Purple M class.'), 'essay overdue body');
+    assert(!/due|October 23/i.test(overdue), 'no due date in the essay message');
     assert(overdue.includes("please contact Minjun's homeroom teacher"), 'essay overdue homeroom');
     const resub = M.essay({ kind: 'resubmit', studentName: '김민준', nameEn: 'Minjun', className: 'Purple M', assignedDate: '2026-10-21', teacherName: 'Nathan' });
     eq(resub.split('\n')[0], '[Simson Academy] Essay needs to be resubmitted', 'essay resubmit header');

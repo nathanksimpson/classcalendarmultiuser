@@ -81,7 +81,7 @@
     /**
      * Essay not handed in (overdue) or needing to be resubmitted.
      * @param {{ kind: 'overdue'|'resubmit', studentName: string, nameEn?: string, className?: string,
-     *           assignedDate?: string, dueDate?: string, teacherName?: string }} info
+     *           assignedDate?: string, teacherName?: string }} info
      */
     function essay(info) {
         const i = info || {};
@@ -104,14 +104,13 @@
                 ACADEMY_NAME
             ].join('\n');
         }
-        const due = str(i.dueDate) ? ` It was due on ${longDate(i.dueDate)}.` : '';
         return [
             `[${ACADEMY_NAME}] Essay not submitted`,
             '',
             'Hello,',
             intro(i, '', full),
             '',
-            `${child} has not yet submitted the essay${assigned}${where}.${due}`,
+            `${child} has not yet submitted the essay${assigned}${where}.`,
             '',
             `Could you please remind ${child} to finish the essay and submit it as soon as possible? If ${child} needs help or more time, please contact ${child}'s homeroom teacher.`,
             '',

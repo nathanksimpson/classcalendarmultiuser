@@ -482,7 +482,6 @@
             nameEn: entry.student.nameEn,
             className: classData ? classData.name : '',
             assignedDate: row ? row.date : '',
-            dueDate: draftSubmission ? draftSubmission.ssDueDate || '' : '',
             teacherName: hooks && hooks.getUserDisplayName ? hooks.getUserDisplayName(userId) : ''
         });
         void copyTextToClipboard(text, 'classroomEssayParentMsgCopied');
