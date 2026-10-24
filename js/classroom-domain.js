@@ -9957,16 +9957,32 @@
                 const prev = idx >= 0 ? records[idx] : null;
                 const prevRec = prev ? normalizeDebateRecFields(prev) : null;
 
-                if (prevRec && prevRec.debateRecSource === 'teacher') {
-                    summary.skippedTeacher += 1;
-                    return;
-                }
                 if (!byStudent.has(sid)) {
-                    summary.noTmsData += 1;
+                    if (prevRec && prevRec.debateRecSource === 'teacher') {
+                        summary.skippedTeacher += 1;
+                    } else {
+                        summary.noTmsData += 1;
+                    }
                     return;
                 }
 
                 const hit = pickTmsAttendanceForDate(byStudent.get(sid), day.date);
+
+                if (prevRec && prevRec.debateRecSource === 'teacher') {
+                    // Teacher decision stays; only remember what TMS said so Reset to TMS can restore it.
+                    summary.skippedTeacher += 1;
+                    const kept = Object.assign({}, prev, {
+                        debateRecDate: day.date,
+                        debateRecTmsStatus: hit ? normalizeStr(hit.status) : '',
+                        debateRecTmsMemo: hit ? normalizeStr(hit.memo) : '',
+                        debateRecCheckedAt: nowIso
+                    });
+                    if (JSON.stringify(prev) !== JSON.stringify(kept)) {
+                        records[idx] = kept;
+                        touched = true;
+                    }
+                    return;
+                }
                 const nextStatus = hit ? debateRecStatusFromTms(hit.status) : '';
                 const hadTmsStatus = Boolean(prevRec && prevRec.debateRecSource === 'tms' && prevRec.debateRecStatus);
 
@@ -10067,17 +10083,23 @@
         }));
     }
 
-    /** Hand the student back to the automatic TMS check (next check decides). */
+    /**
+     * Hand the student back to TMS: restore the last TMS result right away
+     * (결석 → Not recorded, 지각/조퇴/… → Needs confirmation), or no status when
+     * TMS had no absence / no check has run yet. Later checks update it as usual.
+     */
     function resetDebateRecToTms(submissions, options) {
-        return patchDebateRecRecord(submissions, options, (prev) => Object.assign({}, prev, {
-            debateRecStatus: '',
-            debateRecSource: '',
-            debateRecTmsStatus: '',
-            debateRecTmsMemo: '',
-            debateRecUpdatedBy: '',
-            debateRecUpdatedAt: '',
-            debateVideoMissing: false
-        }));
+        return patchDebateRecRecord(submissions, options, (prev) => {
+            const tmsStatus = normalizeStr(prev.debateRecTmsStatus);
+            const restored = tmsStatus ? debateRecStatusFromTms(tmsStatus) : '';
+            return Object.assign({}, prev, {
+                debateRecStatus: restored,
+                debateRecSource: restored ? 'tms' : '',
+                debateRecUpdatedBy: '',
+                debateRecUpdatedAt: '',
+                debateVideoMissing: restored === 'not_recorded'
+            });
+        });
     }
 
     /**

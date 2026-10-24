@@ -219,8 +219,11 @@ function check(data, tms) {
     data.essaySubmissions = d.resetDebateRecToTms(data.essaySubmissions, {
         classId: 'c1', syllabusRowId: 'r4', studentId: 's1'
     }).submissions;
-    assert(!rec(data, 'r4', 's1').debateRecStatus, 'reset clears status');
-    eq(rec(data, 'r4', 's1').debateVideoMissing, false, 'reset clears NV');
+    // TMS said 결석 during the check (kept on the record while the teacher's Exempt stood),
+    // so Reset to TMS restores Not recorded straight away.
+    eq(rec(data, 'r4', 's1').debateRecStatus, 'not_recorded', 'reset restores last TMS result');
+    eq(rec(data, 'r4', 's1').debateRecSource, 'tms', 'reset hands back to TMS');
+    eq(rec(data, 'r4', 's1').debateVideoMissing, true, 'reset restores NV for 결석');
     check(data, tms);
     const r = rec(data, 'r4', 's1');
     eq(r.debateRecStatus, 'not_recorded', 'TMS applies again after reset');
@@ -488,6 +491,43 @@ function check(data, tms) {
     eq(entry.checked, false, 'entry unchecked');
     eq(entry.notChecked, 3, 'entry notChecked count');
     eq(entry.completed, 0, 'entry completed count');
+}
+
+// ── Reset to TMS restores the last TMS result (production bug fix) ─────
+{
+    const one = () => makeData();
+    const steps = (data, list) => list.forEach(([k, a]) => {
+        if (k === 'tms') {
+            data.essaySubmissions = d.applyDebateRecTmsCheck(data, 'c1', new Map([['s1', a], ['s2', []], ['s3', []]]), { todayIso: TODAY }).submissions;
+        } else if (k === 'set') {
+            data.essaySubmissions = d.setDebateRecTeacherStatus(data.essaySubmissions, { classId: 'c1', syllabusRowId: 'r4', studentId: 's1', status: a, userId: 'u1' }).submissions;
+        } else {
+            data.essaySubmissions = d.resetDebateRecToTms(data.essaySubmissions, { classId: 'c1', syllabusRowId: 'r4', studentId: 's1' }).submissions;
+        }
+    });
+    const shown = (data) => d.computeDebateRecView(data, 'c1', null, { todayIso: TODAY }).rows.find((r) => r.student.id === 's1').displayStatus;
+    const A = [{ date: '2026-10-21', status: '결석', memo: '병결' }];
+    const L = [{ date: '2026-10-21', status: '지각' }];
+
+    let data = one(); steps(data, [['tms', A], ['set', 'received'], ['reset']]);
+    eq(shown(data), 'not_recorded', '결석 → Received → reset = Not recorded (not "Recorded in class")');
+    eq(rec(data, 'r4', 's1').debateRecTmsMemo, '병결', 'TMS memo kept through teacher decision');
+
+    data = one(); steps(data, [['set', 'recorded'], ['tms', A], ['reset']]);
+    eq(shown(data), 'not_recorded', 'teacher before check, TMS 결석 remembered, reset = Not recorded');
+
+    data = one(); steps(data, [['tms', L], ['set', 'recorded'], ['reset']]);
+    eq(shown(data), 'needs_confirmation', '지각 → Recorded → reset = Needs confirmation');
+
+    data = one(); steps(data, [['tms', []], ['set', 'not_recorded'], ['reset']]);
+    eq(shown(data), 'present', 'no TMS absence → reset = Recorded in class');
+
+    data = one(); steps(data, [['set', 'exempt'], ['reset']]);
+    eq(shown(data), 'not_checked', 'no TMS check yet → reset = Not checked');
+
+    // Teacher decision still never changed by a check.
+    data = one(); steps(data, [['set', 'received'], ['tms', A]]);
+    eq(shown(data), 'received', 'check keeps teacher decision');
 }
 
 console.log(`classroom-debate-rec.test.mjs: ok (${passed} assertions)`);
