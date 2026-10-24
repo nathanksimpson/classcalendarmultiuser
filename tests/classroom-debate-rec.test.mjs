@@ -11,6 +11,7 @@ const root = path.join(__dirname, '..');
 
 await import(pathToFileURL(path.join(root, 'js', 'debate-periods.js')).href);
 await import(pathToFileURL(path.join(root, 'js', 'classroom-domain.js')).href);
+await import(pathToFileURL(path.join(root, 'js', 'classroom-essay-class-summary-print.js')).href);
 await import(pathToFileURL(path.join(root, 'js', 'classroom-debate-rec-print.js')).href);
 
 const d = globalThis.CCPClassroomDomain;
@@ -306,9 +307,17 @@ function check(data, tms) {
     assert(d.isHomeroomTeacherForClass(data, Object.assign({}, data.classes[0], { homeroomTeacherUserId: 'x' }), 'x'), 'class homeroom');
 }
 
-// ── Reports: grouping, open-only filter, print + copy rendering ────────
+// ── Class summary report (Essays class summary shape) ──────────────────
 {
     const data = makeData();
+    data.classes[0].grade = '초4';
+    data.classes[0].levelPreset = 'Purple';
+    data.classes.push({
+        id: 'c2', name: 'Yeoul T', scheduleModel: 'debateMonthly', cohortIds: ['co2'], grade: '초5', levelPreset: 'Yeoul',
+        syllabusRows: [{ id: 'y4', kind: 'lesson', date: '2026-09-17', sessionNumber: 4, planTitle: 'Day 4 / Preview', trackEssay: true }]
+    });
+    data.classes.push({ id: 'rc', name: 'Navy RC', scheduleModel: 'sequentialTerm', cohortIds: ['co1'], syllabusRows: [] });
+    data.cohorts.push({ id: 'co2', name: 'Yeoul T', students: [{ id: 'y1', name: '강하늘', active: true }, { id: 'y2', name: '나봄', active: true }] });
     check(data, new Map([
         ['s1', [{ date: '2026-10-21', status: '결석', memo: '병결' }]],
         ['s2', [{ date: '2026-10-21', status: '지각' }]],
@@ -320,82 +329,81 @@ function check(data, tms) {
     data.essaySubmissions = d.setDebateRecNote(data.essaySubmissions, {
         classId: 'c1', syllabusRowId: 'r4', studentId: 's1', note: 'Mom will send video'
     }).submissions;
-
-    const names = { u1: 'Nathan', hr1: 'Ms. Kim' };
-    const all = d.listDebateRecReportGroups(data, ['c1', 'missing'], { nameForUser: (id) => names[id] || '' });
-    eq(all.length, 1, 'unknown class skipped');
-    eq(all[0].homeroomName, 'Ms. Kim', 'homeroom name');
-    eq(all[0].days.length, 1, 'one Day 4 with rows');
-    const rows = all[0].days[0].rows;
-    eq(rows.length, 3, 'all flagged students in class report');
-    eq(rows[0].status, 'not_recorded', 'not recorded sorted first');
-    eq(rows[2].status, 'received', 'resolved last');
-    eq(rows[2].updatedByName, 'Nathan', 'set-by name resolved');
-    eq(all[0].counts.received, 1, 'received count');
-
-    const open = d.listDebateRecReportGroups(data, ['c1'], { openOnly: true });
-    eq(open[0].days[0].rows.length, 2, 'open-only drops resolved');
-
-    const P = globalThis.CCPClassroomDebateRecPrint;
-    const labels = {
-        title: 'Debate recordings', generatedAt: 'Printed', legend: 'legend', dayHeading: 'Day 4 · {date}',
-        homeroom: 'Homeroom: {name}', dateFromTms: 'TMS', dateFromSyllabus: 'syllabus', colDone: 'Done',
-        colStudent: 'Student', colTms: 'TMS', colRecording: 'Recording', colNote: 'Notes',
-        setBy: 'Set by {name} · {date}', teacher: 'teacher', fromTms: 'From TMS check',
-        noRows: 'Nothing', noRowsClass: 'None',
-        status: { not_recorded: 'Not recorded', needs_confirmation: 'Needs confirmation', received: 'Received', recorded: 'Recorded', exempt: 'Exempt' }
-    };
-    const html = P.renderDocumentHtml({ title: 'Report <x>', generatedAt: TODAY, groups: all }, labels);
-    assert(html.includes('Report &lt;x&gt;'), 'title escaped');
-    assert(html.includes('Day 4 · 10/21'), 'day heading');
-    assert(html.includes('결석 · 병결'), 'TMS status + memo');
-    assert(html.includes('Mom will send video'), 'note printed');
-    assert(html.includes('Set by Nathan'), 'set-by printed');
-    assert(html.includes('Homeroom: Ms. Kim'), 'homeroom printed');
-    assert(P.renderDocumentHtml({ groups: [] }, labels).includes('Nothing'), 'empty report message');
-    assert(typeof P.PRINT_STYLES === 'string' && P.PRINT_STYLES.includes('@page'), 'print styles');
-
-    const text = P.formatCopyText(open, labels);
-    assert(text.startsWith('Purple M'), 'copy starts with class');
-    assert(text.includes('- 김민준: Not recorded (결석 · 병결) — Mom will send video'), `copy line: ${text}`);
-    assert(!text.includes('박지호'), 'copy open-only excludes resolved');
-}
-
-// ── All-classes report filters: month, grade, level, homeroom, scope ──
-{
-    const data = makeData();
-    data.classes[0].grade = '초4';
-    data.classes[0].levelPreset = 'Purple';
-    data.classes.push({
-        id: 'c2', name: 'Yeoul T', scheduleModel: 'debateMonthly', cohortIds: ['co2'], grade: '초5', levelPreset: 'Yeoul',
-        syllabusRows: [{ id: 'y4', kind: 'lesson', date: '2026-09-17', sessionNumber: 4, planTitle: 'Day 4 / Preview', trackEssay: true }]
-    });
-    data.classes.push({ id: 'rc', name: 'Navy RC', scheduleModel: 'sequentialTerm', cohortIds: ['co1'], syllabusRows: [] });
-    data.cohorts.push({ id: 'co2', name: 'Yeoul T', homeroomTeacherUserId: 'hr2', students: [{ id: 'y1', name: '강하늘', active: true }] });
-    check(data, new Map([['s1', [{ date: '2026-10-21', status: '결석' }]]]));
-    const r2 = d.applyDebateRecTmsCheck(data, 'c2', new Map([['y1', [{ date: '2026-09-17', status: '결석' }]]]), { todayIso: TODAY });
+    const r2 = d.applyDebateRecTmsCheck(data, 'c2', new Map([['y1', [{ date: '2026-09-17', status: '결석' }]], ['y2', []]]), { todayIso: TODAY });
     data.essaySubmissions = r2.submissions;
 
-    const opts = d.debateRecReportFilterOptions(data, data.classes);
-    eq(opts.months.join(), '2026-11,2026-10,2026-09', 'months newest first');
-    eq(opts.grades.join(), '초4,초5', 'grades');
-    assert(opts.homerooms.includes('hr1') && opts.homerooms.includes('hr2'), 'homerooms');
+    // Filter options: past months only, homerooms incl. "no homeroom".
+    const opts = d.debateRecReportFilterOptions(data, data.classes, { todayIso: TODAY });
+    eq(opts.months.join(), '2026-10,2026-09', 'past months newest first (November Day 4 is in the future)');
+    eq(opts.homerooms.join(), 'hr1', 'homerooms');
+    eq(opts.noHomeroom, true, 'a class without homeroom');
 
-    const f = (filters, isMine) => d.filterDebateRecReportClasses(data, data.classes, filters, { isMine }).map((c) => c.id).join();
-    eq(f({}), 'c1,c2', 'only debate classes');
-    eq(f({ grade: '초5' }), 'c2', 'grade filter');
-    eq(f({ levelLabel: 'Purple' }), 'c1', 'level filter');
-    eq(f({ homeroomUserId: 'hr2' }), 'c2', 'homeroom filter');
-    eq(f({ search: 'yeoul' }), 'c2', 'search');
-    eq(f({ month: '2026-09' }), 'c2', 'month filter (has a Day 4 that month)');
-    eq(f({ classScope: 'mine' }, (c) => c.id === 'c1'), 'c1', 'mine');
-    eq(f({ classScope: 'other' }, (c) => c.id === 'c1'), 'c2', 'other');
-    eq(f({ month: '2026-11', withItemsOnly: true }), '', 'future month has nothing to show');
-    eq(f({ month: '2026-10', withItemsOnly: true }), 'c1', 'with items in October');
+    // Entries: classes sorted, one checkbox per past Day 4 (month).
+    const entries = (filters, isMine) => d.listDebateRecReportEntries(data, data.classes, filters || {}, { isMine, todayIso: TODAY });
+    const all = entries();
+    eq(all.map((c) => c.classId).join(), 'c1,c2', 'debate classes only, sorted by name');
+    eq(all[0].entries.length, 1, 'future Day 4 has no checkbox');
+    eq(all[0].entries[0].key, 'c1|r4', 'entry key');
+    eq(all[0].entries[0].month, '2026-10', 'entry month');
+    eq(all[0].entries[0].total, 3, 'roster size');
+    eq(all[0].entries[0].open, 2, 'open count');
+    eq(all[0].entries[0].completed, 1, 'completed count');
+    eq(entries({ month: '2026-09' }).map((c) => c.classId).join(), 'c2', 'month filter');
+    eq(entries({ homeroomUserId: 'hr1' }).map((c) => c.classId).join(), 'c1', 'homeroom filter');
+    eq(entries({ homeroomUserId: '__none__' }).map((c) => c.classId).join(), 'c2', 'no-homeroom filter');
+    eq(entries({ classScope: 'mine' }, (c) => c.id === 'c2').map((c) => c.classId).join(), 'c2', 'my classes');
+    eq(entries({ classScope: 'other' }, (c) => c.id === 'c2').map((c) => c.classId).join(), 'c1', 'other classes');
 
-    const oct = d.listDebateRecReportGroups(data, ['c1', 'c2'], { openOnly: true, month: '2026-10' });
-    eq(oct.find((g) => g.classId === 'c2').days.length, 0, 'month filter drops September rows');
-    eq(oct.find((g) => g.classId === 'c1').days[0].rows.length, 1, 'October row kept');
+    // Summary: homeroom → class → Day 4 → full roster incl. completed.
+    const names = { u1: 'Nathan', hr1: 'Ms. Kim' };
+    const groups = d.buildDebateRecClassSummary(data, ['c1|r4', 'c2|y4'], { nameForUser: (id) => names[id] || '' });
+    eq(groups.length, 2, 'two homeroom groups');
+    eq(groups[0].homeroomLabel, 'Ms. Kim', 'named homeroom first');
+    eq(groups[1].homeroomUserId, '', 'no-homeroom group last');
+    const rows = groups[0].classes[0].assignments[0].students;
+    eq(rows.length, 3, 'full roster');
+    eq(rows.map((r) => r.rosterIndex).join(), '1,2,3', 'roster numbers');
+    const byName = Object.fromEntries(rows.map((r) => [r.studentId, r]));
+    eq(byName.s1.status, 'not_recorded', 'absent');
+    eq(byName.s2.status, 'needs_confirmation', 'late');
+    eq(byName.s3.status, 'received', 'completed by teacher');
+    eq(byName.s3.updatedByName, 'Nathan', 'who completed it');
+    const c2rows = groups[1].classes[0].assignments[0].students;
+    eq(c2rows.find((r) => r.studentId === 'y2').status, 'present', 'no absence → recorded in class');
+
+    const open = d.buildDebateRecClassSummary(data, ['c1|r4'], { show: 'open' })[0].classes[0].assignments[0].students;
+    eq(open.map((r) => r.studentId).sort().join(), 's1,s2', 'show open');
+    const done = d.buildDebateRecClassSummary(data, ['c1|r4', 'c2|y4'], { show: 'completed' });
+    eq(done.length, 2, 'show completed keeps both classes');
+    eq(done[0].classes[0].assignments[0].students.map((r) => r.studentId).join(), 's3', 'completed only');
+
+    // Print + copy use the Essays class summary layout.
+    const P = globalThis.CCPClassroomDebateRecPrint;
+    const labels = {
+        title: 'Debate recordings', generatedAt: 'Printed', hrHeading: '== HR Teacher: {name} ==', noHomeroom: 'No homeroom',
+        dayHeading: 'Day 4 · {date}', dayCounts: '{done} completed · {open} still needed', dateFromTms: 'TMS', dateFromSyllabus: 'syllabus',
+        colStudent: 'Student', colStatus: 'Recording', colTms: 'TMS', colNotes: 'Notes', setBy: 'Set by {name} · {date}',
+        noStudents: 'Nothing', noStudentsInSection: 'None',
+        statusLabels: { not_recorded: 'Not recorded', needs_confirmation: 'Needs confirmation', present: 'Recorded in class', received: 'Received', recorded: 'Recorded', exempt: 'Exempt' }
+    };
+    const html = P.renderDocumentHtml({ title: 'Report <x>', generatedAt: TODAY, groups }, labels);
+    assert(html.includes('essay-class-summary-root') && html.includes('essay-class-summary-hr-block'), 'Essays class summary structure');
+    assert(html.includes('Report &lt;x&gt;'), 'title escaped');
+    assert(html.includes('== HR Teacher: Ms. Kim =='), 'homeroom heading');
+    assert(html.includes('== HR Teacher: No homeroom =='), 'no-homeroom heading');
+    assert(html.includes('Purple M (초4 Purple)'), 'class heading with grade + level');
+    assert(html.includes('Day 4 · 10/21 (syllabus) · 1 completed · 2 still needed'), 'Day 4 heading with counts');
+    assert(html.includes('essay-status--resubmit') && html.includes('essay-status--complete'), 'Essays status chips');
+    assert(html.includes('Recorded in class'), 'completed-in-class students shown');
+    assert(html.includes('결석 (병결)') && html.includes('Mom will send video') && html.includes('Set by Nathan'), 'row details');
+    eq(typeof P.PRINT_STYLES, 'string', 'print styles');
+    assert(P.PRINT_STYLES.includes('essay-class-summary-hr-block'), 'Essays print styles reused');
+
+    const text = P.formatCopyText(groups, labels);
+    assert(text.startsWith('== HR Teacher: Ms. Kim =='), 'copy starts with homeroom');
+    assert(text.includes('-- Purple M (초4 Purple) - Day 4 · 10/21 (syllabus) · 1 completed · 2 still needed --'), 'copy class line');
+    assert(/\d\. 김민준\tNot recorded - TMS 결석 \(병결\) - Mom will send video/.test(text), `copy student line: ${text}`);
+    assert(text.includes('Recorded in class'), 'copy includes completed');
 }
 
 console.log(`classroom-debate-rec.test.mjs: ok (${passed} assertions)`);

@@ -10167,73 +10167,8 @@
     }
 
     const DEBATE_REC_OPEN_STATUSES = ['not_recorded', 'needs_confirmation'];
-
-    /**
-     * Report rows for Debate Rec print / copy, grouped class → Day 4 date.
-     * @param {object} appData
-     * @param {string[]} classIds
-     * @param {{ openOnly?: boolean, nameForUser?: (id: string) => string }} [options]
-     * @returns {{ classId, className, homeroomUserId, counts, days: { date, dateSource, rows }[] }[]}
-     */
-    function listDebateRecReportGroups(appData, classIds, options) {
-        const opts = options || {};
-        const nameFor = typeof opts.nameForUser === 'function' ? opts.nameForUser : () => '';
-        const out = [];
-        (Array.isArray(classIds) ? classIds : []).forEach((cid) => {
-            const classData = findClassForDebateRec(appData, cid);
-            if (!classData || !classUsesDebateTeamAssignments(classData)) {
-                return;
-            }
-            const view = computeDebateRecView(appData, classData.id, new Map(), opts);
-            const byDay = new Map();
-            const counts = {};
-            const month = normalizeStr(opts.month);
-            view.rows.forEach((r) => {
-                const status = r.rec.debateRecStatus;
-                if (opts.openOnly && !DEBATE_REC_OPEN_STATUSES.includes(status)) {
-                    return;
-                }
-                if (month && yearMonthKey(r.day.date) !== month) {
-                    return;
-                }
-                counts[status] = (counts[status] || 0) + 1;
-                if (!byDay.has(r.day.rowId)) {
-                    byDay.set(r.day.rowId, { date: r.day.date, dateSource: r.day.dateSource, rows: [] });
-                }
-                byDay.get(r.day.rowId).rows.push({
-                    studentId: r.student.id,
-                    studentName: normalizeStr(r.student.name),
-                    nameEn: normalizeStr(r.student.nameEn),
-                    status,
-                    source: r.rec.debateRecSource,
-                    tmsStatus: r.rec.debateRecTmsStatus,
-                    tmsMemo: r.rec.debateRecTmsMemo,
-                    note: r.rec.debateRecNote,
-                    updatedBy: r.rec.debateRecUpdatedBy,
-                    updatedByName: r.rec.debateRecUpdatedBy ? nameFor(r.rec.debateRecUpdatedBy) : '',
-                    updatedAt: r.rec.debateRecUpdatedAt
-                });
-            });
-            const statusOrder = { not_recorded: 0, needs_confirmation: 1, received: 2, recorded: 3, exempt: 4 };
-            const days = Array.from(byDay.values())
-                .sort((a, b) => compareDateStr(a.date, b.date))
-                .map((day) => Object.assign(day, {
-                    rows: day.rows.sort((a, b) =>
-                        (statusOrder[a.status] - statusOrder[b.status])
-                        || a.studentName.localeCompare(b.studentName, 'ko'))
-                }));
-            const homeroomUserId = debateRecHomeroomUserId(appData, classData);
-            out.push({
-                classId: classData.id,
-                className: normalizeStr(classData.name),
-                homeroomUserId,
-                homeroomName: homeroomUserId ? nameFor(homeroomUserId) : '',
-                counts,
-                days
-            });
-        });
-        return out;
-    }
+    /** Report-only status for a student with no TMS absence on a past Day 4. */
+    const DEBATE_REC_PRESENT = 'present';
 
     /** First homeroom (담임) user id for a class: the class's own, else a linked cohort's. */
     function debateRecHomeroomUserId(appData, classData) {
@@ -10251,96 +10186,192 @@
         return hrCohort ? normalizeStr(hrCohort.homeroomTeacherUserId) : '';
     }
 
-    /**
-     * Dropdown options for the Debate Rec all-classes report.
-     * @returns {{ months: string[], grades: string[], levels: string[], homerooms: string[] }}
-     */
-    function debateRecReportFilterOptions(appData, classes) {
+    /** Dropdown options for the Debate Rec class summary: past Day 4 months and homeroom teachers. */
+    function debateRecReportFilterOptions(appData, classes, options) {
+        const today = normalizeStr(options && options.todayIso) || todayISO();
         const months = new Set();
-        const grades = new Set();
-        const levels = new Set();
         const homerooms = new Set();
+        let noHomeroom = false;
         (Array.isArray(classes) ? classes : []).forEach((classData) => {
             if (!classData || !classUsesDebateTeamAssignments(classData)) {
                 return;
             }
-            listDebateRecordingDays(appData, classData).forEach((day) => {
-                const m = yearMonthKey(day.date);
-                if (m) {
-                    months.add(m);
-                }
-            });
-            const grade = normalizeStr(classData.grade);
-            if (grade) {
-                grades.add(grade);
-            }
-            const level = normalizeStr(resolveClassLevelLabel(classData));
-            if (level) {
-                levels.add(level);
-            }
+            listDebateRecordingDays(appData, classData)
+                .filter((day) => compareDateStr(day.date, today) <= 0)
+                .forEach((day) => months.add(yearMonthKey(day.date)));
             const hr = debateRecHomeroomUserId(appData, classData);
             if (hr) {
                 homerooms.add(hr);
+            } else {
+                noHomeroom = true;
             }
         });
         return {
-            months: Array.from(months).sort().reverse(),
-            grades: Array.from(grades).sort((a, b) => a.localeCompare(b, 'ko', { numeric: true })),
-            levels: Array.from(levels).sort((a, b) => a.localeCompare(b, 'ko')),
-            homerooms: Array.from(homerooms)
+            months: Array.from(months).filter(Boolean).sort().reverse(),
+            homerooms: Array.from(homerooms),
+            noHomeroom
         };
     }
 
+    /** Status shown in the report for one roster seat on one Day 4. */
+    function debateRecReportStatus(rec) {
+        const status = rec ? normalizeDebateRecFields(rec).debateRecStatus : '';
+        return status || DEBATE_REC_PRESENT;
+    }
+
+    function debateRecShowMatches(show, status) {
+        const open = DEBATE_REC_OPEN_STATUSES.includes(status);
+        if (show === 'open') {
+            return open;
+        }
+        if (show === 'completed') {
+            return !open;
+        }
+        return true;
+    }
+
     /**
-     * Classes shown in the Debate Rec all-classes report after filters.
-     * @param {object} filters { search, month, grade, levelLabel, homeroomUserId, classScope: 'all'|'mine'|'other', show: 'open'|'all', withItemsOnly }
-     * @param {{ isMine?: (classData) => boolean }} [options]
+     * Class list for the report window: each debate class with one checkable
+     * entry per past Day 4 (one per month), like the Essays class summary.
+     * @param {object} filters { month, homeroomUserId ('' = all, '__none__' = no homeroom), classScope: 'all'|'mine'|'other', show }
+     * @param {{ isMine?: (classData) => boolean, todayIso?: string }} [options]
+     * @returns {{ classId, className, entries: { key, rowId, date, month, dateSource, total, completed, open }[] }[]}
      */
-    function filterDebateRecReportClasses(appData, classes, filters, options) {
+    function listDebateRecReportEntries(appData, classes, filters, options) {
         const f = filters || {};
-        const isMine = options && typeof options.isMine === 'function' ? options.isMine : () => true;
-        const q = normalizeStr(f.search).toLowerCase();
+        const opts = options || {};
+        const today = normalizeStr(opts.todayIso) || todayISO();
+        const isMine = typeof opts.isMine === 'function' ? opts.isMine : () => true;
         const scope = ['mine', 'other'].includes(f.classScope) ? f.classScope : 'all';
-        return (Array.isArray(classes) ? classes : []).filter((classData) => {
+        const out = [];
+        (Array.isArray(classes) ? classes : []).forEach((classData) => {
             if (!classData || !classData.id || !classUsesDebateTeamAssignments(classData)) {
-                return false;
+                return;
             }
-            if (q) {
-                const hay = [classData.name, classData.grade, classData.levelPreset, classData.levelCustom]
-                    .filter(Boolean).join(' ').toLowerCase();
-                if (!hay.includes(q)) {
-                    return false;
-                }
+            if (scope !== 'all' && (scope === 'mine') !== Boolean(isMine(classData))) {
+                return;
             }
-            if (f.grade && normalizeStr(classData.grade) !== normalizeStr(f.grade)) {
-                return false;
+            const hr = debateRecHomeroomUserId(appData, classData);
+            if (f.homeroomUserId === '__none__' ? hr : (f.homeroomUserId && hr !== normalizeStr(f.homeroomUserId))) {
+                return;
             }
-            if (f.levelLabel && normalizeStr(resolveClassLevelLabel(classData)) !== normalizeStr(f.levelLabel)) {
-                return false;
-            }
-            if (f.homeroomUserId && debateRecHomeroomUserId(appData, classData) !== normalizeStr(f.homeroomUserId)) {
-                return false;
-            }
-            if (scope !== 'all') {
-                const mine = Boolean(isMine(classData));
-                if ((scope === 'mine') !== mine) {
-                    return false;
-                }
-            }
-            if (f.month && !listDebateRecordingDays(appData, classData).some((day) => yearMonthKey(day.date) === f.month)) {
-                return false;
-            }
-            if (f.withItemsOnly) {
-                const groups = listDebateRecReportGroups(appData, [classData.id], {
-                    openOnly: f.show !== 'all',
-                    month: f.month
+            const students = resolveStudentsForClass(classData, appData.cohorts);
+            const entries = listDebateRecordingDays(appData, classData)
+                .filter((day) => compareDateStr(day.date, today) <= 0)
+                .filter((day) => !f.month || yearMonthKey(day.date) === f.month)
+                .map((day) => {
+                    const sub = findEssaySubmission(appData.essaySubmissions, classData.id, day.rowId);
+                    let open = 0;
+                    students.forEach((e) => {
+                        const st = debateRecReportStatus(getEssayRecordForStudent(sub, e.student.id));
+                        if (DEBATE_REC_OPEN_STATUSES.includes(st)) {
+                            open += 1;
+                        }
+                    });
+                    return {
+                        key: `${classData.id}|${day.rowId}`,
+                        rowId: day.rowId,
+                        date: day.date,
+                        month: yearMonthKey(day.date),
+                        dateSource: day.dateSource,
+                        total: students.length,
+                        completed: students.length - open,
+                        open
+                    };
                 });
-                if (!groups.length || !groups[0].days.length) {
-                    return false;
-                }
+            if (entries.length) {
+                out.push({ classId: classData.id, className: normalizeStr(classData.name), entries });
             }
-            return true;
         });
+        return out.sort((a, b) => a.className.localeCompare(b.className, 'ko', { numeric: true }));
+    }
+
+    /**
+     * Class summary report (same shape as the Essays class summary):
+     * homeroom → class → Day 4 → full roster with status.
+     * @param {string[]} keys `${classId}|${rowId}` entries to include
+     * @param {{ show?: 'all'|'open'|'completed', nameForUser?: (id) => string }} [options]
+     */
+    function buildDebateRecClassSummary(appData, keys, options) {
+        const opts = options || {};
+        const nameFor = typeof opts.nameForUser === 'function' ? opts.nameForUser : () => '';
+        const show = ['open', 'completed'].includes(opts.show) ? opts.show : 'all';
+        const byClass = new Map();
+        (Array.isArray(keys) ? keys : []).forEach((key) => {
+            const i = String(key).indexOf('|');
+            if (i < 0) {
+                return;
+            }
+            const cid = key.slice(0, i);
+            const rid = key.slice(i + 1);
+            if (!byClass.has(cid)) {
+                byClass.set(cid, new Set());
+            }
+            byClass.get(cid).add(rid);
+        });
+        const hrMap = new Map();
+        byClass.forEach((rowIds, cid) => {
+            const classData = findClassForDebateRec(appData, cid);
+            if (!classData) {
+                return;
+            }
+            const students = resolveStudentsForClass(classData, appData.cohorts);
+            const assignments = listDebateRecordingDays(appData, classData)
+                .filter((day) => rowIds.has(day.rowId))
+                .map((day) => {
+                    const sub = findEssaySubmission(appData.essaySubmissions, classData.id, day.rowId);
+                    const rows = students.map((e, idx) => {
+                        const raw = getEssayRecordForStudent(sub, e.student.id);
+                        const rec = raw ? normalizeDebateRecFields(raw) : normalizeDebateRecFields({});
+                        const status = debateRecReportStatus(raw);
+                        return {
+                            rosterIndex: idx + 1,
+                            studentId: e.student.id,
+                            studentName: normalizeStr(e.student.name),
+                            nameEn: normalizeStr(e.student.nameEn),
+                            status,
+                            source: rec.debateRecSource,
+                            tmsStatus: rec.debateRecTmsStatus,
+                            tmsMemo: rec.debateRecTmsMemo,
+                            note: rec.debateRecNote,
+                            updatedByName: rec.debateRecUpdatedBy ? nameFor(rec.debateRecUpdatedBy) : '',
+                            updatedAt: rec.debateRecUpdatedAt
+                        };
+                    }).filter((row) => debateRecShowMatches(show, row.status));
+                    return { rowId: day.rowId, date: day.date, dateSource: day.dateSource, students: rows };
+                })
+                .filter((a) => a.students.length);
+            if (!assignments.length) {
+                return;
+            }
+            const hrId = debateRecHomeroomUserId(appData, classData);
+            const hrKey = hrId || '__no_homeroom__';
+            if (!hrMap.has(hrKey)) {
+                hrMap.set(hrKey, {
+                    homeroomKey: hrKey,
+                    homeroomUserId: hrId,
+                    homeroomLabel: hrId ? (nameFor(hrId) || hrId) : '',
+                    classes: []
+                });
+            }
+            hrMap.get(hrKey).classes.push({
+                classId: classData.id,
+                className: normalizeStr(classData.name),
+                grade: normalizeStr(classData.grade),
+                levelLabel: normalizeStr(resolveClassLevelLabel(classData)),
+                assignments
+            });
+        });
+        return Array.from(hrMap.values())
+            .map((g) => Object.assign(g, {
+                classes: g.classes.sort((a, b) => a.className.localeCompare(b.className, 'ko', { numeric: true }))
+            }))
+            .sort((a, b) => {
+                if (!a.homeroomUserId !== !b.homeroomUserId) {
+                    return a.homeroomUserId ? -1 : 1;
+                }
+                return a.homeroomLabel.localeCompare(b.homeroomLabel, 'ko');
+            });
     }
 
     /** Homeroom (담임) of the class itself or of any linked cohort. */
@@ -10675,10 +10706,11 @@
         debateRecPatchForNvToggle,
         computeDebateRecView,
         countOpenDebateRecWarnings,
-        listDebateRecReportGroups,
         debateRecHomeroomUserId,
         debateRecReportFilterOptions,
-        filterDebateRecReportClasses,
+        debateRecReportStatus,
+        listDebateRecReportEntries,
+        buildDebateRecClassSummary,
         isHomeroomTeacherForClass,
         newId
     };

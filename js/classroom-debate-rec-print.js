@@ -1,9 +1,23 @@
 /**
- * Tools → Debate Rec reports: printable HTML and plain-text copy.
- * Pure rendering — input comes from CCPClassroomDomain.listDebateRecReportGroups().
+ * Tools → Debate Rec class summary: printable HTML + plain-text copy.
+ *
+ * Same layout and print styles as the Essays class summary
+ * (CCPClassroomEssayClassSummaryPrint): homeroom heading (new page per
+ * homeroom) → class → Day 4 table with #, Student, Status chip, TMS, Notes.
+ * Input comes from CCPClassroomDomain.buildDebateRecClassSummary().
  */
 (function (global) {
     'use strict';
+
+    /** Debate Rec status → Essays status chip colour. */
+    const CHIP_CLASS = {
+        not_recorded: 'essay-status--resubmit',
+        needs_confirmation: 'essay-status--demerit',
+        present: 'essay-status--complete',
+        recorded: 'essay-status--complete',
+        received: 'essay-status--complete',
+        exempt: 'essay-status--exempt'
+    };
 
     function escapeHtml(text) {
         return String(text == null ? '' : text)
@@ -27,8 +41,12 @@
     }
 
     function statusLabel(status, labels) {
-        const L = labels || {};
-        return (L.status && L.status[status]) || status || '';
+        return (labels && labels.statusLabels && labels.statusLabels[status]) || status || '';
+    }
+
+    function displayName(row) {
+        const r = row || {};
+        return r.nameEn ? `${r.studentName} (${r.nameEn})` : String(r.studentName || '');
     }
 
     function tmsText(row) {
@@ -36,146 +54,153 @@
         if (!r.tmsStatus) {
             return '';
         }
-        return r.tmsMemo ? `${r.tmsStatus} · ${r.tmsMemo}` : r.tmsStatus;
+        return r.tmsMemo ? `${r.tmsStatus} (${r.tmsMemo})` : r.tmsStatus;
     }
 
-    function setByText(row, labels) {
+    function notesText(row, labels) {
         const r = row || {};
-        if (r.source !== 'teacher') {
-            return (labels && labels.fromTms) || '';
+        const parts = [];
+        if (r.note) {
+            parts.push(r.note);
         }
-        return fill((labels && labels.setBy) || '{name} · {date}', {
-            name: r.updatedByName || (labels && labels.teacher) || '',
-            date: shortDate(r.updatedAt)
-        });
+        if (r.source === 'teacher' && r.updatedByName) {
+            parts.push(fill(labels.setBy || '{name} · {date}', { name: r.updatedByName, date: shortDate(r.updatedAt) }));
+        }
+        return parts.join(' · ');
     }
 
-    function renderCounts(counts, labels) {
-        const c = counts || {};
-        const order = ['not_recorded', 'needs_confirmation', 'received', 'recorded', 'exempt'];
-        return order
-            .filter((k) => Number(c[k] || 0) > 0)
-            .map((k) => `<span class="dr-print-count dr-print-count--${k}">${escapeHtml(statusLabel(k, labels))} ${Number(c[k])}</span>`)
-            .join('');
+    function classTitle(c, labels) {
+        const meta = [[c.grade, c.levelLabel].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
+        return meta ? `${c.className || ''} (${meta})` : c.className || '';
     }
 
-    function renderDay(day, labels) {
-        const d = day || {};
-        const src = d.dateSource === 'tms' ? labels.dateFromTms : labels.dateFromSyllabus;
-        const rows = (d.rows || []).map((r) => `<tr class="dr-print-row dr-print-row--${escapeHtml(r.status)}">
-                <td class="dr-print-check" aria-hidden="true"></td>
-                <td><strong>${escapeHtml(r.studentName)}</strong>${r.nameEn ? ` <span class="dr-print-en">${escapeHtml(r.nameEn)}</span>` : ''}</td>
-                <td>${escapeHtml(tmsText(r)) || '—'}</td>
-                <td><span class="dr-print-status dr-print-status--${escapeHtml(r.status)}">${escapeHtml(statusLabel(r.status, labels))}</span><div class="dr-print-setby">${escapeHtml(setByText(r, labels))}</div></td>
-                <td>${escapeHtml(r.note || '')}</td>
-            </tr>`).join('');
-        return `<div class="dr-print-day">
-            <h3 class="dr-print-day-title">${escapeHtml(fill(labels.dayHeading, { date: shortDate(d.date) }))} <span class="dr-print-src">(${escapeHtml(src || '')})</span></h3>
-            <table class="dr-print-table">
+    function dayTitle(a, labels) {
+        const counts = (a.students || []).reduce((acc, r) => {
+            if (r.status === 'not_recorded' || r.status === 'needs_confirmation') {
+                acc.open += 1;
+            } else {
+                acc.done += 1;
+            }
+            return acc;
+        }, { open: 0, done: 0 });
+        const src = a.dateSource === 'tms' ? labels.dateFromTms : labels.dateFromSyllabus;
+        return `${fill(labels.dayHeading, { date: shortDate(a.date) })} (${src}) · ${fill(labels.dayCounts, { done: counts.done, open: counts.open })}`;
+    }
+
+    function homeroomHeading(g, labels) {
+        const name = g.homeroomUserId ? g.homeroomLabel : (labels.noHomeroom || 'No homeroom');
+        return labels.hrHeading ? String(labels.hrHeading).replace('{name}', name) : `HR Teacher: ${name}`;
+    }
+
+    function renderStudentRow(r, labels) {
+        const chip = CHIP_CLASS[r.status] || 'essay-status--not';
+        return `<tr class="essay-class-summary-row">
+            <td class="essay-class-summary-col-index">${escapeHtml(String(r.rosterIndex || ''))}</td>
+            <td class="essay-class-summary-col-student">${escapeHtml(displayName(r))}</td>
+            <td class="essay-class-summary-col-status"><span class="essay-class-summary-status-chip ${chip}">${escapeHtml(statusLabel(r.status, labels))}</span></td>
+            <td class="essay-class-summary-col-due">${escapeHtml(tmsText(r)) || '—'}</td>
+            <td class="essay-class-summary-col-notes">${escapeHtml(notesText(r, labels)) || '—'}</td>
+        </tr>`;
+    }
+
+    function renderDay(a, labels) {
+        const rows = (a.students || []).map((r) => renderStudentRow(r, labels)).join('');
+        return `<div class="essay-class-summary-assignment-block">
+            <h3 class="essay-class-summary-assignment-title">${escapeHtml(dayTitle(a, labels))}</h3>
+            <table class="essay-class-summary-table">
                 <thead><tr>
-                    <th class="dr-print-check" scope="col"><span class="dr-print-sr">${escapeHtml(labels.colDone)}</span></th>
-                    <th scope="col">${escapeHtml(labels.colStudent)}</th>
-                    <th scope="col">${escapeHtml(labels.colTms)}</th>
-                    <th scope="col">${escapeHtml(labels.colRecording)}</th>
-                    <th scope="col">${escapeHtml(labels.colNote)}</th>
+                    <th scope="col">#</th>
+                    <th scope="col">${escapeHtml(labels.colStudent || 'Student')}</th>
+                    <th scope="col">${escapeHtml(labels.colStatus || 'Status')}</th>
+                    <th scope="col">${escapeHtml(labels.colTms || 'TMS')}</th>
+                    <th scope="col">${escapeHtml(labels.colNotes || 'Notes')}</th>
                 </tr></thead>
-                <tbody>${rows}</tbody>
+                <tbody>${rows || `<tr><td colspan="5" class="essay-class-summary-empty">${escapeHtml(labels.noStudentsInSection || '')}</td></tr>`}</tbody>
             </table>
         </div>`;
     }
 
-    function renderClass(group, labels) {
-        const g = group || {};
-        const days = (g.days || []).map((day) => renderDay(day, labels)).join('');
-        return `<section class="dr-print-class">
-            <h2 class="dr-print-class-title">${escapeHtml(g.className)}${g.homeroomName ? ` <span class="dr-print-hr">${escapeHtml(fill(labels.homeroom, { name: g.homeroomName }))}</span>` : ''}</h2>
-            <p class="dr-print-counts">${renderCounts(g.counts, labels)}</p>
-            ${days || `<p class="dr-print-empty">${escapeHtml(labels.noRowsClass)}</p>`}
+    function renderClass(c, labels) {
+        return `<section class="essay-class-summary-class-block">
+            <h2 class="essay-class-summary-class-title">${escapeHtml(classTitle(c, labels))}</h2>
+            ${(c.assignments || []).map((a) => renderDay(a, labels)).join('')}
+        </section>`;
+    }
+
+    function renderHomeroom(g, labels) {
+        return `<section class="essay-class-summary-hr-block">
+            <h2 class="essay-class-summary-hr-title">${escapeHtml(homeroomHeading(g, labels))}</h2>
+            ${(g.classes || []).map((c) => renderClass(c, labels)).join('')}
         </section>`;
     }
 
     /**
-     * @param {{ title: string, calendarName?: string, generatedAt?: string, scopeNote?: string, groups: object[] }} payload
-     * @param {object} labels
+     * @param {{ title?: string, calendarName?: string, generatedAt?: string, scopeNote?: string, groups: object[] }} payload
      */
     function renderDocumentHtml(payload, labels) {
         const p = payload || {};
         const L = labels || {};
-        const groups = (Array.isArray(p.groups) ? p.groups : []).filter((g) => g && (g.days || []).length);
-        const sections = groups.map((g) => renderClass(g, L)).join('');
-        const meta = [p.calendarName, p.generatedAt ? `${L.generatedAt}: ${p.generatedAt}` : '', p.scopeNote]
-            .filter(Boolean)
-            .map((m) => `<p class="dr-print-meta">${escapeHtml(m)}</p>`)
-            .join('');
-        return `<div class="dr-print-root">
-            <header class="dr-print-header">
-                <h1 class="dr-print-title">${escapeHtml(p.title || L.title || '')}</h1>
-                ${meta}
-                <p class="dr-print-legend">${escapeHtml(L.legend || '')}</p>
+        const groups = Array.isArray(p.groups) ? p.groups : [];
+        const sections = groups.map((g) => renderHomeroom(g, L)).join('');
+        return `<div class="essay-class-summary-root">
+            <header class="essay-class-summary-header">
+                <h1 class="essay-class-summary-doc-title">${escapeHtml(p.title || L.title || '')}</h1>
+                ${p.calendarName ? `<p class="essay-class-summary-meta">${escapeHtml(p.calendarName)}</p>` : ''}
+                ${p.scopeNote ? `<p class="essay-class-summary-meta">${escapeHtml(p.scopeNote)}</p>` : ''}
+                ${p.generatedAt ? `<p class="essay-class-summary-meta">${escapeHtml(L.generatedAt || 'Generated')}: ${escapeHtml(p.generatedAt)}</p>` : ''}
             </header>
-            ${sections || `<p class="dr-print-empty">${escapeHtml(L.noRows)}</p>`}
+            ${sections || `<p class="essay-class-summary-empty">${escapeHtml(L.noStudents || '')}</p>`}
         </div>`;
     }
 
-    /** Plain text grouped by class → Day 4 date (for KakaoTalk / email paste). */
+    function plain(text) {
+        return String(text == null ? '' : text).replace(/[—–−]/g, '-');
+    }
+
+    /** Plain text in the Essays class summary copy format. */
     function formatCopyText(groups, labels) {
         const L = labels || {};
         const lines = [];
-        (Array.isArray(groups) ? groups : [])
-            .filter((g) => g && (g.days || []).length)
-            .forEach((g, gi) => {
-                if (gi > 0) {
-                    lines.push('');
-                }
-                lines.push(g.className || '');
-                (g.days || []).forEach((day) => {
-                    lines.push(`  ${fill(L.dayHeading, { date: shortDate(day.date) })}`);
-                    (day.rows || []).forEach((r) => {
+        const list = Array.isArray(groups) ? groups : [];
+        if (!list.length) {
+            return plain(L.noStudents || '');
+        }
+        list.forEach((g, gi) => {
+            if (gi > 0) {
+                lines.push('');
+            }
+            lines.push(homeroomHeading(g, L));
+            (g.classes || []).forEach((c, ci) => {
+                (c.assignments || []).forEach((a, ai) => {
+                    if (ci > 0 || ai > 0) {
+                        lines.push('');
+                    }
+                    lines.push(`-- ${classTitle(c, L)} - ${dayTitle(a, L)} --`);
+                    (a.students || []).forEach((r) => {
+                        let line = `${r.rosterIndex}. ${displayName(r)}\t${statusLabel(r.status, L)}`;
                         const tms = tmsText(r);
-                        const note = r.note ? ` — ${r.note}` : '';
-                        lines.push(`  - ${r.studentName || ''}: ${statusLabel(r.status, L)}${tms ? ` (${tms})` : ''}${note}`);
+                        const notes = notesText(r, L);
+                        if (tms) {
+                            line += ` - TMS ${tms}`;
+                        }
+                        if (notes) {
+                            line += ` - ${notes}`;
+                        }
+                        lines.push(line);
                     });
                 });
             });
-        return lines.join('\n').trim();
+        });
+        return plain(lines.join('\n').trimEnd());
     }
 
-    const PRINT_STYLES = `
-.dr-print-root { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', system-ui, sans-serif; color: #111; font-size: 10.5pt; }
-.dr-print-header { margin-bottom: 12pt; border-bottom: 1.5pt solid #111; padding-bottom: 6pt; }
-.dr-print-title { margin: 0 0 3pt; font-size: 16pt; }
-.dr-print-meta { margin: 1pt 0; color: #444; font-size: 9.5pt; }
-.dr-print-legend { margin: 4pt 0 0; color: #555; font-size: 9pt; }
-.dr-print-class { margin: 0 0 14pt; break-inside: avoid-page; }
-.dr-print-class-title { margin: 0 0 3pt; font-size: 12.5pt; }
-.dr-print-hr { font-weight: 400; color: #555; font-size: 10pt; margin-left: 6pt; }
-.dr-print-counts { margin: 0 0 6pt; display: flex; flex-wrap: wrap; gap: 4pt; }
-.dr-print-count { border: 0.75pt solid #999; border-radius: 3pt; padding: 0 4pt; font-size: 9pt; }
-.dr-print-count--not_recorded { border-color: #b91c1c; color: #b91c1c; font-weight: 700; }
-.dr-print-count--needs_confirmation { border-color: #b45309; color: #b45309; font-weight: 700; }
-.dr-print-day { margin: 0 0 8pt; break-inside: avoid; }
-.dr-print-day-title { margin: 0 0 3pt; font-size: 10.5pt; }
-.dr-print-src { color: #666; font-weight: 400; font-size: 9pt; }
-.dr-print-table { width: 100%; border-collapse: collapse; }
-.dr-print-table th { text-align: left; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.04em; color: #555; border-bottom: 0.75pt solid #999; padding: 2pt 4pt; }
-.dr-print-table td { border-bottom: 0.5pt solid #ccc; padding: 4pt; vertical-align: top; }
-.dr-print-check { width: 14pt; }
-td.dr-print-check::before { content: ''; display: inline-block; width: 9pt; height: 9pt; border: 0.75pt solid #333; }
-.dr-print-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-.dr-print-en { color: #666; font-size: 9pt; }
-.dr-print-status { font-weight: 700; }
-.dr-print-status--not_recorded { color: #b91c1c; }
-.dr-print-status--needs_confirmation { color: #b45309; }
-.dr-print-status--received, .dr-print-status--recorded { color: #15803d; }
-.dr-print-status--exempt { color: #555; }
-.dr-print-setby { color: #666; font-size: 8.5pt; font-weight: 400; }
-.dr-print-empty { color: #666; }
-@page { size: A4; margin: 14mm; }
-`;
-
     global.CCPClassroomDebateRecPrint = {
+        CHIP_CLASS,
         renderDocumentHtml,
         formatCopyText,
-        PRINT_STYLES
+        get PRINT_STYLES() {
+            const api = global.CCPClassroomEssayClassSummaryPrint;
+            return api ? api.PRINT_STYLES : '';
+        }
     };
 })(typeof window !== 'undefined' ? window : globalThis);
