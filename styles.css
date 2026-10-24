@@ -22644,6 +22644,20 @@ th[data-cohort-col] {
     width: 100%;
 }
 
+#panel-debate-rec .debate-rec-student-cell {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1, 4px) var(--space-2, 8px);
+}
+
+#panel-debate-rec .debate-rec-msg-btn {
+    gap: 4px;
+    min-height: 28px;
+    padding: 2px 8px;
+    font-size: 0.6875rem;
+}
+
 #panel-debate-rec .debate-rec-status {
     display: inline-block;
     padding: 2px var(--space-2, 8px);
