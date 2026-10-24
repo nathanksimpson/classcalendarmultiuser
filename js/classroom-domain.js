@@ -10187,9 +10187,13 @@
             const view = computeDebateRecView(appData, classData.id, new Map(), opts);
             const byDay = new Map();
             const counts = {};
+            const month = normalizeStr(opts.month);
             view.rows.forEach((r) => {
                 const status = r.rec.debateRecStatus;
                 if (opts.openOnly && !DEBATE_REC_OPEN_STATUSES.includes(status)) {
+                    return;
+                }
+                if (month && yearMonthKey(r.day.date) !== month) {
                     return;
                 }
                 counts[status] = (counts[status] || 0) + 1;
@@ -10218,12 +10222,7 @@
                         (statusOrder[a.status] - statusOrder[b.status])
                         || a.studentName.localeCompare(b.studentName, 'ko'))
                 }));
-            const cohorts = (appData && appData.cohorts) || [];
-            const hrCohort = getCohortIdsForClass(classData)
-                .map((id) => cohorts.find((c) => c && normalizeStr(c.id) === id))
-                .find((c) => c && normalizeStr(c.homeroomTeacherUserId));
-            const homeroomUserId = normalizeStr(classData.homeroomTeacherUserId)
-                || (hrCohort ? normalizeStr(hrCohort.homeroomTeacherUserId) : '');
+            const homeroomUserId = debateRecHomeroomUserId(appData, classData);
             out.push({
                 classId: classData.id,
                 className: normalizeStr(classData.name),
@@ -10234,6 +10233,114 @@
             });
         });
         return out;
+    }
+
+    /** First homeroom (담임) user id for a class: the class's own, else a linked cohort's. */
+    function debateRecHomeroomUserId(appData, classData) {
+        if (!classData) {
+            return '';
+        }
+        const own = normalizeStr(classData.homeroomTeacherUserId);
+        if (own) {
+            return own;
+        }
+        const cohorts = (appData && appData.cohorts) || [];
+        const hrCohort = getCohortIdsForClass(classData)
+            .map((id) => cohorts.find((c) => c && normalizeStr(c.id) === id))
+            .find((c) => c && normalizeStr(c.homeroomTeacherUserId));
+        return hrCohort ? normalizeStr(hrCohort.homeroomTeacherUserId) : '';
+    }
+
+    /**
+     * Dropdown options for the Debate Rec all-classes report.
+     * @returns {{ months: string[], grades: string[], levels: string[], homerooms: string[] }}
+     */
+    function debateRecReportFilterOptions(appData, classes) {
+        const months = new Set();
+        const grades = new Set();
+        const levels = new Set();
+        const homerooms = new Set();
+        (Array.isArray(classes) ? classes : []).forEach((classData) => {
+            if (!classData || !classUsesDebateTeamAssignments(classData)) {
+                return;
+            }
+            listDebateRecordingDays(appData, classData).forEach((day) => {
+                const m = yearMonthKey(day.date);
+                if (m) {
+                    months.add(m);
+                }
+            });
+            const grade = normalizeStr(classData.grade);
+            if (grade) {
+                grades.add(grade);
+            }
+            const level = normalizeStr(resolveClassLevelLabel(classData));
+            if (level) {
+                levels.add(level);
+            }
+            const hr = debateRecHomeroomUserId(appData, classData);
+            if (hr) {
+                homerooms.add(hr);
+            }
+        });
+        return {
+            months: Array.from(months).sort().reverse(),
+            grades: Array.from(grades).sort((a, b) => a.localeCompare(b, 'ko', { numeric: true })),
+            levels: Array.from(levels).sort((a, b) => a.localeCompare(b, 'ko')),
+            homerooms: Array.from(homerooms)
+        };
+    }
+
+    /**
+     * Classes shown in the Debate Rec all-classes report after filters.
+     * @param {object} filters { search, month, grade, levelLabel, homeroomUserId, classScope: 'all'|'mine'|'other', show: 'open'|'all', withItemsOnly }
+     * @param {{ isMine?: (classData) => boolean }} [options]
+     */
+    function filterDebateRecReportClasses(appData, classes, filters, options) {
+        const f = filters || {};
+        const isMine = options && typeof options.isMine === 'function' ? options.isMine : () => true;
+        const q = normalizeStr(f.search).toLowerCase();
+        const scope = ['mine', 'other'].includes(f.classScope) ? f.classScope : 'all';
+        return (Array.isArray(classes) ? classes : []).filter((classData) => {
+            if (!classData || !classData.id || !classUsesDebateTeamAssignments(classData)) {
+                return false;
+            }
+            if (q) {
+                const hay = [classData.name, classData.grade, classData.levelPreset, classData.levelCustom]
+                    .filter(Boolean).join(' ').toLowerCase();
+                if (!hay.includes(q)) {
+                    return false;
+                }
+            }
+            if (f.grade && normalizeStr(classData.grade) !== normalizeStr(f.grade)) {
+                return false;
+            }
+            if (f.levelLabel && normalizeStr(resolveClassLevelLabel(classData)) !== normalizeStr(f.levelLabel)) {
+                return false;
+            }
+            if (f.homeroomUserId && debateRecHomeroomUserId(appData, classData) !== normalizeStr(f.homeroomUserId)) {
+                return false;
+            }
+            if (scope !== 'all') {
+                const mine = Boolean(isMine(classData));
+                if ((scope === 'mine') !== mine) {
+                    return false;
+                }
+            }
+            if (f.month && !listDebateRecordingDays(appData, classData).some((day) => yearMonthKey(day.date) === f.month)) {
+                return false;
+            }
+            if (f.withItemsOnly) {
+                const groups = listDebateRecReportGroups(appData, [classData.id], {
+                    openOnly: f.show !== 'all',
+                    month: f.month
+                });
+                if (!groups.length || !groups[0].days.length) {
+                    return false;
+                }
+            }
+            return true;
+        });
     }
 
     /** Homeroom (담임) of the class itself or of any linked cohort. */
@@ -10569,6 +10676,9 @@
         computeDebateRecView,
         countOpenDebateRecWarnings,
         listDebateRecReportGroups,
+        debateRecHomeroomUserId,
+        debateRecReportFilterOptions,
+        filterDebateRecReportClasses,
         isHomeroomTeacherForClass,
         newId
     };

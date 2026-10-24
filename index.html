@@ -705,6 +705,37 @@
                         </table>
                     </div>
                 </div>
+                <div id="debateRecReportModal" class="modal debate-rec-report-modal" role="dialog" aria-labelledby="debateRecReportModalTitle" aria-modal="true" hidden>
+                    <div class="modal-content modal-medium debate-rec-report-content">
+                        <div class="modal-header">
+                            <h2 id="debateRecReportModalTitle" data-i18n="debateRecAllReportTitle">Debate recordings · all classes</h2>
+                            <button type="button" class="modal-close" id="debateRecReportClose" data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+                        </div>
+                        <div class="modal-body debate-rec-report-body">
+                            <div class="debate-rec-report-filters">
+                                <input type="search" id="debateRecReportSearch" class="field-input field-control" autocomplete="off" spellcheck="false" data-i18n-placeholder="debateRecReportSearch" placeholder="Search classes…" aria-label="Search classes" />
+                                <label class="debate-rec-report-field"><span class="section-hint" data-i18n="debateRecReportFilterMonth">Month</span><select id="debateRecReportMonth" class="field-select field-control--compact"></select></label>
+                                <label class="debate-rec-report-field"><span class="section-hint" data-i18n="debateRecReportFilterGrade">Grade</span><select id="debateRecReportGrade" class="field-select field-control--compact"></select></label>
+                                <label class="debate-rec-report-field"><span class="section-hint" data-i18n="debateRecReportFilterLevel">Level</span><select id="debateRecReportLevel" class="field-select field-control--compact"></select></label>
+                                <label class="debate-rec-report-field"><span class="section-hint" data-i18n="debateRecReportFilterHomeroom">Homeroom</span><select id="debateRecReportHomeroom" class="field-select field-control--compact"></select></label>
+                                <label class="debate-rec-report-field"><span class="section-hint" data-i18n="debateRecReportFilterClasses">Classes</span><select id="debateRecReportScope" class="field-select field-control--compact"></select></label>
+                                <label class="debate-rec-report-field"><span class="section-hint" data-i18n="debateRecReportFilterShow">Show</span><select id="debateRecReportShow" class="field-select field-control--compact"></select></label>
+                                <label class="checkbox-label debate-rec-report-check"><input type="checkbox" id="debateRecReportWithItems" checked /> <span data-i18n="debateRecReportWithItemsOnly">Only classes with students to show</span></label>
+                            </div>
+                            <div class="debate-rec-report-list-bar">
+                                <span id="debateRecReportCount" class="section-hint" role="status" aria-live="polite"></span>
+                                <button type="button" id="debateRecReportSelectAll" class="btn btn-outline btn-compact btn-small" data-i18n="debateRecReportSelectAll">Select all</button>
+                                <button type="button" id="debateRecReportClearAll" class="btn btn-outline btn-compact btn-small" data-i18n="debateRecReportClearAll">Clear all</button>
+                            </div>
+                            <div id="debateRecReportClassList" class="debate-rec-report-class-list"></div>
+                            <div id="debateRecReportPreview" class="debate-rec-report-preview" aria-live="polite"></div>
+                            <div class="form-actions debate-rec-report-actions">
+                                <button type="button" id="debateRecReportCopyBtn" class="btn btn-outline" data-i18n="debateRecReportCopyText">Copy as text</button>
+                                <button type="button" id="debateRecReportPrintBtn" class="btn btn-primary" data-i18n="debateRecReportPrintPdf">Print / PDF</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <section id="panel-debate-books" class="app-tab-panel classroom-debate-books-layout" data-tab="debate-books" role="tabpanel" aria-labelledby="zoneBtn-tools" hidden>

@@ -361,4 +361,41 @@ function check(data, tms) {
     assert(!text.includes('박지호'), 'copy open-only excludes resolved');
 }
 
+// ── All-classes report filters: month, grade, level, homeroom, scope ──
+{
+    const data = makeData();
+    data.classes[0].grade = '초4';
+    data.classes[0].levelPreset = 'Purple';
+    data.classes.push({
+        id: 'c2', name: 'Yeoul T', scheduleModel: 'debateMonthly', cohortIds: ['co2'], grade: '초5', levelPreset: 'Yeoul',
+        syllabusRows: [{ id: 'y4', kind: 'lesson', date: '2026-09-17', sessionNumber: 4, planTitle: 'Day 4 / Preview', trackEssay: true }]
+    });
+    data.classes.push({ id: 'rc', name: 'Navy RC', scheduleModel: 'sequentialTerm', cohortIds: ['co1'], syllabusRows: [] });
+    data.cohorts.push({ id: 'co2', name: 'Yeoul T', homeroomTeacherUserId: 'hr2', students: [{ id: 'y1', name: '강하늘', active: true }] });
+    check(data, new Map([['s1', [{ date: '2026-10-21', status: '결석' }]]]));
+    const r2 = d.applyDebateRecTmsCheck(data, 'c2', new Map([['y1', [{ date: '2026-09-17', status: '결석' }]]]), { todayIso: TODAY });
+    data.essaySubmissions = r2.submissions;
+
+    const opts = d.debateRecReportFilterOptions(data, data.classes);
+    eq(opts.months.join(), '2026-11,2026-10,2026-09', 'months newest first');
+    eq(opts.grades.join(), '초4,초5', 'grades');
+    assert(opts.homerooms.includes('hr1') && opts.homerooms.includes('hr2'), 'homerooms');
+
+    const f = (filters, isMine) => d.filterDebateRecReportClasses(data, data.classes, filters, { isMine }).map((c) => c.id).join();
+    eq(f({}), 'c1,c2', 'only debate classes');
+    eq(f({ grade: '초5' }), 'c2', 'grade filter');
+    eq(f({ levelLabel: 'Purple' }), 'c1', 'level filter');
+    eq(f({ homeroomUserId: 'hr2' }), 'c2', 'homeroom filter');
+    eq(f({ search: 'yeoul' }), 'c2', 'search');
+    eq(f({ month: '2026-09' }), 'c2', 'month filter (has a Day 4 that month)');
+    eq(f({ classScope: 'mine' }, (c) => c.id === 'c1'), 'c1', 'mine');
+    eq(f({ classScope: 'other' }, (c) => c.id === 'c1'), 'c2', 'other');
+    eq(f({ month: '2026-11', withItemsOnly: true }), '', 'future month has nothing to show');
+    eq(f({ month: '2026-10', withItemsOnly: true }), 'c1', 'with items in October');
+
+    const oct = d.listDebateRecReportGroups(data, ['c1', 'c2'], { openOnly: true, month: '2026-10' });
+    eq(oct.find((g) => g.classId === 'c2').days.length, 0, 'month filter drops September rows');
+    eq(oct.find((g) => g.classId === 'c1').days[0].rows.length, 1, 'October row kept');
+}
+
 console.log(`classroom-debate-rec.test.mjs: ok (${passed} assertions)`);

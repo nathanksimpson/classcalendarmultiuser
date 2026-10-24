@@ -28,6 +28,19 @@
     let focusStudentId = '';
     let attendanceByStudent = new Map();
     let reportsMenuOpen = false;
+    let reportModalBound = false;
+    let reportFilters = null;
+    const reportDeselected = new Set(); // class ids unticked in the all-classes report
+    const REPORT_FILTER_DEFAULTS = {
+        search: '',
+        month: '',
+        grade: '',
+        levelLabel: '',
+        homeroomUserId: '',
+        classScope: 'mine',
+        show: 'open',
+        withItemsOnly: true
+    };
     let docClickBound = false;
     const selectedKeys = new Set(); // `${rowId}|${studentId}`
 
@@ -404,16 +417,10 @@
         };
     }
 
-    function myDebateClassIds() {
-        const d = domain();
-        return (getAppData().classes || [])
-            .filter((c) => c && c.id && d.classUsesDebateTeamAssignments(c) && canEdit(c))
-            .map((c) => c.id);
-    }
-
-    function reportGroups(classIds, openOnly) {
+    function reportGroups(classIds, openOnly, month) {
         return domain().listDebateRecReportGroups(getAppData(), classIds, {
             openOnly,
+            month: month || '',
             nameForUser: teacherName
         });
     }
@@ -459,14 +466,13 @@
         }
     }
 
-    function printReport(scope) {
+    /** Print this class: every flagged student per Day 4, resolved included. */
+    function printClassReport() {
         const api = printApi();
         if (!api) {
             return;
         }
-        const all = scope === 'all';
-        const classIds = all ? myDebateClassIds() : (classId ? [classId] : []);
-        const groups = reportGroups(classIds, all);
+        const groups = reportGroups(classId ? [classId] : [], false);
         if (!groups.some((g) => g.days.length)) {
             if (hooks.showToast) {
                 hooks.showToast(t('debateRecReportNoRows'), true);
@@ -474,27 +480,22 @@
             return;
         }
         const classData = getClassData();
-        const title = all
-            ? t('debateRecReportTitleAll')
-            : tf('debateRecReportTitleClass', { name: classData ? classData.name : '' });
-        const labels = reportLabels();
-        const body = api.renderDocumentHtml({
+        const title = tf('debateRecReportTitleClass', { name: classData ? classData.name : '' });
+        openPrintDocument(title, api.renderDocumentHtml({
             title,
             calendarName: calendarName(),
             generatedAt: domain().todayISO(),
-            scopeNote: all ? t('debateRecReportScopeAll') : t('debateRecReportScopeClass'),
+            scopeNote: t('debateRecReportScopeClass'),
             groups
-        }, labels);
-        openPrintDocument(title, body, api.PRINT_STYLES);
+        }, reportLabels()), api.PRINT_STYLES);
     }
 
-    async function copyOpenList() {
+    async function copyGroups(groups) {
         const api = printApi();
         if (!api) {
             return;
         }
-        const groups = reportGroups(classId ? [classId] : [], true);
-        const count = groups.reduce((n, g) => n + g.days.reduce((m, day) => m + day.rows.length, 0), 0);
+        const count = (groups || []).reduce((n, g) => n + g.days.reduce((m, day) => m + day.rows.length, 0), 0);
         if (!count) {
             if (hooks.showToast) {
                 hooks.showToast(t('debateRecReportNoRows'), true);
@@ -526,6 +527,317 @@
         }
     }
 
+    function copyOpenList() {
+        return copyGroups(reportGroups(classId ? [classId] : [], true));
+    }
+
+    // ── All-classes report window (filters like the Essays summary) ─────
+
+    function loadReportFilters() {
+        if (reportFilters) {
+            return reportFilters;
+        }
+        const ui = getAppData().ui || {};
+        const saved = ui.debateRecReportFilters && typeof ui.debateRecReportFilters === 'object'
+            ? ui.debateRecReportFilters
+            : {};
+        reportFilters = Object.assign({}, REPORT_FILTER_DEFAULTS, saved);
+        reportDeselected.clear();
+        (Array.isArray(saved.deselectedClassIds) ? saved.deselectedClassIds : []).forEach((id) => reportDeselected.add(id));
+        return reportFilters;
+    }
+
+    function saveReportFilters() {
+        if (hooks && typeof hooks.setUiPref === 'function') {
+            hooks.setUiPref('debateRecReportFilters', Object.assign({}, reportFilters, {
+                deselectedClassIds: Array.from(reportDeselected)
+            }));
+        }
+    }
+
+    function reportVisibleClasses() {
+        const data = getAppData();
+        const d = domain();
+        return (data.classes || []).filter((c) => c && d.classUsesDebateTeamAssignments(c));
+    }
+
+    function reportFilteredClasses() {
+        return domain().filterDebateRecReportClasses(getAppData(), reportVisibleClasses(), loadReportFilters(), {
+            isMine: (c) => canEdit(c)
+        });
+    }
+
+    function reportSelectedGroups() {
+        const f = loadReportFilters();
+        const ids = reportFilteredClasses().map((c) => c.id).filter((id) => !reportDeselected.has(id));
+        return reportGroups(ids, f.show !== 'all', f.month).filter((g) => g.days.length);
+    }
+
+    function formatMonthLabel(ym) {
+        const m = String(ym || '').match(/^(\d{4})-(\d{2})$/);
+        if (!m) {
+            return ym;
+        }
+        try {
+            const lang = hooks && hooks.getLang ? hooks.getLang() : 'en';
+            return new Date(Number(m[1]), Number(m[2]) - 1, 1)
+                .toLocaleDateString(lang === 'ko' ? 'ko-KR' : 'en-US', { year: 'numeric', month: 'long' });
+        } catch (_) {
+            return ym;
+        }
+    }
+
+    function fillSelect(sel, options, value) {
+        if (!sel) {
+            return;
+        }
+        sel.innerHTML = options
+            .map((o) => `<option value="${escapeAttr(o.value)}"${o.value === value ? ' selected' : ''}>${escapeHtml(o.label)}</option>`)
+            .join('');
+        if (!options.some((o) => o.value === value)) {
+            sel.value = options.length ? options[0].value : '';
+        }
+    }
+
+    function reportScopeNote() {
+        const f = loadReportFilters();
+        const parts = [];
+        parts.push(f.month ? formatMonthLabel(f.month) : t('debateRecReportAllMonths'));
+        parts.push(f.show === 'all' ? t('debateRecReportShowAll') : t('debateRecReportShowOpen'));
+        if (f.grade) {
+            parts.push(f.grade);
+        }
+        if (f.levelLabel) {
+            parts.push(f.levelLabel);
+        }
+        if (f.homeroomUserId) {
+            parts.push(tf('debateRecReportHomeroom', { name: teacherName(f.homeroomUserId) || f.homeroomUserId }));
+        }
+        return parts.join(' · ');
+    }
+
+    function ensureReportPreviewStyles() {
+        const api = printApi();
+        if (!api || typeof document === 'undefined' || !document.head || document.getElementById('debateRecPrintPreviewStyles')) {
+            return;
+        }
+        const st = document.createElement('style');
+        st.id = 'debateRecPrintPreviewStyles';
+        // Report classes are all dr-print-*, so these rules only touch the preview.
+        st.textContent = api.PRINT_STYLES.replace(/@page[^}]*}/g, '');
+        document.head.appendChild(st);
+    }
+
+    function renderReportModal() {
+        const modal = document.getElementById('debateRecReportModal');
+        if (!modal) {
+            return;
+        }
+        const d = domain();
+        const f = loadReportFilters();
+        const data = getAppData();
+        const opts = d.debateRecReportFilterOptions(data, reportVisibleClasses());
+        const all = { value: '', label: t('debateRecReportFilterAll') };
+        fillSelect(modal.querySelector('#debateRecReportMonth'),
+            [{ value: '', label: t('debateRecReportAllMonths') }].concat(opts.months.map((m) => ({ value: m, label: formatMonthLabel(m) }))), f.month);
+        fillSelect(modal.querySelector('#debateRecReportGrade'), [all].concat(opts.grades.map((g) => ({ value: g, label: g }))), f.grade);
+        fillSelect(modal.querySelector('#debateRecReportLevel'), [all].concat(opts.levels.map((l) => ({ value: l, label: l }))), f.levelLabel);
+        fillSelect(modal.querySelector('#debateRecReportHomeroom'),
+            [all].concat(opts.homerooms.map((id) => ({ value: id, label: teacherName(id) || id }))), f.homeroomUserId);
+        fillSelect(modal.querySelector('#debateRecReportScope'), [
+            { value: 'mine', label: t('debateRecReportScopeMine') },
+            { value: 'all', label: t('debateRecReportScopeAllClasses') },
+            { value: 'other', label: t('debateRecReportScopeOther') }
+        ], f.classScope);
+        fillSelect(modal.querySelector('#debateRecReportShow'), [
+            { value: 'open', label: t('debateRecReportShowOpen') },
+            { value: 'all', label: t('debateRecReportShowAll') }
+        ], f.show);
+        const search = modal.querySelector('#debateRecReportSearch');
+        if (search && search.value !== f.search) {
+            search.value = f.search;
+        }
+        const withItems = modal.querySelector('#debateRecReportWithItems');
+        if (withItems) {
+            withItems.checked = Boolean(f.withItemsOnly);
+        }
+        renderReportClassList();
+    }
+
+    function renderReportClassList() {
+        const modal = document.getElementById('debateRecReportModal');
+        if (!modal) {
+            return;
+        }
+        const d = domain();
+        const f = loadReportFilters();
+        const data = getAppData();
+        const classes = reportFilteredClasses();
+        const listEl = modal.querySelector('#debateRecReportClassList');
+        if (listEl) {
+            listEl.innerHTML = classes.length
+                ? classes.map((c) => {
+                    const groups = reportGroups([c.id], f.show !== 'all', f.month);
+                    const n = groups.length ? groups[0].days.reduce((m, day) => m + day.rows.length, 0) : 0;
+                    const meta = [c.grade, d.resolveClassLevelLabel(c), teacherName(d.debateRecHomeroomUserId(data, c))]
+                        .filter(Boolean).join(' · ');
+                    const checked = reportDeselected.has(c.id) ? '' : ' checked';
+                    return `<label class="debate-rec-report-class-row checkbox-label">
+                        <input type="checkbox" data-report-class-id="${escapeAttr(c.id)}"${checked} />
+                        <span class="debate-rec-report-class-name">${escapeHtml(c.name || c.id)}${meta ? ` <span class="section-hint">(${escapeHtml(meta)})</span>` : ''}</span>
+                        <span class="debate-rec-report-class-count${n ? ' has-items' : ''}">${n}</span>
+                    </label>`;
+                }).join('')
+                : `<p class="section-hint">${escapeHtml(t('debateRecReportNoClasses'))}</p>`;
+        }
+        const groups = reportSelectedGroups();
+        const students = groups.reduce((n, g) => n + g.days.reduce((m, day) => m + day.rows.length, 0), 0);
+        const countEl = modal.querySelector('#debateRecReportCount');
+        if (countEl) {
+            const selectedCount = classes.filter((c) => !reportDeselected.has(c.id)).length;
+            countEl.textContent = tf('debateRecReportCountLine', { classes: selectedCount, total: classes.length, students });
+        }
+        const previewEl = modal.querySelector('#debateRecReportPreview');
+        if (previewEl) {
+            ensureReportPreviewStyles();
+            previewEl.innerHTML = groups.length && printApi()
+                ? printApi().renderDocumentHtml({
+                    title: t('debateRecReportTitleAll'),
+                    calendarName: calendarName(),
+                    generatedAt: domain().todayISO(),
+                    scopeNote: reportScopeNote(),
+                    groups
+                }, reportLabels())
+                : `<p class="section-hint">${escapeHtml(t('debateRecReportNoRows'))}</p>`;
+        }
+        ['#debateRecReportPrintBtn', '#debateRecReportCopyBtn'].forEach((sel) => {
+            const btn = modal.querySelector(sel);
+            if (btn) {
+                btn.disabled = !groups.length;
+            }
+        });
+    }
+
+    function openReportModal() {
+        const modal = document.getElementById('debateRecReportModal');
+        if (!modal) {
+            return;
+        }
+        bindReportModal(modal);
+        loadReportFilters();
+        renderReportModal();
+        if (hooks && typeof hooks.openModal === 'function') {
+            hooks.openModal(modal);
+        } else {
+            modal.hidden = false;
+            modal.classList.add('active');
+        }
+    }
+
+    function closeReportModal() {
+        const modal = document.getElementById('debateRecReportModal');
+        if (!modal) {
+            return;
+        }
+        if (hooks && typeof hooks.closeModal === 'function') {
+            hooks.closeModal(modal);
+        } else {
+            modal.classList.remove('active');
+            modal.hidden = true;
+        }
+    }
+
+    function bindReportModal(modal) {
+        if (reportModalBound) {
+            return;
+        }
+        reportModalBound = true;
+        const onFilter = () => {
+            const f = loadReportFilters();
+            const val = (id) => {
+                const el = modal.querySelector(id);
+                return el ? el.value : '';
+            };
+            f.search = val('#debateRecReportSearch');
+            f.month = val('#debateRecReportMonth');
+            f.grade = val('#debateRecReportGrade');
+            f.levelLabel = val('#debateRecReportLevel');
+            f.homeroomUserId = val('#debateRecReportHomeroom');
+            f.classScope = val('#debateRecReportScope') || 'mine';
+            f.show = val('#debateRecReportShow') || 'open';
+            const withItems = modal.querySelector('#debateRecReportWithItems');
+            f.withItemsOnly = Boolean(withItems && withItems.checked);
+            saveReportFilters();
+            renderReportClassList();
+        };
+        ['#debateRecReportMonth', '#debateRecReportGrade', '#debateRecReportLevel', '#debateRecReportHomeroom',
+            '#debateRecReportScope', '#debateRecReportShow', '#debateRecReportWithItems'].forEach((id) => {
+            const el = modal.querySelector(id);
+            if (el) {
+                el.addEventListener('change', onFilter);
+            }
+        });
+        const search = modal.querySelector('#debateRecReportSearch');
+        if (search) {
+            search.addEventListener('input', onFilter);
+        }
+        modal.addEventListener('change', (event) => {
+            const box = event.target instanceof Element ? event.target.closest('[data-report-class-id]') : null;
+            if (!box) {
+                return;
+            }
+            const id = box.getAttribute('data-report-class-id');
+            if (box.checked) {
+                reportDeselected.delete(id);
+            } else {
+                reportDeselected.add(id);
+            }
+            saveReportFilters();
+            renderReportClassList();
+        });
+        const on = (id, fn) => {
+            const el = modal.querySelector(id);
+            if (el) {
+                el.addEventListener('click', fn);
+            }
+        };
+        on('#debateRecReportSelectAll', () => {
+            reportFilteredClasses().forEach((c) => reportDeselected.delete(c.id));
+            saveReportFilters();
+            renderReportClassList();
+        });
+        on('#debateRecReportClearAll', () => {
+            reportFilteredClasses().forEach((c) => reportDeselected.add(c.id));
+            saveReportFilters();
+            renderReportClassList();
+        });
+        on('#debateRecReportClose', closeReportModal);
+        on('#debateRecReportPrintBtn', () => {
+            const api = printApi();
+            const groups = reportSelectedGroups();
+            if (!api || !groups.length) {
+                return;
+            }
+            const title = t('debateRecReportTitleAll');
+            openPrintDocument(title, api.renderDocumentHtml({
+                title,
+                calendarName: calendarName(),
+                generatedAt: domain().todayISO(),
+                scopeNote: reportScopeNote(),
+                groups
+            }, reportLabels()), api.PRINT_STYLES);
+        });
+        on('#debateRecReportCopyBtn', () => {
+            const groups = reportSelectedGroups();
+            void copyGroups(groups);
+        });
+        modal.addEventListener('click', (event) => {
+            if (event.target === modal) {
+                closeReportModal();
+            }
+        });
+    }
+
     function renderReportsMenu() {
         const mount = panelRef && panelRef.querySelector('#classroomDebateRecReportsWrap');
         if (!mount) {
@@ -537,7 +849,7 @@
                 <button type="button" id="classroomDebateRecReportsBtn" class="btn btn-outline btn-compact classroom-essay-reports-btn" aria-expanded="${reportsMenuOpen ? 'true' : 'false'}" aria-haspopup="menu">${icon}${escapeHtml(t('debateRecReportsBtn'))} ▾</button>
                 <div class="classroom-essay-reports-dropdown" role="menu"${reportsMenuOpen ? '' : ' hidden'}>
                     <button type="button" class="classroom-essay-reports-item" data-report-action="print-class" role="menuitem"${classId ? '' : ' disabled'}>${escapeHtml(t('debateRecReportPrintClass'))}</button>
-                    <button type="button" class="classroom-essay-reports-item" data-report-action="print-all" role="menuitem">${escapeHtml(t('debateRecReportPrintAll'))}</button>
+                    <button type="button" class="classroom-essay-reports-item" data-report-action="all-report" role="menuitem">${escapeHtml(t('debateRecReportAllClasses'))}</button>
                     <button type="button" class="classroom-essay-reports-item" data-report-action="copy-open" role="menuitem"${classId ? '' : ' disabled'}>${escapeHtml(t('debateRecReportCopy'))}</button>
                 </div>
             </div>`;
@@ -803,9 +1115,9 @@
                 reportsMenuOpen = false;
                 renderReportsMenu();
                 if (action === 'print-class') {
-                    printReport('class');
-                } else if (action === 'print-all') {
-                    printReport('all');
+                    printClassReport();
+                } else if (action === 'all-report') {
+                    openReportModal();
                 } else if (action === 'copy-open') {
                     void copyOpenList();
                 }
