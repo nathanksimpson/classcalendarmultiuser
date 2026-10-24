@@ -180,6 +180,7 @@
         try {
             await hooks.saveClassroom({ essaySubmissions: list });
             setSaveStatus('saved');
+            refreshZoneContextBar();
             if (typeof hooks.refreshTabWarnings === 'function') {
                 hooks.refreshTabWarnings();
             }
@@ -191,6 +192,16 @@
             }
             return false;
         }
+    }
+
+    /** Re-render the class list so its Debate Rec pills match the saved data. */
+    function refreshZoneContextBar() {
+        const zone = global.CCPClassroomZoneContext;
+        const mount = typeof document !== 'undefined' ? document.getElementById('classroomZoneContextBar') : null;
+        if (!zone || !zone.render || !mount || mount.hidden) {
+            return;
+        }
+        zone.render(mount);
     }
 
     function setSaveStatus(state) {
