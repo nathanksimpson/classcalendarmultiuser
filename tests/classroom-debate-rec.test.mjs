@@ -72,6 +72,9 @@ function check(data, tms) {
     return r.summary;
 }
 
+
+// A TMS absence list that reaches back past every test Day 4 with no absence on it.
+const PRESENT = [{ date: '2026-08-01', status: '출석' }];
 // ── Recording days ──────────────────────────────────────────────────────
 {
     const data = makeData();
@@ -104,7 +107,7 @@ function check(data, tms) {
     const tms = new Map([
         ['s1', [{ date: '2026-10-21', status: '결석' }]],
         ['s2', [{ date: '2026-10-22', status: '결석' }]],
-        ['s3', []]
+        ['s3', PRESENT]
     ]);
     check(data, tms);
     eq(rec(data, 'r4', 's1'), null, 'absence on syllabus date ignored when TMS date differs');
@@ -196,7 +199,7 @@ function check(data, tms) {
     eq(r2.debateVideoMissing, true, 's2 NV on');
 
     // TMS later says present → teacher decision still kept
-    check(data, new Map([['s1', []], ['s2', []]]));
+    check(data, new Map([['s1', PRESENT], ['s2', PRESENT]]));
     eq(rec(data, 'r4', 's1').debateRecStatus, 'received', 'teacher kept when TMS clears');
 
     // invalid teacher status rejected
@@ -254,7 +257,7 @@ function check(data, tms) {
             records: [Object.assign({ studentId: 's1', status: 'not_submitted' }, patch)]
         }]
     });
-    check(data, new Map([['s1', []]]));
+    check(data, new Map([['s1', PRESENT]]));
     eq(rec(data, 'r4', 's1').debateRecStatus, 'not_recorded', 'manual NV survives TMS present');
 }
 
@@ -288,7 +291,7 @@ function check(data, tms) {
     const tms = new Map([
         ['s1', [{ date: '2026-10-21', status: '결석' }]],
         ['s2', [{ date: '2026-10-21', status: '지각' }]],
-        ['s3', []]
+        ['s3', PRESENT]
     ]);
     check(data, tms);
     view = d.computeDebateRecView(data, 'c1', tms, { todayIso: TODAY });
@@ -335,7 +338,7 @@ function check(data, tms) {
     data.essaySubmissions = d.setDebateRecNote(data.essaySubmissions, {
         classId: 'c1', syllabusRowId: 'r4', studentId: 's1', note: 'Mom will send video'
     }).submissions;
-    const r2 = d.applyDebateRecTmsCheck(data, 'c2', new Map([['y1', [{ date: '2026-09-17', status: '결석' }]], ['y2', []]]), { todayIso: TODAY });
+    const r2 = d.applyDebateRecTmsCheck(data, 'c2', new Map([['y1', [{ date: '2026-09-17', status: '결석' }]], ['y2', PRESENT]]), { todayIso: TODAY });
     data.essaySubmissions = r2.submissions;
 
     // Filter options: past months only, homerooms incl. "no homeroom".
@@ -466,16 +469,16 @@ function check(data, tms) {
 
     const deb = P.buildParentMessage(base, 'ko');
     eq(deb.split('\n')[0], '[심슨 어학원] 토론 녹화 미완료 안내', 'KO debate header');
-    assert(deb.includes('심슨 어학원 김민준 학생의 토론 담당 Nathan Simpson 선생님입니다.'), 'KO debate intro, no (Admin)');
+    assert(deb.includes('심슨 어학원 Nathan Simpson 선생님입니다. 김민준 학생 관련하여 연락드립니다.'), 'KO debate intro, no (Admin)');
     assert(deb.includes('10월 21일(수) Purple M반 수업에서 토론 스피치 녹화(Debate Day 4)를 진행했는데'), 'KO what was missed');
-    assert(deb.includes('담임 선생님께 연락 주셔서'), 'KO contact homeroom');
+    assert(deb.includes('반담임 선생님께 연락 주셔서') && !deb.includes('토론 담당'), 'KO contact homeroom');
     assert(deb.includes('수업 전에 조금 일찍 오거나 수업 후에 조금 남아'), 'KO early/late');
     assert(P.buildParentMessage(base).startsWith('[Simson Academy] Debate recording not finished'), 'English stays the default');
 
     const od = M.essay(Object.assign({ kind: 'overdue' }, base), 'ko');
     eq(od.split('\n')[0], '[심슨 어학원] 에세이 미제출 안내', 'KO essay overdue header');
     assert(od.includes('김민준 학생이 10월 21일(수) Purple M반에서 나간 에세이를 아직 제출하지 않았습니다.'), 'KO essay overdue body');
-    assert(od.includes('담임 선생님께 연락해 주세요'), 'KO essay homeroom');
+    assert(od.includes('반담임 선생님께 연락해 주세요'), 'KO essay homeroom');
     const rs = M.essay(Object.assign({ kind: 'resubmit' }, base), 'ko');
     eq(rs.split('\n')[0], '[심슨 어학원] 에세이 재제출 안내', 'KO essay resubmit header');
     assert(rs.includes('수정이 필요하여 다시 제출해야 합니다'), 'KO resubmit body');
@@ -507,9 +510,9 @@ function check(data, tms) {
 
     // TMS says the opposite for both; teacher choices are kept. Nobody else absent.
     check(data, new Map([
-        ['s1', []],
+        ['s1', PRESENT],
         ['s2', [{ date: '2026-10-21', status: '결석' }]],
-        ['s3', []]
+        ['s3', PRESENT]
     ]));
     view = d.computeDebateRecView(data, 'c1', new Map(), { todayIso: TODAY });
     eq(view.dayCounts.r4.checked, true, 'Day 4 marked checked even with no TMS flags for unflagged students');
@@ -537,7 +540,7 @@ function check(data, tms) {
     const one = () => makeData();
     const steps = (data, list) => list.forEach(([k, a]) => {
         if (k === 'tms') {
-            data.essaySubmissions = d.applyDebateRecTmsCheck(data, 'c1', new Map([['s1', a], ['s2', []], ['s3', []]]), { todayIso: TODAY }).submissions;
+            data.essaySubmissions = d.applyDebateRecTmsCheck(data, 'c1', new Map([['s1', a], ['s2', PRESENT], ['s3', PRESENT]]), { todayIso: TODAY }).submissions;
         } else if (k === 'set') {
             data.essaySubmissions = d.setDebateRecTeacherStatus(data.essaySubmissions, { classId: 'c1', syllabusRowId: 'r4', studentId: 's1', status: a, userId: 'u1' }).submissions;
         } else {
@@ -558,7 +561,7 @@ function check(data, tms) {
     data = one(); steps(data, [['tms', L], ['set', 'recorded'], ['reset']]);
     eq(shown(data), 'needs_confirmation', '지각 → Recorded → reset = Needs confirmation');
 
-    data = one(); steps(data, [['tms', []], ['set', 'not_recorded'], ['reset']]);
+    data = one(); steps(data, [['tms', PRESENT], ['set', 'not_recorded'], ['reset']]);
     eq(shown(data), 'present', 'no TMS absence → reset = Recorded in class');
 
     data = one(); steps(data, [['set', 'exempt'], ['reset']]);
@@ -567,6 +570,24 @@ function check(data, tms) {
     // Teacher decision still never changed by a check.
     data = one(); steps(data, [['set', 'received'], ['tms', A]]);
     eq(shown(data), 'received', 'check keeps teacher decision');
+
+    // TMS's absence list is one page of recent days. A later check whose list no longer
+    // reaches the Day 4 must not wipe the stored 결석 (the "flaky reset" bug).
+    const LATER = [{ date: '2026-11-20', status: '출석' }];
+    data = one(); steps(data, [['tms', A], ['tms', LATER]]);
+    eq(shown(data), 'not_recorded', 'Day 4 off the TMS list → stored Not recorded kept');
+    data = one(); steps(data, [['tms', A], ['set', 'received'], ['tms', LATER], ['reset']]);
+    eq(shown(data), 'not_recorded', 'Day 4 off the TMS list → teacher row keeps TMS 결석 → reset = Not recorded');
+    assert(d.tmsAttendanceCoversDate(A, '2026-10-21') && !d.tmsAttendanceCoversDate(LATER, '2026-10-21') && !d.tmsAttendanceCoversDate([], '2026-10-21'), 'coverage helper');
+
+    // Reset uses fresh cached TMS records when they cover the date (repairs old wiped rows).
+    data = one(); steps(data, [['set', 'received']]);
+    data.essaySubmissions = d.resetDebateRecToTms(data.essaySubmissions, { classId: 'c1', syllabusRowId: 'r4', studentId: 's1', date: '2026-10-21', tmsRecords: A }).submissions;
+    eq(shown(data), 'not_recorded', 'reset with fresh TMS 결석 = Not recorded even without a stored result');
+    eq(rec(data, 'r4', 's1').debateRecTmsStatus, '결석', 'reset stores the fresh TMS status');
+    data = one(); steps(data, [['tms', A], ['set', 'received']]);
+    data.essaySubmissions = d.resetDebateRecToTms(data.essaySubmissions, { classId: 'c1', syllabusRowId: 'r4', studentId: 's1', date: '2026-10-21', tmsRecords: LATER }).submissions;
+    eq(shown(data), 'not_recorded', 'reset with TMS list not reaching the date falls back to the stored 결석');
 }
 
 console.log(`classroom-debate-rec.test.mjs: ok (${passed} assertions)`);
