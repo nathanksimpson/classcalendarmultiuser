@@ -10,7 +10,7 @@
 
 Multi-teacher calendar with **Kakao OAuth** (first login auto-creates teacher + pending-access until calendars are granted), password fallback, D1/SQLite, edit locks, and revision-based saves. Phase 0 fixes in code: **OAuth CSRF state cookie**, **no blind email→Kakao auto-link**, **`force` save restricted to lock holder or admin**, **5 MB API body cap**, **auth rate limits**, **XSS escapes** on key calendar DOM paths, **health endpoint** no longer leaks Kakao client ID fragments, **session rotation on login**, **logout-all**, **configurable session max days**.
 
-**Data at rest (2026-06-10):** Cloudflare D1 encrypts storage at the platform layer (AES-256-GCM). Application-level **blob encryption v1** encrypts `calendars.data` and `calendar_suggestions.data` when `DATA_ENCRYPTION_MASTER_KEY` is set (`crypto/blob-at-rest.js`, migration `0015`). Dual-read supports legacy plaintext rows until `scripts/encrypt-calendars-blob.mjs` is run. Passwords remain PBKDF2-hashed; session tokens and user emails are still plaintext in SQL (deferred).
+**Data at rest (2026-06-10):** Cloudflare D1 encrypts storage at the platform layer (AES-256-GCM). Application-level **blob encryption v1** encrypts `calendars.data` and `calendar_suggestions.data` when `DATA_ENCRYPTION_MASTER_KEY` is set (`crypto/blob-at-rest.js`, migration `0015`). Dual-read supports legacy plaintext rows; once the key is set, the daily cron (`encryptPlaintextBlobs` in `worker/src/calendar-storage.js`) encrypts any remaining plaintext rows in place (revision-guarded), so `scripts/encrypt-calendars-blob.mjs` is optional. Passwords remain PBKDF2-hashed; session tokens and user emails are still plaintext in SQL (deferred).
 
 **Remaining ops:** Run D1 migration `0015` when deploying blob encryption; set `DATA_ENCRYPTION_MASTER_KEY` via `wrangler secret put`; run encrypt migration script; configure [Cloudflare rate limits](docs/CLOUDFLARE-RATE-LIMITS.md); rotate secrets; enable usage alerts.
 
@@ -52,7 +52,7 @@ Multi-teacher calendar with **Kakao OAuth** (first login auto-creates teacher + 
 | M-A7 | **Admin HTML public** | UI recon | **Fixed (2026-10):** redirect existed but never ran (static assets served first); `/admin`, `/admin/`, `/admin.html` now in `run_worker_first` |
 | M-O1 | **Open OpenAI relay** `/api/openai-proxy/v1/*` | Domain used as anonymous relay | **Fixed (2026-10):** signed-in cookie user only, endpoint allow-list (`/chat/completions`, `/models`), no CORS, rate limit per user |
 | M-L1 | **Dev server on all interfaces** with `ALLOW_OPEN_ACCESS=1` | LAN users become admin | **Fixed (2026-10):** binds `HOST=127.0.0.1`; open access only for loopback requests; refuses to start otherwise |
-| M-P1 | **Real student names in public test fixtures** | PII exposure | **Fixed (2026-10):** fixtures redacted to fake names; repo to be made private; history purge optional |
+| M-P1 | **Real student names in public test fixtures** | PII exposure | **Fixed (2026-10):** fixtures redacted to fake names; **history purged 2026-10-25** (all branches rewritten with git-filter-repo; real names in code comments replaced too); repo made private |
 | M-B1 | Bootstrap secret compared with `!==` | Timing side channel | **Fixed (2026-10):** SHA-256 + `timingSafeEqual` (server + worker) |
 | M-A9 | **Internal docs in `dist/`** | Recon (D1 id, audit notes) | **Fixed:** excluded from build |
 | M-A6 | **Worker rate limit fails open on D1 error** | Auth brute force | **Fixed:** fail closed |

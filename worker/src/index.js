@@ -17,6 +17,7 @@ import { prepareClassroomForSave } from './classroom-access.js';
 import {
     CALENDAR_DOC_SELECT,
     calendarDocForClient,
+    encryptPlaintextBlobs,
     parseDataObjectFromRow,
     serializeCalendarData
 } from './calendar-storage.js';
@@ -3010,6 +3011,15 @@ export default {
                         .catch((err) => console.error(`scheduled cleanup ${label} failed:`, err && err.message))
                 )
             )
+        );
+        ctx.waitUntil(
+            encryptPlaintextBlobs(env)
+                .then((r) => {
+                    if (r.calendars || r.suggestions || r.skipped) {
+                        console.log('scheduled blob encryption:', JSON.stringify(r));
+                    }
+                })
+                .catch((err) => console.error('scheduled blob encryption failed:', err && err.message))
         );
     }
 };
