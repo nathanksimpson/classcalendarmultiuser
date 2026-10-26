@@ -22807,6 +22807,55 @@ th[data-cohort-col] {
     font-size: 0.6875rem;
 }
 
+/* Reason a student is flagged (absent / late / early leave / other / new student). */
+#panel-debate-rec .debate-rec-reason {
+    display: inline-block;
+    padding: 1px var(--space-2, 8px);
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+#panel-debate-rec .debate-rec-reason--absent {
+    border-color: color-mix(in srgb, var(--danger) 45%, var(--border-color));
+    color: var(--danger);
+}
+
+#panel-debate-rec .debate-rec-reason--late,
+#panel-debate-rec .debate-rec-reason--early,
+#panel-debate-rec .debate-rec-reason--other {
+    border-color: color-mix(in srgb, var(--warn-badge-bg) 50%, var(--border-color));
+    color: color-mix(in srgb, var(--warn-badge-bg) 80%, var(--text-primary, #111));
+}
+
+#panel-debate-rec .debate-rec-reason--new {
+    border-color: color-mix(in srgb, var(--primary) 45%, var(--border-color));
+    color: var(--primary);
+    white-space: normal;
+}
+
+#panel-debate-rec .debate-rec-tms-raw {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+#panel-debate-rec .debate-rec-hr {
+    margin-top: var(--space-1, 4px);
+    min-height: var(--touch-min-compact, 36px);
+    font-size: 0.6875rem;
+    font-weight: 600;
+}
+
+#panel-debate-rec .debate-rec-hr.is-active {
+    background: color-mix(in srgb, var(--success) 12%, var(--bg-card));
+    border-color: color-mix(in srgb, var(--success) 40%, var(--border-color));
+    color: var(--success);
+}
+
 #panel-debate-rec .debate-rec-row--not_recorded {
     box-shadow: inset 3px 0 0 var(--danger);
 }

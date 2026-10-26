@@ -9743,6 +9743,43 @@
     const DEBATE_REC_SOURCES = ['tms', 'teacher'];
     const TMS_ABSENT_STATUSES = ['결석'];
     const TMS_PRESENT_STATUSES = ['출석'];
+    /** Why a student is flagged: TMS status, or a new / transfer student who may have joined after Day 4. */
+    const DEBATE_REC_REASONS = ['absent', 'late', 'early_leave', 'other', 'new_student'];
+    const DEBATE_REC_NEW_STUDENT_TAGS = ['new', 'transfer_in'];
+
+    /** TMS attendance label → reason code ('' when present / blank). */
+    function debateRecReasonFromTms(tmsStatus) {
+        const s = normalizeStr(tmsStatus).replace(/\s+/g, '');
+        if (!s || TMS_PRESENT_STATUSES.includes(s)) {
+            return '';
+        }
+        if (s.includes('결석')) {
+            return 'absent';
+        }
+        if (s.includes('지각')) {
+            return 'late';
+        }
+        if (s.includes('조퇴')) {
+            return 'early_leave';
+        }
+        return 'other';
+    }
+
+    /** New (★) or transfer-in (◆) student — may not have been in class on Day 4. */
+    function isDebateRecNewStudent(student) {
+        const tags = (student && Array.isArray(student.tags)) ? student.tags : [];
+        return tags.some((tag) => DEBATE_REC_NEW_STUDENT_TAGS.includes(tag));
+    }
+
+    /** Stored reason, or one derived from the stored TMS status (records saved before reasons existed). */
+    function resolveDebateRecReason(rec) {
+        const r = rec || {};
+        const stored = normalizeStr(r.debateRecReason);
+        if (DEBATE_REC_REASONS.includes(stored)) {
+            return stored;
+        }
+        return debateRecReasonFromTms(r.debateRecTmsStatus);
+    }
 
     function normalizeDebateRecFields(raw) {
         const src = raw || {};
@@ -9771,7 +9808,12 @@
             debateRecCheckedAt: normalizeStr(src.debateRecCheckedAt),
             debateRecUpdatedBy: normalizeStr(src.debateRecUpdatedBy),
             debateRecUpdatedAt: normalizeStr(src.debateRecUpdatedAt),
-            debateRecNote: normalizeStr(src.debateRecNote)
+            debateRecNote: normalizeStr(src.debateRecNote),
+            debateRecReason: DEBATE_REC_REASONS.includes(normalizeStr(src.debateRecReason))
+                ? normalizeStr(src.debateRecReason)
+                : '',
+            debateRecHrInformedBy: normalizeStr(src.debateRecHrInformedBy),
+            debateRecHrInformedAt: normalizeStr(src.debateRecHrInformedAt)
         };
     }
 
@@ -9958,7 +10000,9 @@
             const records = submission.records;
             let touched = false;
             const coversDay = (sid) => byStudent.has(sid) && tmsAttendanceCoversDate(byStudent.get(sid), day.date);
-            if (students.some((entry) => entry && entry.student && coversDay(normalizeStr(entry.student.id)))) {
+            // This run reached the Day 4 for the class (TMS data covers at least one student).
+            const dayCheckedNow = students.some((entry) => entry && entry.student && coversDay(normalizeStr(entry.student.id)));
+            if (dayCheckedNow) {
                 submission.debateRecCheckedAt = nowIso;
                 touched = true;
             }
@@ -9972,7 +10016,10 @@
                 const prev = idx >= 0 ? records[idx] : null;
                 const prevRec = prev ? normalizeDebateRecFields(prev) : null;
 
-                if (!coversDay(sid)) {
+                const isNew = isDebateRecNewStudent(entry.student);
+                const covered = coversDay(sid);
+
+                if (!covered && !(isNew && dayCheckedNow)) {
                     // No TMS data for this date (not loaded, or older than TMS's list): keep what we have.
                     if (prevRec && prevRec.debateRecSource === 'teacher') {
                         summary.skippedTeacher += 1;
@@ -9982,7 +10029,7 @@
                     return;
                 }
 
-                const hit = pickTmsAttendanceForDate(byStudent.get(sid), day.date);
+                const hit = covered ? pickTmsAttendanceForDate(byStudent.get(sid), day.date) : null;
 
                 if (prevRec && prevRec.debateRecSource === 'teacher') {
                     // Teacher decision stays; only remember what TMS said so Reset to TMS can restore it.
@@ -9991,6 +10038,7 @@
                         debateRecDate: day.date,
                         debateRecTmsStatus: hit ? normalizeStr(hit.status) : '',
                         debateRecTmsMemo: hit ? normalizeStr(hit.memo) : '',
+                        debateRecReason: hit ? debateRecReasonFromTms(hit.status) : (isNew ? 'new_student' : ''),
                         debateRecCheckedAt: nowIso
                     });
                     if (JSON.stringify(prev) !== JSON.stringify(kept)) {
@@ -9999,7 +10047,14 @@
                     }
                     return;
                 }
-                const nextStatus = hit ? debateRecStatusFromTms(hit.status) : '';
+                // TMS absence wins; otherwise a new / transfer student needs a teacher to confirm
+                // whether they were already in this class on Day 4.
+                let nextStatus = hit ? debateRecStatusFromTms(hit.status) : '';
+                let reason = hit ? debateRecReasonFromTms(hit.status) : '';
+                if (!nextStatus && isNew) {
+                    nextStatus = 'needs_confirmation';
+                    reason = 'new_student';
+                }
                 const hadTmsStatus = Boolean(prevRec && prevRec.debateRecSource === 'tms' && prevRec.debateRecStatus);
 
                 if (!nextStatus && !hadTmsStatus) {
@@ -10012,6 +10067,7 @@
                     debateRecDate: day.date,
                     debateRecTmsStatus: hit ? normalizeStr(hit.status) : '',
                     debateRecTmsMemo: hit ? normalizeStr(hit.memo) : '',
+                    debateRecReason: nextStatus ? reason : '',
                     debateRecCheckedAt: nowIso,
                     debateVideoMissing: nextStatus === 'not_recorded'
                 });
@@ -10092,6 +10148,20 @@
         }));
     }
 
+    /**
+     * Mark that the homeroom teacher (HR / 반담임) has been told about this student's
+     * missing recording. Records who and when; informed:false clears it.
+     * Independent of the recording status, so a later TMS check keeps it.
+     */
+    function setDebateRecHrInformed(submissions, options) {
+        const o = options || {};
+        const informed = o.informed !== false;
+        return patchDebateRecRecord(submissions, o, (prev) => Object.assign({}, prev, {
+            debateRecHrInformedBy: informed ? normalizeStr(o.userId) : '',
+            debateRecHrInformedAt: informed ? (o.nowIso || new Date().toISOString()) : ''
+        }));
+    }
+
     function setDebateRecNote(submissions, options) {
         const o = options || {};
         return patchDebateRecRecord(submissions, o, (prev) => Object.assign({}, prev, {
@@ -10120,12 +10190,18 @@
                 tmsStatus = hit ? normalizeStr(hit.status) : '';
                 tmsMemo = hit ? normalizeStr(hit.memo) : '';
             }
-            const restored = tmsStatus ? debateRecStatusFromTms(tmsStatus) : '';
+            let restored = tmsStatus ? debateRecStatusFromTms(tmsStatus) : '';
+            let reason = tmsStatus ? debateRecReasonFromTms(tmsStatus) : '';
+            if (!restored && (o.isNewStudent || normalizeStr(prev.debateRecReason) === 'new_student')) {
+                restored = 'needs_confirmation';
+                reason = 'new_student';
+            }
             return Object.assign({}, prev, {
                 debateRecStatus: restored,
                 debateRecSource: restored ? 'tms' : '',
                 debateRecTmsStatus: tmsStatus,
                 debateRecTmsMemo: tmsMemo,
+                debateRecReason: restored ? reason : '',
                 debateRecDate: prev.debateRecDate || date,
                 debateRecUpdatedBy: '',
                 debateRecUpdatedAt: '',
@@ -10209,7 +10285,16 @@
                 } else {
                     perDay.resolved += 1;
                 }
-                rows.push({ day, student, cohortName: entry.cohortName || '', rec, displayStatus, dayChecked: checked });
+                rows.push({
+                    day,
+                    student,
+                    cohortName: entry.cohortName || '',
+                    rec,
+                    displayStatus,
+                    dayChecked: checked,
+                    reason: rec.debateRecStatus ? resolveDebateRecReason(rec) : '',
+                    isNewStudent: isDebateRecNewStudent(student)
+                });
             });
         });
         rows.sort((a, b) => {
@@ -10484,6 +10569,11 @@
                             source: rec.debateRecSource,
                             tmsStatus: rec.debateRecTmsStatus,
                             tmsMemo: rec.debateRecTmsMemo,
+                            reason: rec.debateRecStatus ? resolveDebateRecReason(rec) : '',
+                            hrInformedByName: rec.debateRecHrInformedAt
+                                ? (nameFor(rec.debateRecHrInformedBy) || '')
+                                : '',
+                            hrInformedAt: rec.debateRecHrInformedAt,
                             note: rec.debateRecNote,
                             updatedByName: rec.debateRecUpdatedBy ? nameFor(rec.debateRecUpdatedBy) : '',
                             updatedAt: rec.debateRecUpdatedAt
@@ -10853,6 +10943,11 @@
         applyDebateRecTmsCheck,
         setDebateRecTeacherStatus,
         setDebateRecNote,
+        setDebateRecHrInformed,
+        DEBATE_REC_REASONS,
+        debateRecReasonFromTms,
+        isDebateRecNewStudent,
+        resolveDebateRecReason,
         resetDebateRecToTms,
         tmsAttendanceCoversDate,
         debateRecPatchForNvToggle,

@@ -729,6 +729,142 @@ async function scrapeCounselProfilesBatch(cfg, classBatches) {
     };
 }
 
+/**
+ * Attendance-only fetch for one student: just the absence list iframe (one GET),
+ * instead of the profile shell + counsel notes + enrollment popup (four GETs).
+ * Falls back to the shell's iframe src once if the direct URL returns nothing.
+ */
+async function fetchStudentAttendance(cfg, jar, staffId, student, tmsClassId, warmedClasses) {
+    const mpidx = String(student.tmsMpidx || student.mpidx || '').trim();
+    const classId = String(student.tmsClassId || tmsClassId || '').trim();
+    const base = {
+        studentId: student.id || mpidx,
+        name: student.name || '',
+        mpidx,
+        attendanceOnly: true,
+        missingClassIdx: !classId
+    };
+    if (!mpidx) {
+        return Object.assign(base, { error: 'no_mpidx', attendanceRecords: [] });
+    }
+    const urls = buildIframeUrls(cfg, mpidx, staffId, classId);
+    try {
+        if (classId && !warmedClasses.has(classId)) {
+            await warmClassPopup(jar, cfg, classId, `${cfg.baseUrl}${CLASS_POPUP_PATH}`);
+            warmedClasses.add(classId);
+        }
+        let absenceHtml = await fetchHtmlPage(jar, urls.absence, urls.shell);
+        let tableHtml = findAttendanceTable(absenceHtml);
+        if (!tableHtml) {
+            // Some TMS sessions only serve the iframe after the profile shell is opened.
+            const shellHtml = await fetchHtmlPage(
+                jar,
+                urls.shell,
+                `${cfg.baseUrl}${CLASS_POPUP_PATH}?classidx=${encodeURIComponent(classId)}`
+            );
+            const src = extractIframeSrcFromShell(shellHtml, 'student_absense');
+            absenceHtml = await fetchHtmlPage(jar, src ? resolveAbsoluteUrl(cfg, src) : urls.absence, urls.shell);
+            tableHtml = findAttendanceTable(absenceHtml);
+        }
+        if (!tableHtml) {
+            return Object.assign(base, {
+                error: (absenceHtml || '').length < 200 ? 'empty_response' : 'parse_empty',
+                attendanceRecords: []
+            });
+        }
+        // An empty table is a valid answer: no absences on record.
+        return Object.assign(base, { error: null, attendanceRecords: parseAttendanceTable(tableHtml) });
+    } catch (err) {
+        if (err && err.code === 'TMS_LOGIN_FAILED') {
+            throw err;
+        }
+        return Object.assign(base, {
+            error: err && err.name === 'AbortError' ? 'timeout' : (err && err.message) || 'fetch_failed',
+            attendanceRecords: []
+        });
+    }
+}
+
+/**
+ * Fast attendance sync for Debate Rec: one sign-in, then one GET per unique student.
+ * Same response shape as scrapeCounselProfilesBatch, but profiles carry only
+ * attendanceRecords (attendanceOnly: true) — callers must merge, not replace.
+ * READ-ONLY toward TMS: sign-in POST, then GET requests only.
+ */
+async function scrapeAttendanceBatch(cfg, classBatches) {
+    if (!tmsRoster.credentialsConfigured(cfg)) {
+        const err = new Error('TMS credentials not configured');
+        err.code = 'TMS_CREDS_MISSING';
+        throw err;
+    }
+    const jar = { map: new Map() };
+    const { homeHtml } = await tmsRoster.login(cfg, jar);
+    const staffId = resolveStaffId(homeHtml);
+
+    const classes = {};
+    const warmedClasses = new Set();
+    const byMpidx = new Map();
+    const stats = {
+        classes: 0,
+        students: 0,
+        uniqueMpidx: 0,
+        reused: 0,
+        scraped: 0,
+        noMpidx: 0,
+        errors: 0,
+        parse_empty: 0,
+        empty_response: 0,
+        totalNotes: 0,
+        missingClassIdx: 0,
+        attendanceOnly: true
+    };
+
+    for (const batch of classBatches || []) {
+        const classId = String(batch.classId || '').trim();
+        const tmsClassId = String(batch.tmsClassId || '').trim();
+        const profiles = [];
+        if (!tmsClassId && (batch.students || []).length) {
+            stats.missingClassIdx += (batch.students || []).length;
+        }
+        for (const student of batch.students || []) {
+            const mpidx = String(student.tmsMpidx || student.mpidx || '').trim();
+            if (mpidx && byMpidx.has(mpidx)) {
+                stats.reused += 1;
+                profiles.push(Object.assign({}, byMpidx.get(mpidx), {
+                    studentId: student.id || mpidx,
+                    name: student.name || ''
+                }));
+                continue;
+            }
+            if (stats.students > 0) {
+                await new Promise((r) => setTimeout(r, 150));
+            }
+            stats.students += 1;
+            const profile = await fetchStudentAttendance(cfg, jar, staffId, student, tmsClassId, warmedClasses);
+            if (profile.error === 'no_mpidx') {
+                stats.noMpidx += 1;
+            } else if (profile.error) {
+                stats.errors += 1;
+                if (profile.error === 'parse_empty') {
+                    stats.parse_empty += 1;
+                } else if (profile.error === 'empty_response') {
+                    stats.empty_response += 1;
+                }
+            } else {
+                stats.scraped += 1;
+            }
+            if (mpidx && !profile.error) {
+                byMpidx.set(mpidx, profile);
+            }
+            profiles.push(profile);
+        }
+        classes[classId || '__default__'] = { classId, tmsClassId, students: profiles };
+    }
+    stats.classes = Object.keys(classes).length;
+    stats.uniqueMpidx = byMpidx.size;
+    return { classes, staffId, stats };
+}
+
 async function scrapeCounselProfile(cfg, student, options) {
     const opts = options || {};
     const tmsClassId = String(opts.tmsClassId || student.tmsClassId || '').trim();
@@ -748,6 +884,7 @@ async function scrapeCounselProfile(cfg, student, options) {
 module.exports = {
     scrapeCounselProfiles,
     scrapeCounselProfilesBatch,
+    scrapeAttendanceBatch,
     scrapeCounselProfile,
     parseProfileHtml,
     parseProfileParts,

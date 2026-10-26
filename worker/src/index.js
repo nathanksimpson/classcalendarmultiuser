@@ -1633,7 +1633,7 @@ export default {
                 return blocked;
             }
             const kind = tmsRunMatch ? decodeURIComponent(tmsRunMatch[1]) : tmsAliasKind;
-            if (kind === 'essays' || kind === 'essayContent' || kind === 'homework' || kind === 'counsel') {
+            if (kind === 'essays' || kind === 'essayContent' || kind === 'homework' || kind === 'counsel' || kind === 'attendance') {
                 return json(
                     {
                         error: 'TMS is only reachable from the school network. Start the local bridge (npm start on the work PC) and use the local bridge endpoint.',

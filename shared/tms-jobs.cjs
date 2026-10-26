@@ -98,32 +98,49 @@ const JOBS = {
 
     counsel: async (payload, { cfg }) => {
         if (Array.isArray(payload.classes) && payload.classes.length) {
-            const batches = payload.classes
-                .map((entry) => {
-                    const classId = String(entry && entry.classId ? entry.classId : '').trim();
-                    const tmsClassId = String(entry && entry.tmsClassId ? entry.tmsClassId : '').trim();
-                    const students = Array.isArray(entry && entry.students) ? entry.students : [];
-                    return {
-                        classId,
-                        tmsClassId,
-                        students: students.map((s) => ({
-                            id: s && s.id != null ? String(s.id) : '',
-                            name: s && s.name ? String(s.name) : '',
-                            tmsMpidx: String((s && (s.tmsMpidx || s.mpidx)) || '').trim()
-                        }))
-                    };
-                })
-                .filter((batch) => batch.students.length > 0);
+            const batches = classBatchesFrom(payload);
             if (!batches.length) {
-                return { classes: {}, stats: { classes: 0, students: 0, scraped: 0, noMpidx: 0, errors: 0 } };
+                return emptyBatchResult();
             }
             return tmsCounsel.scrapeCounselProfilesBatch(cfg, batches);
         }
         const students = Array.isArray(payload.students) ? payload.students : [];
         const tmsClassId = String(payload.tmsClassId || '').trim();
         return tmsCounsel.scrapeCounselProfiles(cfg, students, { tmsClassId });
+    },
+
+    /** Attendance only (absence list, one GET per student) — fast path for Debate Rec. */
+    attendance: async (payload, { cfg }) => {
+        const batches = classBatchesFrom(payload);
+        if (!batches.length) {
+            return emptyBatchResult();
+        }
+        return tmsCounsel.scrapeAttendanceBatch(cfg, batches);
     }
 };
+
+function classBatchesFrom(payload) {
+    return (Array.isArray(payload && payload.classes) ? payload.classes : [])
+        .map((entry) => {
+            const classId = String(entry && entry.classId ? entry.classId : '').trim();
+            const tmsClassId = String(entry && entry.tmsClassId ? entry.tmsClassId : '').trim();
+            const students = Array.isArray(entry && entry.students) ? entry.students : [];
+            return {
+                classId,
+                tmsClassId,
+                students: students.map((s) => ({
+                    id: s && s.id != null ? String(s.id) : '',
+                    name: s && s.name ? String(s.name) : '',
+                    tmsMpidx: String((s && (s.tmsMpidx || s.mpidx)) || '').trim()
+                }))
+            };
+        })
+        .filter((batch) => batch.students.length > 0);
+}
+
+function emptyBatchResult() {
+    return { classes: {}, stats: { classes: 0, students: 0, scraped: 0, noMpidx: 0, errors: 0 } };
+}
 
 const JOB_KINDS = Object.keys(JOBS);
 

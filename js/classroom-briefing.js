@@ -352,8 +352,10 @@
     /** ms timestamp of the last successful TMS scrape applied in this page (0 = none). */
     let lastSyncAppliedAt = 0;
 
-    function applyBatchSyncResult(result) {
+    function applyBatchSyncResult(result, options) {
         lastSyncAppliedAt = Date.now();
+        const attendanceOnly = Boolean((options && options.attendanceOnly)
+            || (result && result.stats && result.stats.attendanceOnly));
         const classes = (result && result.classes) || {};
         Object.keys(classes).forEach((key) => {
             const bucket = classes[key];
@@ -361,9 +363,80 @@
             if (!cid) {
                 return;
             }
-            _cache.set(`briefing-${cid}`, (bucket && bucket.students) || []);
+            const incoming = (bucket && bucket.students) || [];
+            _cache.set(
+                `briefing-${cid}`,
+                attendanceOnly ? mergeAttendanceProfiles(_cache.get(`briefing-${cid}`) || [], incoming) : incoming
+            );
         });
         schedulePersistBriefingCache();
+    }
+
+    /** Same rule as the TMS scrape's attendance watch flag (recent 결석/조퇴). */
+    function attendanceWatchFlags(records) {
+        const recent = (records || []).slice(0, 5);
+        const hits = recent.filter((r) => r && (r.status === '결석' || r.status === '조퇴'));
+        if (!hits.length) {
+            return [];
+        }
+        return [{
+            type: 'attendance',
+            severity: 'warning',
+            label: hits.length >= 2 ? `최근 결석 ${hits.length}회` : '최근 결석',
+            date: hits[0].date,
+            source: 'tms_attendance'
+        }];
+    }
+
+    /**
+     * Attendance-only sync: update attendanceRecords on cached profiles and keep
+     * counseling notes / enrollment from the last full sync. A failed student keeps
+     * whatever was cached before.
+     */
+    function mergeAttendanceProfiles(cached, incoming) {
+        const out = (cached || []).map((p) => p);
+        const indexOf = (profile) => out.findIndex((p) => p && (
+            (profile.studentId && String(p.studentId) === String(profile.studentId))
+            || (profile.mpidx && p.mpidx && String(p.mpidx) === String(profile.mpidx))
+        ));
+        const syncedAt = new Date().toISOString();
+        (incoming || []).forEach((profile) => {
+            if (!profile || profile.error) {
+                return;
+            }
+            const records = Array.isArray(profile.attendanceRecords) ? profile.attendanceRecords : [];
+            const idx = indexOf(profile);
+            if (idx >= 0) {
+                const prev = out[idx] || {};
+                const otherFlags = (prev.watchFlags || []).filter((f) => f && f.type !== 'attendance');
+                out[idx] = Object.assign({}, prev, {
+                    studentId: profile.studentId || prev.studentId,
+                    attendanceRecords: records,
+                    attendanceSyncedAt: syncedAt,
+                    watchFlags: otherFlags.concat(attendanceWatchFlags(records)),
+                    // A profile that only failed its notes scrape is usable once attendance arrives.
+                    error: prev.error && prev.error !== 'no_mpidx' ? null : prev.error
+                });
+            } else {
+                out.push({
+                    studentId: profile.studentId,
+                    name: profile.name || '',
+                    mpidx: profile.mpidx || '',
+                    error: null,
+                    enrollStatus: '',
+                    quitDate: '',
+                    breakPeriod: '',
+                    breakStart: '',
+                    breakEnd: '',
+                    notes: [],
+                    attendanceRecords: records,
+                    attendanceSyncedAt: syncedAt,
+                    attendanceOnly: true,
+                    watchFlags: attendanceWatchFlags(records)
+                });
+            }
+        });
+        return out;
     }
 
     function getActiveCalendarId() {
@@ -682,10 +755,20 @@
             username: credentials.username,
             password: credentials.password
         };
-        return global.CCPTmsSync.run('counsel', payload, {
-            timeoutMs: COUNSEL_SYNC_TIMEOUT_MS,
-            signal: opts.signal
-        });
+        const runOpts = { timeoutMs: COUNSEL_SYNC_TIMEOUT_MS, signal: opts.signal };
+        if (opts.mode === 'attendance') {
+            try {
+                const result = await global.CCPTmsSync.run('attendance', payload, runOpts);
+                return { result, attendanceOnly: true };
+            } catch (err) {
+                // Sync Helper installed before attendance-only sync existed: use the full scrape.
+                if (!(err && err.code === 'TMS_UNKNOWN_KIND')) {
+                    throw err;
+                }
+            }
+        }
+        const result = await global.CCPTmsSync.run('counsel', payload, runOpts);
+        return { result, attendanceOnly: false };
     }
 
     async function translateOne(text) {
@@ -1459,14 +1542,22 @@
         openTmsLoginModal(plan);
     }
 
-    async function confirmTmsLogin(planOverride) {
-        const creds = readTmsCredFields();
+    async function confirmTmsLogin(planOverride, options) {
+        const opts = options || {};
+        const passed = opts.creds && opts.creds.username ? opts.creds : null;
+        const creds = passed || readTmsCredFields();
         const bridgeState = global.CCPTmsSync && global.CCPTmsSync.getBridgeState
             ? global.CCPTmsSync.getBridgeState()
             : null;
         const allowBlankCreds = bridgeState && bridgeState.status === 'same-origin';
         if ((!creds.username || !creds.password) && !allowBlankCreds) {
-            showModalError(t('briefingErrorCredsRequired', 'Enter your TMS username and password.'));
+            const credsMsg = t('briefingErrorCredsRequired', 'Enter your TMS username and password.');
+            showModalError(credsMsg);
+            if (opts.rethrow) {
+                const e = new Error(credsMsg);
+                e.code = 'TMS_CREDS_MISSING';
+                throw e;
+            }
             return;
         }
         persistTmsUsernamePreference(creds.username, creds.rememberUser);
@@ -1480,7 +1571,13 @@
         if (!plan.length) {
             closeTmsLoginModal();
             renderEmptyRoster();
-            showStatus(t('briefingNoClassesToSync', 'No classes with linked rosters to sync.'), true);
+            const noClassesMsg = t('briefingNoClassesToSync', 'No classes with linked rosters to sync.');
+            showStatus(noClassesMsg, true);
+            if (opts.rethrow) {
+                const e = new Error(noClassesMsg);
+                e.code = 'TMS_NO_CLASSES';
+                throw e;
+            }
             return;
         }
 
@@ -1498,20 +1595,31 @@
             timeoutId = setTimeout(() => abortController.abort(), COUNSEL_SYNC_TIMEOUT_MS);
         }
 
+        let syncResult = null;
+        let syncError = null;
         try {
-            const result = await fetchCounselProfiles(plan, creds, {
-                signal: abortController ? abortController.signal : undefined
+            const fetched = await fetchCounselProfiles(plan, creds, {
+                signal: abortController ? abortController.signal : undefined,
+                mode: opts.mode
             });
-            applyBatchSyncResult(result);
+            const result = fetched.result;
+            syncResult = result;
+            applyBatchSyncResult(result, { attendanceOnly: fetched.attendanceOnly });
             summary = summarizeSyncStats(result && result.stats);
+            if (fetched.attendanceOnly) {
+                summary = t('briefingAttendanceOnlyDone', 'Attendance only.') + ' ' + summary;
+            }
             warnings = buildSyncWarnings(result && result.stats);
             showModalSyncResult(summary + (warnings.length ? ` ${warnings.join(' ')}` : ''), warnings.length > 0);
             await new Promise((r) => setTimeout(r, 800));
             closeTmsLoginModal();
             renderIdle();
             showStatus(summary + (warnings.length ? ` ${warnings.join(' ')}` : ''), warnings.length > 0);
-            startCurrentClassAutoTranslate();
+            if (!fetched.attendanceOnly) {
+                startCurrentClassAutoTranslate();
+            }
         } catch (err) {
+            syncError = err;
             hideModalSyncProgress();
             const code = err && err.code;
             let msg = err && err.message ? err.message : 'Sync failed';
@@ -1532,6 +1640,9 @@
             }
             showModalError(msg);
             showStatus('', false);
+            if (syncError) {
+                syncError.displayMessage = msg;
+            }
         } finally {
             if (timeoutId) {
                 clearTimeout(timeoutId);
@@ -1545,6 +1656,13 @@
                 passEl.value = '';
             }
         }
+        // Sync Center needs to know this kind failed so it can say so.
+        if (syncError && opts.rethrow) {
+            const e = new Error(syncError.displayMessage || syncError.message || 'TMS sync failed');
+            e.code = syncError.code || '';
+            throw e;
+        }
+        return syncResult;
     }
 
     function bindEventsOnce() {
@@ -1612,14 +1730,24 @@
         bindEventsOnce();
     }
 
+    /**
+     * Called by the TMS Sync window. options.mode: 'attendance' (absence list only —
+     * fast, keeps cached counseling notes) or 'full' (default: notes + attendance).
+     * Throws when the scrape fails so the Sync window can report it.
+     */
     async function runSync(creds, options) {
-        const onlyClassId = options && options.classId ? String(options.classId) : '';
+        const opts = options || {};
+        const onlyClassId = opts.classId ? String(opts.classId) : '';
         let plan = buildAllClassesSyncPlan();
         if (onlyClassId) {
             plan = plan.filter((batch) => String(batch.classId) === onlyClassId);
         }
         pendingSyncPlan = plan;
-        return confirmTmsLogin(plan);
+        return confirmTmsLogin(plan, {
+            creds,
+            mode: opts.mode === 'attendance' ? 'attendance' : 'full',
+            rethrow: true
+        });
     }
 
     /**

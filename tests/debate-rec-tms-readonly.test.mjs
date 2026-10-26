@@ -1,7 +1,7 @@
 /**
  * Debate Rec must stay READ-ONLY toward TMS.
  *  1. The Debate Rec module never talks to TMS itself; its only TMS entry point is
- *     the shared TMS Sync window with the attendance (counsel) scrape selected.
+ *     the shared TMS Sync window with the attendance-only scrape selected.
  *  2. That scrape only issues GET requests after the standard sign-in.
  *  3. Scraped attendance flows into the Debate Rec check end to end.
  * Run: node tests/debate-rec-tms-readonly.test.mjs
@@ -32,7 +32,7 @@ function assert(cond, msg) {
     assert(!/\/api\/tms/.test(code), 'Debate Rec must not reference TMS API routes');
     const opens = code.match(/\.open\(\s*\{[\s\S]*?kinds:\s*\[([^\]]*)\]/g) || [];
     assert(opens.length === 1, `exactly one TMS Sync open call (got ${opens.length})`);
-    assert(/kinds:\s*\[\s*'counsel'\s*\]/.test(opens[0]), 'TMS Sync opened with attendance scrape only');
+    assert(/kinds:\s*\[\s*'attendance'\s*\]/.test(opens[0]), 'TMS Sync opened with attendance scrape only');
     assert(/hooks\.saveClassroom\(\{\s*essaySubmissions/.test(code), 'writes go to ClassManager essaySubmissions');
 }
 
@@ -74,16 +74,40 @@ tmsRoster.fetchPage = async (jar, url, options) => {
 };
 
 let result;
+let fastResult;
+let fastPages = [];
 try {
     result = await counsel.scrapeCounselProfilesBatch(
         { baseUrl: 'https://tms.example', username: 'u', password: 'p' },
         [{ classId: 'c1', tmsClassId: '123', students: [{ id: 's1', name: '김민준', tmsMpidx: '100' }] }]
     );
+    const fullCalls = calls.length;
+    // Attendance-only scrape: same sign-in, then only the absence list (plus one class warm-up).
+    fastResult = await counsel.scrapeAttendanceBatch(
+        { baseUrl: 'https://tms.example', username: 'u', password: 'p' },
+        [
+            { classId: 'c1', tmsClassId: '123', students: [{ id: 's1', name: '김민준', tmsMpidx: '100' }] },
+            { classId: 'c2', tmsClassId: '123', students: [{ id: 's9', name: '김민준', tmsMpidx: '100' }] }
+        ]
+    );
+    fastPages = calls.slice(fullCalls).filter((c) => c.kind === 'page');
 } finally {
     Object.assign(tmsRoster, original);
 }
 
-assert(calls.filter((c) => c.kind === 'login').length === 1, 'signs in once');
+{
+    assert(fastResult && fastResult.stats && fastResult.stats.attendanceOnly, 'attendance-only stats flag');
+    assert(fastResult.stats.students === 1 && fastResult.stats.reused === 1, 'same student in two classes is fetched once');
+    const absenceGets = fastPages.filter((c) => /absense_list/i.test(c.url));
+    assert(absenceGets.length === 1, `one absence-list GET per unique student (got ${absenceGets.length})`);
+    assert(!fastPages.some((c) => /consulting|student_profile|profiles_new/i.test(c.url)),
+        'attendance-only scrape skips counsel notes, profile and shell pages');
+    fastPages.forEach((c) => assert(c.method === 'GET' && !c.hasBody, `non-GET request to TMS: ${c.method} ${c.url}`));
+    const p9 = fastResult.classes.c2.students[0];
+    assert(p9.studentId === 's9' && p9.attendanceRecords.some((r) => r.status === '결석'), 'reused profile keeps per-class student id');
+}
+
+assert(calls.filter((c) => c.kind === 'login').length === 2, 'each scrape signs in once');
 const pages = calls.filter((c) => c.kind === 'page');
 assert(pages.length > 0, 'scrape loads pages');
 pages.forEach((c) => {

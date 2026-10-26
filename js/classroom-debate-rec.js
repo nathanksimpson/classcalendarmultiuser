@@ -40,6 +40,15 @@
     let docClickBound = false;
     const selectedKeys = new Set(); // `${rowId}|${studentId}`
 
+    /** Why a student is flagged (debateRecReason). */
+    const REASON_META = {
+        absent: { key: 'debateRecReasonAbsent', cls: 'debate-rec-reason--absent' },
+        late: { key: 'debateRecReasonLate', cls: 'debate-rec-reason--late' },
+        early_leave: { key: 'debateRecReasonEarlyLeave', cls: 'debate-rec-reason--early' },
+        other: { key: 'debateRecReasonOther', cls: 'debate-rec-reason--other' },
+        new_student: { key: 'debateRecReasonNewStudent', cls: 'debate-rec-reason--new' }
+    };
+
     const STATUS_META = {
         not_recorded: { cls: 'debate-rec-status--not-recorded', key: 'debateRecStatusNotRecorded' },
         needs_confirmation: { cls: 'debate-rec-status--confirm', key: 'debateRecStatusNeedsConfirmation' },
@@ -332,18 +341,44 @@
         } catch (_) {
             tmsRecords = null;
         }
+        const viewRow = getView().rows.find((r) => r.day.rowId === rowId && r.student.id === studentId);
         const res = d.resetDebateRecToTms(getAppData().essaySubmissions || [], {
             classId,
             syllabusRowId: rowId,
             studentId,
             date: day ? day.date : '',
-            tmsRecords
+            tmsRecords,
+            isNewStudent: Boolean(viewRow && viewRow.isNewStudent)
         });
         if (!res.error && (await saveSubmissions(res.submissions))) {
             if (hooks.showToast) {
                 hooks.showToast(t('debateRecResetDone'));
             }
             render();
+        }
+    }
+
+    /** Toggle "Told HR" (homeroom teacher informed) for one student. */
+    async function toggleHrInformed(rowId, studentId) {
+        const d = domain();
+        if (!d || !canEdit() || typeof d.setDebateRecHrInformed !== 'function') {
+            return;
+        }
+        const viewRow = getView().rows.find((r) => r.day.rowId === rowId && r.student.id === studentId);
+        const informed = !(viewRow && viewRow.rec && viewRow.rec.debateRecHrInformedAt);
+        const day = rowContext(rowId);
+        setSaveStatus('saving');
+        const res = d.setDebateRecHrInformed(getAppData().essaySubmissions || [], {
+            classId,
+            syllabusRowId: rowId,
+            studentId,
+            informed,
+            userId: currentUserId(),
+            date: day ? day.date : '',
+            lessonDate: day && day.row ? day.row.date : ''
+        });
+        if (!res.error && (await saveSubmissions(res.submissions)) && hooks.showToast) {
+            hooks.showToast(t(informed ? 'debateRecHrInformedDone' : 'debateRecHrInformedCleared'));
         }
     }
 
@@ -398,9 +433,10 @@
         renderToolbarState();
         const startedAt = Date.now();
         try {
-            // Always a fresh scrape: open the TMS Sync window with only attendance selected.
+            // Always a fresh scrape: open the TMS Sync window with the fast attendance-only
+            // scrape selected (absence list only; counseling notes are not re-fetched).
             await center.open({
-                kinds: ['counsel'],
+                kinds: ['attendance'],
                 scope: scope === 'all' ? { mode: 'all' } : { mode: 'class', classId }
             });
             const api = briefing();
@@ -491,6 +527,14 @@
             noStudents: t('debateRecReportNoRows'),
             noStudentsInSection: t('debateRecReportNoRowsClass'),
             notCheckedNote: t('debateRecReportNotCheckedNote'),
+            hrInformed: t('debateRecReportHrInformed'),
+            reasonLabels: {
+                absent: t('debateRecReasonAbsent'),
+                late: t('debateRecReasonLate'),
+                early_leave: t('debateRecReasonEarlyLeave'),
+                other: t('debateRecReasonOther'),
+                new_student: t('debateRecReasonNewStudent')
+            },
             statusLabels: {
                 not_checked: t('debateRecStatusNotChecked'),
                 not_recorded: t('debateRecStatusNotRecorded'),
@@ -1057,6 +1101,32 @@
         return `<span class="debate-rec-status ${meta.cls}">${escapeHtml(t(meta.key))}</span>`;
     }
 
+    function reasonChip(reason) {
+        const meta = REASON_META[reason];
+        if (!meta) {
+            return '';
+        }
+        return `<span class="debate-rec-reason ${meta.cls}">${escapeHtml(t(meta.key))}</span>`;
+    }
+
+    /** "Told HR" toggle for open items, or the record of who told HR and when. */
+    function hrInformedControl(rowId, studentId, rec, editable, shown) {
+        const informedAt = String(rec.debateRecHrInformedAt || '');
+        const open = shown === 'not_recorded' || shown === 'needs_confirmation';
+        if (!informedAt && !open) {
+            return '';
+        }
+        const disabled = editable ? '' : ' disabled';
+        if (informedAt) {
+            const label = tf('debateRecHrInformedBy', {
+                name: teacherName(rec.debateRecHrInformedBy) || t('debateRecTeacher'),
+                date: formatShortDate(informedAt.slice(0, 10))
+            });
+            return `<button type="button" class="btn btn-small selection-chip debate-rec-hr is-active" data-action="hr-informed" data-row-id="${escapeAttr(rowId)}" data-student-id="${escapeAttr(studentId)}" aria-pressed="true" title="${escapeAttr(t('debateRecHrInformedUndoHint'))}"${disabled}>✓ ${escapeHtml(label)}</button>`;
+        }
+        return `<button type="button" class="btn btn-outline btn-small debate-rec-hr" data-action="hr-informed" data-row-id="${escapeAttr(rowId)}" data-student-id="${escapeAttr(studentId)}" aria-pressed="false" title="${escapeAttr(t('debateRecHrInformedHint'))}"${disabled}>${escapeHtml(t('debateRecHrInformedBtn'))}</button>`;
+    }
+
     function choiceButtons(rowId, studentId, rec, editable, displayStatus) {
         const status = displayStatus || rec.debateRecStatus;
         const choices = CHOICES_FOR[status] || [];
@@ -1096,8 +1166,12 @@
                 ? ` <span class="debate-rec-msg-group" role="group" aria-label="${escapeAttr(t('debateRecParentMsgTitle'))}">${msgLangBtn('en', 'English')}${msgLangBtn('ko', '한국어')}</span>`
                 : '';
             const name = `<div class="debate-rec-student-cell"><span>${nameText}</span>${msgBtn}</div>`;
-            const tmsLine = rec.debateRecTmsStatus
+            const tmsRaw = rec.debateRecTmsStatus
                 ? `${escapeHtml(rec.debateRecTmsStatus)}${rec.debateRecTmsMemo ? ` · <span class="debate-rec-tms-memo">${escapeHtml(rec.debateRecTmsMemo)}</span>` : ''}`
+                : '';
+            const reasonHtml = reasonChip(r.reason);
+            const tmsLine = reasonHtml || tmsRaw
+                ? `${reasonHtml}${reasonHtml && tmsRaw ? ' ' : ''}${tmsRaw ? `<span class="debate-rec-tms-raw">${tmsRaw}</span>` : ''}`
                 : '—';
             const isTeacher = rec.debateRecSource === 'teacher';
             const who = isTeacher
@@ -1121,6 +1195,7 @@
                     <div class="debate-rec-status-line">${statusChip(shown)}</div>
                     <div class="debate-rec-choices" role="group" aria-label="${escapeAttr(t('debateRecColRecording'))}">${choiceButtons(rowId, sid, rec, editable, shown)}${resetBtn}</div>
                     ${who}
+                    ${hrInformedControl(rowId, sid, rec, editable, shown)}
                 </td>
                 <td class="classroom-sheet-col-notes"><input type="text" class="field-control debate-rec-note" data-row-id="${escapeAttr(rowId)}" data-student-id="${escapeAttr(sid)}" value="${escapeAttr(rec.debateRecNote || '')}" placeholder="${escapeAttr(t('debateRecNotePlaceholder'))}"${editable ? '' : ' disabled'} /></td>
             </tr>`;
@@ -1272,6 +1347,11 @@
             const msgBtn = target.closest('[data-action="copy-parent-msg"]');
             if (msgBtn) {
                 copyParentMessage(msgBtn.getAttribute('data-row-id'), msgBtn.getAttribute('data-student-id'), msgBtn.getAttribute('data-lang'));
+                return;
+            }
+            const hrBtn = target.closest('[data-action="hr-informed"]');
+            if (hrBtn) {
+                void toggleHrInformed(hrBtn.getAttribute('data-row-id'), hrBtn.getAttribute('data-student-id'));
                 return;
             }
             const resetBtn = target.closest('[data-action="reset"]');

@@ -50,12 +50,12 @@
         return r.nameEn ? `${r.studentName} (${r.nameEn})` : String(r.studentName || '');
     }
 
-    function tmsText(row) {
+    function tmsText(row, labels) {
         const r = row || {};
-        if (!r.tmsStatus) {
-            return '';
-        }
-        return r.tmsMemo ? `${r.tmsStatus} (${r.tmsMemo})` : r.tmsStatus;
+        const reason = r.reason && labels && labels.reasonLabels ? labels.reasonLabels[r.reason] || '' : '';
+        const raw = r.tmsStatus ? (r.tmsMemo ? `${r.tmsStatus} (${r.tmsMemo})` : r.tmsStatus) : '';
+        // Reason already says "Absent" / "Late arrival"…; keep the raw TMS text for the memo.
+        return [reason, raw].filter(Boolean).join(' · ');
     }
 
     function notesText(row, labels) {
@@ -63,6 +63,12 @@
         const parts = [];
         if (r.note) {
             parts.push(r.note);
+        }
+        if (r.hrInformedAt) {
+            parts.push(fill(labels.hrInformed || 'HR told · {name} {date}', {
+                name: r.hrInformedByName || '',
+                date: shortDate(r.hrInformedAt)
+            }).replace(/\s+/g, ' ').trim());
         }
         if (r.source === 'teacher' && r.updatedByName) {
             parts.push(fill(labels.setBy || '{name} · {date}', { name: r.updatedByName, date: shortDate(r.updatedAt) }));
@@ -100,7 +106,7 @@
             <td class="essay-class-summary-col-index">${escapeHtml(String(r.rosterIndex || ''))}</td>
             <td class="essay-class-summary-col-student">${escapeHtml(displayName(r))}</td>
             <td class="essay-class-summary-col-status"><span class="essay-class-summary-status-chip ${chip}">${escapeHtml(statusLabel(r.status, labels))}</span></td>
-            <td class="essay-class-summary-col-due">${escapeHtml(tmsText(r)) || '—'}</td>
+            <td class="essay-class-summary-col-due">${escapeHtml(tmsText(r, labels)) || '—'}</td>
             <td class="essay-class-summary-col-notes">${escapeHtml(notesText(r, labels)) || '—'}</td>
         </tr>`;
     }
@@ -180,7 +186,7 @@
                     lines.push(`-- ${classTitle(c, L)} - ${dayTitle(a, L)} --`);
                     (a.students || []).forEach((r) => {
                         let line = `${r.rosterIndex}. ${displayName(r)}\t${statusLabel(r.status, L)}`;
-                        const tms = tmsText(r);
+                        const tms = tmsText(r, L);
                         const notes = notesText(r, L);
                         if (tms) {
                             line += ` - TMS ${tms}`;

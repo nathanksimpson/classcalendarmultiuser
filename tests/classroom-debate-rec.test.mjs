@@ -697,4 +697,111 @@ const PRESENT = [{ date: '2026-08-01', status: '출석' }];
     assert(local.essaySubmissions.some((s) => s.id === 'e-other'), 'other classes untouched');
 }
 
+// ── Reasons: absent / late / early leave / other / new student ─────────
+{
+    eq(d.debateRecReasonFromTms('결석(병결)'), 'absent', 'absent reason');
+    eq(d.debateRecReasonFromTms('지각'), 'late', 'late reason');
+    eq(d.debateRecReasonFromTms('조퇴'), 'early_leave', 'early leave reason');
+    eq(d.debateRecReasonFromTms('미참석'), 'other', 'other reason');
+    eq(d.debateRecReasonFromTms('출석'), '', 'present has no reason');
+
+    const data = makeData();
+    const tms = new Map([
+        ['s1', [{ date: '2026-10-21', status: '지각', memo: '' }, ...PRESENT]],
+        ['s2', [{ date: '2026-10-21', status: '조퇴', memo: '병원' }, ...PRESENT]],
+        ['s3', [{ date: '2026-10-21', status: '결석', memo: '' }, ...PRESENT]]
+    ]);
+    check(data, tms);
+    eq(rec(data, 'r4', 's1').debateRecReason, 'late', 'late stored');
+    eq(rec(data, 'r4', 's1').debateRecStatus, 'needs_confirmation', 'late needs confirmation');
+    eq(rec(data, 'r4', 's2').debateRecReason, 'early_leave', 'early leave stored');
+    eq(rec(data, 'r4', 's3').debateRecReason, 'absent', 'absent stored');
+    const view = d.computeDebateRecView(data, 'c1', tms, { todayIso: TODAY });
+    eq(view.rows.find((r) => r.student.id === 's2').reason, 'early_leave', 'view row carries reason');
+
+    // Legacy record (no stored reason) derives it from the TMS status.
+    eq(d.resolveDebateRecReason({ debateRecStatus: 'needs_confirmation', debateRecTmsStatus: '지각' }), 'late', 'legacy reason derived');
+    // normalize keeps the new fields
+    const n = d.normalizeDebateRecFields({ debateRecReason: 'new_student', debateRecHrInformedBy: 'u1', debateRecHrInformedAt: NOW });
+    eq(n.debateRecReason, 'new_student', 'reason kept by normalizer');
+    eq(n.debateRecHrInformedBy, 'u1', 'HR informed by kept');
+    eq(d.normalizeDebateRecFields({ debateRecReason: 'bogus' }).debateRecReason, '', 'unknown reason dropped');
+}
+
+// ── New / transfer students need confirmation, not "Recorded in class" ──
+{
+    const data = makeData();
+    data.cohorts[0].students.push({ id: 's5', name: '정새봄', active: true, tags: ['new'] });
+    data.cohorts[0].students.push({ id: 's6', name: '한전입', active: true, tags: ['transfer_in'] });
+    const tms = new Map([
+        ['s1', PRESENT],
+        // s5 is new: TMS has no attendance history reaching back to Day 4.
+        ['s5', []],
+        // s6 transferred in and TMS shows them present → still a new-student check.
+        ['s6', PRESENT]
+    ]);
+    const summary = check(data, tms);
+    eq(rec(data, 'r4', 's5').debateRecStatus, 'needs_confirmation', 'new student without TMS history → confirm');
+    eq(rec(data, 'r4', 's5').debateRecReason, 'new_student', 'new student reason');
+    eq(rec(data, 'r4', 's6').debateRecReason, 'new_student', 'transfer student reason');
+    eq(rec(data, 'r4', 's5').debateVideoMissing, false, 'new student is not marked NV');
+    assert(summary.needsConfirmation >= 2, 'new students counted as needing confirmation');
+    eq(rec(data, 'r4', 's1'), null, 'regular present student untouched');
+
+    // A new student who TMS marks absent shows the absence, not "new student".
+    const data2 = makeData();
+    data2.cohorts[0].students.push({ id: 's5', name: '정새봄', active: true, tags: ['new'] });
+    check(data2, new Map([['s1', PRESENT], ['s5', [{ date: '2026-10-21', status: '결석' }, ...PRESENT]]]));
+    eq(rec(data2, 'r4', 's5').debateRecReason, 'absent', 'absence beats new-student reason');
+    eq(rec(data2, 'r4', 's5').debateRecStatus, 'not_recorded', 'new + absent → not recorded');
+
+    // No TMS data for the class at all: new students are not guessed at.
+    const data3 = makeData();
+    data3.cohorts[0].students.push({ id: 's5', name: '정새봄', active: true, tags: ['new'] });
+    check(data3, new Map());
+    eq(rec(data3, 'r4', 's5'), null, 'no TMS data → new student left Not checked');
+
+    // Teacher confirms → kept on re-check; tag removed later → TMS-sourced flag clears.
+    const res = d.setDebateRecTeacherStatus(data.essaySubmissions, {
+        classId: 'c1', syllabusRowId: 'r4', studentId: 's6', status: 'recorded', userId: 't1', nowIso: NOW
+    });
+    data.essaySubmissions = res.submissions;
+    check(data, tms);
+    eq(rec(data, 'r4', 's6').debateRecStatus, 'recorded', 'teacher confirmation kept');
+    data.cohorts[0].students.find((x) => x.id === 's5').tags = [];
+    check(data, new Map([['s1', PRESENT], ['s5', PRESENT]]));
+    eq(rec(data, 'r4', 's5').debateRecStatus, '', 'no longer new → cleared');
+
+    // Reset to TMS on a new student restores the new-student check.
+    const data4 = makeData();
+    data4.cohorts[0].students.push({ id: 's5', name: '정새봄', active: true, tags: ['new'] });
+    check(data4, new Map([['s1', PRESENT], ['s5', []]]));
+    data4.essaySubmissions = d.setDebateRecTeacherStatus(data4.essaySubmissions, {
+        classId: 'c1', syllabusRowId: 'r4', studentId: 's5', status: 'exempt', userId: 't1', nowIso: NOW
+    }).submissions;
+    data4.essaySubmissions = d.resetDebateRecToTms(data4.essaySubmissions, {
+        classId: 'c1', syllabusRowId: 'r4', studentId: 's5', date: '2026-10-21', isNewStudent: true
+    }).submissions;
+    eq(rec(data4, 'r4', 's5').debateRecStatus, 'needs_confirmation', 'reset restores new-student check');
+    eq(rec(data4, 'r4', 's5').debateRecSource, 'tms', 'reset hands back to automatic check');
+}
+
+// ── HR (homeroom teacher) informed ──────────────────────────────────────
+{
+    const data = makeData();
+    check(data, new Map([['s3', [{ date: '2026-10-21', status: '결석' }, ...PRESENT]]]));
+    data.essaySubmissions = d.setDebateRecHrInformed(data.essaySubmissions, {
+        classId: 'c1', syllabusRowId: 'r4', studentId: 's3', informed: true, userId: 't1', nowIso: NOW
+    }).submissions;
+    eq(rec(data, 'r4', 's3').debateRecHrInformedBy, 't1', 'who told HR');
+    eq(rec(data, 'r4', 's3').debateRecHrInformedAt, NOW, 'when HR was told');
+    eq(rec(data, 'r4', 's3').debateRecStatus, 'not_recorded', 'status unchanged by HR mark');
+    check(data, new Map([['s3', [{ date: '2026-10-21', status: '결석' }, ...PRESENT]]]));
+    eq(rec(data, 'r4', 's3').debateRecHrInformedBy, 't1', 'HR mark survives a TMS re-check');
+    data.essaySubmissions = d.setDebateRecHrInformed(data.essaySubmissions, {
+        classId: 'c1', syllabusRowId: 'r4', studentId: 's3', informed: false
+    }).submissions;
+    eq(rec(data, 'r4', 's3').debateRecHrInformedAt, '', 'HR mark cleared');
+}
+
 console.log(`classroom-debate-rec.test.mjs: ok (${passed} assertions)`);

@@ -5,13 +5,17 @@
 (function (global) {
     'use strict';
 
-    const KIND_ORDER = ['roster', 'essays', 'homework', 'counsel'];
+    // 'attendance' = absence list only (fast; Debate Rec). 'counsel' = notes + attendance.
+    const KIND_ORDER = ['roster', 'essays', 'homework', 'attendance', 'counsel'];
     const KIND_TAB = {
         roster: 'students',
         essays: 'essays',
         homework: 'homework-tracking',
+        attendance: 'briefing',
         counsel: 'briefing'
     };
+    /** Review pane used by each kind (attendance shares the Counsel pane). */
+    const KIND_PANE = { attendance: 'counsel' };
 
     let password = '';
     let openOptions = null;
@@ -40,7 +44,7 @@
     const GUIDE_WAIT_MS = 45000;
     const HEALTH_PROBE_MS = 45000;
     const HEALTH_TOAST_COOLDOWN_MS = 5 * 60 * 1000;
-    const SAFE_QUICK_KINDS = ['homework', 'essays', 'counsel'];
+    const SAFE_QUICK_KINDS = ['homework', 'essays', 'attendance'];
 
     let healthTimer = null;
     let healthWasReady = false;
@@ -104,10 +108,12 @@
     }
 
     function selectedKinds() {
-        return KIND_ORDER.filter((kind) => {
+        const picked = KIND_ORDER.filter((kind) => {
             const box = document.querySelector('input[name="tmsSyncKind"][value="' + kind + '"]');
             return Boolean(box && box.checked);
         });
+        // A full Counsel sync already includes attendance.
+        return picked.indexOf('counsel') !== -1 ? picked.filter((k) => k !== 'attendance') : picked;
     }
 
     function classroomHooks() {
@@ -136,7 +142,7 @@
         if (kind === 'homework' && global.CCPClassroomHomeworkTms && global.CCPClassroomHomeworkTms.ensureSyncUi) {
             global.CCPClassroomHomeworkTms.ensureSyncUi(hooks);
         }
-        if (kind === 'counsel' && global.CCPClassroomBriefing && global.CCPClassroomBriefing.ensureSyncUi) {
+        if ((kind === 'counsel' || kind === 'attendance') && global.CCPClassroomBriefing && global.CCPClassroomBriefing.ensureSyncUi) {
             global.CCPClassroomBriefing.ensureSyncUi(hooks);
         }
     }
@@ -802,7 +808,8 @@
         });
     }
 
-    function showPane(kind) {
+    function showPane(kindIn) {
+        const kind = KIND_PANE[kindIn] || kindIn;
         KIND_ORDER.forEach((name) => {
             const pane = document.getElementById('tmsSyncPane' + name.charAt(0).toUpperCase() + name.slice(1));
             const btn = document.querySelector('[data-tms-sync-tab="' + name + '"]');
@@ -924,7 +931,7 @@
             hydrateCreds(openOptions);
             paintLastSync();
             const tabs = document.getElementById('tmsSyncReviewTabs');
-            if (tabs && !results.roster && !results.essays && !results.homework && !results.counsel) {
+            if (tabs && !results.roster && !results.essays && !results.homework && !results.counsel && !results.attendance) {
                 tabs.hidden = true;
             }
             const modal = document.getElementById('tmsSyncCenterModal');
@@ -983,10 +990,10 @@
                         });
                     } else if (kind === 'homework' && global.CCPClassroomHomeworkTms && global.CCPClassroomHomeworkTms.loadPreview) {
                         results.homework = await global.CCPClassroomHomeworkTms.loadPreview(creds);
-                    } else if (kind === 'counsel' && global.CCPClassroomBriefing && global.CCPClassroomBriefing.runSync) {
+                    } else if ((kind === 'counsel' || kind === 'attendance') && global.CCPClassroomBriefing && global.CCPClassroomBriefing.runSync) {
                         const classId = scope.mode === 'class' ? scope.classId : '';
-                        results.counsel = await global.CCPClassroomBriefing.runSync(creds, { classId: classId });
-                        applied.counsel = true;
+                        results[kind] = await global.CCPClassroomBriefing.runSync(creds, { classId: classId, mode: kind === 'attendance' ? 'attendance' : 'full' });
+                        applied[kind] = true;
                     }
                 } catch (err) {
                     const code = err && err.code ? ' [' + err.code + ']' : '';
@@ -1053,7 +1060,7 @@
             homeworkBtn.click();
             applied.homework = true;
         }
-        /* counsel applies during Load via briefing.runSync */
+        /* counsel / attendance apply during Load via briefing.runSync */
     }
 
     function ensureQuickSyncKindsChecked() {

@@ -11,6 +11,7 @@ const {
 
 assert.strictEqual(BRIDGE_PROTOCOL, 2);
 assert.deepStrictEqual(JOB_KINDS.slice().sort(), [
+    'attendance',
     'counsel',
     'essayContent',
     'essays',
@@ -20,6 +21,7 @@ assert.deepStrictEqual(JOB_KINDS.slice().sort(), [
 
 let lastHomeworkOpts = null;
 let lastEssayContentOpts = null;
+let lastAttendanceBatches = null;
 
 setTmsCoresForTests({
     tmsRoster: {
@@ -50,6 +52,10 @@ setTmsCoresForTests({
     tmsCounsel: {
         async scrapeCounselProfilesBatch(_cfg, batches) {
             return { classes: { batch: batches.length }, stats: { classes: batches.length } };
+        },
+        async scrapeAttendanceBatch(_cfg, batches) {
+            lastAttendanceBatches = batches;
+            return { classes: {}, stats: { classes: batches.length, attendanceOnly: true } };
         },
         async scrapeCounselProfiles(_cfg, students, extra) {
             return { students: students.length, tmsClassId: extra && extra.tmsClassId };
@@ -113,5 +119,19 @@ const counsel = await runTmsJob('counsel', {
 });
 assert.strictEqual(counsel.students, 1);
 assert.strictEqual(counsel.tmsClassId, 'c9');
+
+const attendance = await runTmsJob('attendance', {
+    username: 'a',
+    password: 'b',
+    classes: [
+        { classId: 'c1', tmsClassId: '9', students: [{ id: 's1', name: 'A', mpidx: '100' }] },
+        { classId: 'c2', tmsClassId: '8', students: [] }
+    ]
+});
+assert.strictEqual(attendance.stats.attendanceOnly, true);
+assert.strictEqual(lastAttendanceBatches.length, 1, 'empty classes are dropped');
+assert.strictEqual(lastAttendanceBatches[0].students[0].tmsMpidx, '100', 'mpidx alias normalized');
+const emptyAttendance = await runTmsJob('attendance', { username: 'a', password: 'b', classes: [] });
+assert.deepStrictEqual(emptyAttendance.classes, {});
 
 console.log('tms-jobs.test.mjs: ok');
