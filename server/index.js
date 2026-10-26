@@ -29,7 +29,6 @@ const {
     tmsBridgeAllowedOrigin
 } = require('./tms-bridge-security');
 const { getDb } = require('./schema');
-const soundboardStore = require('./soundboard');
 
 const PORT = Number(process.env.PORT) || 8080;
 const PKG_VERSION = require('../package.json').version || '';
@@ -1378,28 +1377,6 @@ app.get('/api/calendars', requireUser, (req, res) => {
     res.json(CalAccess.listCalendarsForUser(req.user));
 });
 
-app.get('/api/soundboard', requireUser, (req, res) => {
-    try {
-        res.json(soundboardStore.getBoard());
-    } catch (err) {
-        console.error('Soundboard load failed:', err);
-        res.status(500).json({ error: 'Could not load the sound board' });
-    }
-});
-
-app.put('/api/soundboard', requireUser, rejectViewAsWrites, (req, res) => {
-    try {
-        const board = req.body && req.body.board;
-        res.json(soundboardStore.saveBoard(board, req.user && req.user.id));
-    } catch (err) {
-        const status = err && err.status ? err.status : 500;
-        if (status >= 500) {
-            console.error('Soundboard save failed:', err);
-        }
-        res.status(status).json({ error: err.message || 'Could not save the sound board' });
-    }
-});
-
 app.get('/api/calendars/:id/meta', requireUser, (req, res) => {
     if (!CalAccess.canAccessCalendar(req.user, req.params.id)) {
         res.status(404).json({ error: 'Calendar not found' });
@@ -1966,9 +1943,6 @@ app.delete('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => 
 });
 
 const staticRoot = path.join(__dirname, '..');
-app.get(['/soundboard', '/soundboard/'], (req, res) => {
-    res.sendFile(path.join(staticRoot, 'soundboard', 'index.html'));
-});
 app.get('/essay-batch-editor.html', (req, res) => {
     res.sendFile(path.join(staticRoot, 'tools', 'essay-batch-editor.html'));
 });

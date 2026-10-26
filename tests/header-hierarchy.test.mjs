@@ -142,7 +142,6 @@ function block(id) {
         'notes',
         'points',
         'portfolio',
-        'soundboard',
         'speaking-test',
         'students',
         'syllabus',

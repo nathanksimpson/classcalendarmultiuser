@@ -19,7 +19,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dist = path.join(root, 'dist');
 
 /** Top-level directories published to production (copied recursively). */
-const SHIP_DIRS = new Set(['js', 'css', 'help', 'soundboard', 'templates', 'tools', 'downloads']);
+const SHIP_DIRS = new Set(['js', 'css', 'help', 'templates', 'tools', 'downloads']);
 
 /** Top-level files published to production (in addition to *.html). */
 const SHIP_FILES = new Set([

@@ -30,10 +30,7 @@ const SECURITY_HEADERS = {
 };
 
 /** Extra path rules for dist/_headers (static assets only). */
-const STATIC_PATH_RULES = [
-    ['/soundboard/media/*', { 'Cache-Control': 'public, max-age=31536000, immutable' }],
-    ['/soundboard/boards/*', { 'Cache-Control': 'public, max-age=3600' }]
-];
+const STATIC_PATH_RULES = [];
 
 function renderHeadersFile() {
     const block = (pattern, headers) =>

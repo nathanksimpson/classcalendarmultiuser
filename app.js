@@ -14356,8 +14356,7 @@ const APP_TEACHING_ONLY_TAB_IDS = [
     'debate-scores',
     'debate-rec',
     'debate-books',
-    'speaking-test',
-    'soundboard'
+    'speaking-test'
 ];
 const APP_SETUP_ONLY_TAB_IDS = ['cohorts', 'teachers', 'curriculum', 'syllabus', 'data'];
 /** Setup subtabs that require head-teacher / manage_calendar_access (cohorts, setup hub & teachers only). */
@@ -14402,8 +14401,7 @@ const ZONE_SEGMENT_TO_TAB = {
         'debate-scores': 'debate-scores',
         'debate-rec': 'debate-rec',
         'debate-books': 'debate-books',
-        'speaking-test': 'speaking-test',
-        soundboard: 'soundboard'
+        'speaking-test': 'speaking-test'
     },
     more: { data: 'data' }
 };
@@ -14951,7 +14949,6 @@ const LEGACY_TAB_ZONE_REDIRECT = {
     'debate-rec': { zone: APP_ZONE_TOOLS, segment: 'debate-rec' },
     'debate-books': { zone: APP_ZONE_TOOLS, segment: 'debate-books' },
     'speaking-test': { zone: APP_ZONE_TOOLS, segment: 'speaking-test' },
-    soundboard: { zone: APP_ZONE_TOOLS, segment: 'soundboard' },
     curriculum: { zone: APP_ZONE_CLASSES, segment: 'curriculum' },
     syllabus: { zone: APP_ZONE_CLASSES, segment: 'syllabus' },
     events: { zone: APP_ZONE_SCHEDULE, segment: 'events' },

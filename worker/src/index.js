@@ -38,7 +38,6 @@ import {
 } from './login-context.js';
 import { createHash, scryptSync, timingSafeEqual } from 'node:crypto';
 import { dbOne, dbAll, dbRun, rowsChanged, nowIso } from './db.js';
-import * as Soundboard from './soundboard.js';
 import * as Lock from './lock.js';
 import * as CalendarMeta from './calendar-meta.js';
 import * as CalendarMutations from '../../shared/calendar-mutations.cjs';
@@ -1599,24 +1598,6 @@ export default {
         if (path === '/api/calendars' && request.method === 'GET') {
             const rows = await CalAccess.listCalendarsForUser(env, user);
             return json(rows);
-        }
-
-        if (path === '/api/soundboard' && request.method === 'GET') {
-            return json(await Soundboard.getBoard(env));
-        }
-
-        if (path === '/api/soundboard' && request.method === 'PUT') {
-            const blocked = rejectViewAsJson();
-            if (blocked) {
-                return blocked;
-            }
-            try {
-                const body = await readJson(request, 1000000);
-                return json(await Soundboard.saveBoard(env, body && body.board, user.id));
-            } catch (err) {
-                const status = err && err.status ? err.status : 500;
-                return json({ error: (err && err.message) || 'Could not save the sound board' }, status);
-            }
         }
 
         const tmsRunMatch = path.match(/^\/api\/tms\/run\/([^/]+)$/);
