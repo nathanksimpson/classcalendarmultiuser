@@ -30,8 +30,18 @@
     });
   }
 
+  /**
+   * Put a file in shared storage so every computer can play it.
+   * Only if the upload is impossible (offline / signed out) does it fall back
+   * to a copy kept in this browser — repairBrowserOnlyRefs uploads it later.
+   */
   async function storeBlobForSound(soundId, kind, arrayBuffer, mime) {
     const Repo = window.SoundboardRepository;
+    try {
+      return await Repo.uploadMedia(arrayBuffer, mime, kind);
+    } catch (e) {
+      console.warn('import: shared upload failed, keeping a local copy for now', soundId, e);
+    }
     const key = Repo.blobKeyForSound(soundId, kind);
     await Repo.putBlob(key, arrayBuffer, mime);
     return 'blob:' + kind + ':' + soundId;
@@ -47,7 +57,7 @@
     for (let i = 0; i < Math.min(sounds.length, limit); i++) {
       const s = sounds[i];
       const ref = String(s.audioRef || '');
-      if (ref.startsWith('blob:')) continue;
+      if (!ref || ref.startsWith('blob:') || ref.startsWith('media:')) continue;
       if (opts.onProgress) opts.onProgress('Hydrating ' + (i + 1) + '/' + Math.min(sounds.length, limit));
       try {
         let ab = null;

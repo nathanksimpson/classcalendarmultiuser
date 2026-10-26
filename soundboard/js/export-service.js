@@ -82,6 +82,10 @@
   async function fetchImageBytes(sound) {
     const ref = String(sound.imageRef || '');
     const Repo = window.SoundboardRepository;
+    const mediaHash = Repo.parseMediaRef(ref);
+    if (mediaHash) {
+      return Repo.getMediaBytes(mediaHash);
+    }
     const parsed = Repo.parseBlobRef(ref);
     if (parsed) {
       return Repo.getBlob(parsed.key);

@@ -1380,7 +1380,7 @@ app.get('/api/calendars', requireUser, (req, res) => {
 
 app.get('/api/soundboard', requireUser, (req, res) => {
     try {
-        res.json(soundboardStore.getBoard());
+        res.json(soundboardStore.getBoard(String(req.query.since || '')));
     } catch (err) {
         console.error('Soundboard load failed:', err);
         res.status(500).json({ error: 'Could not load the sound board' });
@@ -1390,14 +1390,53 @@ app.get('/api/soundboard', requireUser, (req, res) => {
 app.put('/api/soundboard', requireUser, rejectViewAsWrites, (req, res) => {
     try {
         const board = req.body && req.body.board;
-        res.json(soundboardStore.saveBoard(board, req.user && req.user.id));
+        const base = req.body && req.body.baseUpdatedAt;
+        res.json(soundboardStore.saveBoard(board, req.user && req.user.id, base));
     } catch (err) {
         const status = err && err.status ? err.status : 500;
         if (status >= 500) {
             console.error('Soundboard save failed:', err);
         }
+        if (err && err.body) {
+            res.status(status).json(err.body);
+            return;
+        }
         res.status(status).json({ error: err.message || 'Could not save the sound board' });
     }
+});
+
+app.put(
+    '/api/soundboard/media',
+    requireUser,
+    rejectViewAsWrites,
+    express.raw({ type: () => true, limit: '16mb' }),
+    (req, res) => {
+        try {
+            res.json(soundboardStore.putMedia(req.body, req.get('Content-Type'), req.user && req.user.id));
+        } catch (err) {
+            const status = err && err.status ? err.status : 500;
+            if (status >= 500) {
+                console.error('Soundboard media upload failed:', err);
+            }
+            res.status(status).json({ error: err.message || 'Could not upload the file' });
+        }
+    }
+);
+
+app.get('/api/soundboard/media/:hash', requireUser, (req, res) => {
+    const media = soundboardStore.getMedia(String(req.params.hash || ''));
+    if (!media) {
+        res.status(404).send('Not found');
+        return;
+    }
+    res.set({
+        'Content-Type': media.mime,
+        'Cache-Control': 'private, max-age=31536000, immutable',
+        ETag: '"' + req.params.hash + '"',
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Security-Policy': "default-src 'none'; sandbox"
+    });
+    res.send(media.bytes);
 });
 
 app.get('/api/calendars/:id/meta', requireUser, (req, res) => {

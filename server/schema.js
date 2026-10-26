@@ -104,8 +104,9 @@ function migrateUserNotificationMeta(db) {
 }
 
 function migrateSoundboardBoard(db) {
-    const { CREATE_TABLE_SQL } = require('../shared/soundboard-store.cjs');
+    const { CREATE_TABLE_SQL, CREATE_MEDIA_TABLE_SQL } = require('../shared/soundboard-store.cjs');
     db.exec(CREATE_TABLE_SQL);
+    db.exec(CREATE_MEDIA_TABLE_SQL);
 }
 
 function migrateUserUiPrefs(db) {

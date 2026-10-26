@@ -1602,7 +1602,7 @@ export default {
         }
 
         if (path === '/api/soundboard' && request.method === 'GET') {
-            return json(await Soundboard.getBoard(env));
+            return json(await Soundboard.getBoard(env, url.searchParams.get('since') || ''));
         }
 
         if (path === '/api/soundboard' && request.method === 'PUT') {
@@ -1612,11 +1612,37 @@ export default {
             }
             try {
                 const body = await readJson(request, 1000000);
-                return json(await Soundboard.saveBoard(env, body && body.board, user.id));
+                return json(await Soundboard.saveBoard(
+                    env,
+                    body && body.board,
+                    user.id,
+                    body && body.baseUpdatedAt
+                ));
             } catch (err) {
                 const status = err && err.status ? err.status : 500;
+                if (err && err.body) {
+                    return json(err.body, status);
+                }
                 return json({ error: (err && err.message) || 'Could not save the sound board' }, status);
             }
+        }
+
+        if (path === '/api/soundboard/media' && request.method === 'PUT') {
+            const blocked = rejectViewAsJson();
+            if (blocked) {
+                return blocked;
+            }
+            try {
+                return json(await Soundboard.putMedia(env, request, user.id));
+            } catch (err) {
+                const status = err && err.status ? err.status : 500;
+                return json({ error: (err && err.message) || 'Could not upload the file' }, status);
+            }
+        }
+
+        const soundboardMediaMatch = path.match(/^\/api\/soundboard\/media\/([a-f0-9]{64})$/);
+        if (soundboardMediaMatch && request.method === 'GET') {
+            return Soundboard.getMediaResponse(env, soundboardMediaMatch[1]);
         }
 
         const tmsRunMatch = path.match(/^\/api\/tms\/run\/([^/]+)$/);

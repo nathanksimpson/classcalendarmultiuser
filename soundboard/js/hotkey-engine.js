@@ -85,11 +85,29 @@
     if (!signature) return false;
     const hotkeyMap = getHotkeyMap();
     const sound = hotkeyMap.get(signature);
-    if (!sound || !chordExactMatch(signature, modifiers, keys)) return false;
-    if (sound.momentary) return false;
-    chordSessionConsumed = true;
-    onPlay(sound);
-    return true;
+    if (sound && chordExactMatch(signature, modifiers, keys)) {
+      if (sound.momentary) return false;
+      chordSessionConsumed = true;
+      onPlay(sound);
+      return true;
+    }
+    // No chord matches — the keys were just pressed quickly and overlapped
+    // (e.g. Q pressed before W was released). Play each one as if tapped
+    // separately instead of dropping them all.
+    if (keys.length > 1) {
+      const singles = [];
+      keys.forEach(function (k) {
+        const single = buildChordSignature(modifiers, [k]);
+        const s = single ? hotkeyMap.get(single) : null;
+        if (s && !s.momentary) singles.push(s);
+      });
+      if (singles.length) {
+        chordSessionConsumed = true;
+        singles.forEach(function (s) { onPlay(s); });
+        return true;
+      }
+    }
+    return false;
   }
 
   function normalizeKeyToken(token) {
@@ -200,6 +218,14 @@
   function getKeyTokenFromKeyboardEvent(e) {
     if (!e) return '';
     if (MODIFIER_EVENT_KEYS.has(e.key)) return '';
+    if (/^(Shift|Control|Alt|Meta|OS)(Left|Right)?$/.test(String(e.code || ''))) return '';
+
+    // Use the physical key first. With the Korean input source on, e.key is a
+    // Hangul letter (Q → ㅂ) or "Process", and keydown/keyup can disagree, which
+    // left keys "stuck" and silently killed every hotkey. e.code is the same
+    // key whatever the input language, so press and release always match.
+    const physical = keyFromCode(e.code);
+    if (physical) return normalizeKeyToken(physical);
 
     let key = e.key || '';
     if (!key) key = keyFromCode(e.code);
@@ -383,12 +409,29 @@
     if (belongs || token || modKey) gesture.locked = true;
   }
 
-  function isTypingTarget(target) {
-    return !!(target && (
-      target.closest('input')
-      || target.closest('textarea')
-      || target.closest('[contenteditable="true"]')
-    ));
+  const NON_TEXT_INPUT_TYPES = new Set([
+    'range', 'checkbox', 'radio', 'button', 'submit', 'reset', 'image', 'file', 'color'
+  ]);
+  const NAVIGATION_TOKENS = new Set([
+    'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'
+  ]);
+
+  /**
+   * Is the user typing into this element, so hotkeys must stay quiet?
+   * Only real text boxes count. Sliders, checkboxes and buttons keep focus
+   * after a click; treating them as text boxes made every hotkey stop working
+   * after someone touched the volume slider. A focused slider still keeps its
+   * arrow keys.
+   */
+  function isTypingTarget(target, token) {
+    if (!target || typeof target.closest !== 'function') return false;
+    if (target.closest('textarea') || target.closest('select') || target.closest('[contenteditable="true"]')) return true;
+    const input = target.closest('input');
+    if (!input) return false;
+    const type = String(input.type || input.getAttribute && input.getAttribute('type') || 'text').toLowerCase();
+    if (!NON_TEXT_INPUT_TYPES.has(type)) return true;
+    if (type === 'range' && token && NAVIGATION_TOKENS.has(token)) return true;
+    return false;
   }
 
   function initKeyboard(options) {
@@ -399,11 +442,16 @@
 
     document.addEventListener('keydown', function (e) {
       if (isBlocked(e)) return;
-      if (isTypingTarget(e.target)) return;
+      const token = getKeyTokenFromKeyboardEvent(e);
+      if (isTypingTarget(e.target, token)) return;
       if (e.repeat) return;
 
-      const token = getKeyTokenFromKeyboardEvent(e);
-      if (chordSessionConsumed) return;
+      if (chordSessionConsumed) {
+        // Only modifiers are still held (e.g. Shift kept down after Shift+Y):
+        // a new key starts a fresh shortcut, so Shift+Y then Shift+R both play.
+        if (token && heldKeyTokens.size === 0) resetChordSession();
+        else return;
+      }
       if (token) heldKeyTokens.add(token);
       recordSessionKeydown(e, token);
 
@@ -426,10 +474,16 @@
     });
 
     document.addEventListener('keyup', function (e) {
-      if (isBlocked(e)) return;
-      if (isTypingTarget(e.target)) return;
-
       const token = getKeyTokenFromKeyboardEvent(e);
+      // Always forget a released key, wherever focus is now. Skipping this when
+      // focus had moved (a dialog opened, a text box was clicked) left the key
+      // "held" forever and blocked every later hotkey.
+      if (isBlocked(e) || isTypingTarget(e.target, token)) {
+        if (token) heldKeyTokens.delete(token);
+        if (isSessionIdle(e)) resetChordSession();
+        return;
+      }
+
       const chordsToStop = [];
 
       activeMomentaryChords.forEach(function (chord) {
@@ -462,6 +516,12 @@
       }
     });
 
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState !== 'hidden') return;
+      heldKeyTokens.clear();
+      resetChordSession();
+    });
+
     window.addEventListener('blur', function () {
       heldKeyTokens.clear();
       resetChordSession();
@@ -483,6 +543,7 @@
     captureHotkeyFromInputKeyup,
     resetHotkeyCapture,
     clearHotkeyField,
-    initKeyboard
+    initKeyboard,
+    isTypingTarget
   };
 })();

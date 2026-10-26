@@ -54,6 +54,7 @@
   const STRIP_ROWS_MAX = 4;
   const FAVOURITES_ROWS_KEY = 'soundboard-favourites-rows';
   const RECENTS_ROWS_KEY = 'soundboard-recents-rows';
+  const LOCAL_RECENTS_KEY = 'soundboard-recents-local';
   const QUICK_ACCESS_COLLAPSED_KEY_PREFIX = 'soundboard-quick-access-collapsed:';
   const AUTO_LEVEL_KEY = 'soundboard-auto-level';
 
@@ -67,6 +68,8 @@
       if (!url) return '';
       const u = String(url);
       if (u.startsWith('remote:')) return u.slice(7);
+      const mediaHash = Repo.parseMediaRef(u);
+      if (mediaHash) return Repo.mediaUrl(mediaHash);
       const parsed = Repo.parseBlobRef(u);
       if (parsed && parsed.kind === 'image') {
         return imageUrlCache.get(parsed.key) || '';
@@ -513,17 +516,12 @@
     }).then(function (played) {
       if (played !== false) return played;
       if (!Media || !Media.fetchAudioArrayBuffer) return false;
+      // Retry once. Never point the shared board at a copy that only exists
+      // in this browser — that is what broke playback on other computers.
       return Media.fetchAudioArrayBuffer(play).then(function (result) {
         if (!result || !result.arrayBuffer) return false;
-        const key = 'audio:' + sound.id;
-        return Repo.putBlob(key, result.arrayBuffer, 'audio/mpeg').then(function () {
-          sound.audioRef = 'blob:audio:' + sound.id;
-          const board = getBoard();
-          Repo.setBoard(board);
-          Audio.clearCache();
-          const retry = Schema.soundForPlayback(sound);
-          return Audio.playSound(retry);
-        });
+        Audio.clearCache();
+        return Audio.playSound(play);
       });
     });
   }
@@ -594,7 +592,26 @@
     const rec = (qa.recents || []).filter(function (x) { return String(x) !== String(id); });
     rec.unshift(String(id));
     qa.recents = rec.slice(0, 20);
-    Repo.setBoard(board);
+    // Recents belong to this computer: remember locally, never save the shared board for a play.
+    saveLocalRecents(qa.recents);
+  }
+
+  function saveLocalRecents(list) {
+    try { localStorage.setItem(LOCAL_RECENTS_KEY, JSON.stringify(list || [])); } catch (_) {}
+  }
+
+  function applyLocalRecents(board) {
+    if (!board) return;
+    const qa = ensureLayout(board).quickAccess;
+    let list = null;
+    try { list = JSON.parse(localStorage.getItem(LOCAL_RECENTS_KEY) || 'null'); } catch (_) {}
+    if (!Array.isArray(list)) {
+      // First run on this computer: start from whatever the old shared board had.
+      list = (qa.recents || []).slice();
+      saveLocalRecents(list);
+    }
+    const ids = new Set((board.sounds || []).map(function (s) { return String(s.id); }));
+    qa.recents = list.map(String).filter(function (x) { return ids.has(x); }).slice(0, 20);
   }
 
   function toggleFavourite(sound) {
@@ -902,16 +919,24 @@
   }
 
   async function downloadMedia() {
-    const board = getBoard();
-    setStatus('Downloading media…');
-    const r = await ImportSvc.hydrateRemoteAudio(board, {
+    setStatus('Copying audio into shared storage…');
+    const work = JSON.parse(JSON.stringify(getBoard()));
+    const before = new Map(work.sounds.map(function (s) { return [String(s.id), s.audioRef]; }));
+    const r = await ImportSvc.hydrateRemoteAudio(work, {
       onProgress: function (t) { setStatus(t); }
+    });
+    const board = getBoard();
+    work.sounds.forEach(function (ws) {
+      const cs = board.sounds.find(function (x) { return String(x.id) === String(ws.id); });
+      if (cs && ws.audioRef !== before.get(String(ws.id)) && cs.audioRef === before.get(String(ws.id))) {
+        cs.audioRef = ws.audioRef;
+      }
     });
     Repo.setBoard(board);
     await Repo.saveNow();
     Audio.clearCache();
     Audio.preloadSounds(soundsForRender(board.sounds));
-    setStatus('Downloaded ' + r.hydrated + ' audio file(s) into browser storage.', 4000);
+    setStatus('Copied ' + r.hydrated + ' audio file(s) into shared storage for all computers.', 4000);
     render();
   }
 
@@ -962,9 +987,20 @@
     const total = sounds.length;
     if (!silent) setStatus('Analyzing volume 0/' + total + '…');
 
+    const results = new Map();
     function step() {
       if (i >= total) {
-        if (updated > 0) Repo.setBoard(board);
+        if (updated > 0) {
+          // Apply to the board as it is NOW (it may have been refreshed meanwhile).
+          const current = getBoard();
+          (current.sounds || []).forEach(function (cs) {
+            const r = results.get(String(cs.id));
+            if (!r || cs.audioRef !== r.audioRef) return;
+            if (!cs.extra || typeof cs.extra !== 'object') cs.extra = {};
+            Object.assign(cs.extra, r.extra);
+          });
+          Repo.setBoard(current);
+        }
         analyzeInProgress = false;
         if (!silent) setStatus('Volume analysis complete (' + updated + ' updated).', 3000);
         return;
@@ -981,6 +1017,10 @@
           s.extra.normGain = res.gain;
           s.extra.normAnalyzedAt = new Date().toISOString();
           s.extra.normAlgoVersion = res.algoVersion || 1;
+          results.set(String(s.id), {
+            audioRef: s.audioRef,
+            extra: { normGain: s.extra.normGain, normAnalyzedAt: s.extra.normAnalyzedAt, normAlgoVersion: s.extra.normAlgoVersion }
+          });
           updated++;
         }
       }).catch(function () {}).finally(function () {
@@ -1075,16 +1115,18 @@
     }
 
     document.querySelector('[data-action="clear-data"]').addEventListener('click', function () {
-      if (!confirm('Clear all saved data and reload the default board?')) return;
+      if (!confirm('Clear this computer\'s saved copy and reload the shared board?\n\n(The shared board other computers use is not changed. To replace it, use Import → Replace entire board.)')) return;
       Repo.clearAll().then(function () {
-        return Repo.loadDefaultBoard();
+        return Repo.loadInitial();
       }).then(function () {
         errorIds.clear();
+        applyLocalRecents(getBoard());
+        hotkeyMap = buildHotkeyMap();
         quickAccessCollapsed = loadQuickAccessCollapsedState();
         render();
         Audio.clearCache();
         Audio.preloadSounds(soundsForRender(getBoard().sounds));
-        setStatus('Reset to default board.', 3000);
+        setStatus('Cleared this computer\'s copy and reloaded the shared board.', 3500);
       });
     });
 
@@ -1101,15 +1143,28 @@
 
     modalForm.addEventListener('submit', async function (e) {
       e.preventDefault();
-      const sound = findSound(editingId);
-      if (!sound) return closeModal();
-      const updated = soundFromModalForm(sound);
-      Object.assign(sound, updated);
+      const soundId = editingId;
+      const before = findSound(soundId);
+      if (!before) return closeModal();
+      const updated = soundFromModalForm(before);
       if (pendingAudioBlob) {
-        await Repo.putBlob('audio:' + sound.id, pendingAudioBlob, pendingAudioBlob.type || 'audio/mpeg');
-        sound.audioRef = 'blob:audio:' + sound.id;
+        const file = pendingAudioBlob;
         pendingAudioBlob = null;
+        const bytes = file.arrayBuffer ? await file.arrayBuffer() : file;
+        setStatus('Uploading audio…');
+        try {
+          updated.audioRef = await Repo.uploadMedia(bytes, file.type || 'audio/mpeg', 'audio');
+          setStatus('Audio uploaded for all computers.', 3000);
+        } catch (err) {
+          await Repo.putBlob('audio:' + soundId, bytes, file.type || 'audio/mpeg');
+          updated.audioRef = 'blob:audio:' + soundId;
+          setStatus('Could not upload the audio (' + (err && err.message ? err.message : 'error') + '). It only plays on this computer until you reload while signed in.', 8000);
+        }
       }
+      // Look the sound up again: the board may have been refreshed from
+      // another computer while the upload was running.
+      const sound = findSound(soundId);
+      if (sound) Object.assign(sound, updated);
       const board = getBoard();
       Repo.setBoard(board);
       hotkeyMap = buildHotkeyMap();
@@ -1287,6 +1342,47 @@
     });
   }
 
+  /** Another computer changed the board (or our save was merged with theirs). */
+  function onSharedBoardChanged(board, reason) {
+    if (!board) return;
+    applyLocalRecents(board);
+    hotkeyMap = buildHotkeyMap();
+    render();
+    Audio.preloadSounds(soundsForRender(board.sounds));
+    if (reason === 'remote-change') setStatus('Updated with changes from another computer.', 3000);
+  }
+
+  /**
+   * Older versions saved some sounds only inside one browser. Upload them (if this
+   * browser has them) or restore their original source, so they play everywhere.
+   */
+  async function repairBrowserOnlySounds() {
+    const board = getBoard();
+    if (!board || !Repo.repairBrowserOnlyRefs) return;
+    try {
+      const r = await Repo.repairBrowserOnlyRefs(board, {
+        onProgress: function (i, total) { setStatus('Sharing sounds saved on this computer ' + i + '/' + total + '…'); }
+      });
+      if (!r.changed && !r.missing) return;
+      if (r.changed) {
+        Repo.setBoard(getBoard(), { save: false });
+        // Save first, so the "Saved" status doesn't replace the message below.
+        await Repo.saveNow();
+        hotkeyMap = buildHotkeyMap();
+        Audio.clearCache();
+        render();
+        Audio.preloadSounds(soundsForRender(getBoard().sounds));
+      }
+      let msg = r.changed ? 'Shared ' + r.fixed + ' file(s) so every computer can play them.' : '';
+      if (r.missing) {
+        msg += (msg ? ' ' : '') + r.missing + ' sound(s) were saved only on another computer — open the sound board there once to share them.';
+      }
+      setStatus(msg, 8000);
+    } catch (err) {
+      console.warn('soundboard: repair failed', err);
+    }
+  }
+
   function initHotkeyKeyboard() {
     if (!Hotkeys || !Hotkeys.initKeyboard) return;
     Hotkeys.initKeyboard({
@@ -1316,6 +1412,7 @@
     try {
       const result = await Repo.loadInitial();
       const board = result.board;
+      applyLocalRecents(board);
       hotkeyMap = buildHotkeyMap();
       quickAccessCollapsed = loadQuickAccessCollapsedState();
       await prewarmBlobImages(board.sounds);
@@ -1332,6 +1429,13 @@
         statusMsg = 'Added ' + result.added + ' new sound(s) from default board: ' + (result.addedTitles || []).join(', ') + '.';
       }
       setStatus(statusMsg, result.added > 0 ? 6000 : 3500);
+      Repo.startSync({
+        onRemoteBoard: onSharedBoardChanged,
+        isBusy: function () {
+          return (modal && !modal.hidden) || (blerpModal && !blerpModal.hidden) || analyzeInProgress;
+        }
+      });
+      repairBrowserOnlySounds();
     } catch (err) {
       console.error(err);
       setStatus('Failed to load board. Check console.');

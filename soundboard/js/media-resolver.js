@@ -18,6 +18,8 @@
   function resolveUrl(url) {
     const u = String(url || '').trim();
     if (!u) return u;
+    const mediaHash = u.match(/^media:([a-f0-9]{64})$/);
+    if (mediaHash) return '/api/soundboard/media/' + mediaHash[1];
     if (u.startsWith('/media/') || u.startsWith('/boards/')) return '/soundboard' + u;
     if (u.startsWith('/')) return u;
     return u;
@@ -201,6 +203,11 @@
     if (!sound) return null;
     const ref = String(sound.fileUrl || sound.audioRef || '').trim();
     const Repo = window.SoundboardRepository;
+
+    const mediaHash = Repo && Repo.parseMediaRef ? Repo.parseMediaRef(ref) : null;
+    if (mediaHash) {
+      return { arrayBuffer: await Repo.getMediaBytes(mediaHash), source: 'shared' };
+    }
 
     const blobRef = Repo && Repo.parseBlobRef(ref);
     if (blobRef) {
