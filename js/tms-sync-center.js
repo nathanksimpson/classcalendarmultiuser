@@ -965,32 +965,47 @@
         const studentGuess = scope.mode === 'class' ? 8 : 40;
         const minutes = api.estimateSyncMinutes(studentGuess);
         setProgress(0.05, t('tmsSyncWorking', 'Loading from TMS…') + ' (~' + minutes + ' min)');
+        // Each kind loads on its own: one failing kind (e.g. roster) must not
+        // stop Essays or Attendance, and every failure is shown, never swallowed.
+        const failures = [];
         try {
             for (let i = 0; i < kinds.length; i += 1) {
                 const kind = kinds[i];
                 setProgress((i + 0.2) / kinds.length, t('tmsSyncWorking', 'Loading from TMS…'));
-                await ensureKind(kind);
-                showPane(kind);
-                if (kind === 'roster' && global.CCPClassroomRoster && global.CCPClassroomRoster.loadTmsPreview) {
-                    results.roster = await global.CCPClassroomRoster.loadTmsPreview(creds);
-                } else if (kind === 'essays' && global.CCPClassroomEssays && global.CCPClassroomEssays.loadTmsPreview) {
-                    results.essays = await global.CCPClassroomEssays.loadTmsPreview(creds, {
-                        classId: scope.mode === 'class' ? scope.classId : ''
-                    });
-                } else if (kind === 'homework' && global.CCPClassroomHomeworkTms && global.CCPClassroomHomeworkTms.loadPreview) {
-                    results.homework = await global.CCPClassroomHomeworkTms.loadPreview(creds);
-                } else if (kind === 'counsel' && global.CCPClassroomBriefing && global.CCPClassroomBriefing.runSync) {
-                    const classId = scope.mode === 'class' ? scope.classId : '';
-                    results.counsel = await global.CCPClassroomBriefing.runSync(creds, { classId: classId });
-                    applied.counsel = true;
+                try {
+                    await ensureKind(kind);
+                    showPane(kind);
+                    if (kind === 'roster' && global.CCPClassroomRoster && global.CCPClassroomRoster.loadTmsPreview) {
+                        results.roster = await global.CCPClassroomRoster.loadTmsPreview(creds);
+                    } else if (kind === 'essays' && global.CCPClassroomEssays && global.CCPClassroomEssays.loadTmsPreview) {
+                        results.essays = await global.CCPClassroomEssays.loadTmsPreview(creds, {
+                            classId: scope.mode === 'class' ? scope.classId : ''
+                        });
+                    } else if (kind === 'homework' && global.CCPClassroomHomeworkTms && global.CCPClassroomHomeworkTms.loadPreview) {
+                        results.homework = await global.CCPClassroomHomeworkTms.loadPreview(creds);
+                    } else if (kind === 'counsel' && global.CCPClassroomBriefing && global.CCPClassroomBriefing.runSync) {
+                        const classId = scope.mode === 'class' ? scope.classId : '';
+                        results.counsel = await global.CCPClassroomBriefing.runSync(creds, { classId: classId });
+                        applied.counsel = true;
+                    }
+                } catch (err) {
+                    const code = err && err.code ? ' [' + err.code + ']' : '';
+                    const msg = (err && err.message) || String(err);
+                    failures.push(kind + ': ' + msg + code);
+                    if (global.console && console.error) {
+                        console.error('TMS sync failed for ' + kind, err);
+                    }
                 }
                 setProgress((i + 1) / kinds.length, t('tmsSyncLoadedKind', 'Loaded'));
             }
             paintLastSync();
             paintStaleNudge(helperViewState);
-            const firstLoaded = kinds[0];
+            const firstLoaded = kinds.find((k) => results[k]) || kinds[0];
             if (firstLoaded) {
                 showPane(firstLoaded);
+            }
+            if (failures.length) {
+                notify(t('tmsSyncKindFailed', 'TMS sync failed') + ' — ' + failures.join(' · '), true);
             }
         } finally {
             running = false;
