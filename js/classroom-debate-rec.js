@@ -382,6 +382,23 @@
         }
     }
 
+    async function saveHrNotified(rowId, studentId, notified) {
+        const d = domain();
+        if (!d || !canEdit()) {
+            return;
+        }
+        setSaveStatus('saving');
+        const res = d.setDebateRecHrNotified(getAppData().essaySubmissions || [], {
+            classId,
+            syllabusRowId: rowId,
+            studentId,
+            notified: notified === true
+        });
+        if (!res.error) {
+            await saveSubmissions(res.submissions);
+        }
+    }
+
     async function saveNote(rowId, studentId, note) {
         const d = domain();
         if (!d || !canEdit()) {
@@ -412,6 +429,49 @@
             .map((c) => c.id);
     }
 
+    /** True when a Day 4 is inside the class term and already on or before today. */
+    function recordingDateInTerm(classData, date, today) {
+        if (!date || date > today) {
+            return false;
+        }
+        const start = classData && classData.startDate ? String(classData.startDate).slice(0, 10) : '';
+        const end = classData && classData.endDate ? String(classData.endDate).slice(0, 10) : '';
+        if (/^\d{4}-\d{2}-\d{2}$/.test(start) && date < start) {
+            return false;
+        }
+        if (/^\d{4}-\d{2}-\d{2}$/.test(end) && date > end) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Earliest past Day 4 inside the class term for this check.
+     * TMS is asked for every month from that date through today, not one example month.
+     */
+    function earliestCheckDate(scope) {
+        const d = domain();
+        const data = getAppData();
+        if (!d || typeof d.listDebateRecordingDays !== 'function' || typeof d.todayISO !== 'function') {
+            return '';
+        }
+        const today = d.todayISO();
+        let earliest = '';
+        listCheckClassIds(scope).forEach((cid) => {
+            const classData = (data.classes || []).find((c) => c && c.id === cid);
+            d.listDebateRecordingDays(data, classData).forEach((day) => {
+                const date = day && day.date;
+                if (!recordingDateInTerm(classData, date, today)) {
+                    return;
+                }
+                if (!earliest || date < earliest) {
+                    earliest = date;
+                }
+            });
+        });
+        return earliest;
+    }
+
     async function runTmsCheck() {
         if (checkRunning) {
             return;
@@ -432,11 +492,13 @@
         checkRunning = true;
         renderToolbarState();
         const startedAt = Date.now();
+        const earliest = earliestCheckDate(scope);
         try {
-            // Always a fresh scrape: open the TMS Sync window with the fast attendance-only
-            // scrape selected (absence list only; counseling notes are not re-fetched).
+            // Fresh scrape: attendance only. attendanceThroughDate walks months back
+            // to the earliest past Day 4; counseling notes are not re-fetched.
             await center.open({
                 kinds: ['attendance'],
+                attendanceThroughDate: earliest,
                 scope: scope === 'all' ? { mode: 'all' } : { mode: 'class', classId }
             });
             const api = briefing();
@@ -522,6 +584,9 @@
             colStudent: t('classroomColStudent'),
             colStatus: t('debateRecColRecording'),
             colTms: t('debateRecColTms'),
+            colHr: t('debateRecColHr'),
+            hrYes: t('debateRecHrYes'),
+            hrNo: t('debateRecHrNo'),
             colNotes: t('classroomColNotes'),
             setBy: t('debateRecSetBy'),
             noStudents: t('debateRecReportNoRows'),
@@ -535,6 +600,9 @@
                 other: t('debateRecReasonOther'),
                 new_student: t('debateRecReasonNewStudent')
             },
+            confirmLate: t('debateRecConfirmLate'),
+            confirmEarly: t('debateRecConfirmEarly'),
+            confirmNew: t('debateRecNewStudentHint'),
             statusLabels: {
                 not_checked: t('debateRecStatusNotChecked'),
                 not_recorded: t('debateRecStatusNotRecorded'),
@@ -1070,6 +1138,7 @@
                 ${tile('recorded', 'debateRecStatusRecorded', 'recorded')}
                 ${tile('exempt', 'debateRecStatusExempt', 'exempt')}
                 ${tile('not_checked', 'debateRecStatusNotChecked', 'not-checked')}
+                ${tile('hrUnnotified', 'debateRecHrPending', 'hr-needed')}
             </div>`;
     }
 
@@ -1148,7 +1217,7 @@
         if (!rows.length) {
             const msg = view.days.length ? t('debateRecEmptyNoPastDay4') : '';
             mount.innerHTML = msg
-                ? `<tr><td colspan="6" class="section-hint debate-rec-empty">${escapeHtml(msg)}</td></tr>`
+                ? `<tr><td colspan="7" class="section-hint debate-rec-empty">${escapeHtml(msg)}</td></tr>`
                 : '';
             return;
         }
@@ -1174,19 +1243,24 @@
                 ? `${reasonHtml}${reasonHtml && tmsRaw ? ' ' : ''}${tmsRaw ? `<span class="debate-rec-tms-raw">${tmsRaw}</span>` : ''}`
                 : '—';
             const isTeacher = rec.debateRecSource === 'teacher';
+            const statusHint = shown === 'needs_confirmation'
+                ? confirmReasonHint(r)
+                : (shown === 'not_checked' ? t('debateRecNotCheckedHint') : t('debateRecFromTmsHint'));
             const who = isTeacher
                 ? `<div class="debate-rec-setby section-hint">${escapeHtml(tf('debateRecSetBy', {
                     name: teacherName(rec.debateRecUpdatedBy) || t('debateRecTeacher'),
                     date: formatShortDate(String(rec.debateRecUpdatedAt || '').slice(0, 10))
                 }))}</div>`
-                : `<div class="debate-rec-setby section-hint">${escapeHtml(shown === 'not_checked' ? t('debateRecNotCheckedHint') : t('debateRecFromTmsHint'))}</div>`;
+                : `<div class="debate-rec-setby section-hint">${escapeHtml(statusHint)}</div>`;
             const resetBtn = isTeacher
                 ? `<button type="button" class="btn btn-outline btn-small debate-rec-reset" data-action="reset" data-row-id="${escapeAttr(rowId)}" data-student-id="${escapeAttr(sid)}" title="${escapeAttr(t('debateRecResetHint'))}"${editable ? '' : ' disabled'}>↺ ${escapeHtml(t('debateRecResetToTms'))}</button>`
                 : '';
+            const hrNeeded = shown === 'not_recorded' && !rec.debateRecHrNotified;
             const focus = focusStudentId && focusStudentId === sid ? ' debate-rec-row--focus' : '';
+            const hrClass = hrNeeded ? ' debate-rec-row--hr-needed' : '';
             const day = r.day;
             const dateSrc = day.dateSource === 'tms' ? t('debateRecDateFromTms') : t('debateRecDateFromSyllabus');
-            return `<tr class="debate-rec-row debate-rec-row--${escapeAttr(shown)}${focus}" data-row-id="${escapeAttr(rowId)}" data-student-id="${escapeAttr(sid)}">
+            return `<tr class="debate-rec-row debate-rec-row--${escapeAttr(shown)}${hrClass}${focus}" data-row-id="${escapeAttr(rowId)}" data-student-id="${escapeAttr(sid)}">
                 <td class="classroom-sheet-col-select"><input type="checkbox" class="debate-rec-select" data-key="${escapeAttr(key)}" ${selectedKeys.has(key) ? 'checked' : ''}${editable ? '' : ' disabled'} aria-label="${escapeAttr(r.student.name)}" /></td>
                 <td class="classroom-sheet-col-student">${name}</td>
                 <td class="debate-rec-col-date">${escapeHtml(formatShortDate(day.date))} <span class="section-hint">(${escapeHtml(dateSrc)})</span></td>
@@ -1197,6 +1271,7 @@
                     ${who}
                     ${hrInformedControl(rowId, sid, rec, editable, shown)}
                 </td>
+                <td class="debate-rec-col-hr"><input type="checkbox" class="debate-rec-hr" data-row-id="${escapeAttr(rowId)}" data-student-id="${escapeAttr(sid)}"${rec.debateRecHrNotified ? ' checked' : ''}${editable ? '' : ' disabled'} aria-label="${escapeAttr(tf('debateRecHrAria', { name: r.student.name || '' }))}" /></td>
                 <td class="classroom-sheet-col-notes"><input type="text" class="field-control debate-rec-note" data-row-id="${escapeAttr(rowId)}" data-student-id="${escapeAttr(sid)}" value="${escapeAttr(rec.debateRecNote || '')}" placeholder="${escapeAttr(t('debateRecNotePlaceholder'))}"${editable ? '' : ' disabled'} /></td>
             </tr>`;
         }).join('');
@@ -1207,6 +1282,23 @@
             }
             focusStudentId = '';
         }
+    }
+
+    /** Line under Needs confirmation: arrived late, left early, new student, or the TMS word. */
+    function confirmReasonHint(row) {
+        if (row && row.confirmReason === 'late') {
+            return t('debateRecConfirmLate');
+        }
+        if (row && row.confirmReason === 'early_leave') {
+            return t('debateRecConfirmEarly');
+        }
+        if (row && row.confirmReason === 'new_student') {
+            return t('debateRecNewStudentHint');
+        }
+        if (row && row.confirmReason === 'other' && row.confirmReasonDetail) {
+            return row.confirmReasonDetail;
+        }
+        return t('debateRecFromTmsHint');
     }
 
     /** Warn when a shown Day 4 has not been checked against TMS yet. */
@@ -1224,8 +1316,21 @@
             el.textContent = '';
             return;
         }
+        const gapDates = [];
+        const freshDates = [];
+        unchecked.forEach((day) => {
+            const c = view.dayCounts[day.rowId] || {};
+            (c.coverageGap ? gapDates : freshDates).push(formatShortDate(day.date));
+        });
+        const parts = [];
+        if (freshDates.length) {
+            parts.push(tf('debateRecSyncWarn', { dates: freshDates.join(', ') }));
+        }
+        if (gapDates.length) {
+            parts.push(tf('debateRecSyncWarnGap', { dates: gapDates.join(', ') }));
+        }
         el.hidden = false;
-        el.textContent = tf('debateRecSyncWarn', { dates: unchecked.map((day) => formatShortDate(day.date)).join(', ') });
+        el.textContent = parts.join(' ');
     }
 
     function renderBatch() {
@@ -1402,6 +1507,14 @@
                         }
                     });
                 render();
+                return;
+            }
+            if (target.classList.contains('debate-rec-hr')) {
+                void saveHrNotified(
+                    target.getAttribute('data-row-id'),
+                    target.getAttribute('data-student-id'),
+                    target.checked
+                );
                 return;
             }
             if (target.classList.contains('debate-rec-note')) {

@@ -492,8 +492,19 @@
         if (o.includeHeader && o.className) {
             lines.push(o.className);
         }
-        if (o.includeHeader && o.sessionLabel && o.sessionNumber > 0) {
-            lines.push(`${o.sessionLabel} ${o.sessionNumber}`);
+        if (o.includeHeader) {
+            const role = String(o.roleLabel || '').trim();
+            const sessionNum = Number(o.sessionNumber) || 0;
+            const sessionLine = o.sessionLabel && sessionNum > 0
+                ? `${o.sessionLabel} ${sessionNum}`
+                : '';
+            if (sessionLine && role) {
+                lines.push(`${sessionLine} · ${role}`);
+            } else if (sessionLine) {
+                lines.push(sessionLine);
+            } else if (role) {
+                lines.push(role);
+            }
         }
         if (lines.length) {
             lines.push('');

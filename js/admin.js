@@ -172,12 +172,13 @@ function switchAdminTab(tabKey, options) {
             tabBtn.tabIndex = show ? 0 : -1;
         }
     });
-    if (!opts.skipHash && typeof location !== 'undefined') {
-        const nextHash = '#' + tabKey;
-        if (location.hash !== nextHash) {
-            history.replaceState(null, '', nextHash);
+        if (!opts.skipHash && typeof location !== 'undefined') {
+            const nextHash = '#' + tabKey;
+            if (location.hash !== nextHash || location.pathname !== '/admin.html') {
+                // Absolute path: <base href="/"> would turn "#accounts" into the calendar home.
+                history.replaceState(null, '', '/admin.html' + location.search + nextHash);
+            }
         }
-    }
     if (tabKey === 'accounts' && adminHasPerm('manage_users')) {
         loadAccessRequestsBanner().catch(() => {});
     }
@@ -2306,12 +2307,16 @@ async function init() {
             CCPSessionRestore.capturePageSession();
         }
     } catch (err) {
-        if (err && err.message === 'redirect') {
+        const message = err && err.message ? String(err.message) : '';
+        if (message === 'redirect') {
             return;
         }
-        setupAdminNav(false);
-        showAdminSections(false);
-        if (err.message.includes('Not signed in') || err.message.includes('401')) {
+        const signedIn = Boolean(currentAdminId);
+        if (!signedIn) {
+            setupAdminNav(false);
+            showAdminSections(false);
+        }
+        if (!signedIn && (message.includes('Not signed in') || message.includes('401'))) {
             const health = await fetchAdminHealth();
             if (health.needsBootstrap) {
                 showBootstrapSetup();
@@ -2321,13 +2326,22 @@ async function init() {
                 );
                 return;
             }
-        } else if (err.message.includes('Admin only') || err.message.includes('admin')) {
-            showAuthError(err.message);
-            document.getElementById('bootstrapBox').style.display = 'none';
+        } else if (!signedIn && (message.includes('Admin only') || message.toLowerCase().includes('admin'))) {
+            showAuthError(message);
+            const bootstrapBox = document.getElementById('bootstrapBox');
+            if (bootstrapBox) {
+                bootstrapBox.style.display = 'none';
+            }
         } else {
-            showAdminSaveNotice(err.message, true);
-            setSessionStatus('');
-            document.getElementById('bootstrapBox').style.display = 'none';
+            const shown = message || t('couldNotLoadAdmin');
+            showAdminSaveNotice(shown, true);
+            setSessionStatus(shown);
+            if (!signedIn) {
+                const bootstrapBox = document.getElementById('bootstrapBox');
+                if (bootstrapBox) {
+                    bootstrapBox.style.display = 'none';
+                }
+            }
         }
     }
 

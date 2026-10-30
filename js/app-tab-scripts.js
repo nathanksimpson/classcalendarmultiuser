@@ -72,7 +72,7 @@
             'js/classroom-essay-class-summary.js?v=20261006-essay-report-filters',
             'js/classroom-essay-class-summary-print.js?v=20261005-essay-demerit',
             'js/classroom-header.js?v=20260807-hr-tools',
-            'js/classroom-essay-scrape-editor.js?v=20261013-tms-sync',
+            'js/classroom-essay-scrape-editor.js?v=20261028-open-saved-editor',
             'js/classroom-parent-messages.js?v=20261024-ko-template',
             'js/classroom-essays.js?v=20261024-parent-msg-ko'
         ],

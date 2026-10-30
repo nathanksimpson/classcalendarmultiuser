@@ -968,6 +968,20 @@
         return links;
     }
 
+    const SAVED_BATCH_EDITOR_URL = '/tools/essay-batch-editor.html?v=20261028-open-saved-editor';
+
+    function openSavedBatchEditor() {
+        let win = null;
+        try {
+            win = window.open(SAVED_BATCH_EDITOR_URL, '_blank');
+        } catch (_) {
+            win = null;
+        }
+        if (!win) {
+            location.assign(SAVED_BATCH_EDITOR_URL);
+        }
+    }
+
     function openBatchEditor() {
         const selected = allRows.filter((r) => selectedKeys.has(r.key) && r.bodyOk && r.body);
         if (!selected.length) {
@@ -1119,6 +1133,9 @@
             return;
         }
         bound = true;
+        document.getElementById('classroomEssaysOpenSavedEditorBtn')?.addEventListener('click', () => {
+            openSavedBatchEditor();
+        });
         document.getElementById('classroomEssaysScrapeEditorBtn')?.addEventListener('click', () => {
             openModal();
         });

@@ -17411,14 +17411,23 @@ function navigateHomeworkQueue(delta) {
     renderHomeworkEditor();
 }
 
-function createHomeworkClassListButton(classData, { isSelected, onClick }) {
+function createHomeworkClassListButton(classData, { isSelected, onClick, showSaved }) {
     const btn = createModuleClassListButton(classData, { isSelected, onClick });
+    const titleSpan = btn.querySelector('span');
+    if (!titleSpan) {
+        return btn;
+    }
+    if (showSaved) {
+        titleSpan.insertAdjacentHTML(
+            'beforeend',
+            `<span class="homework-open-badge">${escapeHtml(t('homeworkTabSavedCheck'))}</span>`
+        );
+    }
     if (isSelected) {
-        const titleSpan = btn.querySelector('span');
-        if (titleSpan) {
-            const badge = `<span class="homework-open-badge">${escapeHtml(t('homeworkTabOpenBadge'))}</span>`;
-            titleSpan.insertAdjacentHTML('beforeend', badge);
-        }
+        titleSpan.insertAdjacentHTML(
+            'beforeend',
+            `<span class="homework-open-badge">${escapeHtml(t('homeworkTabOpenBadge'))}</span>`
+        );
     }
     return btn;
 }
@@ -17873,6 +17882,15 @@ function isClassHomeworkSaved(classId, dateStr, category) {
     return mod.isHomeworkSavedForClass(appData && appData.homeworkSavedMarks, classId, dateStr, category);
 }
 
+function isClassHomeworkFullySaved(classData, dateStr) {
+    return !!(
+        classData
+        && dateStr
+        && isClassHomeworkSaved(classData.id, dateStr, 'grading')
+        && isClassHomeworkSaved(classData.id, dateStr, 'assign')
+    );
+}
+
 function isViewerHomeworkClass(classData) {
     if (!classData || !classData.id) {
         return false;
@@ -17978,7 +17996,7 @@ function syncHomeworkSavedButtons(classData) {
                     return;
                 }
                 persistHomeworkSavedMark(selected.id, selectedDate, category, input.checked);
-                renderHomeworkSavedWarning();
+                renderHomeworkClassList();
             });
         }
         const category = input.getAttribute('data-homework-saved');
@@ -18040,9 +18058,10 @@ function renderHomeworkClassList() {
         list.appendChild(el);
     };
 
-    const renderClassButton = (c) => {
+    const renderClassButton = (c, onThisDay) => {
         list.appendChild(createHomeworkClassListButton(c, {
             isSelected: c.id === selectedId,
+            showSaved: onThisDay === true && isClassHomeworkFullySaved(c, selectedIso),
             onClick: () => {
                 const refDate = getHomeworkReferenceDateFromUi();
                 if (typeof CCPActiveContext !== 'undefined') {
@@ -18063,7 +18082,7 @@ function renderHomeworkClassList() {
                 date: formatHomeworkWorkingFromLabel(selectedIso),
                 count: String(onDay.length)
             }));
-            onDay.forEach(renderClassButton);
+            onDay.forEach((c) => renderClassButton(c, true));
         }
         return;
     }
@@ -18073,10 +18092,10 @@ function renderHomeworkClassList() {
             date: formatHomeworkWorkingFromLabel(selectedIso),
             count: String(onDay.length)
         }));
-        onDay.forEach(renderClassButton);
+        onDay.forEach((c) => renderClassButton(c, true));
     }
     appendSectionTitle(t('homeworkTabOtherClasses') || 'Other classes', { divider: onDay.length > 0 });
-    (onDay.length > 0 ? offDay : allVisible).forEach(renderClassButton);
+    (onDay.length > 0 ? offDay : allVisible).forEach((c) => renderClassButton(c, false));
 }
 
 /** Active homework tab editor state (class + packet row ids for syllabus save). */
@@ -18442,11 +18461,16 @@ function formatHomeworkPasteBlock(text, classData, packet, kind) {
     if (!mod) {
         return (text || '').trim();
     }
+    const isGrading = kind === 'grading';
+    const sessionNumber = isGrading
+        ? (Number(packet.gradingSessionNumber) || 0)
+        : (Number(packet.assignSourceSessionNumber) || Number(packet.targetSessionNumber) || 0);
     const opts = {
         includeHeader: true,
         className: classData.name,
         sessionLabel: t('homeworkTabSessionLabel'),
-        sessionNumber: packet.targetSessionNumber
+        sessionNumber,
+        roleLabel: isGrading ? t('homeworkTabGradingTitle') : t('homeworkTabCoveredInClass')
     };
     return mod.formatHomeworkBlock(text, opts);
 }

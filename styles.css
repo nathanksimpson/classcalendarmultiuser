@@ -8663,23 +8663,17 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
 
 .homework-open-badge {
     display: inline-block;
-    margin-left: 6px;
-    padding: 1px 6px;
+    margin-left: var(--space-2);
+    padding: 0 var(--space-1);
     font-size: 0.625rem;
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--primary-dark);
-    background: var(--accent-muted);
+    color: var(--class-tile-text, var(--text-primary));
+    background: var(--surface-muted);
     border: 1px solid var(--border-color);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     vertical-align: middle;
-}
-
-.module-list-item.is-selected .homework-open-badge {
-    color: var(--text-on-primary);
-    background: rgba(255, 255, 255, 0.2);
-    border-color: rgba(255, 255, 255, 0.35);
 }
 
 .homework-class-queue {
@@ -22860,6 +22854,22 @@ th[data-cohort-col] {
     box-shadow: inset 3px 0 0 var(--danger);
 }
 
+#panel-debate-rec .debate-rec-row--hr-needed {
+    background: var(--essay-overdue-bg);
+    color: var(--essay-overdue-text);
+}
+
+#panel-debate-rec .debate-rec-stat--hr-needed {
+    border-color: var(--essay-overdue-border);
+    background: var(--essay-overdue-bg);
+    color: var(--essay-overdue-text);
+}
+
+#panel-debate-rec .debate-rec-hr {
+    width: var(--space-4, 16px);
+    height: var(--space-4, 16px);
+}
+
 #panel-debate-rec .debate-rec-row--needs_confirmation {
     box-shadow: inset 3px 0 0 var(--warn-badge-bg);
 }
@@ -22874,8 +22884,10 @@ th[data-cohort-col] {
     text-align: center;
 }
 
-html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-rec .debate-rec-choice {
+html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-rec .debate-rec-choice,
+html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-rec .debate-rec-hr {
     min-height: var(--touch-min, 44px);
+    min-width: var(--touch-min, 44px);
 }
 
 

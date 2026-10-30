@@ -4,41 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Signed in — ClassManager</title>
-    <script src="js/theme-init.js"></script>
-    <link rel="stylesheet" href="styles.css?v=20260629-classmanager-redesign">
-    <style>
-        .signed-in-page {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 2rem;
-            background: var(--bg-main);
-            color: var(--text-primary);
-        }
-        .signed-in-card {
-            max-width: 420px;
-            width: 100%;
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 2rem;
-            box-shadow: var(--shadow-lg);
-            text-align: center;
-        }
-        .signed-in-card h1 { margin: 0 0 0.5rem; font-size: 1.35rem; }
-        .signed-in-card p { margin: 0 0 1rem; color: var(--text-muted); font-size: 0.95rem; }
-    </style>
 </head>
 <body>
-    <!-- No username/password fields; no auto-redirect (lets Save password UI stay visible). -->
-    <div class="signed-in-page">
-        <div class="signed-in-card">
-            <h1 id="signedInTitle">Signed in</h1>
-            <p id="signedInLead">If your browser offers to save your password, you can accept it now.</p>
-            <p><a id="continueLink" class="btn btn-primary" href="/">Continue to ClassManager</a></p>
-        </div>
-    </div>
     <script>
         (function () {
             function safeReturn(raw) {
@@ -46,19 +13,7 @@
                 return r.charAt(0) === '/' && r.charAt(1) !== '/' ? r : '/';
             }
             var params = new URLSearchParams(location.search);
-            var dest = safeReturn(params.get('return'));
-            var link = document.getElementById('continueLink');
-            if (link) link.href = dest;
-            try {
-                if (localStorage.getItem('calendarLanguage') === 'ko') {
-                    document.documentElement.lang = 'ko';
-                    var title = document.getElementById('signedInTitle');
-                    var lead = document.getElementById('signedInLead');
-                    if (title) title.textContent = '로그인되었습니다';
-                    if (lead) lead.textContent = '브라우저에서 비밀번호 저장을 제안하면 지금 수락할 수 있습니다.';
-                    if (link) link.textContent = 'ClassManager로 계속';
-                }
-            } catch (_) { /* ignore */ }
+            location.replace(safeReturn(params.get('return')));
         })();
     </script>
 </body>

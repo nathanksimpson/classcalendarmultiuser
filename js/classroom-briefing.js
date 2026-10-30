@@ -755,8 +755,16 @@
             username: credentials.username,
             password: credentials.password
         };
+        const through = String(opts.attendanceThroughDate || '').slice(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(through)) {
+            payload.attendanceThroughDate = through;
+        }
+        const wantAttendance = opts.mode === 'attendance' || opts.attendanceOnly === true;
+        if (wantAttendance) {
+            payload.attendanceOnly = true;
+        }
         const runOpts = { timeoutMs: COUNSEL_SYNC_TIMEOUT_MS, signal: opts.signal };
-        if (opts.mode === 'attendance') {
+        if (wantAttendance) {
             try {
                 const result = await global.CCPTmsSync.run('attendance', payload, runOpts);
                 return { result, attendanceOnly: true };
@@ -768,7 +776,7 @@
             }
         }
         const result = await global.CCPTmsSync.run('counsel', payload, runOpts);
-        return { result, attendanceOnly: false };
+        return { result, attendanceOnly: Boolean(payload.attendanceOnly) };
     }
 
     async function translateOne(text) {
@@ -1550,6 +1558,9 @@
             ? global.CCPTmsSync.getBridgeState()
             : null;
         const allowBlankCreds = bridgeState && bridgeState.status === 'same-origin';
+        // #region agent log
+        fetch('http://127.0.0.1:7484/ingest/eb92e151-ce29-4c5a-b17a-e5d8fe9bca1a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff19e'},body:JSON.stringify({sessionId:'7ff19e',hypothesisId:'C',location:'classroom-briefing.js:confirmTmsLogin',message:'confirm login options',data:{attendanceOnly:Boolean(options&&options.attendanceOnly),optionThrough:options&&options.attendanceThroughDate?String(options.attendanceThroughDate):'',hasPassword:Boolean(creds.password),hasUsername:Boolean(creds.username),allowBlankCreds:Boolean(allowBlankCreds),planOverride:Array.isArray(planOverride)?planOverride.length:-1},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         if ((!creds.username || !creds.password) && !allowBlankCreds) {
             const credsMsg = t('briefingErrorCredsRequired', 'Enter your TMS username and password.');
             showModalError(credsMsg);
@@ -1600,7 +1611,9 @@
         try {
             const fetched = await fetchCounselProfiles(plan, creds, {
                 signal: abortController ? abortController.signal : undefined,
-                mode: opts.mode
+                mode: opts.mode,
+                attendanceOnly: Boolean(opts.attendanceOnly || opts.mode === 'attendance'),
+                attendanceThroughDate: opts.attendanceThroughDate || ''
             });
             const result = fetched.result;
             syncResult = result;
@@ -1743,9 +1756,12 @@
             plan = plan.filter((batch) => String(batch.classId) === onlyClassId);
         }
         pendingSyncPlan = plan;
+        const attendance = opts.mode === 'attendance' || opts.attendanceOnly === true;
         return confirmTmsLogin(plan, {
             creds,
-            mode: opts.mode === 'attendance' ? 'attendance' : 'full',
+            mode: attendance ? 'attendance' : 'full',
+            attendanceOnly: attendance,
+            attendanceThroughDate: opts.attendanceThroughDate ? String(opts.attendanceThroughDate) : '',
             rethrow: true
         });
     }

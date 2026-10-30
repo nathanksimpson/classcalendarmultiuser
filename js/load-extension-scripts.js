@@ -13,7 +13,7 @@
         'js/default-class-editor.js?v=20260908-quick-wins',
         'js/books-editor.js?v=20261015-p7-level',
         'js/homework-import.js?v=20260907-strip-angle',
-        'js/homework-tab.js?v=20260929-assign-essay-warn',
+        'js/homework-tab.js?v=20261029-hw-copy-header',
         'js/syllabus-templates.js?v=20260908-debate-combine'
     ];
 

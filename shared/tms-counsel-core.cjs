@@ -239,23 +239,362 @@ function findCounselTable(html) {
  * Find the attendance table — 출석 section or 출결 + 날짜 headers.
  */
 function findAttendanceTable(html) {
+    const tables = findAttendanceTables(html);
+    return tables[0] || '';
+}
+
+/** Every attendance table on the page. TMS sometimes splits recent and older rows. */
+function findAttendanceTables(html) {
     const s = stripComments(html);
-    const sectionRe = /출석[\s\S]{0,80}?<\/div>/i;
-    const sectionMatch = sectionRe.exec(s);
-    if (sectionMatch) {
-        const after = s.slice(sectionMatch.index);
-        const tableRe = /<table\b[^>]*>([\s\S]*?)<\/table>/i;
-        const tableMatch = tableRe.exec(after);
-        if (tableMatch) return tableMatch[1];
-    }
+    const tables = [];
     const tableRe = /<table\b[^>]*>([\s\S]*?)<\/table>/gi;
     let m;
     while ((m = tableRe.exec(s)) !== null) {
         const text = stripTags(m[1]);
-        if ((text.includes('출결') || text.includes('출석')) && text.includes('날짜')) return m[1];
-        if (text.includes('날짜') && text.includes('상태')) return m[1];
+        if ((text.includes('출결') || text.includes('출석')) && text.includes('날짜')) {
+            tables.push(m[1]);
+        } else if (text.includes('날짜') && text.includes('상태')) {
+            tables.push(m[1]);
+        }
     }
-    return '';
+    return tables;
+}
+
+function mergeAttendanceRecords(lists) {
+    const out = [];
+    const seen = new Set();
+    (Array.isArray(lists) ? lists : []).forEach((list) => {
+        (Array.isArray(list) ? list : []).forEach((rec) => {
+            if (!rec || !rec.date) {
+                return;
+            }
+            const key = `${rec.date}|${rec.status || ''}|${rec.memo || ''}`;
+            if (seen.has(key)) {
+                return;
+            }
+            seen.add(key);
+            out.push(rec);
+        });
+    });
+    out.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    return out;
+}
+
+function decodePagingHtml(html) {
+    return String(html || '')
+        .replace(/&#39;/g, "'")
+        .replace(/&quot;/g, '"')
+        .replace(/&amp;/g, '&');
+}
+
+/** ASP.NET pager links on the absence list. Other postbacks (sort, buttons) are ignored. */
+function extractAbsencePagingTargets(html) {
+    const decoded = decodePagingHtml(html);
+    const targets = [];
+    const seen = new Set();
+    const re = /__doPostBack\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]*)['"]\s*\)/gi;
+    let m;
+    while ((m = re.exec(decoded)) !== null) {
+        const target = m[1];
+        const arg = m[2] || '';
+        if (!/paging|page\$/i.test(`${target}${arg}`)) {
+            continue;
+        }
+        const key = `${target}\0${arg}`;
+        if (seen.has(key)) {
+            continue;
+        }
+        seen.add(key);
+        targets.push({ target, arg });
+        if (targets.length >= 12) {
+            break;
+        }
+    }
+    return targets;
+}
+
+function encodeFormFields(fields) {
+    return Object.keys(fields || {})
+        .map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(fields[key] == null ? '' : fields[key])}`)
+        .join('&');
+}
+
+/** Pager links to follow. Separate from the month walk so a long term is not cut off. */
+const ABSENCE_PAGER_CAP = 12;
+/** One post per month from the earliest Day 4 through today. A term fits in a school year. */
+const ABSENCE_TERM_MONTH_CAP = 14;
+
+function oldestAttendanceDate(html) {
+    const records = mergeAttendanceRecords(findAttendanceTables(html).map(parseAttendanceTable));
+    if (!records.length) {
+        return '';
+    }
+    return records[records.length - 1].date || '';
+}
+
+function oldestDateInPages(pages) {
+    let oldest = '';
+    (pages || []).forEach((html) => {
+        const date = oldestAttendanceDate(html);
+        if (date && (!oldest || date < oldest)) {
+            oldest = date;
+        }
+    });
+    return oldest;
+}
+
+function monthsFromThrough(throughDate, todayIso) {
+    const through = String(throughDate || '').slice(0, 10);
+    const today = String(todayIso || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(through) || !/^\d{4}-\d{2}-\d{2}$/.test(today) || through > today) {
+        return [];
+    }
+    let y = Number(through.slice(0, 4));
+    let m = Number(through.slice(5, 7));
+    const endKey = today.slice(0, 7);
+    const out = [];
+    while (out.length < ABSENCE_TERM_MONTH_CAP) {
+        const key = `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}`;
+        out.push({ year: String(y), month: m, key });
+        if (key >= endKey) {
+            break;
+        }
+        m += 1;
+        if (m > 12) {
+            m = 1;
+            y += 1;
+        }
+    }
+    return out;
+}
+
+function textBefore(html, index) {
+    const start = Math.max(0, index - 80);
+    return stripTags(String(html || '').slice(start, index)).replace(/\s+/g, ' ').trim();
+}
+
+function labelForId(html, id) {
+    if (!id) {
+        return '';
+    }
+    const escaped = String(id).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`<label\\b[^>]*for=["']${escaped}["'][^>]*>([\\s\\S]*?)</label>`, 'i');
+    const m = String(html || '').match(re);
+    return m ? stripTags(m[1]).replace(/\s+/g, ' ').trim() : '';
+}
+
+function parseSelects(html) {
+    const selects = [];
+    const re = /<select\b([^>]*)>([\s\S]*?)<\/select>/gi;
+    let m;
+    const src = String(html || '');
+    while ((m = re.exec(src)) !== null) {
+        const attrs = m[1] || '';
+        const name = (attrs.match(/\bname=["']([^"']+)["']/i) || [])[1] || '';
+        const id = (attrs.match(/\bid=["']([^"']+)["']/i) || [])[1] || '';
+        const options = [];
+        const optRe = /<option\b([^>]*)>([\s\S]*?)<\/option>/gi;
+        let om;
+        while ((om = optRe.exec(m[2])) !== null) {
+            const valueAttr = om[1].match(/\bvalue=["']([^"']*)["']/i);
+            const label = stripTags(om[2]).replace(/\s+/g, ' ').trim();
+            options.push({ value: valueAttr ? valueAttr[1] : label, label });
+        }
+        const hint = `${name} ${id} ${labelForId(src, id)} ${textBefore(src, m.index)}`;
+        selects.push({ name, options, hint });
+    }
+    return selects;
+}
+
+function looksLikeYear(select) {
+    if (!select || !/year|yyyy|년도|년/i.test(select.hint || '')) {
+        return false;
+    }
+    return (select.options || []).some((o) => /^20\d{2}$/.test(String((o && (o.value || o.label)) || '').trim()));
+}
+
+function monthNumberFrom(text) {
+    const s = String(text || '').trim();
+    if (!s || /^20\d{2}/.test(s)) {
+        return 0;
+    }
+    const m = s.match(/^0?(\d{1,2})(?:\s*월)?$/);
+    if (!m) {
+        return 0;
+    }
+    const n = Number(m[1]);
+    return n >= 1 && n <= 12 ? n : 0;
+}
+
+function looksLikeMonth(select) {
+    if (!select || !/month|\bmm\b|월/i.test(select.hint || '')) {
+        return false;
+    }
+    return (select.options || []).some((o) => monthNumberFrom(o && o.value) || monthNumberFrom(o && o.label));
+}
+
+function optionForMonth(select, month) {
+    return (select.options || []).find((o) => monthNumberFrom(o && o.value) === month || monthNumberFrom(o && o.label) === month) || null;
+}
+
+function optionForYear(select, year) {
+    return (select.options || []).find((o) => String((o && o.value) || '').trim() === year || String((o && o.label) || '').trim() === year) || null;
+}
+
+function parseDateInputs(html) {
+    const inputs = [];
+    const re = /<input\b([^>]*)>/gi;
+    let m;
+    const src = String(html || '');
+    while ((m = re.exec(src)) !== null) {
+        const attrs = m[1] || '';
+        const type = ((attrs.match(/\btype=["']([^"']+)["']/i) || [])[1] || 'text').toLowerCase();
+        if (/hidden|submit|button|checkbox|radio|image|file/.test(type)) {
+            continue;
+        }
+        const name = (attrs.match(/\bname=["']([^"']+)["']/i) || [])[1] || '';
+        if (!name) {
+            continue;
+        }
+        const id = (attrs.match(/\bid=["']([^"']+)["']/i) || [])[1] || '';
+        const hint = `${name} ${id} ${labelForId(src, id)} ${textBefore(src, m.index)}`;
+        if (!/date|날짜|년|월|sdate|edate|from|to/i.test(hint)) {
+            continue;
+        }
+        inputs.push({ name, hint });
+    }
+    return inputs;
+}
+
+function isoMonthStart(year, month) {
+    return `${year}-${String(month).padStart(2, '0')}-01`;
+}
+
+function isoMonthEnd(year, month, todayIso) {
+    const last = new Date(Date.UTC(Number(year), Number(month), 0)).getUTCDate();
+    const end = `${year}-${String(month).padStart(2, '0')}-${String(last).padStart(2, '0')}`;
+    const key = `${year}-${String(month).padStart(2, '0')}`;
+    return todayIso && String(todayIso).slice(0, 7) === key && todayIso < end ? todayIso : end;
+}
+
+/** null = login page, stop. '' = empty page, keep going. */
+async function postAbsenceForm(jar, absenceUrl, referer, baseHtml, extraFields) {
+    if (!tmsRoster.extractHiddenInputs || !tmsRoster.fetchPage) {
+        return '';
+    }
+    const fields = Object.assign({}, tmsRoster.extractHiddenInputs(baseHtml), extraFields || {});
+    const res = await tmsRoster.fetchPage(jar, absenceUrl, {
+        method: 'POST',
+        preservePost: true,
+        headers: {
+            Referer: referer || absenceUrl,
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: encodeFormFields(fields)
+    });
+    const text = res && res.text ? res.text : '';
+    if (tmsRoster.stillOnLoginPage && tmsRoster.stillOnLoginPage(text, res && res.finalUrl)) {
+        return null;
+    }
+    return text;
+}
+
+/**
+ * First absence page, later pager pages, then one form post per month from
+ * attendanceThroughDate through today. That date is the earliest debate
+ * recording day in the term, whatever month it falls in.
+ * No control and no pager means the recent page is all TMS sent.
+ */
+async function fetchAbsenceHistory(jar, absenceUrl, referer, options) {
+    const opts = options || {};
+    const throughDate = String(opts.attendanceThroughDate || '').slice(0, 10);
+    const todayIso = String(opts.attendanceToday || new Date().toISOString().slice(0, 10)).slice(0, 10);
+    const first = await fetchHtmlPage(jar, absenceUrl, referer);
+    const pages = [first];
+    let extra = 0;
+    const targets = extractAbsencePagingTargets(first);
+    if (targets.length && tmsRoster.extractHiddenInputs && tmsRoster.fetchPage) {
+        for (let i = 0; i < targets.length && extra < ABSENCE_PAGER_CAP; i += 1) {
+            extra += 1;
+            try {
+                const text = await postAbsenceForm(jar, absenceUrl, referer, first, {
+                    __EVENTTARGET: targets[i].target,
+                    __EVENTARGUMENT: targets[i].arg
+                });
+                if (text == null) {
+                    break;
+                }
+                if (text) {
+                    pages.push(text);
+                }
+            } catch (_) {
+                break;
+            }
+        }
+    }
+    const oldest = oldestDateInPages(pages);
+    const needsOlder = Boolean(throughDate && (!oldest || oldest > throughDate));
+    if (!needsOlder) {
+        return pages;
+    }
+
+    const selects = parseSelects(first);
+    const yearSel = selects.find((s) => s.name && looksLikeYear(s));
+    const monthSel = selects.find((s) => s.name && looksLikeMonth(s) && s !== yearSel);
+    const dateInputs = !monthSel ? parseDateInputs(first) : [];
+    if (!monthSel && !dateInputs.length) {
+        return pages;
+    }
+
+    const months = monthsFromThrough(throughDate, todayIso);
+    const formBase = pages[pages.length - 1] || first;
+    let monthPosts = 0;
+    for (let i = 0; i < months.length && monthPosts < ABSENCE_TERM_MONTH_CAP; i += 1) {
+        const slot = months[i];
+        const extraFields = { __EVENTARGUMENT: '' };
+        if (monthSel) {
+            const monthOpt = optionForMonth(monthSel, slot.month);
+            if (!monthOpt) {
+                continue;
+            }
+            extraFields[monthSel.name] = monthOpt.value;
+            extraFields.__EVENTTARGET = monthSel.name;
+            if (yearSel) {
+                const yearOpt = optionForYear(yearSel, slot.year);
+                if (yearOpt) {
+                    extraFields[yearSel.name] = yearOpt.value;
+                }
+            }
+        } else {
+            const start = isoMonthStart(slot.year, slot.month);
+            const end = isoMonthEnd(slot.year, slot.month, todayIso);
+            const fromInput = dateInputs.find((inp) => /from|start|sdate|시작|부터/i.test(inp.hint));
+            const toInput = dateInputs.find((inp) => /to|end|edate|종료|까지/i.test(inp.hint) && inp !== fromInput);
+            if (fromInput && toInput) {
+                extraFields[fromInput.name] = start;
+                extraFields[toInput.name] = end;
+                extraFields.__EVENTTARGET = toInput.name;
+            } else if (dateInputs.length === 1) {
+                extraFields[dateInputs[0].name] = start;
+                extraFields.__EVENTTARGET = dateInputs[0].name;
+            } else {
+                break;
+            }
+        }
+        monthPosts += 1;
+        try {
+            const text = await postAbsenceForm(jar, absenceUrl, referer, formBase, extraFields);
+            if (text == null) {
+                break;
+            }
+            if (text) {
+                pages.push(text);
+            }
+        } catch (_) {
+            break;
+        }
+    }
+    return pages;
 }
 
 function parseEnrollmentStatus(html) {
@@ -420,8 +759,9 @@ function parseProfileParts(parts, meta) {
     const profileHtml = parts.profileHtml || parts.shellHtml || '';
 
     const enrollment = parseEnrollmentStatus(profileHtml);
-    const attendanceTableHtml = findAttendanceTable(attendanceHtml);
-    const attendanceRecords = parseAttendanceTable(attendanceTableHtml);
+    const attendanceRecords = mergeAttendanceRecords(
+        findAttendanceTables(attendanceHtml).map((table) => parseAttendanceTable(table))
+    );
     const counselTableHtml = findCounselTable(counselHtml);
     const allNotes = parseCounselTable(counselTableHtml);
 
@@ -578,9 +918,14 @@ async function fetchStudentProfile(cfg, jar, staffId, student, tmsClassId, optio
             absenceUrl = resolveAbsoluteUrl(cfg, shellAbsenceSrc);
         }
 
-        const counselHtml = await fetchHtmlPage(jar, counselUrl, urls.shell);
-        const absenceHtml = await fetchHtmlPage(jar, absenceUrl, urls.shell);
-        const profileHtml = await fetchHtmlPage(jar, urls.profile, urls.shell);
+        const attendanceOnly = opts.attendanceOnly === true;
+        const counselHtml = attendanceOnly ? '' : await fetchHtmlPage(jar, counselUrl, urls.shell);
+        const absencePages = await fetchAbsenceHistory(jar, absenceUrl, urls.shell, {
+            attendanceThroughDate: opts.attendanceThroughDate || '',
+            attendanceToday: opts.attendanceToday || ''
+        });
+        const absenceHtml = absencePages[0] || '';
+        const profileHtml = attendanceOnly ? '' : await fetchHtmlPage(jar, urls.profile, urls.shell);
 
         const combinedLen = (counselHtml || '').length + (absenceHtml || '').length + (profileHtml || '').length;
         if (combinedLen < 200) {
@@ -588,7 +933,7 @@ async function fetchStudentProfile(cfg, jar, staffId, student, tmsClassId, optio
         }
 
         const parsed = parseProfileParts(
-            { counselHtml, attendanceHtml: absenceHtml, profileHtml, shellHtml },
+            { counselHtml, attendanceHtml: absencePages.join('\n'), profileHtml, shellHtml },
             { studentId: student.id || mpidx, name: student.name || '', mpidx }
         );
 
@@ -596,10 +941,11 @@ async function fetchStudentProfile(cfg, jar, staffId, student, tmsClassId, optio
         parsed._rawHtml = shellHtml;
         parsed._iframeHtml = { counsel: counselHtml, absence: absenceHtml, profile: profileHtml };
 
-        const hasData =
-            parsed.enrollStatus ||
-            (parsed.notes && parsed.notes.length) ||
-            (parsed.attendanceRecords && parsed.attendanceRecords.length);
+        const hasData = attendanceOnly
+            ? Array.isArray(parsed.attendanceRecords)
+            : parsed.enrollStatus ||
+              (parsed.notes && parsed.notes.length) ||
+              (parsed.attendanceRecords && parsed.attendanceRecords.length);
 
         if (!hasData) {
             parsed.error = 'parse_empty';
@@ -620,7 +966,7 @@ async function scrapeCounselProfiles(cfg, students, options) {
     const opts = options || {};
     const tmsClassId = String(opts.tmsClassId || '').trim();
     const batch = [{ classId: '', tmsClassId, students: students || [] }];
-    const bulk = await scrapeCounselProfilesBatch(cfg, batch);
+    const bulk = await scrapeCounselProfilesBatch(cfg, batch, opts);
     return {
         students: bulk.classes[''] ? bulk.classes[''].students : bulk.classes.__default__ ? bulk.classes.__default__.students : [],
         staffId: bulk.staffId,
@@ -628,7 +974,8 @@ async function scrapeCounselProfiles(cfg, students, options) {
     };
 }
 
-async function scrapeCounselProfilesBatch(cfg, classBatches) {
+async function scrapeCounselProfilesBatch(cfg, classBatches, options) {
+    const attendanceOnly = Boolean(options && options.attendanceOnly);
     if (!tmsRoster.credentialsConfigured(cfg)) {
         const err = new Error('TMS credentials not configured');
         err.code = 'TMS_CREDS_MISSING';
@@ -642,6 +989,8 @@ async function scrapeCounselProfilesBatch(cfg, classBatches) {
     const classes = {};
     const warmedClasses = new Set();
     const profileByMpidx = new Map();
+    const seenMpidx = new Set();
+    const attendanceByMpidx = new Map();
     let requestCount = 0;
     let scraped = 0;
     let noMpidx = 0;
@@ -664,8 +1013,13 @@ async function scrapeCounselProfilesBatch(cfg, classBatches) {
 
         for (const student of batch.students || []) {
             const mpidx = String(student.tmsMpidx || student.mpidx || '').trim();
-            if (mpidx && profileByMpidx.has(mpidx)) {
-                const cached = profileByMpidx.get(mpidx);
+            if (mpidx) {
+                seenMpidx.add(mpidx);
+            }
+            // Attendance is per TMS class. Reuse only the same class; a later class merges records.
+            const cacheKey = attendanceOnly ? `${mpidx}\0${tmsClassId}` : mpidx;
+            if (mpidx && profileByMpidx.has(cacheKey)) {
+                const cached = profileByMpidx.get(cacheKey);
                 // Clone so each class card can carry its own studentId/name from this roster seat.
                 const reusedProfile = Object.assign({}, cached, {
                     studentId: student.id || cached.studentId,
@@ -674,6 +1028,12 @@ async function scrapeCounselProfilesBatch(cfg, classBatches) {
                 });
                 reused += 1;
                 totalNotes += (reusedProfile.notes && reusedProfile.notes.length) || 0;
+                if (attendanceOnly && Array.isArray(reusedProfile.attendanceRecords)) {
+                    attendanceByMpidx.set(mpidx, mergeAttendanceRecords([
+                        attendanceByMpidx.get(mpidx) || [],
+                        reusedProfile.attendanceRecords
+                    ]));
+                }
                 profiles.push(reusedProfile);
                 continue;
             }
@@ -682,7 +1042,12 @@ async function scrapeCounselProfilesBatch(cfg, classBatches) {
                 await new Promise((r) => setTimeout(r, 300));
             }
             requestCount += 1;
-            const profile = await fetchStudentProfile(cfg, jar, staffId, student, tmsClassId, { warmedClasses });
+            const profile = await fetchStudentProfile(cfg, jar, staffId, student, tmsClassId, {
+                warmedClasses,
+                attendanceOnly,
+                attendanceThroughDate: options && options.attendanceThroughDate,
+                attendanceToday: options && options.attendanceToday
+            });
             const { _rawHtml: _r, _iframeHtml: _i, ...cleaned } = profile;
             if (cleaned.error === 'no_mpidx') {
                 noMpidx += 1;
@@ -699,15 +1064,39 @@ async function scrapeCounselProfilesBatch(cfg, classBatches) {
             }
             totalNotes += (cleaned.notes && cleaned.notes.length) || 0;
             if (mpidx && !cleaned.error) {
-                profileByMpidx.set(mpidx, cleaned);
+                profileByMpidx.set(cacheKey, cleaned);
             } else if (mpidx && cleaned.error === 'parse_empty') {
                 // Still cache parse_empty so we do not hammer TMS for the same shell.
-                profileByMpidx.set(mpidx, cleaned);
+                profileByMpidx.set(cacheKey, cleaned);
+            }
+            if (attendanceOnly && mpidx && Array.isArray(cleaned.attendanceRecords) && cleaned.attendanceRecords.length) {
+                attendanceByMpidx.set(mpidx, mergeAttendanceRecords([
+                    attendanceByMpidx.get(mpidx) || [],
+                    cleaned.attendanceRecords
+                ]));
             }
             profiles.push(cleaned);
         }
 
         classes[bucketKey] = { classId, tmsClassId, students: profiles };
+    }
+
+    if (attendanceOnly && attendanceByMpidx.size) {
+        Object.keys(classes).forEach((key) => {
+            const bucket = classes[key];
+            bucket.students = (bucket.students || []).map((profile) => {
+                const mpidx = String((profile && profile.mpidx) || '').trim();
+                const merged = mpidx ? attendanceByMpidx.get(mpidx) : null;
+                if (!merged || !merged.length || !profile || profile.error === 'no_mpidx') {
+                    return profile;
+                }
+                const next = Object.assign({}, profile, { attendanceRecords: merged });
+                if (next.error) {
+                    delete next.error;
+                }
+                return next;
+            });
+        });
     }
 
     return {
@@ -716,7 +1105,7 @@ async function scrapeCounselProfilesBatch(cfg, classBatches) {
         stats: {
             classes: Object.keys(classes).length,
             students: requestCount,
-            uniqueMpidx: profileByMpidx.size,
+            uniqueMpidx: seenMpidx.size,
             reused,
             scraped,
             noMpidx,

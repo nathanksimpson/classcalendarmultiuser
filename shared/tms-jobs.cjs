@@ -33,6 +33,15 @@ function credsFrom(payload) {
     return { scrapeOpts, cfg };
 }
 
+function counselScrapeOptions(payload) {
+    const through = String((payload && payload.attendanceThroughDate) || '').slice(0, 10);
+    const opts = { attendanceOnly: Boolean(payload && payload.attendanceOnly === true) };
+    if (/^\d{4}-\d{2}-\d{2}$/.test(through)) {
+        opts.attendanceThroughDate = through;
+    }
+    return opts;
+}
+
 const JOBS = {
     roster: async (_payload, { scrapeOpts }) => {
         const result = await tmsRoster.scrapeRosters(scrapeOpts);
@@ -102,18 +111,28 @@ const JOBS = {
             if (!batches.length) {
                 return emptyBatchResult();
             }
-            return tmsCounsel.scrapeCounselProfilesBatch(cfg, batches);
+            return tmsCounsel.scrapeCounselProfilesBatch(cfg, batches, counselScrapeOptions(payload));
         }
         const students = Array.isArray(payload.students) ? payload.students : [];
         const tmsClassId = String(payload.tmsClassId || '').trim();
-        return tmsCounsel.scrapeCounselProfiles(cfg, students, { tmsClassId });
+        return tmsCounsel.scrapeCounselProfiles(cfg, students, Object.assign({
+            tmsClassId
+        }, counselScrapeOptions(payload)));
     },
 
-    /** Attendance only (absence list, one GET per student) — fast path for Debate Rec. */
+    /**
+     * Attendance only. A through-date (Debate Rec's earliest Day 4) uses the
+     * counsel scrape so older months are loaded. Otherwise one GET per student.
+     */
     attendance: async (payload, { cfg }) => {
         const batches = classBatchesFrom(payload);
         if (!batches.length) {
             return emptyBatchResult();
+        }
+        const opts = counselScrapeOptions(payload);
+        if (opts.attendanceThroughDate) {
+            opts.attendanceOnly = true;
+            return tmsCounsel.scrapeCounselProfilesBatch(cfg, batches, opts);
         }
         return tmsCounsel.scrapeAttendanceBatch(cfg, batches);
     }

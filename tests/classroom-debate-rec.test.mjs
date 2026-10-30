@@ -3,6 +3,7 @@
  * teacher overrides never resynced, reset to TMS, bell counts, homeroom.
  * Run: node tests/classroom-debate-rec.test.mjs
  */
+import { readFileSync } from 'fs';
 import { pathToFileURL, fileURLToPath } from 'url';
 import path from 'path';
 
@@ -301,6 +302,7 @@ const PRESENT = [{ date: '2026-08-01', status: '출석' }];
     eq(view.rows.length, 3, 'full roster (3 students) on the past Day 4');
     eq(view.counts.present, 1, 's3 recorded in class');
     eq(view.rows.find((r) => r.student.id === 's3').displayStatus, 'present', 'present display status');
+    eq(view.rows.find((r) => r.student.id === 's2').confirmReason, 'late', 'late row says arrived late');
     eq(view.dayCounts.r4.open, 2, 'Day 4 open count');
 
     const bell = d.countOpenDebateRecWarnings(data, 'c1');
@@ -375,6 +377,7 @@ const PRESENT = [{ date: '2026-08-01', status: '출석' }];
     const byName = Object.fromEntries(rows.map((r) => [r.studentId, r]));
     eq(byName.s1.status, 'not_recorded', 'absent');
     eq(byName.s2.status, 'needs_confirmation', 'late');
+    eq(byName.s2.confirmReason, 'late', 'print row carries arrived-late');
     eq(byName.s3.status, 'received', 'completed by teacher');
     eq(byName.s3.updatedByName, 'Nathan', 'who completed it');
     const c2rows = groups[1].classes[0].assignments[0].students;
@@ -393,6 +396,7 @@ const PRESENT = [{ date: '2026-08-01', status: '출석' }];
         dayHeading: 'Day 4 · {date}', dayCounts: '{done} completed · {open} still needed', dateFromTms: 'TMS', dateFromSyllabus: 'syllabus',
         colStudent: 'Student', colStatus: 'Recording', colTms: 'TMS', colNotes: 'Notes', setBy: 'Set by {name} · {date}',
         noStudents: 'Nothing', noStudentsInSection: 'None',
+        confirmLate: 'Arrived late', confirmEarly: 'Left early', confirmNew: 'New student — first recording needs verification',
         statusLabels: { not_recorded: 'Not recorded', needs_confirmation: 'Needs confirmation', present: 'Recorded in class', received: 'Received', recorded: 'Recorded', exempt: 'Exempt' }
     };
     const html = P.renderDocumentHtml({ title: 'Report <x>', generatedAt: TODAY, groups }, labels);
@@ -412,6 +416,8 @@ const PRESENT = [{ date: '2026-08-01', status: '출석' }];
     assert(text.startsWith('== HR Teacher: Ms. Kim =='), 'copy starts with homeroom');
     assert(text.includes('-- Purple M (초4 Purple) - Day 4 · 10/21 (syllabus) · 1 completed · 2 still needed --'), 'copy class line');
     assert(/\d\. 김민준\tNot recorded - TMS 결석 \(병결\) - Mom will send video/.test(text), `copy student line: ${text}`);
+    assert(html.includes('Needs confirmation — Arrived late'), 'print names why confirmation is needed');
+    assert(text.includes('Needs confirmation - Arrived late'), 'copy names why confirmation is needed');
     assert(text.includes('Recorded in class'), 'copy includes completed');
 }
 
@@ -802,6 +808,184 @@ const PRESENT = [{ date: '2026-08-01', status: '출석' }];
         classId: 'c1', syllabusRowId: 'r4', studentId: 's3', informed: false
     }).submissions;
     eq(rec(data, 'r4', 's3').debateRecHrInformedAt, '', 'HR mark cleared');
+}
+
+// ── HR notified stays saved, and a blank TMS memo does not wipe a teacher note ──
+{
+    const data = makeData();
+    check(data, new Map([
+        ['s1', [{ date: '2026-10-21', status: '결석', memo: '병결' }]],
+        ['s2', PRESENT],
+        ['s3', PRESENT]
+    ]));
+    eq(rec(data, 'r4', 's1').debateRecTmsMemo, '병결', 'first check stores the memo');
+    data.essaySubmissions = d.setDebateRecTeacherStatus(data.essaySubmissions, {
+        classId: 'c1', syllabusRowId: 'r4', studentId: 's1', status: 'not_recorded', userId: 'u1'
+    }).submissions;
+    check(data, new Map([
+        ['s1', [{ date: '2026-10-21', status: '결석' }]],
+        ['s2', PRESENT],
+        ['s3', PRESENT]
+    ]));
+    eq(rec(data, 'r4', 's1').debateRecSource, 'teacher', 'teacher status kept');
+    eq(rec(data, 'r4', 's1').debateRecTmsMemo, '병결', 'blank TMS memo keeps the saved note');
+
+    data.essaySubmissions = d.setDebateRecHrNotified(data.essaySubmissions, {
+        classId: 'c1', syllabusRowId: 'r4', studentId: 's1', notified: true
+    }).submissions;
+    eq(rec(data, 'r4', 's1').debateRecHrNotified, true, 'HR notified saved');
+    const before = d.computeDebateRecView(data, 'c1', null, { todayIso: TODAY });
+    eq(before.counts.hrUnnotified, 0, 'checked box is not still waiting');
+    check(data, new Map([
+        ['s1', [{ date: '2026-10-21', status: '결석', memo: '병결' }]],
+        ['s2', PRESENT],
+        ['s3', PRESENT]
+    ]));
+    eq(rec(data, 'r4', 's1').debateRecHrNotified, true, 'TMS check does not clear HR notified');
+    const roundTrip = d.normalizeEssaySubmission(d.findEssaySubmission(data.essaySubmissions, 'c1', 'r4'));
+    eq(d.getEssayRecordForStudent(roundTrip, 's1').debateRecHrNotified, true, 'HR notified survives save');
+
+    data.essaySubmissions = d.setDebateRecHrNotified(data.essaySubmissions, {
+        classId: 'c1', syllabusRowId: 'r4', studentId: 's1', notified: false
+    }).submissions;
+    const waiting = d.computeDebateRecView(data, 'c1', null, { todayIso: TODAY });
+    eq(waiting.counts.hrUnnotified, 1, 'absent and unchecked counts as not notified');
+    const summary = d.buildDebateRecClassSummary(data, ['c1|r4'], {});
+    const printed = summary[0].classes[0].assignments[0].students.find((r) => r.studentId === 's1');
+    eq(printed.hrNotified, false, 'print row shows the saved mark');
+    data.essaySubmissions = d.setDebateRecHrNotified(data.essaySubmissions, {
+        classId: 'c1', syllabusRowId: 'r4', studentId: 's1', notified: true
+    }).submissions;
+    const summaryYes = d.buildDebateRecClassSummary(data, ['c1|r4'], {});
+    eq(summaryYes[0].classes[0].assignments[0].students.find((r) => r.studentId === 's1').hrNotified, true, 'print row shows yes');
+}
+
+// ── New students need verification on the first recording only ─────────
+{
+    const data = makeData();
+    data.cohorts[0].students[0].tags = ['new'];
+    data.classes[0].syllabusRows.push({
+        id: 'r4b', kind: 'lesson', date: '2026-09-16', sessionNumber: 4, planTitle: 'Day 4 / Preview', trackEssay: true
+    });
+    const view = d.computeDebateRecView(data, 'c1', null, { todayIso: TODAY });
+    const s1 = view.rows.filter((r) => r.student.id === 's1');
+    const first = s1.find((r) => r.day.date === '2026-09-16');
+    const second = s1.find((r) => r.day.date === '2026-10-21');
+    eq(first.displayStatus, 'needs_confirmation', 'first recording for a new student needs verification');
+    eq(first.verifyNew, true, 'first row explains the new-student check');
+    eq(first.confirmReason, 'new_student', 'first row reason is the new student');
+    eq(second.displayStatus, 'not_checked', 'second recording does not need verification');
+    eq(second.verifyNew, false, 'second row is not the new-student check');
+    eq(second.confirmReason, '', 'second row has no confirmation reason');
+    eq(view.rows.find((r) => r.student.id === 's2' && r.day.date === '2026-09-16').displayStatus, 'not_checked', 'students without the new tag are unchanged');
+    const alerts = d.debateRecAlertCountsForClass(data, data.classes[0], { todayIso: '2026-09-20' });
+    eq(alerts.cf, 1, 'class pill counts the first recording before it is saved');
+
+    data.essaySubmissions = d.setDebateRecTeacherStatus(data.essaySubmissions, {
+        classId: 'c1', syllabusRowId: 'r4b', studentId: 's1', status: 'recorded', userId: 'u1'
+    }).submissions;
+    const after = d.computeDebateRecView(data, 'c1', null, { todayIso: TODAY });
+    eq(after.rows.find((r) => r.student.id === 's1' && r.day.date === '2026-09-16').displayStatus, 'recorded', 'a saved recording replaces needs verification');
+    eq(after.rows.find((r) => r.student.id === 's1' && r.day.date === '2026-10-21').displayStatus, 'not_checked', 'later recording stays normal after the first is recorded');
+}
+
+// ── Older Day 4s sync only when the attendance list actually reaches them ─
+{
+    const data = makeData();
+    data.classes[0].syllabusRows.push({
+        id: 'r4b', kind: 'lesson', date: '2026-09-16', sessionNumber: 4, planTitle: 'Day 4 / Preview', trackEssay: true
+    });
+    const recentOnly = new Map([
+        ['s1', [{ date: '2026-10-21', status: '결석', memo: '병결' }]],
+        ['s2', [{ date: '2026-10-21', status: '출석' }]],
+        ['s3', [{ date: '2026-10-21', status: '출석' }]]
+    ]);
+    check(data, recentOnly);
+    const sepSkipped = d.findEssaySubmission(data.essaySubmissions, 'c1', 'r4b');
+    assert(!sepSkipped || !sepSkipped.debateRecCheckedAt, 'September is not marked checked when TMS has not reached it');
+    eq(sepSkipped && sepSkipped.debateRecTmsOldest, '2026-10-21', 'the check records how far TMS reached');
+    eq(d.normalizeEssaySubmission(sepSkipped).debateRecTmsOldest, '2026-10-21', 'the gap date is saved');
+    const gapView = d.computeDebateRecView(data, 'c1', null, { todayIso: TODAY });
+    eq(gapView.dayCounts.r4b.coverageGap, true, 'September warning says TMS did not include that date');
+    eq(gapView.dayCounts.r4.coverageGap, false, 'October was included');
+
+    const withOlder = new Map([
+        ['s1', [
+            { date: '2026-10-21', status: '결석', memo: '병결' },
+            { date: '2026-09-16', status: '결석', memo: '감기' }
+        ]],
+        ['s2', [{ date: '2026-08-01', status: '출석' }]],
+        ['s3', [{ date: '2026-08-01', status: '출석' }]]
+    ]);
+    check(data, withOlder);
+    eq(rec(data, 'r4b', 's1').debateRecStatus, 'not_recorded', 'September absence is synced');
+    eq(rec(data, 'r4b', 's1').debateRecTmsMemo, '감기', 'September attendance note is synced');
+    assert(!d.findEssaySubmission(data.essaySubmissions, 'c1', 'r4b').debateRecTmsOldest, 'a covering list clears the gap');
+    eq(d.computeDebateRecView(data, 'c1', null, { todayIso: TODAY }).dayCounts.r4b.coverageGap, false, 'September is no longer a gap');
+    const view = d.computeDebateRecView(data, 'c1', null, { todayIso: TODAY });
+    eq(view.rows.find((r) => r.student.id === 's2' && r.day.date === '2026-09-16').displayStatus, 'present', 'no absence on that date → present');
+
+    check(data, new Map([
+        ['s1', [{ date: '2026-11-02', status: '출석' }]],
+        ['s2', [{ date: '2026-11-02', status: '출석' }]],
+        ['s3', [{ date: '2026-11-02', status: '출석' }]]
+    ]));
+    eq(rec(data, 'r4', 's1').debateRecStatus, 'not_recorded', 'a later short list does not clear a month already checked');
+    eq(rec(data, 'r4b', 's1').debateRecTmsMemo, '감기', 'a later short list keeps the older attendance note');
+    eq(d.computeDebateRecView(data, 'c1', null, { todayIso: TODAY }).dayCounts.r4b.coverageGap, false, 'a later short list does not reopen a covered month');
+}
+
+// ── Any month in the term syncs; a teacher edit on an earlier month stays ─
+{
+    const data = makeData();
+    data.classes[0].startDate = '2026-03-01';
+    data.classes[0].endDate = '2026-12-20';
+    data.classes[0].syllabusRows.push(
+        { id: 'rMar', kind: 'lesson', date: '2026-03-18', sessionNumber: 4, planTitle: 'Day 4 / Preview', trackEssay: true },
+        { id: 'rSep', kind: 'lesson', date: '2026-09-16', sessionNumber: 4, planTitle: 'Day 4 / Preview', trackEssay: true }
+    );
+    data.essaySubmissions = d.setDebateRecTeacherStatus(data.essaySubmissions, {
+        classId: 'c1', syllabusRowId: 'rMar', studentId: 's1', status: 'recorded', userId: 'u1', nowIso: NOW
+    }).submissions;
+    const covered = [{ date: '2026-03-01', status: '출석' }];
+    check(data, new Map([
+        ['s1', [
+            { date: '2026-03-18', status: '결석', memo: '여행' },
+            { date: '2026-09-16', status: '지각' },
+            { date: '2026-10-21', status: '결석', memo: '병결' }
+        ]],
+        ['s2', covered],
+        ['s3', covered]
+    ]));
+    const kept = rec(data, 'rMar', 's1');
+    eq(kept.debateRecStatus, 'recorded', 'a teacher edit in an earlier month stays');
+    eq(kept.debateRecSource, 'teacher', 'that month stays teacher-sourced');
+    eq(rec(data, 'rSep', 's1').debateRecStatus, 'needs_confirmation', 'a middle month in the term still syncs');
+    eq(rec(data, 'r4', 's1').debateRecStatus, 'not_recorded', 'a later month in the term still syncs');
+    const view = d.computeDebateRecView(data, 'c1', null, { todayIso: TODAY });
+    eq(view.rows.find((r) => r.student.id === 's1' && r.day.date === '2026-09-16').confirmReason, 'late', 'the middle month says why');
+}
+
+// ── Needs confirmation says why ─────────────────────────────────────────
+{
+    const data = makeData();
+    check(data, new Map([
+        ['s1', [{ date: '2026-10-21', status: '조퇴', memo: '병원' }]],
+        ['s2', [{ date: '2026-10-21', status: '미참석' }]],
+        ['s3', PRESENT]
+    ]));
+    const view = d.computeDebateRecView(data, 'c1', null, { todayIso: TODAY });
+    const early = view.rows.find((r) => r.student.id === 's1');
+    const missed = view.rows.find((r) => r.student.id === 's2');
+    eq(early.displayStatus, 'needs_confirmation', 'early leave needs confirmation');
+    eq(early.confirmReason, 'early_leave', 'early leave names the reason');
+    eq(missed.confirmReason, 'other', 'other TMS status is its own reason');
+    eq(missed.confirmReasonDetail, '미참석', 'the TMS word is kept');
+    const en = readFileSync(path.join(root, 'js', 'i18n', 'calendar-en.js'), 'utf8');
+    const ko = readFileSync(path.join(root, 'js', 'i18n', 'calendar-ko.js'), 'utf8');
+    assert(en.includes('debateRecSyncWarnGap') && ko.includes('debateRecSyncWarnGap'), 'gap warning is translated');
+    assert(en.includes('debateRecConfirmLate') && en.includes('debateRecConfirmEarly'), 'English reasons');
+    assert(ko.includes("debateRecConfirmLate: '지각'") && ko.includes("debateRecConfirmEarly: '조퇴'"), 'Korean reasons');
 }
 
 console.log(`classroom-debate-rec.test.mjs: ok (${passed} assertions)`);

@@ -573,6 +573,12 @@
         debugLog('debug', 'Scheduled save retry', { delay, reason: reason || '' });
     }
 
+    function adoptServerRevision(doc) {
+        if (doc && doc.revision != null && doc.revision !== '') {
+            state.revision = doc.revision;
+        }
+    }
+
     function mutationsOverlapWithServer(mutations, serverData) {
         if (typeof global.CCPConflictMerge !== 'undefined' && global.CCPConflictMerge.mutationsOverlap) {
             return global.CCPConflictMerge.mutationsOverlap(mutations, serverData);
@@ -931,6 +937,38 @@
             });
         },
 
+        async loadEssayBatchDraft(calendarId) {
+            const calId = calendarId || CalendarSync.getActiveCalendarId();
+            if (!calId) {
+                return { draft: null, updatedAt: null };
+            }
+            debugLog('api', 'GET /essay-batch-draft', { calendarId: calId });
+            const result = await apiFetch(
+                '/calendars/' + encodeURIComponent(calId) + '/essay-batch-draft'
+            );
+            return result && typeof result === 'object' ? result : { draft: null, updatedAt: null };
+        },
+
+        async putEssayBatchDraft(calendarId, body) {
+            if (isViewAsMode()) {
+                const err = new Error('View As: change not saved');
+                err.status = 403;
+                err.code = 'VIEW_AS_MODE';
+                throw err;
+            }
+            const calId = calendarId || CalendarSync.getActiveCalendarId();
+            if (!calId) {
+                const err = new Error('No active team calendar');
+                err.status = 400;
+                throw err;
+            }
+            debugLog('api', 'PUT /essay-batch-draft', { calendarId: calId });
+            return apiFetch('/calendars/' + encodeURIComponent(calId) + '/essay-batch-draft', {
+                method: 'PUT',
+                body: body && typeof body === 'object' ? body : {}
+            });
+        },
+
         async loadUserUiPrefs() {
             debugLog('api', 'GET /me/ui-prefs');
             const result = await apiFetch('/me/ui-prefs');
@@ -1201,6 +1239,7 @@
                         return retryDoc;
                     } catch (retryErr) {
                         if (retryErr.status === 409 && retryErr.body && retryErr.body.document) {
+                            adoptServerRevision(retryErr.body.document);
                             setStatus('conflict');
                             throw retryErr;
                         }
@@ -1209,6 +1248,7 @@
                     }
                 }
                 if (err.status === 409 && err.body && err.body.document) {
+                    adoptServerRevision(err.body.document);
                     setStatus('conflict');
                     throw err;
                 }
@@ -1264,6 +1304,7 @@
             } catch (err) {
                 if (err.status === 409 && err.body && err.body.document) {
                     const serverDoc = err.body.document;
+                    adoptServerRevision(serverDoc);
                     const serverData = serverDoc.data || serverDoc;
                     if (!mutationsOverlapWithServer(list, serverData)) {
                         setStatus('saving');
@@ -1284,6 +1325,7 @@
                             return retryDoc;
                         } catch (retryErr) {
                             if (retryErr.status === 409 && retryErr.body && retryErr.body.document) {
+                                adoptServerRevision(retryErr.body.document);
                                 setStatus('conflict');
                                 if (typeof handlers.onClassroomConflict === 'function') {
                                     await handlers.onClassroomConflict(

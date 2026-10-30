@@ -11,7 +11,7 @@
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20261024-rec-sev';
+        window.CCP_I18N_VERSION = '20261029-hw-copy-header';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -557,6 +557,7 @@
                             <div class="toolbar-actions">
                                 <button type="button" id="classroomEssaysNewGroupBtn" class="btn btn-outline btn-compact" data-i18n="classroomEssayGroupNewBtn">New essay group</button>
                                 <button type="button" id="classroomEssaysEditGroupBtn" class="btn btn-outline btn-compact" hidden data-i18n="classroomEssayGroupEditBtn">Edit group</button>
+                                <button type="button" id="classroomEssaysOpenSavedEditorBtn" class="btn btn-outline btn-compact" data-i18n="classroomEssayOpenSavedEditorBtn">Open batch editor</button>
                                 <button type="button" id="classroomEssaysScrapeEditorBtn" class="btn btn-outline btn-compact" data-i18n="classroomEssayScrapeEditorBtn">Scrape &amp; open editor&hellip;</button>
                                 <button type="button" id="classroomEssaysTmsSyncAllBtn" class="btn btn-outline btn-compact" data-i18n="classroomEssayTmsSyncAllBtn">Sync all from TMS&hellip;</button>
                                 <button type="button" id="classroomEssaysTmsSyncBtn" class="btn btn-outline btn-compact" data-i18n="classroomEssayTmsSyncThisClassBtn">Sync this class&hellip;</button>
@@ -699,6 +700,7 @@
                                     <th scope="col" class="debate-rec-col-date" data-i18n="debateRecColDate">Day 4 date</th>
                                     <th scope="col" class="debate-rec-col-tms" data-i18n="debateRecColTms">TMS</th>
                                     <th scope="col" class="classroom-sheet-col-status debate-rec-col-status" data-i18n="debateRecColRecording">Recording</th>
+                                    <th scope="col" class="debate-rec-col-hr" data-i18n="debateRecColHr">HR notified</th>
                                     <th scope="col" class="classroom-sheet-col-notes" data-i18n="classroomColNotes">Notes</th>
                                 </tr>
                             </thead>
@@ -1194,7 +1196,7 @@
                                 <p class="homework-intro-short" data-i18n="homeworkTabIntroShort">This tab only prepares text to copy into your two external sites — the Simson grading site and the homework assignment site. Editing a block here saves straight to this class&rsquo;s syllabus.</p>
                                 <details id="homeworkIntroDetails" class="homework-intro-details">
                                     <summary data-i18n="homeworkTabShowHow">Show how this works</summary>
-                                    <p class="section-hint" data-i18n="homeworkTabShowHowBody">Text comes from each class syllabus (Pages / detail). After calendar changes, use Reload copy text from syllabi in the sidebar. Copy buttons add the class name and session header for pasting on external sites.</p>
+                                    <p class="section-hint" data-i18n="homeworkTabShowHowBody">Text comes from each class syllabus (Pages / detail). After calendar changes, use Reload copy text from syllabi in the sidebar. Copy buttons add the class name and a session header: Grade now, or Covered in class.</p>
                                 </details>
                             </section>
                             <p id="homeworkCurriculumHint" class="section-hint" hidden></p>
@@ -3112,15 +3114,15 @@
     <script defer src="js/template-loader.js?v=20261015-p7-level"></script>
     <script defer src="js/tms-sync-client.js?v=20261013-helper-loopback"></script>
     <script defer src="js/app-tab-scripts.js?v=20261015-p7-level"></script>
-    <script defer src="js/load-extension-scripts.js?v=20261015-p7-level"></script>
+    <script defer src="js/load-extension-scripts.js?v=20261029-hw-copy-header"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
     <script defer src="js/view-as-banner.js?v=20260908-quick-wins"></script>
     <script defer src="js/team-auth.js?v=20260908-quick-wins"></script>
     <script defer src="js/teacher-management.js?v=20260601-ui-consistency"></script>
     <script defer src="js/calendar-mutations.js?v=20261013-tms-sync"></script>
     <script defer src="js/calendar-export.js?v=20260911-essay-groups"></script>
-    <script defer src="js/calendar-sync.js?v=20261014-p6-hierarchy"></script>
-    <script defer src="js/conflict-merge.js?v=20260911-essay-groups"></script>
+    <script defer src="js/calendar-sync.js?v=20261027-essay-conflict"></script>
+    <script defer src="js/conflict-merge.js?v=20261027-essay-conflict"></script>
     <script defer src="js/classroom-reports.js?v=20260618-term-summary"></script>
     <script defer src="js/classroom-term-summary.js?v=20260618-term-summary"></script>
     <script defer src="js/classroom-term-summary-print.js?v=20260618-term-summary"></script>
@@ -3217,7 +3219,7 @@
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260918-viewport-p0"></script>
     <script defer src="js/tab-warnings.js?v=20261024-debate-rec"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20261024-rec-sev"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20261029-hw-copy-header"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/nav-tab-layout.js?v=20260720-nav-layout-v1"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260720-cross-zone-preview"></script>
@@ -3226,7 +3228,7 @@
     <script defer src="js/class-color-palette.js?v=20260629-classmanager-redesign"></script>
     <script defer src="js/class-color-tile.js?v=20260807-deconflict-min"></script>
     <script defer src="js/print-center.js?v=20261014-p6-hierarchy"></script>
-    <script defer src="app.js?v=20261024-rec-fast"></script>
+    <script defer src="app.js?v=20261029-hw-copy-header"></script>
 </body>
 </html>
 

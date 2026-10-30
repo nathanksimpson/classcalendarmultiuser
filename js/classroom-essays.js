@@ -5732,6 +5732,9 @@
             return;
         }
         const creds = readEssayTmsCreds();
+        // #region agent log
+        fetch('http://127.0.0.1:7484/ingest/eb92e151-ce29-4c5a-b17a-e5d8fe9bca1a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff19e'},body:JSON.stringify({sessionId:'7ff19e',hypothesisId:'E',location:'classroom-essays.js:loadEssayTmsPreview',message:'essay creds',data:{hasPassword:Boolean(creds.password),hasUsername:Boolean(creds.username),filterClass:Boolean(essayTmsFilterClassId)},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         persistEssayTmsUsername(creds.username, creds.rememberUser);
         essayTmsPreview = null;
         essayTmsPlan = [];
@@ -5808,6 +5811,22 @@
             essayTmsPlan = built.rows || [];
             essayTmsFilteredOutOfTermCount = Number(built.filteredOutOfTermCount || 0);
             essayTmsHasFetched = true;
+            const actionCounts = { map: 0, choose: 0, skip: 0, other: 0 };
+            let debateish = 0;
+            essayTmsPlan.forEach((row) => {
+                const action = row && row.userAction;
+                if (action === 'map' || action === 'choose' || action === 'skip') {
+                    actionCounts[action] += 1;
+                } else {
+                    actionCounts.other += 1;
+                }
+                if (row && /debate|토론|디베이트/i.test(String(row.title || '') + ' ' + String(row.portfolioTitle || ''))) {
+                    debateish += 1;
+                }
+            });
+            // #region agent log
+            fetch('http://127.0.0.1:7484/ingest/eb92e151-ce29-4c5a-b17a-e5d8fe9bca1a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff19e'},body:JSON.stringify({sessionId:'7ff19e',hypothesisId:'A',location:'classroom-essays.js:loadEssayTmsPreview',message:'essay plan built',data:{assignments:Array.isArray(body.assignments)?body.assignments.length:0,plan:essayTmsPlan.length,filteredOutOfTerm:essayTmsFilteredOutOfTermCount,filterClass:Boolean(essayTmsFilterClassId),actions:actionCounts,debateish:debateish,studentRows:body.meta&&body.meta.studentRowCount},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
             const meta = body.meta || {};
             const loadedMsg = t('classroomEssayTmsSyncLoaded')
                 .replace('{assignments}', String(essayTmsPlan.length))
@@ -5824,6 +5843,9 @@
             }
             const aborted = err && err.name === 'AbortError';
             const code = err && err.code;
+            // #region agent log
+            fetch('http://127.0.0.1:7484/ingest/eb92e151-ce29-4c5a-b17a-e5d8fe9bca1a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff19e'},body:JSON.stringify({sessionId:'7ff19e',hypothesisId:'B',location:'classroom-essays.js:loadEssayTmsPreview',message:'essay load failed',data:{name:err&&err.name,code:code||'',status:err&&err.status,aborted:Boolean(aborted),message:String((err&&err.message)||'').slice(0,180)},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
             if (aborted) {
                 setEssayTmsError(t('classroomEssayTmsBridgeTimeout'));
             } else if (code === 'TMS_CREDS_MISSING') {
@@ -5853,6 +5875,9 @@
             return;
         }
         if (!essayTmsPlan.every((r) => planRowResolved(r))) {
+            // #region agent log
+            fetch('http://127.0.0.1:7484/ingest/eb92e151-ce29-4c5a-b17a-e5d8fe9bca1a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff19e'},body:JSON.stringify({sessionId:'7ff19e',hypothesisId:'A',location:'classroom-essays.js:confirmEssayTmsSync',message:'apply blocked unresolved',data:{plan:essayTmsPlan.length,unresolved:essayTmsPlan.filter((r)=>!planRowResolved(r)).length},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
             setEssayTmsError(t('classroomEssayTmsSyncUnresolved'));
             return;
         }

@@ -3,7 +3,7 @@
  *
  * Same layout and print styles as the Essays class summary
  * (CCPClassroomEssayClassSummaryPrint): homeroom heading (new page per
- * homeroom) → class → Day 4 table with #, Student, Status chip, TMS, Notes.
+ * homeroom) → class → Day 4 table with #, Student, Status chip, TMS, HR notified, Notes.
  * Input comes from CCPClassroomDomain.buildDebateRecClassSummary().
  */
 (function (global) {
@@ -41,8 +41,31 @@
         return m ? `${Number(m[2])}/${Number(m[3])}` : String(iso || '');
     }
 
-    function statusLabel(status, labels) {
-        return (labels && labels.statusLabels && labels.statusLabels[status]) || status || '';
+    function confirmReasonText(row, labels) {
+        const r = row || {};
+        const L = labels || {};
+        if (r.confirmReason === 'late') {
+            return L.confirmLate || '';
+        }
+        if (r.confirmReason === 'early_leave') {
+            return L.confirmEarly || '';
+        }
+        if (r.confirmReason === 'new_student') {
+            return L.confirmNew || '';
+        }
+        if (r.confirmReason === 'other') {
+            return r.confirmReasonDetail || '';
+        }
+        return '';
+    }
+
+    function statusLabel(status, labels, row) {
+        const base = (labels && labels.statusLabels && labels.statusLabels[status]) || status || '';
+        if (status !== 'needs_confirmation') {
+            return base;
+        }
+        const reason = confirmReasonText(row, labels);
+        return reason ? `${base} — ${reason}` : base;
     }
 
     function displayName(row) {
@@ -56,6 +79,11 @@
         const raw = r.tmsStatus ? (r.tmsMemo ? `${r.tmsStatus} (${r.tmsMemo})` : r.tmsStatus) : '';
         // Reason already says "Absent" / "Late arrival"…; keep the raw TMS text for the memo.
         return [reason, raw].filter(Boolean).join(' · ');
+    }
+
+    function hrText(row, labels) {
+        const L = labels || {};
+        return row && row.hrNotified ? (L.hrYes || 'Yes') : (L.hrNo || 'No');
     }
 
     function notesText(row, labels) {
@@ -105,8 +133,9 @@
         return `<tr class="essay-class-summary-row">
             <td class="essay-class-summary-col-index">${escapeHtml(String(r.rosterIndex || ''))}</td>
             <td class="essay-class-summary-col-student">${escapeHtml(displayName(r))}</td>
-            <td class="essay-class-summary-col-status"><span class="essay-class-summary-status-chip ${chip}">${escapeHtml(statusLabel(r.status, labels))}</span></td>
+            <td class="essay-class-summary-col-status"><span class="essay-class-summary-status-chip ${chip}">${escapeHtml(statusLabel(r.status, labels, r))}</span></td>
             <td class="essay-class-summary-col-due">${escapeHtml(tmsText(r, labels)) || '—'}</td>
+            <td class="essay-class-summary-col-due">${escapeHtml(hrText(r, labels))}</td>
             <td class="essay-class-summary-col-notes">${escapeHtml(notesText(r, labels)) || '—'}</td>
         </tr>`;
     }
@@ -121,9 +150,10 @@
                     <th scope="col">${escapeHtml(labels.colStudent || 'Student')}</th>
                     <th scope="col">${escapeHtml(labels.colStatus || 'Status')}</th>
                     <th scope="col">${escapeHtml(labels.colTms || 'TMS')}</th>
+                    <th scope="col">${escapeHtml(labels.colHr || 'HR notified')}</th>
                     <th scope="col">${escapeHtml(labels.colNotes || 'Notes')}</th>
                 </tr></thead>
-                <tbody>${rows || `<tr><td colspan="5" class="essay-class-summary-empty">${escapeHtml(labels.noStudentsInSection || '')}</td></tr>`}</tbody>
+                <tbody>${rows || `<tr><td colspan="6" class="essay-class-summary-empty">${escapeHtml(labels.noStudentsInSection || '')}</td></tr>`}</tbody>
             </table>
         </div>`;
     }
@@ -185,7 +215,7 @@
                     }
                     lines.push(`-- ${classTitle(c, L)} - ${dayTitle(a, L)} --`);
                     (a.students || []).forEach((r) => {
-                        let line = `${r.rosterIndex}. ${displayName(r)}\t${statusLabel(r.status, L)}`;
+                        let line = `${r.rosterIndex}. ${displayName(r)}\t${statusLabel(r.status, L, r)}`;
                         const tms = tmsText(r, L);
                         const notes = notesText(r, L);
                         if (tms) {
@@ -194,6 +224,7 @@
                         if (notes) {
                             line += ` - ${notes}`;
                         }
+                        line += ` - ${L.colHr || 'HR notified'} ${hrText(r, L)}`;
                         lines.push(line);
                     });
                 });

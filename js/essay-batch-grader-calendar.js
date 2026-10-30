@@ -1,7 +1,7 @@
 /**
  * Load/save Batch Essay Editor grader settings from the active team calendar
  * (essayGraderSettings — classroomOnly, no schedule lock).
- * API keys and live essay drafts stay in localStorage.
+ * API keys stay in localStorage. The current essay batch is a separate per-teacher draft.
  */
 (function (global) {
     const SAVE_DEBOUNCE_MS = 1200;
@@ -170,6 +170,8 @@
             if (!(err && err.status === 409) || typeof global.CalendarSync.loadCalendar !== 'function') {
                 throw err;
             }
+            // One retry onto the revision the server just returned. A second 409
+            // means another save chose different grader settings.
             const fresh = await global.CalendarSync.loadCalendar(calendarId);
             calendarData = (fresh && fresh.data) || calendarData;
             doc = await global.CalendarSync.saveClassroomData({ essayGraderSettings: blob });
