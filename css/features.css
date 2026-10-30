@@ -20376,19 +20376,6 @@ th[data-cohort-col] {
     color: var(--text-secondary);
 }
 
-#panel-debate-rec .debate-rec-hr {
-    margin-top: var(--space-1, 4px);
-    min-height: var(--touch-min-compact, 36px);
-    font-size: 0.6875rem;
-    font-weight: 600;
-}
-
-#panel-debate-rec .debate-rec-hr.is-active {
-    background: color-mix(in srgb, var(--success) 12%, var(--bg-card));
-    border-color: color-mix(in srgb, var(--success) 40%, var(--border-color));
-    color: var(--success);
-}
-
 #panel-debate-rec .debate-rec-row--not_recorded {
     box-shadow: inset 3px 0 0 var(--danger);
 }
