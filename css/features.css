@@ -6336,8 +6336,13 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
     margin: 0;
 }
 
-.homework-saved-warn {
-    flex: 1 0 100%;
+#panel-homework > .homework-saved-warn:not([hidden]) {
+    position: sticky;
+    top: calc(var(--app-chrome-sticky-top, 72px) + var(--space-2));
+    z-index: var(--z-sticky-header);
+    align-self: stretch;
+    margin: 0 0 var(--space-2);
+    box-shadow: var(--shadow-sm);
 }
 
 .homework-copy-block-titles {
