@@ -727,10 +727,10 @@ const PRESENT = [{ date: '2026-08-01', status: '출석' }];
 
     // Legacy record (no stored reason) derives it from the TMS status.
     eq(d.resolveDebateRecReason({ debateRecStatus: 'needs_confirmation', debateRecTmsStatus: '지각' }), 'late', 'legacy reason derived');
-    // normalize keeps the new fields
+    // normalize keeps the new fields; legacy Told HR button maps to the checkbox.
     const n = d.normalizeDebateRecFields({ debateRecReason: 'new_student', debateRecHrInformedBy: 'u1', debateRecHrInformedAt: NOW });
     eq(n.debateRecReason, 'new_student', 'reason kept by normalizer');
-    eq(n.debateRecHrInformedBy, 'u1', 'HR informed by kept');
+    eq(n.debateRecHrNotified, true, 'legacy HR informedAt maps to checkbox');
     eq(d.normalizeDebateRecFields({ debateRecReason: 'bogus' }).debateRecReason, '', 'unknown reason dropped');
 }
 
@@ -790,24 +790,6 @@ const PRESENT = [{ date: '2026-08-01', status: '출석' }];
     }).submissions;
     eq(rec(data4, 'r4', 's5').debateRecStatus, 'needs_confirmation', 'reset restores new-student check');
     eq(rec(data4, 'r4', 's5').debateRecSource, 'tms', 'reset hands back to automatic check');
-}
-
-// ── HR (homeroom teacher) informed ──────────────────────────────────────
-{
-    const data = makeData();
-    check(data, new Map([['s3', [{ date: '2026-10-21', status: '결석' }, ...PRESENT]]]));
-    data.essaySubmissions = d.setDebateRecHrInformed(data.essaySubmissions, {
-        classId: 'c1', syllabusRowId: 'r4', studentId: 's3', informed: true, userId: 't1', nowIso: NOW
-    }).submissions;
-    eq(rec(data, 'r4', 's3').debateRecHrInformedBy, 't1', 'who told HR');
-    eq(rec(data, 'r4', 's3').debateRecHrInformedAt, NOW, 'when HR was told');
-    eq(rec(data, 'r4', 's3').debateRecStatus, 'not_recorded', 'status unchanged by HR mark');
-    check(data, new Map([['s3', [{ date: '2026-10-21', status: '결석' }, ...PRESENT]]]));
-    eq(rec(data, 'r4', 's3').debateRecHrInformedBy, 't1', 'HR mark survives a TMS re-check');
-    data.essaySubmissions = d.setDebateRecHrInformed(data.essaySubmissions, {
-        classId: 'c1', syllabusRowId: 'r4', studentId: 's3', informed: false
-    }).submissions;
-    eq(rec(data, 'r4', 's3').debateRecHrInformedAt, '', 'HR mark cleared');
 }
 
 // ── HR notified stays saved, and a blank TMS memo does not wipe a teacher note ──

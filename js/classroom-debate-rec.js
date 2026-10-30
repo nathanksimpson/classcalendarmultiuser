@@ -358,30 +358,6 @@
         }
     }
 
-    /** Toggle "Told HR" (homeroom teacher informed) for one student. */
-    async function toggleHrInformed(rowId, studentId) {
-        const d = domain();
-        if (!d || !canEdit() || typeof d.setDebateRecHrInformed !== 'function') {
-            return;
-        }
-        const viewRow = getView().rows.find((r) => r.day.rowId === rowId && r.student.id === studentId);
-        const informed = !(viewRow && viewRow.rec && viewRow.rec.debateRecHrInformedAt);
-        const day = rowContext(rowId);
-        setSaveStatus('saving');
-        const res = d.setDebateRecHrInformed(getAppData().essaySubmissions || [], {
-            classId,
-            syllabusRowId: rowId,
-            studentId,
-            informed,
-            userId: currentUserId(),
-            date: day ? day.date : '',
-            lessonDate: day && day.row ? day.row.date : ''
-        });
-        if (!res.error && (await saveSubmissions(res.submissions)) && hooks.showToast) {
-            hooks.showToast(t(informed ? 'debateRecHrInformedDone' : 'debateRecHrInformedCleared'));
-        }
-    }
-
     async function saveHrNotified(rowId, studentId, notified) {
         const d = domain();
         if (!d || !canEdit()) {
@@ -592,7 +568,6 @@
             noStudents: t('debateRecReportNoRows'),
             noStudentsInSection: t('debateRecReportNoRowsClass'),
             notCheckedNote: t('debateRecReportNotCheckedNote'),
-            hrInformed: t('debateRecReportHrInformed'),
             reasonLabels: {
                 absent: t('debateRecReasonAbsent'),
                 late: t('debateRecReasonLate'),
@@ -1178,24 +1153,6 @@
         return `<span class="debate-rec-reason ${meta.cls}">${escapeHtml(t(meta.key))}</span>`;
     }
 
-    /** "Told HR" toggle for open items, or the record of who told HR and when. */
-    function hrInformedControl(rowId, studentId, rec, editable, shown) {
-        const informedAt = String(rec.debateRecHrInformedAt || '');
-        const open = shown === 'not_recorded' || shown === 'needs_confirmation';
-        if (!informedAt && !open) {
-            return '';
-        }
-        const disabled = editable ? '' : ' disabled';
-        if (informedAt) {
-            const label = tf('debateRecHrInformedBy', {
-                name: teacherName(rec.debateRecHrInformedBy) || t('debateRecTeacher'),
-                date: formatShortDate(informedAt.slice(0, 10))
-            });
-            return `<button type="button" class="btn btn-small selection-chip debate-rec-hr is-active" data-action="hr-informed" data-row-id="${escapeAttr(rowId)}" data-student-id="${escapeAttr(studentId)}" aria-pressed="true" title="${escapeAttr(t('debateRecHrInformedUndoHint'))}"${disabled}>✓ ${escapeHtml(label)}</button>`;
-        }
-        return `<button type="button" class="btn btn-outline btn-small debate-rec-hr" data-action="hr-informed" data-row-id="${escapeAttr(rowId)}" data-student-id="${escapeAttr(studentId)}" aria-pressed="false" title="${escapeAttr(t('debateRecHrInformedHint'))}"${disabled}>${escapeHtml(t('debateRecHrInformedBtn'))}</button>`;
-    }
-
     function choiceButtons(rowId, studentId, rec, editable, displayStatus) {
         const status = displayStatus || rec.debateRecStatus;
         const choices = CHOICES_FOR[status] || [];
@@ -1269,7 +1226,6 @@
                     <div class="debate-rec-status-line">${statusChip(shown)}</div>
                     <div class="debate-rec-choices" role="group" aria-label="${escapeAttr(t('debateRecColRecording'))}">${choiceButtons(rowId, sid, rec, editable, shown)}${resetBtn}</div>
                     ${who}
-                    ${hrInformedControl(rowId, sid, rec, editable, shown)}
                 </td>
                 <td class="debate-rec-col-hr"><input type="checkbox" class="debate-rec-hr" data-row-id="${escapeAttr(rowId)}" data-student-id="${escapeAttr(sid)}"${rec.debateRecHrNotified ? ' checked' : ''}${editable ? '' : ' disabled'} aria-label="${escapeAttr(tf('debateRecHrAria', { name: r.student.name || '' }))}" /></td>
                 <td class="classroom-sheet-col-notes"><input type="text" class="field-control debate-rec-note" data-row-id="${escapeAttr(rowId)}" data-student-id="${escapeAttr(sid)}" value="${escapeAttr(rec.debateRecNote || '')}" placeholder="${escapeAttr(t('debateRecNotePlaceholder'))}"${editable ? '' : ' disabled'} /></td>
@@ -1452,11 +1408,6 @@
             const msgBtn = target.closest('[data-action="copy-parent-msg"]');
             if (msgBtn) {
                 copyParentMessage(msgBtn.getAttribute('data-row-id'), msgBtn.getAttribute('data-student-id'), msgBtn.getAttribute('data-lang'));
-                return;
-            }
-            const hrBtn = target.closest('[data-action="hr-informed"]');
-            if (hrBtn) {
-                void toggleHrInformed(hrBtn.getAttribute('data-row-id'), hrBtn.getAttribute('data-student-id'));
                 return;
             }
             const resetBtn = target.closest('[data-action="reset"]');

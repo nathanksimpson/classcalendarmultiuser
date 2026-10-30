@@ -9817,9 +9817,9 @@
             debateRecReason: DEBATE_REC_REASONS.includes(normalizeStr(src.debateRecReason))
                 ? normalizeStr(src.debateRecReason)
                 : '',
-            debateRecHrInformedBy: normalizeStr(src.debateRecHrInformedBy),
-            debateRecHrInformedAt: normalizeStr(src.debateRecHrInformedAt),
+            // Legacy Told HR button (who/when) maps onto the checkbox column.
             debateRecHrNotified: src.debateRecHrNotified === true
+                || Boolean(normalizeStr(src.debateRecHrInformedAt))
         };
     }
 
@@ -10201,20 +10201,6 @@
             debateRecUpdatedBy: normalizeStr(o.userId),
             debateRecUpdatedAt: o.nowIso || new Date().toISOString(),
             debateVideoMissing: status === 'not_recorded'
-        }));
-    }
-
-    /**
-     * Mark that the homeroom teacher (HR / 반담임) has been told about this student's
-     * missing recording. Records who and when; informed:false clears it.
-     * Independent of the recording status, so a later TMS check keeps it.
-     */
-    function setDebateRecHrInformed(submissions, options) {
-        const o = options || {};
-        const informed = o.informed !== false;
-        return patchDebateRecRecord(submissions, o, (prev) => Object.assign({}, prev, {
-            debateRecHrInformedBy: informed ? normalizeStr(o.userId) : '',
-            debateRecHrInformedAt: informed ? (o.nowIso || new Date().toISOString()) : ''
         }));
     }
 
@@ -10709,10 +10695,6 @@
                             tmsStatus: rec.debateRecTmsStatus,
                             tmsMemo: rec.debateRecTmsMemo,
                             reason: rec.debateRecStatus ? resolveDebateRecReason(rec) : '',
-                            hrInformedByName: rec.debateRecHrInformedAt
-                                ? (nameFor(rec.debateRecHrInformedBy) || '')
-                                : '',
-                            hrInformedAt: rec.debateRecHrInformedAt,
                             note: rec.debateRecNote,
                             hrNotified: rec.debateRecHrNotified === true,
                             updatedByName: rec.debateRecUpdatedBy ? nameFor(rec.debateRecUpdatedBy) : '',
@@ -11083,7 +11065,6 @@
         applyDebateRecTmsCheck,
         setDebateRecTeacherStatus,
         setDebateRecNote,
-        setDebateRecHrInformed,
         setDebateRecHrNotified,
         DEBATE_REC_REASONS,
         debateRecReasonFromTms,

@@ -92,12 +92,6 @@
         if (r.note) {
             parts.push(r.note);
         }
-        if (r.hrInformedAt) {
-            parts.push(fill(labels.hrInformed || 'HR told · {name} {date}', {
-                name: r.hrInformedByName || '',
-                date: shortDate(r.hrInformedAt)
-            }).replace(/\s+/g, ' ').trim());
-        }
         if (r.source === 'teacher' && r.updatedByName) {
             parts.push(fill(labels.setBy || '{name} · {date}', { name: r.updatedByName, date: shortDate(r.updatedAt) }));
         }
