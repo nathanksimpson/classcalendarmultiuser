@@ -1558,9 +1558,6 @@
             ? global.CCPTmsSync.getBridgeState()
             : null;
         const allowBlankCreds = bridgeState && bridgeState.status === 'same-origin';
-        // #region agent log
-        fetch('http://127.0.0.1:7484/ingest/eb92e151-ce29-4c5a-b17a-e5d8fe9bca1a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff19e'},body:JSON.stringify({sessionId:'7ff19e',hypothesisId:'C',location:'classroom-briefing.js:confirmTmsLogin',message:'confirm login options',data:{attendanceOnly:Boolean(options&&options.attendanceOnly),optionThrough:options&&options.attendanceThroughDate?String(options.attendanceThroughDate):'',hasPassword:Boolean(creds.password),hasUsername:Boolean(creds.username),allowBlankCreds:Boolean(allowBlankCreds),planOverride:Array.isArray(planOverride)?planOverride.length:-1},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         if ((!creds.username || !creds.password) && !allowBlankCreds) {
             const credsMsg = t('briefingErrorCredsRequired', 'Enter your TMS username and password.');
             showModalError(credsMsg);

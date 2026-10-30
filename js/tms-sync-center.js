@@ -982,9 +982,6 @@
         // stop Essays or Attendance, and every failure is shown, never swallowed.
         const failures = [];
         try {
-            // #region agent log
-            fetch('http://127.0.0.1:7484/ingest/eb92e151-ce29-4c5a-b17a-e5d8fe9bca1a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff19e'},body:JSON.stringify({sessionId:'7ff19e',hypothesisId:'B',location:'tms-sync-center.js:loadSelected',message:'load start',data:{kinds:kinds.slice(),scopeMode:scope.mode,hasClassId:Boolean(scope.classId),hasThrough:Boolean(openOptions&&openOptions.attendanceThroughDate),through:openOptions&&openOptions.attendanceThroughDate?String(openOptions.attendanceThroughDate):'',hasPassword:Boolean(creds.password),hasUsername:Boolean(creds.username)},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
             for (let i = 0; i < kinds.length; i += 1) {
                 const kind = kinds[i];
                 setProgress((i + 0.2) / kinds.length, t('tmsSyncWorking', 'Loading from TMS…'));
@@ -1025,9 +1022,6 @@
                     }
                 }
                 setProgress((i + 1) / kinds.length, t('tmsSyncLoadedKind', 'Loaded'));
-                // #region agent log
-                fetch('http://127.0.0.1:7484/ingest/eb92e151-ce29-4c5a-b17a-e5d8fe9bca1a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff19e'},body:JSON.stringify({sessionId:'7ff19e',hypothesisId:'B',location:'tms-sync-center.js:loadSelected',message:'kind finished',data:{kind:kind,hasResult:Boolean(results[kind==='attendance'?'counsel':kind]),appliedCounsel:kind==='attendance'||kind==='counsel'?Boolean(applied.counsel):false},timestamp:Date.now()})}).catch(()=>{});
-                // #endregion
             }
             paintLastSync();
             paintStaleNudge(helperViewState);
@@ -1048,9 +1042,6 @@
 
     async function applyAll() {
         const order = selectedKinds();
-        // #region agent log
-        fetch('http://127.0.0.1:7484/ingest/eb92e151-ce29-4c5a-b17a-e5d8fe9bca1a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff19e'},body:JSON.stringify({sessionId:'7ff19e',hypothesisId:'A',location:'tms-sync-center.js:applyAll',message:'apply all',data:{order:order.slice(),essayDisabled:Boolean(document.getElementById('essayTmsSyncConfirmBtn')&&document.getElementById('essayTmsSyncConfirmBtn').disabled),homeworkDisabled:Boolean(document.getElementById('homeworkTmsSyncConfirmBtn')&&document.getElementById('homeworkTmsSyncConfirmBtn').disabled)},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         for (let i = 0; i < order.length; i += 1) {
             const kind = order[i];
             if (kind === 'roster') {
@@ -1078,9 +1069,6 @@
     /** Apply only safe kinds — never roster (always needs review). */
     async function applySafeKinds() {
         const essayBtn = document.getElementById('essayTmsSyncConfirmBtn');
-        // #region agent log
-        fetch('http://127.0.0.1:7484/ingest/eb92e151-ce29-4c5a-b17a-e5d8fe9bca1a',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7ff19e'},body:JSON.stringify({sessionId:'7ff19e',hypothesisId:'A',location:'tms-sync-center.js:applySafeKinds',message:'quick apply',data:{essayExists:Boolean(essayBtn),essayDisabled:Boolean(essayBtn&&essayBtn.disabled),homeworkDisabled:Boolean(document.getElementById('homeworkTmsSyncConfirmBtn')&&document.getElementById('homeworkTmsSyncConfirmBtn').disabled)},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         if (essayBtn && !essayBtn.disabled) {
             essayBtn.click();
             applied.essays = true;
