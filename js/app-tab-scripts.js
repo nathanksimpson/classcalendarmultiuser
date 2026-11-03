@@ -94,7 +94,7 @@
             'js/classroom-access.js?v=20260911-essay-groups',
             'js/classroom-student-row.js?v=20260723-tms-sync',
             'js/classroom-header.js?v=20260807-hr-tools',
-            'js/classroom-tests.js?v=20261014-shared-class'
+            'js/classroom-tests.js?v=20261103-fix-header'
         ],
         'debate-teams': [
             'https://cdn.jsdelivr.net/npm/pizzip@3.1.7/dist/pizzip.min.js',

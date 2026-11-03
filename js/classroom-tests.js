@@ -254,7 +254,7 @@
 
         const d = domain();
 
-        const tests = d ? d.listTestsForClass(data.studentTests, classId) : [];
+        const tests = d ? d.listTestsForClass(getAppData().studentTests, classId) : [];
 
         global.CCPClassroomHeader.render(
 

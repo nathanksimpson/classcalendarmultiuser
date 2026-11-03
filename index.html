@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ClassManager &mdash; Team</title>
     <link rel="stylesheet" href="styles.css?v=20261024-rec-sev">
+    <link rel="stylesheet" href="css/ui-refresh.css?v=20261103-ui2">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <script>
@@ -162,6 +163,7 @@
                     </div>
                     <div class="app-header-unified__tools app-top-bar-actions header-tools-row" id="headerToolsRow" role="group" aria-label="Quick actions" data-i18n-aria-label="headerQuickActionsAria">
                     <button type="button" id="headerToolsOverflowBtn" class="btn btn-outline btn-small header-tools-overflow-btn" aria-expanded="false" aria-controls="headerToolsCollapsible" data-i18n-aria-label="headerToolsMoreAria" data-i18n-title="headerToolsMoreAria" title="More actions" aria-label="More actions">&#8942;</button>
+                    <div class="header-tools-primary" id="headerToolsPrimary" role="presentation"></div>
                     <div class="app-header-unified__tools-collapsible" id="headerToolsCollapsible">
                     <button type="button" id="headerNewMenuBtn" class="btn btn-primary btn-small header-dropdown-trigger" aria-expanded="false" aria-haspopup="menu" aria-controls="headerNewPopover" data-i18n="headerNewMenu" data-i18n-title="headerNewMenuAria" data-i18n-aria-label="headerNewMenuAria" title="Create something new" aria-label="Create something new">+ New</button>
                     <button type="button" id="headerDayNotesBtn" class="btn btn-outline btn-small" data-i18n="headerDayNotes" data-i18n-title="headerDayNotesTitle" title="Open notes for the current class">Day notes</button>
@@ -171,14 +173,7 @@
                     <a href="help.html" id="helpLink" class="btn btn-outline btn-small btn-help header-tool-help" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help</a>
                     <button type="button" id="headerThemeToggleBtn" class="btn btn-header-theme btn-small header-tool-theme" data-theme-icon-only="1" aria-pressed="false" data-i18n-title="themeToggleTitle" data-i18n-aria-label="themeToggleTitle" title="Switch light/dark theme" aria-label="Switch light/dark theme">◐</button>
                     <button type="button" id="accountHideTabsBtn" class="btn btn-outline btn-small header-tool-hide-tabs" aria-pressed="false" aria-controls="appZoneNavCluster appZoneSegmentNavRow" data-i18n="accountHideTabs" data-i18n-title="navTabsHideTitle" data-i18n-aria-label="navTabsHideTitle" title="Hide navigation tabs" aria-label="Hide navigation tabs">Hide tabs</button>
-                    <input type="file" id="importFile" accept=".json" hidden>
-                    </div>
-                    <div class="app-header-unified__tools-pinned">
-                        <div id="headerClassScope" class="calendar-view-switch header-class-scope" role="radiogroup" aria-label="Which classes to show" data-i18n-aria-label="classScopeAria">
-                            <button type="button" class="syllabus-segment-btn is-active" role="radio" aria-checked="true" data-class-scope="all" aria-label="All classes" data-i18n-aria-label="classScopeAll"><span class="header-class-scope__full" data-i18n="classScopeAll">All classes</span><span class="header-class-scope__short" data-i18n="classScopeAllShort">All</span></button>
-                            <button type="button" class="syllabus-segment-btn" role="radio" aria-checked="false" data-class-scope="mine" aria-label="My classes" data-i18n-aria-label="classScopeMine"><span class="header-class-scope__full" data-i18n="classScopeMine">My classes</span><span class="header-class-scope__short" data-i18n="classScopeMineShort">Mine</span></button>
-                        </div>
-                        <button type="button" id="termSummaryToggle" class="btn btn-outline btn-small header-dropdown-trigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="termSettingsModal" data-i18n-title="toolbarTermSettings" title="Term settings">
+                    <button type="button" id="termSummaryToggle" class="btn btn-outline btn-small header-dropdown-trigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="termSettingsModal" data-i18n-title="toolbarTermSettings" title="Term settings">
                             <span class="header-pinned-icon" aria-hidden="true">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
@@ -202,6 +197,13 @@
                             <span id="tmsHelperToggleText" class="header-pinned-label">Helper · Off</span>
                         </button>
                         <button type="button" id="tmsHelperUninstall" class="btn btn-outline btn-small" hidden data-i18n="tmsHelperUninstall">Uninstall</button>
+                    <input type="file" id="importFile" accept=".json" hidden>
+                    </div>
+                    <div class="app-header-unified__tools-pinned">
+                        <div id="headerClassScope" class="calendar-view-switch header-class-scope" role="radiogroup" aria-label="Which classes to show" data-i18n-aria-label="classScopeAria">
+                            <button type="button" class="syllabus-segment-btn is-active" role="radio" aria-checked="true" data-class-scope="all" aria-label="All classes" data-i18n-aria-label="classScopeAll"><span class="header-class-scope__full" data-i18n="classScopeAll">All classes</span><span class="header-class-scope__short" data-i18n="classScopeAllShort">All</span></button>
+                            <button type="button" class="syllabus-segment-btn" role="radio" aria-checked="false" data-class-scope="mine" aria-label="My classes" data-i18n-aria-label="classScopeMine"><span class="header-class-scope__full" data-i18n="classScopeMine">My classes</span><span class="header-class-scope__short" data-i18n="classScopeMineShort">Mine</span></button>
+                        </div>
                     </div>
                     <div class="team-account-menu team-account-menu--header" id="teamAccountGroup" hidden>
                         <button type="button" class="btn btn-outline btn-small team-account-menu-trigger team-account-menu-trigger--avatar" id="teamAccountMenuBtn" aria-expanded="false" aria-haspopup="menu" aria-controls="teamAccountPopover">
@@ -3104,7 +3106,8 @@
     <script defer src="js/active-context.js?v=20261014-shared-class"></script>
     <script defer src="js/essay-class-filter.js?v=20260911-essay-groups"></script>
     <script defer src="js/class-scope.js?v=20261014-p6-hierarchy"></script>
-    <script defer src="js/header-chrome.js?v=20261019-p8-header"></script>
+    <script defer src="js/header-chrome.js?v=20261103-ui"></script>
+    <script defer src="js/ui-consolidate.js?v=20261103-ui"></script>
     <script defer src="js/content-expand.js?v=20261019-p8-content"></script>
     <script defer src="js/classroom-zone-context.js?v=20261024-rec-sev"></script>
     <script defer src="js/cohort-sidebar-filter.js?v=20260724-filter-contracts"></script>

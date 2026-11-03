@@ -2945,6 +2945,8 @@
         syllabusTemplateNamePrompt: '템플릿 이름',
         syllabusTemplateSaved: '템플릿을 저장했습니다.',
         syllabusTemplateApplied: '사용자 강의 계획표를 적용했습니다.',
+        syllabusReorderUnsaved: '수업 순서를 바꿨습니다. 날짜는 그대로입니다. 저장하려면 강의 계획표 저장을 누르세요.',
+        uiMoreActions: '더보기',
         syllabusSaved: '강의 계획표를 저장했습니다.',
         syllabusDuplicateFromClass: '수업에서 복제',
         syllabusNoTemplates: '사용자 강의 계획표가 없습니다. + 사용자 강의 계획표를 누르세요.',

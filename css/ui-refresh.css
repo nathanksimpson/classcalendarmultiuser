@@ -1,0 +1,1089 @@
+/* ============================================================
+   UI refresh — November 2026
+   Compact, unified navigation for phone, tablet and desktop.
+
+   Desktop (> 1024px)
+     Row 1: brand · section tabs · TMS sync · bell · actions · ⋮
+     Row 2: page tabs (underline) ············· lock / save status
+   Phone + tablet (<= 1024px)
+     Row 1: brand · lock / save status · bell · actions · ⋮
+     Row 2: page tabs (swipe sideways)
+     Bottom: section tab bar with icons (thumb reach)
+
+   Loaded after styles.css. Selectors start from #appTopBar /
+   #appHeaderUnified so they win over the older tier rules without
+   !important. Remove the <link> in index.html to roll back.
+   ============================================================ */
+
+:root {
+    --ui-row-h: 56px;
+    --ui-seg-h: 42px;
+    --ui-ctl-h: 36px;
+    --ui-radius: var(--radius-md, 8px);
+    --ui-gutter: max(var(--space-4, 16px), var(--safe-left, 0px));
+    --ui-bottom-nav-h: 0px;
+}
+
+html[data-viewport="phone"],
+html[data-viewport="tablet-sm"],
+html[data-viewport="tablet"] {
+    --ui-row-h: 60px;
+    --ui-seg-h: 44px;
+    --ui-ctl-h: var(--touch-min, 44px);
+    --ui-bottom-nav-h: 60px;
+}
+
+html[data-viewport="phone"] {
+    --ui-gutter: max(var(--space-3, 12px), var(--safe-left, 0px));
+}
+
+html[data-nav-tabs-collapsed="1"] {
+    --ui-bottom-nav-h: 0px;
+}
+
+/* ---------- Header shell ---------- */
+
+#appTopBar {
+    padding: 0;
+    margin-bottom: var(--space-3, 12px);
+}
+
+#appTopBar .app-top-bar-compact {
+    gap: 0;
+}
+
+#appHeaderUnified {
+    display: grid;
+    align-items: center;
+    column-gap: var(--space-2, 8px);
+    row-gap: 0;
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+    grid-template-rows: var(--ui-row-h) auto;
+    grid-template-areas:
+        "brand zones sync bell tools"
+        "seg   seg   seg  seg  lock";
+    padding: 0 var(--ui-gutter);
+    min-width: 0;
+}
+
+/* Row wrapper becomes transparent so its children join the grid. */
+#appHeaderUnified > .app-top-bar-row--primary {
+    display: contents;
+}
+
+#appHeaderUnified .app-top-bar-row__spacer {
+    display: none;
+}
+
+#appHeaderUnified .app-brand {
+    grid-area: brand;
+    margin: 0;
+    padding: 0;
+    gap: var(--space-2, 8px);
+    min-width: 0;
+}
+
+#appHeaderUnified #teamLockSyncBar,
+#appHeaderUnified #teamSyncStatus {
+    grid-area: lock;
+    justify-self: end;
+    margin: 0;
+    min-width: 0;
+}
+
+#appHeaderUnified #tmsSyncCenterBtn {
+    grid-area: sync;
+}
+
+#appHeaderUnified #appWarningsNotify {
+    grid-area: bell;
+    margin: 0;
+}
+
+#appHeaderUnified #navTabsCollapsedChip {
+    grid-area: zones;
+    justify-self: start;
+}
+
+#appHeaderUnified #headerToolsRow {
+    grid-area: tools;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2, 8px);
+    flex-wrap: nowrap;
+    width: auto;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    min-width: 0;
+}
+
+#appHeaderUnified #teamCalendarPickerGroup {
+    grid-column: 1 / -1;
+}
+
+/* Term name strip duplicated "Term settings" (now in the ⋮ menu). */
+#appHeaderUnified #termSummaryStrip {
+    display: none;
+}
+
+/* ---------- Header buttons: one size, one shape ---------- */
+
+#appHeaderUnified #headerToolsRow .btn,
+#appHeaderUnified #tmsSyncCenterBtn,
+#appHeaderUnified #headerClassScope .syllabus-segment-btn {
+    min-height: var(--ui-ctl-h);
+    height: var(--ui-ctl-h);
+    border-radius: var(--ui-radius);
+    font-size: var(--text-body-md, 0.875rem);
+    font-weight: 600;
+    padding-top: 0;
+    padding-bottom: 0;
+    box-sizing: border-box;
+    white-space: nowrap;
+}
+
+#appHeaderUnified .header-tools-primary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2, 8px);
+}
+
+#appHeaderUnified .header-tools-primary:empty {
+    display: none;
+}
+
+#appHeaderUnified .app-header-unified__tools-pinned {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2, 8px);
+    margin: 0;
+}
+
+#appHeaderUnified .app-header-unified__tools-pinned:empty {
+    display: none;
+}
+
+#appHeaderUnified #headerClassScope {
+    height: var(--ui-ctl-h);
+    border-radius: var(--ui-radius);
+    overflow: hidden;
+}
+
+#appHeaderUnified #headerClassScope .syllabus-segment-btn {
+    border-radius: 0;
+    padding-left: var(--space-3, 12px);
+    padding-right: var(--space-3, 12px);
+}
+
+/* Account: avatar only in the bar; the menu shows the name. */
+#appHeaderUnified #teamAccountMenuLabel {
+    display: none;
+}
+
+#appHeaderUnified .team-account-menu-trigger {
+    width: var(--ui-ctl-h);
+    min-width: var(--ui-ctl-h);
+    padding: 0;
+    justify-content: center;
+    border-radius: var(--radius-full, 9999px);
+}
+
+/* ⋮ is available at every size now. */
+#appHeaderUnified #headerToolsOverflowBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    order: 100;
+    width: var(--ui-ctl-h);
+    min-width: var(--ui-ctl-h);
+    padding: 0;
+    margin: 0;
+    font-size: 1.125rem;
+}
+
+/* ---------- ⋮ menu (dropdown at every size) ---------- */
+
+#appHeaderUnified #headerToolsCollapsible {
+    display: none;
+    position: fixed;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-1, 4px);
+    min-width: 14rem;
+    max-width: min(20rem, calc(100vw - 2 * var(--space-3, 12px)));
+    padding: var(--space-2, 8px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-card, 10px);
+    background: var(--bg-card);
+    box-shadow: var(--shadow-dialog, var(--shadow-lg));
+    z-index: var(--z-header-popover, 1200);
+    overflow-y: auto;
+}
+
+#appHeaderUnified #headerToolsRow.is-overflow-open #headerToolsCollapsible {
+    display: flex;
+}
+
+#appHeaderUnified #headerToolsCollapsible > .btn,
+#appHeaderUnified #headerToolsCollapsible > a.btn {
+    width: 100%;
+    justify-content: flex-start;
+    gap: var(--space-2, 8px);
+    border-color: transparent;
+    background: transparent;
+    color: var(--text-primary);
+    box-shadow: none;
+    text-decoration: none;
+}
+
+#appHeaderUnified #headerToolsCollapsible > .btn:hover,
+#appHeaderUnified #headerToolsCollapsible > a.btn:hover {
+    background: var(--bg-hover);
+}
+
+/* "+ New" keeps its primary colour inside the menu so it is easy to spot. */
+#appHeaderUnified #headerToolsCollapsible > #headerNewMenuBtn {
+    background: var(--primary);
+    color: #fff;
+}
+
+#appHeaderUnified #headerToolsCollapsible .header-pinned-label,
+#appHeaderUnified #headerToolsCollapsible .header-class-scope__full {
+    display: inline;
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: nowrap;
+}
+
+/* Icon + label rows in the menu line up with the text-only rows. */
+#appHeaderUnified #headerToolsCollapsible > .btn {
+    min-width: 0;
+    padding-left: var(--space-3, 12px);
+    padding-right: var(--space-3, 12px);
+}
+
+#appHeaderUnified #headerToolsCollapsible .header-class-scope__short {
+    display: none;
+}
+
+#appHeaderUnified #headerToolsCollapsible #headerClassScope {
+    display: flex;
+    width: 100%;
+    order: -1;
+    margin-bottom: var(--space-1, 4px);
+}
+
+#appHeaderUnified #headerToolsCollapsible #headerClassScope .syllabus-segment-btn {
+    flex: 1 1 0;
+}
+
+#appHeaderUnified #headerToolsCollapsible > .header-tool-theme::after {
+    content: attr(title);
+    font-weight: 500;
+}
+
+/* ---------- Section tabs (desktop: row 1) ---------- */
+
+#appHeaderUnified #appZoneNavCluster {
+    grid-area: zones;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    overflow: hidden;
+}
+
+#appHeaderUnified #appZoneNav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1, 4px);
+    min-width: 0;
+    margin: 0;
+    padding: 0 var(--space-2, 8px);
+    border: 0;
+    background: none;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+#appHeaderUnified #appZoneNav::-webkit-scrollbar {
+    display: none;
+}
+
+#appHeaderUnified #appZoneNav .app-zone-btn {
+    -webkit-appearance: none;
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    height: var(--ui-ctl-h);
+    margin: 0;
+    padding: 0 var(--space-3, 12px);
+    border: 0;
+    border-radius: var(--ui-radius);
+    background: transparent;
+    box-shadow: none;
+    color: var(--text-secondary);
+    font-size: var(--text-body-md, 0.875rem);
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    transform: none;
+    top: auto;
+}
+
+#appHeaderUnified #appZoneNav .app-zone-btn::before,
+#appHeaderUnified #appZoneNav .app-zone-btn::after {
+    content: none;
+    display: none;
+}
+
+#appHeaderUnified #appZoneNav .app-zone-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+#appHeaderUnified #appZoneNav .app-zone-btn.is-active,
+#appHeaderUnified #appZoneNav .app-zone-btn[aria-selected="true"] {
+    background: var(--accent-muted);
+    color: var(--primary-dark);
+}
+
+#appHeaderUnified #appZoneNav .app-zone-btn:focus-visible,
+#appHeaderUnified .app-zone-segment-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+}
+
+/* ---------- Page tabs (row 2, underline style everywhere) ---------- */
+
+#appHeaderUnified #appZoneSegmentNavRow {
+    grid-area: seg;
+    display: flex;
+    align-items: stretch;
+    min-width: 0;
+    min-height: var(--ui-seg-h);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    overflow: hidden;
+}
+
+#appHeaderUnified #appZoneSegmentNav {
+    display: flex;
+    align-items: stretch;
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+#appHeaderUnified #appZoneSegmentNav::-webkit-scrollbar {
+    display: none;
+}
+
+#appHeaderUnified .app-zone-segment-panel:not([hidden]) {
+    display: flex;
+    align-items: stretch;
+    gap: var(--space-1, 4px);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+    background: none;
+}
+
+#appHeaderUnified .app-zone-segment-btn:not([hidden]) {
+    -webkit-appearance: none;
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    height: var(--ui-seg-h);
+    margin: 0;
+    padding: 0 var(--space-3, 12px);
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--text-secondary);
+    font-size: var(--text-body-md, 0.875rem);
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    transform: none;
+    top: auto;
+}
+
+#appHeaderUnified .app-zone-segment-btn::before,
+#appHeaderUnified .app-zone-segment-btn::after {
+    content: none;
+    display: none;
+}
+
+#appHeaderUnified .app-zone-segment-btn:not([hidden]):hover {
+    color: var(--text-primary);
+    background: transparent;
+}
+
+#appHeaderUnified .app-zone-segment-btn.is-active,
+#appHeaderUnified .app-zone-segment-btn[aria-selected="true"] {
+    color: var(--text-primary);
+    font-weight: 600;
+    border-bottom-color: var(--primary);
+    background: transparent;
+}
+
+/* Lock / save status sits at the right end of row 2 on desktop. */
+#appHeaderUnified #teamLockSyncBar {
+    align-self: center;
+}
+
+/* Hide tabs (⋮ → Hide tabs) still hides both nav rows. */
+html[data-nav-tabs-collapsed="1"] #appHeaderUnified #appZoneNavCluster,
+html[data-nav-tabs-collapsed="1"] #appHeaderUnified #appZoneSegmentNavRow {
+    display: none;
+}
+
+/* Narrower desktops: drop the wordmark, keep the logo. */
+@media (max-width: 1280px) {
+    #appHeaderUnified .app-brand-name {
+        display: none;
+    }
+}
+
+/* ============================================================
+   Phone + tablet
+   ============================================================ */
+
+html[data-viewport="phone"] #appTopBar,
+html[data-viewport="tablet-sm"] #appTopBar,
+html[data-viewport="tablet"] #appTopBar {
+    /* backdrop-filter would make the fixed bottom bar position against the header */
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: var(--bg-card);
+    padding-top: var(--safe-top, 0px);
+}
+
+html[data-viewport="phone"] #appHeaderUnified,
+html[data-viewport="tablet-sm"] #appHeaderUnified,
+html[data-viewport="tablet"] #appHeaderUnified {
+    grid-template-columns: auto auto auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+        "brand lock sync . bell tools"
+        "seg   seg  seg  seg seg  seg";
+    column-gap: var(--space-1, 4px);
+}
+
+html[data-viewport="phone"] #appHeaderUnified #appZoneSegmentNavRow,
+html[data-viewport="tablet-sm"] #appHeaderUnified #appZoneSegmentNavRow,
+html[data-viewport="tablet"] #appHeaderUnified #appZoneSegmentNavRow {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    width: auto;
+    max-width: none;
+    border-top: 1px solid var(--border-color);
+    margin: 0 calc(-1 * var(--ui-gutter));
+    padding: 0 var(--ui-gutter);
+}
+
+html[data-viewport="phone"] #appHeaderUnified #teamLockSyncBar,
+html[data-viewport="tablet-sm"] #appHeaderUnified #teamLockSyncBar,
+html[data-viewport="tablet"] #appHeaderUnified #teamLockSyncBar,
+html[data-viewport="phone"] #appHeaderUnified #teamSyncStatus,
+html[data-viewport="tablet-sm"] #appHeaderUnified #teamSyncStatus,
+html[data-viewport="tablet"] #appHeaderUnified #teamSyncStatus {
+    justify-self: start;
+}
+
+html[data-viewport="phone"] #appHeaderUnified #navTabsCollapsedChip,
+html[data-viewport="tablet-sm"] #appHeaderUnified #navTabsCollapsedChip,
+html[data-viewport="tablet"] #appHeaderUnified #navTabsCollapsedChip {
+    grid-area: seg;
+}
+
+html[data-viewport="phone"] #appHeaderUnified .app-brand-name,
+html[data-viewport="tablet-sm"] #appHeaderUnified .app-brand-name,
+html[data-viewport="tablet"] #appHeaderUnified .app-brand-name {
+    display: none;
+}
+
+/* Lock control: icons only, touch-sized. */
+html[data-viewport="phone"] #appHeaderUnified .team-lock-status-btn,
+html[data-viewport="phone"] #appHeaderUnified .team-lock-action-btn,
+html[data-viewport="phone"] #appHeaderUnified .team-lock-drawer-toggle {
+    min-width: 40px;
+    width: auto;
+    height: 40px;
+    min-height: 40px;
+}
+
+html[data-viewport="phone"] #appHeaderUnified #teamSyncSavedDot > span:not(.team-sync-saved-indicator__dot) {
+    display: none;
+}
+
+/* ---------- Bottom section bar ---------- */
+
+html[data-viewport="phone"] #appHeaderUnified #appZoneNavCluster,
+html[data-viewport="tablet-sm"] #appHeaderUnified #appZoneNavCluster,
+html[data-viewport="tablet"] #appHeaderUnified #appZoneNavCluster {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: var(--z-dock, 500);
+    height: auto;
+    padding: var(--space-1, 4px) max(var(--space-2, 8px), var(--safe-left, 0px))
+        calc(var(--space-1, 4px) + var(--safe-bottom, 0px))
+        max(var(--space-2, 8px), var(--safe-right, 0px));
+    background: var(--bg-card);
+    border-top: 1px solid var(--border-color);
+    box-shadow: 0 -2px 10px rgba(12, 12, 13, 0.06);
+    overflow: visible;
+}
+
+html[data-viewport="phone"] #appHeaderUnified #appZoneNav,
+html[data-viewport="tablet-sm"] #appHeaderUnified #appZoneNav,
+html[data-viewport="tablet"] #appHeaderUnified #appZoneNav {
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 0;
+    gap: var(--space-1, 4px);
+    justify-content: space-between;
+    overflow: visible;
+}
+
+html[data-viewport="phone"] #appHeaderUnified #appZoneNav .app-zone-btn,
+html[data-viewport="tablet-sm"] #appHeaderUnified #appZoneNav .app-zone-btn,
+html[data-viewport="tablet"] #appHeaderUnified #appZoneNav .app-zone-btn {
+    flex: 1 1 0;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    height: 52px;
+    padding: var(--space-1, 4px) 2px;
+    border-radius: var(--radius-card, 10px);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1.1;
+    white-space: normal;
+    text-align: center;
+}
+
+html[data-viewport="phone"] #appHeaderUnified #appZoneNav .app-zone-btn::before,
+html[data-viewport="tablet-sm"] #appHeaderUnified #appZoneNav .app-zone-btn::before,
+html[data-viewport="tablet"] #appHeaderUnified #appZoneNav .app-zone-btn::before {
+    content: "";
+    display: block;
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    background-color: currentColor;
+    -webkit-mask: var(--ui-zone-icon) center / contain no-repeat;
+    mask: var(--ui-zone-icon) center / contain no-repeat;
+}
+
+#appZoneNav .app-zone-btn[data-zone="schedule"] {
+    --ui-zone-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/svg%3E");
+}
+
+#appZoneNav .app-zone-btn[data-zone="classes"] {
+    --ui-zone-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z'/%3E%3Cpath d='M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5'/%3E%3C/svg%3E");
+}
+
+#appZoneNav .app-zone-btn[data-zone="classroom"] {
+    --ui-zone-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='9' cy='7' r='4'/%3E%3Cpath d='M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75'/%3E%3C/svg%3E");
+}
+
+#appZoneNav .app-zone-btn[data-zone="tools"] {
+    --ui-zone-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z'/%3E%3C/svg%3E");
+}
+
+#appZoneNav .app-zone-btn[data-zone="more"] {
+    --ui-zone-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cellipse cx='12' cy='5' rx='9' ry='3'/%3E%3Cpath d='M21 12c0 1.66-4 3-9 3s-9-1.34-9-3'/%3E%3Cpath d='M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5'/%3E%3C/svg%3E");
+}
+
+/* Room for the bottom bar so the last rows of a page are not hidden. */
+html[data-viewport="phone"] body,
+html[data-viewport="tablet-sm"] body,
+html[data-viewport="tablet"] body {
+    padding-bottom: calc(var(--ui-bottom-nav-h) + var(--safe-bottom, 0px));
+}
+
+html[data-viewport="phone"] .sync-toast,
+html[data-viewport="tablet-sm"] .sync-toast,
+html[data-viewport="tablet"] .sync-toast,
+html[data-viewport="phone"] .now-class-popup-root,
+html[data-viewport="tablet-sm"] .now-class-popup-root,
+html[data-viewport="tablet"] .now-class-popup-root {
+    bottom: calc(var(--ui-bottom-nav-h) + var(--safe-bottom, 0px) + var(--space-3, 12px));
+}
+
+/* ============================================================
+   Shared controls
+   ============================================================ */
+
+/* Attendance: four statuses as one segmented control (no wrapping). */
+.classroom-sheet .classroom-student-row-status,
+.classroom-student-row-status {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    max-width: 26rem;
+    min-width: 0;
+    margin: 0;
+    flex-wrap: initial;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    border-radius: var(--ui-radius);
+    overflow: hidden;
+    background: var(--bg-card);
+}
+
+.classroom-sheet .classroom-student-row-status > .classroom-status-chip,
+.classroom-student-row-status > .classroom-status-chip {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    min-height: var(--ui-ctl-h);
+    margin: 0;
+    padding: 0 var(--space-1, 4px);
+    border: 0;
+    border-left: 1px solid var(--border-color);
+    border-radius: 0;
+    background: transparent;
+    font-size: var(--text-body-sm, 0.75rem);
+    font-weight: 600;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+    cursor: pointer;
+}
+
+.classroom-student-row-status > .classroom-status-chip:first-child {
+    border-left: 0;
+}
+
+.classroom-student-row-status > .classroom-status-chip input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    pointer-events: none;
+}
+
+.classroom-student-row-status > .classroom-status-chip:has(input:focus-visible) {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+}
+
+.classroom-student-row-status > .classroom-status-chip:has(input:checked) {
+    background: var(--accent-muted);
+    color: var(--primary-dark);
+}
+
+.classroom-student-row-status > .classroom-status-chip:has(input[value="late"]:checked) {
+    background: #fff4dc;
+    color: #8a5a00;
+}
+
+.classroom-student-row-status > .classroom-status-chip:has(input[value="absent"]:checked) {
+    background: #fde8e8;
+    color: #a61b1b;
+}
+
+.classroom-student-row-status > .classroom-status-chip:has(input[value="early_leave"]:checked) {
+    background: #e8f0fe;
+    color: #1d4ed8;
+}
+
+.classroom-student-row-status > .classroom-status-chip:has(input:disabled) {
+    cursor: default;
+    opacity: 0.7;
+}
+
+[data-theme="dark"] .classroom-student-row-status > .classroom-status-chip:has(input[value="late"]:checked) {
+    background: rgba(245, 180, 40, 0.18);
+    color: #f5c46a;
+}
+
+[data-theme="dark"] .classroom-student-row-status > .classroom-status-chip:has(input[value="absent"]:checked) {
+    background: rgba(239, 68, 68, 0.18);
+    color: #fca5a5;
+}
+
+[data-theme="dark"] .classroom-student-row-status > .classroom-status-chip:has(input[value="early_leave"]:checked) {
+    background: rgba(59, 130, 246, 0.18);
+    color: #93c5fd;
+}
+
+/* Old scroll-fade pseudo elements were anchored to the panels, which now
+   scroll inside #appZoneSegmentNav; replace them with an edge fade. */
+#appHeaderUnified #appZoneNav::before,
+#appHeaderUnified #appZoneNav::after,
+#appHeaderUnified .app-zone-segment-panel::before,
+#appHeaderUnified .app-zone-segment-panel::after {
+    content: none;
+    display: none;
+}
+
+html[data-viewport="phone"] #appHeaderUnified #appZoneSegmentNav,
+html[data-viewport="tablet-sm"] #appHeaderUnified #appZoneSegmentNav {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    padding-right: 28px;
+}
+
+/* Phone: the attendance column is narrow, so use a 2 × 2 grid. */
+html[data-viewport="phone"] .classroom-sheet .classroom-student-row-status {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: none;
+}
+
+/* Phone attendance rows: name + status on one line, notes full width below. */
+html[data-viewport="phone"] .classroom-sheet:has(.classroom-sheet-col-attendance) thead,
+html[data-viewport="phone"] .classroom-sheet:has(.classroom-sheet-col-attendance) colgroup {
+    display: none;
+}
+
+html[data-viewport="phone"] table.classroom-sheet:has(.classroom-sheet-col-attendance),
+html[data-viewport="phone"] .classroom-sheet:has(.classroom-sheet-col-attendance) table,
+html[data-viewport="phone"] .classroom-sheet:has(.classroom-sheet-col-attendance) tbody {
+    display: block;
+    width: 100%;
+    min-width: 0;
+}
+
+html[data-viewport="phone"] .classroom-sheet tr:has(> .classroom-sheet-col-attendance) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(11rem, 1.4fr);
+    width: 100%;
+    box-sizing: border-box;
+    align-items: center;
+    column-gap: var(--space-2, 8px);
+    padding: var(--space-2, 8px) var(--space-3, 12px);
+    border-bottom: 1px solid var(--border-color);
+}
+
+html[data-viewport="phone"] .classroom-sheet tr:has(> .classroom-sheet-col-attendance) > td {
+    display: block;
+    width: auto;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+}
+
+html[data-viewport="phone"] .classroom-sheet tr:has(> .classroom-sheet-col-attendance) > .classroom-sheet-col-notes {
+    grid-column: 1 / -1;
+    margin-top: var(--space-2, 8px);
+}
+
+html[data-viewport="phone"] .classroom-sheet .classroom-student-row-status > .classroom-status-chip:nth-child(3) {
+    border-left: 0;
+}
+
+html[data-viewport="phone"] .classroom-sheet .classroom-student-row-status > .classroom-status-chip:nth-child(n + 3) {
+    border-top: 1px solid var(--border-color);
+}
+
+/* ============================================================
+   Consolidation: one scroll, one row per toolbar
+   ============================================================ */
+
+:root {
+    --app-header-h: 108px;
+}
+
+/* ---------- One-row toolbars (js/ui-consolidate.js) ---------- */
+
+#appMain .ui-one-row {
+    display: flex;
+    flex-wrap: nowrap;
+    /* The row's width comes from its container, never from its buttons, so a
+       long row cannot stretch the page sideways; extra buttons go to More. */
+    contain: inline-size;
+    max-width: 100%;
+    /* Below this width the row drops under its neighbours instead of shrinking. */
+    min-width: min(100%, 18rem);
+    align-items: center;
+    gap: var(--space-2, 8px);
+    flex: 1 1 auto;
+    overflow: visible;
+}
+
+#appMain .ui-one-row > * {
+    flex-shrink: 0;
+    width: auto;
+    max-width: none;
+}
+
+#appMain .ui-one-row > .btn,
+#appMain .ui-one-row > a.btn {
+    white-space: nowrap;
+}
+
+
+.ui-more[hidden] {
+    display: none;
+}
+
+.ui-more {
+    position: relative;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.ui-more-btn {
+    white-space: nowrap;
+}
+
+.ui-more-menu {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-1, 4px);
+    min-width: 13rem;
+    max-width: min(22rem, calc(100vw - 16px));
+    padding: var(--space-2, 8px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-card, 10px);
+    background: var(--bg-card);
+    box-shadow: var(--shadow-dialog, var(--shadow-lg));
+    z-index: var(--z-popover, 650);
+    overflow-y: auto;
+}
+
+.ui-more-menu[hidden] {
+    display: none;
+}
+
+.ui-more-menu > .ui-more-item:not(.btn):not(button) {
+    padding: var(--space-1, 4px) var(--space-2, 8px);
+}
+
+.ui-more-menu > .ui-more-item {
+    width: 100%;
+    justify-content: flex-start;
+    text-align: left;
+    border-color: transparent;
+    background: transparent;
+    color: var(--text-primary);
+    box-shadow: none;
+    white-space: nowrap;
+}
+
+.ui-more-menu > .ui-more-item:hover {
+    background: var(--bg-hover);
+}
+
+/* Phone: a toolbar's picker (cohort, class…) gets its own line, the actions
+   share the next one. */
+html[data-viewport="phone"] #appMain .module-toolbar > .toolbar-actions {
+    flex: 1 1 100%;
+}
+
+/* ---------- One vertical scroll: the page ---------- */
+/* Before: editors, sheets and lists were capped to the window height and
+   scrolled inside themselves, so many screens had two or three scroll areas.
+   Now content grows and the page scrolls. #appMain raises specificity over the
+   older #panel-… rules without !important. */
+
+/* Editors and sheets grow with their content. */
+#appMain .class-editor-panel,
+#appMain .event-editor-panel,
+#appMain #panel-curriculum .curriculum-tab-editor-mount.workspace-books-editor-mount,
+#appMain #panel-syllabus .syllabus-tab-editor-mount.workspace-books-editor-mount,
+#appMain .books-editor-fullpage .books-editor-table-wrap,
+#appMain .classroom-essays-assignment-panel,
+#appMain .classroom-index-panel,
+#appMain .classroom-sheet-scroll,
+#appMain #panel-attendance .classroom-sheet-scroll,
+#appMain #panel-homework-tracking .classroom-sheet-scroll,
+#appMain #panel-debate-scores .classroom-sheet-scroll,
+#appMain #classroomLedgerScroll {
+    max-height: none;
+    height: auto;
+}
+
+/* overflow: clip keeps rounded corners without becoming a scroll box, so the
+   sticky Save bar below can still stick to the window. */
+#appMain #panel-curriculum .curriculum-tab-editor-mount.workspace-books-editor-mount,
+#appMain #panel-syllabus .syllabus-tab-editor-mount.workspace-books-editor-mount {
+    overflow: clip;
+}
+
+#appMain .syllabus-editor-panel.books-editor-fullpage,
+#appMain .books-editor-fullpage.curriculum-editor-panel {
+    overflow: visible;
+    height: auto;
+    max-height: none;
+}
+
+#appMain #panel-syllabus .books-editor-fullpage.syllabus-editor-panel .syllabus-editor-body,
+#appMain #panel-curriculum .books-editor-fullpage.curriculum-editor-panel .curriculum-editor-body,
+#appMain .event-editor-panel #holidayFormMountTab #holidayForm,
+#appMain #panel-classes .class-modal-body,
+#appMain #panel-syllabus .syllabus-table-editor-wrap {
+    flex: none;
+    max-height: none;
+    height: auto;
+    overflow-y: visible;
+}
+
+/* Wide tables still scroll sideways inside their own box (only when needed). */
+#appMain .classroom-sheet-scroll,
+#appMain #classroomLedgerScroll,
+#appMain #panel-syllabus .syllabus-table-editor-wrap {
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+/* Save / Print bars of the full-page editors stay reachable while scrolling. */
+#appMain #panel-syllabus .books-editor-fullpage.syllabus-editor-panel .syllabus-editor-actions-bar,
+#appMain #panel-curriculum .books-editor-fullpage.curriculum-editor-panel .curriculum-editor-actions-bar {
+    position: sticky;
+    top: var(--app-header-h);
+    z-index: var(--z-sticky-header, 3);
+    background: var(--bg-card);
+}
+
+/* Side panels and their lists grow; no scroll box inside a scroll box. */
+#appMain .module-split-layout > .module-list-panel,
+#appMain .workspace-books-layout > .workspace-books-sidebar,
+#appMain .syllabus-tab-sidebar.workspace-books-sidebar,
+#appMain #panel-homework .homework-sidebar-panel.module-list-panel,
+#appMain .homework-layout.module-split-layout--homework .homework-sidebar-panel,
+#appMain .speaking-test-sidebar {
+    max-height: none;
+    height: auto;
+    overflow: visible;
+}
+
+#appMain #homeworkClassList,
+#appMain #classList,
+#appMain #curriculumTabList,
+#appMain #syllabusClassList,
+#appMain #classroomRosterStudentList,
+#appMain #speakingTestRosterList,
+#appMain .workspace-books-sidebar .workspace-books-list,
+#appMain .homework-sidebar-panel .module-list {
+    flex: none;
+    max-height: none;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+}
+
+/* Desktop: the side panel stays in view below the header while the page
+   scrolls. It scrolls by itself only when it is taller than the window. */
+@media (min-width: 1025px) {
+    #appMain .module-split-layout > .module-list-panel,
+    #appMain .workspace-books-layout > .workspace-books-sidebar,
+    #appMain .syllabus-tab-sidebar.workspace-books-sidebar,
+    #appMain #panel-homework .homework-sidebar-panel.module-list-panel,
+    #appMain .homework-layout.module-split-layout--homework .homework-sidebar-panel,
+    #appMain .speaking-test-sidebar {
+        position: sticky;
+        top: calc(var(--app-header-h) + var(--space-3, 12px));
+        align-self: start;
+        max-height: calc(100dvh - var(--app-header-h) - var(--space-5, 24px));
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+}
+
+/* Syllabus cells grow as you type instead of scrolling inside the box. */
+textarea.ui-autogrow {
+    overflow-y: hidden;
+    resize: none;
+    min-height: 2.5em;
+}
+
+/* ---------- Fewer duplicate controls ---------- */
+
+/* "My classes only" repeated the header's All / My classes switch.
+   The header switch already sets these screens (and clears overrides). */
+label:has(> #classroomZoneMyClassesOnly),
+label:has(> #homeworkMyClassesOnly) {
+    display: none;
+}
+
+/* Class Setup is desktop/tablet only (phones are sent back to Calendar),
+   so do not show a section button that does nothing. */
+html[data-viewport="phone"] #appHeaderUnified #appZoneNav .app-zone-btn[data-zone="classes"] {
+    display: none;
+}
+
+/* Per-student Move / Change status: show on the selected, hovered or focused
+   row only (the bulk bar above the list does the same jobs). */
+.classroom-roster-student-row .classroom-roster-student-row-actions {
+    display: none;
+}
+
+.classroom-roster-student-row.is-selected .classroom-roster-student-row-actions,
+.classroom-roster-student-row:hover .classroom-roster-student-row-actions,
+.classroom-roster-student-row:focus-within .classroom-roster-student-row-actions {
+    display: flex;
+}
+
+/* Shared Class / Date / Today bar on Classroom and Tools pages: one line. */
+.classroom-zone-context-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-2, 8px) var(--space-3, 12px);
+}
+
+.classroom-zone-context-inner > .classroom-zone-class-combobox {
+    flex: 1 1 16rem;
+    min-width: 0;
+    max-width: 24rem;
+}
+
+.classroom-zone-context-inner .classroom-zone-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-2, 8px) var(--space-3, 12px);
+}
+
+.classroom-zone-context-inner .classroom-zone-teachers {
+    flex: 1 1 100%;
+}
+
+.classroom-zone-context-inner .classroom-zone-toggles:not(:has(> :not([hidden]):not(label:has(> #classroomZoneMyClassesOnly)))) {
+    display: none;
+}
+
+html[data-viewport="phone"] .classroom-zone-context-inner > .classroom-zone-class-combobox {
+    flex-basis: 100%;
+    max-width: none;
+}

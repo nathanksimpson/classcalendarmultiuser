@@ -28276,6 +28276,80 @@ function buildClassSnapshotFromForm() {
  * Pointer drag-reorder for syllabus editor rows (handle only — keeps text fields editable).
  * Order is DOM order; collectSyllabusRowsFromForm / Save persist it.
  */
+/** Row kinds whose date/number come from the class schedule (a "slot"). */
+const SYLLABUS_SLOT_ROW_KINDS = new Set(['lesson', 'overflow']);
+/** Schedule fields that stay with the date slot when lesson content is dragged. */
+const SYLLABUS_SLOT_DATASET_KEYS = [
+    'rowDate',
+    'rowMonthKey',
+    'rowSession',
+    'rowLessonNumber',
+    'periodId',
+    'rowBook',
+    'homeworkDueDate',
+    'essayListMonth'
+];
+
+function isSyllabusSlotRow(tr) {
+    return Boolean(tr && SYLLABUS_SLOT_ROW_KINDS.has(tr.dataset.rowKind || 'lesson') && tr.dataset.overflowIntro !== '1');
+}
+
+function snapshotSyllabusSlots(tbody) {
+    return Array.from(tbody.querySelectorAll('tr.syllabus-row'))
+        .filter(isSyllabusSlotRow)
+        .map((tr) => {
+            const slot = { rowId: tr.dataset.rowId || '' };
+            SYLLABUS_SLOT_DATASET_KEYS.forEach((key) => {
+                slot[key] = tr.dataset[key];
+            });
+            slot.week = tr.querySelector('.syllabus-ed-week')?.textContent || '';
+            slot.num = tr.querySelector('.syllabus-ed-num')?.textContent || '';
+            return slot;
+        });
+}
+
+/**
+ * After a drag, keep every lesson date where it was and move the lesson
+ * content (pages, notes, essay flag, row id) into the slot it was dropped on.
+ * Without this the dragged row kept its old date, so homework (which matches
+ * syllabus rows by date + lesson number) put the content back in its old place.
+ * Returns true when any slot received different content.
+ */
+function applySyllabusSlotsAfterReorder(tbody, slots) {
+    const rows = Array.from(tbody.querySelectorAll('tr.syllabus-row')).filter(isSyllabusSlotRow);
+    if (!slots || rows.length !== slots.length) {
+        return false;
+    }
+    let changed = false;
+    rows.forEach((tr, index) => {
+        const slot = slots[index];
+        if ((tr.dataset.rowId || '') === slot.rowId) {
+            return;
+        }
+        changed = true;
+        SYLLABUS_SLOT_DATASET_KEYS.forEach((key) => {
+            if (slot[key] == null || slot[key] === '') {
+                delete tr.dataset[key];
+            } else {
+                tr.dataset[key] = slot[key];
+            }
+        });
+        const weekCell = tr.querySelector('.syllabus-ed-week');
+        if (weekCell) {
+            weekCell.textContent = slot.week;
+        }
+        const numCell = tr.querySelector('.syllabus-ed-num');
+        if (numCell) {
+            numCell.textContent = slot.num;
+        }
+        // Moved content is a teacher edit: keep it when the calendar is re-merged.
+        if ((tr.dataset.rowSource || 'generated') === 'generated') {
+            tr.dataset.rowSource = 'manual';
+        }
+    });
+    return changed;
+}
+
 function initSyllabusTableRowReorder() {
     const tbody = elements.syllabusTableBody || document.getElementById('syllabusTableBody');
     if (!tbody || tbody.dataset.rowReorderInit === '1') {
@@ -28317,7 +28391,12 @@ function initSyllabusTableRowReorder() {
         if (!dragState) {
             return;
         }
-        const { row, handle, pointerId } = dragState;
+        const { row, handle, pointerId, slots, active } = dragState;
+        if (active && slots && applySyllabusSlotsAfterReorder(tbody, slots)) {
+            if (typeof setAppStatusMessage === 'function') {
+                setAppStatusMessage(t('syllabusReorderUnsaved'), false);
+            }
+        }
         try {
             if (handle && handle.hasPointerCapture && handle.hasPointerCapture(pointerId)) {
                 handle.releasePointerCapture(pointerId);
@@ -28410,7 +28489,8 @@ function initSyllabusTableRowReorder() {
             pointerId: e.pointerId,
             startX: e.clientX,
             startY: e.clientY,
-            active: false
+            active: false,
+            slots: snapshotSyllabusSlots(tbody)
         };
         bindDocument();
     });
@@ -28466,6 +28546,12 @@ function renderSyllabusEditorTable(rows) {
         }
         if (row.essaySubject) {
             tr.dataset.essaySubject = row.essaySubject;
+        }
+        if (row.homeworkDueDate) {
+            tr.dataset.homeworkDueDate = row.homeworkDueDate;
+        }
+        if (row.essayListMonth) {
+            tr.dataset.essayListMonth = row.essayListMonth;
         }
         const weekDisplay = row.weekLabel || (row.date && mod ? mod.getSchoolWeekLabel(row.date) : '');
         const isNote = row.kind === 'note';
@@ -28593,6 +28679,12 @@ function collectSyllabusRowsFromForm() {
         }
         if (tr.dataset.essaySubject) {
             row.essaySubject = tr.dataset.essaySubject;
+        }
+        if (tr.dataset.homeworkDueDate) {
+            row.homeworkDueDate = tr.dataset.homeworkDueDate;
+        }
+        if (tr.dataset.essayListMonth) {
+            row.essayListMonth = tr.dataset.essayListMonth;
         }
         return row;
     });

@@ -1463,7 +1463,13 @@
             essaySubject: r.essaySubject || '',
             essayListMonth: /^\d{4}-\d{2}$/.test(r.essayListMonth || '') ? r.essayListMonth : '',
             book: r.book || '',
-            periodId: r.periodId || ''
+            periodId: r.periodId || '',
+            // Kept so the editor does not drop them on save (homework tab reads both).
+            homeworkDueDate: /^\d{4}-\d{2}-\d{2}$/.test(String(r.homeworkDueDate || '').trim())
+                ? String(r.homeworkDueDate).trim()
+                : '',
+            trackEssay: typeof r.trackEssay === 'boolean' ? r.trackEssay : undefined,
+            overflowIntro: r.overflowIntro === true ? true : undefined
         }));
     }
 

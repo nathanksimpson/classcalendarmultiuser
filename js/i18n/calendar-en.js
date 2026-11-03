@@ -2936,6 +2936,8 @@
         syllabusTemplateNamePrompt: 'Template name',
         syllabusTemplateSaved: 'Template saved.',
         syllabusTemplateApplied: 'Custom syllabus applied.',
+        syllabusReorderUnsaved: 'Lessons moved. Dates stay put. Click Save syllabus to keep the new order.',
+        uiMoreActions: 'More',
         syllabusSaved: 'Syllabus saved.',
         syllabusDuplicateFromClass: 'Duplicate from class',
         syllabusNoTemplates: 'No custom syllabi yet. Click + New custom syllabus.',
