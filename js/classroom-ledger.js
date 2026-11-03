@@ -16,6 +16,7 @@
     let draftsLoaded = false;
     const LEDGER_AUTOSAVE_DELAY_MS = 500;
     const ROW_HEIGHT = 48;
+    const VIRTUALIZE_MIN_ROWS = 150;
     const OVERSCAN = 6;
 
     function ensureAutosave(panel) {
@@ -231,10 +232,14 @@
             body.innerHTML = `<tr><td colspan="4" class="classroom-sheet-empty"><p class="section-hint">${escapeHtml(t('classroomNoStudentsHint'))}</p></td></tr>`;
             return;
         }
+        // Classes are small, so draw every row: the page scrolls (no inner scroll
+        // box) and phone card rows need their natural height. Virtual rows are
+        // kept only for very large rosters.
+        const virtualize = students.length > VIRTUALIZE_MIN_ROWS;
         const viewHeight = scroll.clientHeight || 400;
         const scrollTop = scroll.scrollTop || 0;
-        const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
-        const visibleCount = Math.ceil(viewHeight / ROW_HEIGHT) + OVERSCAN * 2;
+        const start = virtualize ? Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN) : 0;
+        const visibleCount = virtualize ? Math.ceil(viewHeight / ROW_HEIGHT) + OVERSCAN * 2 : students.length;
         const end = Math.min(students.length, start + visibleCount);
         const topPad = start * ROW_HEIGHT;
         const bottomPad = Math.max(0, students.length - end) * ROW_HEIGHT;
@@ -243,7 +248,7 @@
             .map((entry) => {
                 const sid = entry.student.id;
                 const name = escapeHtml(entry.student.name || sid);
-                return `<tr class="classroom-sheet-row classroom-ledger-row" data-student-id="${escapeHtml(sid)}" style="height:${ROW_HEIGHT}px">
+                return `<tr class="classroom-sheet-row classroom-ledger-row" data-student-id="${escapeHtml(sid)}"${virtualize ? ` style="height:${ROW_HEIGHT}px"` : ''}>
                 <td class="classroom-ledger-col-student">${name}</td>
                 <td class="classroom-ledger-col-att"><div class="classroom-ledger-toggles classroom-status-chip-group">${buildAttendanceToggles(sid, editable)}</div></td>
                 <td class="classroom-ledger-col-hw"><div class="classroom-ledger-toggles classroom-status-chip-group">${buildHomeworkToggles(sid, editable)}</div></td>

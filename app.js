@@ -14447,6 +14447,8 @@ const APP_TEACHING_ONLY_TAB_IDS = [
     'soundboard'
 ];
 const APP_SETUP_ONLY_TAB_IDS = ['cohorts', 'teachers', 'curriculum', 'syllabus', 'data'];
+/** Setup tabs that still open on a phone (the rest send phones back to Calendar). */
+const APP_SETUP_PHONE_ALLOWED_TAB_IDS = ['data'];
 /** Setup subtabs that require head-teacher / manage_calendar_access (cohorts, setup hub & teachers only). */
 const APP_SETUP_ADMIN_TAB_IDS = ['cohorts', 'teachers'];
 const APP_TEACHING_TAB_IDS = [...APP_SHARED_TAB_IDS, ...APP_TEACHING_ONLY_TAB_IDS];
@@ -15380,7 +15382,8 @@ function navigateToHost(hostId, options = {}) {
         navigateToTab('calendar', { host: APP_HOST_TEACHING });
         return;
     }
-    if (hostId === APP_HOST_SETUP && isViewportPhone()) {
+    if (hostId === APP_HOST_SETUP && isViewportPhone()
+        && !APP_SETUP_PHONE_ALLOWED_TAB_IDS.includes(options.subTab || '')) {
         navigateToTab('calendar', { host: APP_HOST_TEACHING });
         return;
     }
@@ -16527,7 +16530,7 @@ async function navigateToTabBody(tabId, options = {}) {
         return;
     }
     let hostId = options.host || getHostForTab(tabId);
-    if (isViewportPhone() && hostId === APP_HOST_SETUP) {
+    if (isViewportPhone() && hostId === APP_HOST_SETUP && !APP_SETUP_PHONE_ALLOWED_TAB_IDS.includes(tabId)) {
         hostId = APP_HOST_TEACHING;
         if (APP_SETUP_ONLY_TAB_IDS.includes(tabId) || tabId === 'classes') {
             tabId = 'calendar';

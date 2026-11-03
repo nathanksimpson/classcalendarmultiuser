@@ -232,6 +232,122 @@
         document.querySelectorAll(AUTOGROW_SELECTOR).forEach(growTextarea);
     }
 
+    /* ---------- Column labels for phone card rows ---------- */
+
+    /**
+     * On phones each student table row becomes a card and the column headers
+     * are hidden, so copy each header's text onto its cells (data-label) for
+     * CSS to show above the value. Student / checkbox columns need no label.
+     */
+    function labelSheetCells() {
+        document.querySelectorAll('table.classroom-sheet').forEach((table) => {
+            const heads = Array.from(table.querySelectorAll('thead tr:last-child > th'));
+            if (!heads.length) {
+                return;
+            }
+            const labels = heads.map((th) => (th.textContent || '').replace(/\s+/g, ' ').trim());
+            table.querySelectorAll('tbody > tr').forEach((tr) => {
+                const cells = Array.from(tr.children);
+                if (cells.length !== labels.length) {
+                    return;
+                }
+                cells.forEach((td, i) => {
+                    const label = labels[i];
+                    if (label && td.getAttribute('data-label') !== label) {
+                        td.setAttribute('data-label', label);
+                    }
+                });
+            });
+        });
+    }
+
+    /* ---------- Reload (home-screen web app has no browser reload) ---------- */
+
+    function isStandaloneApp() {
+        return Boolean(
+            (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+            || window.navigator.standalone === true
+        );
+    }
+
+    function reloadApp() {
+        window.location.reload();
+    }
+
+    function setupReloadButton() {
+        const btn = document.getElementById('headerReloadBtn');
+        if (!btn || btn.dataset.bound === '1') {
+            return;
+        }
+        btn.dataset.bound = '1';
+        btn.addEventListener('click', reloadApp);
+    }
+
+    /**
+     * Pull down at the top of the page to reload, only when running as a
+     * home-screen web app (Safari and Chrome tabs have their own reload).
+     */
+    function setupPullToReload() {
+        if (!isStandaloneApp() || !('ontouchstart' in window)) {
+            return;
+        }
+        const THRESHOLD = 80;
+        const indicator = document.createElement('div');
+        indicator.className = 'ui-pull-reload';
+        indicator.setAttribute('aria-hidden', 'true');
+        indicator.hidden = true;
+        document.body.appendChild(indicator);
+        let startY = null;
+        let pulling = false;
+        let distance = 0;
+
+        const blocked = (target) => Boolean(
+            target.closest('input, textarea, select, [contenteditable="true"], .modal, [role="dialog"], dialog, .ui-more-menu, #headerToolsCollapsible, .syllabus-row-drag-handle')
+            || document.querySelector('.modal.is-open, .modal[open], dialog[open]')
+        );
+
+        document.addEventListener('touchstart', (event) => {
+            if (event.touches.length !== 1 || window.scrollY > 0 || blocked(event.target)) {
+                startY = null;
+                return;
+            }
+            startY = event.touches[0].clientY;
+            pulling = false;
+            distance = 0;
+        }, { passive: true });
+
+        document.addEventListener('touchmove', (event) => {
+            if (startY == null) {
+                return;
+            }
+            distance = event.touches[0].clientY - startY;
+            if (window.scrollY > 0 || distance <= 0) {
+                indicator.hidden = true;
+                pulling = false;
+                return;
+            }
+            pulling = true;
+            const ready = distance >= THRESHOLD;
+            indicator.hidden = false;
+            indicator.classList.toggle('is-ready', ready);
+            indicator.textContent = ready ? t('uiReleaseToReload', 'Release to reload') : t('uiPullToReload', 'Pull to reload');
+            indicator.style.transform = `translate(-50%, ${Math.min(distance, THRESHOLD * 1.5) * 0.5}px)`;
+        }, { passive: true });
+
+        const end = () => {
+            if (pulling && distance >= THRESHOLD) {
+                indicator.textContent = t('uiReloadApp', 'Reload') + '…';
+                reloadApp();
+                return;
+            }
+            indicator.hidden = true;
+            startY = null;
+            pulling = false;
+        };
+        document.addEventListener('touchend', end, { passive: true });
+        document.addEventListener('touchcancel', end, { passive: true });
+    }
+
     /* ---------- Header height variable ---------- */
 
     function syncHeaderHeight() {
@@ -254,6 +370,7 @@
             syncHeaderHeight();
             fitAllBars();
             growAllTextareas();
+            labelSheetCells();
         } finally {
             if (observer) {
                 observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'class'] });
@@ -278,6 +395,8 @@
             observer = new MutationObserver(schedule);
         }
         window.addEventListener('resize', schedule, { passive: true });
+        setupReloadButton();
+        setupPullToReload();
         if (typeof ResizeObserver !== 'undefined') {
             const header = document.getElementById('appTopBar');
             if (header) {

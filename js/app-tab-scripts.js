@@ -79,7 +79,7 @@
         ledger: [
             'js/classroom-access.js?v=20260911-essay-groups',
             'js/classroom-ledger-bridge.js?v=20260619-ui-overhaul',
-            'js/classroom-ledger.js?v=20261014-shared-class'
+            'js/classroom-ledger.js?v=20261103-all-rows'
         ],
         'command-center': [
             'js/command-center.js?v=20260807-deconflict-min'

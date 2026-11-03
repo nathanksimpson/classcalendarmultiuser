@@ -1087,3 +1087,129 @@ html[data-viewport="phone"] .classroom-zone-context-inner > .classroom-zone-clas
     flex-basis: 100%;
     max-width: none;
 }
+
+/* ============================================================
+   Phone: every student table becomes a list of cards
+   (Attendance has its own two-column card above.)
+   Before, five to seven columns were squeezed into 390px, so names were
+   cut to one letter and status buttons sat on top of them.
+   ============================================================ */
+
+html[data-viewport="phone"] #appMain table.classroom-sheet thead,
+html[data-viewport="phone"] #appMain table.classroom-sheet colgroup {
+    display: none;
+}
+
+html[data-viewport="phone"] #appMain table.classroom-sheet,
+html[data-viewport="phone"] #appMain table.classroom-sheet > tbody {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    max-height: none;
+}
+
+html[data-viewport="phone"] #appMain table.classroom-sheet > tbody > tr:not(:has(> .classroom-sheet-col-attendance)) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-2, 8px) var(--space-3, 12px);
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    box-sizing: border-box;
+    padding: var(--space-3, 12px);
+    border-bottom: 1px solid var(--border-color);
+}
+
+html[data-viewport="phone"] #appMain table.classroom-sheet > tbody > tr:not(:has(> .classroom-sheet-col-attendance)) > td {
+    display: block;
+    grid-column: 1 / -1;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    height: auto;
+    padding: 0;
+    border: 0;
+    text-align: left;
+    position: static;
+}
+
+/* Row 1: checkbox (if any) + student name. */
+html[data-viewport="phone"] #appMain table.classroom-sheet > tbody > tr > td.classroom-sheet-col-select {
+    grid-column: 1;
+}
+
+html[data-viewport="phone"] #appMain table.classroom-sheet > tbody > tr > td.classroom-sheet-col-select + td[class*="col-student"] {
+    grid-column: 2;
+}
+
+html[data-viewport="phone"] #appMain table.classroom-sheet > tbody > tr > td[class*="col-student"] {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+html[data-viewport="phone"] #appMain table.classroom-sheet > tbody > tr > td.classroom-sheet-col-index {
+    display: none;
+}
+
+/* Small column name above each value. */
+html[data-viewport="phone"] #appMain table.classroom-sheet > tbody > tr:not(:has(> .classroom-sheet-col-attendance)) > td[data-label]:not([class*="col-student"]):not(.classroom-sheet-col-select)::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    font-size: var(--text-body-sm, 0.75rem);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text-secondary);
+}
+
+/* Controls inside a card cell lie side by side and wrap. */
+html[data-viewport="phone"] #appMain table.classroom-sheet > tbody > tr > td > :is(div, span, fieldset):has(> :is(label, button, input)) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2, 8px);
+    flex-direction: row;
+    align-items: center;
+}
+
+html[data-viewport="phone"] #appMain table.classroom-sheet > tbody > tr > td :is(input[type="text"], input[type="number"], input:not([type]), select, textarea) {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+html[data-viewport="phone"] #appMain .classroom-sheet-scroll {
+    overflow-x: visible;
+}
+
+/* Pull-to-reload hint (home-screen web app only; js/ui-consolidate.js). */
+.ui-pull-reload {
+    position: fixed;
+    top: calc(var(--safe-top, 0px) + var(--app-header-h) + 8px);
+    left: 50%;
+    transform: translate(-50%, 0);
+    z-index: var(--z-toast, 1300);
+    padding: 6px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full, 9999px);
+    background: var(--bg-card);
+    box-shadow: var(--shadow-md);
+    color: var(--text-secondary);
+    font-size: var(--text-body-sm, 0.75rem);
+    font-weight: 600;
+    pointer-events: none;
+}
+
+.ui-pull-reload.is-ready {
+    color: var(--primary-dark);
+    border-color: var(--primary);
+}
+
+/* Sections without page tabs (Data) do not leave an empty band on phone/tablet. */
+html[data-viewport="phone"] #appHeaderUnified #appZoneSegmentNavRow:not(:has(.app-zone-segment-panel:not([hidden]) .app-zone-segment-btn:not([hidden]))),
+html[data-viewport="tablet-sm"] #appHeaderUnified #appZoneSegmentNavRow:not(:has(.app-zone-segment-panel:not([hidden]) .app-zone-segment-btn:not([hidden]))),
+html[data-viewport="tablet"] #appHeaderUnified #appZoneSegmentNavRow:not(:has(.app-zone-segment-panel:not([hidden]) .app-zone-segment-btn:not([hidden]))) {
+    display: none;
+}
