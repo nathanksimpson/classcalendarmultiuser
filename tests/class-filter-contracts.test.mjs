@@ -228,4 +228,54 @@ function lessonFilterTeacherMatchesRef(ref, selector) {
         'header change resets the Calendar lesson filter (Mine → Just my classes, All → reset)');
 }
 
+// --- Holiday Applies To / Except: UI normalizations never change who a holiday applies to ---
+{
+    const allGrades = ['초1', '초2', '초3', '초4', '초5', '초6', '중1', '중2', '중3'];
+    const fullCtx = { ...ctx, gradeTotal: allGrades.length };
+    const sample = [
+        { id: 'e1', name: 'Sun', grade: '초3' },
+        { id: 'm1', name: 'Blue', grade: '중1' },
+        { id: 'm2', name: 'Navy', grade: '중2' }
+    ];
+    const applies = (target) => sample.map((c) => targetFilterAppliesToClassCore(target, c, fullCtx));
+    const base = { classIds: [], classNames: [], sectionLevels: [], allElementary: false, allMiddleSchool: false };
+
+    // Full grade list + exception (legacy) === no grades + same exception (normalized "Whole school except").
+    const legacyFull = { ...base, grades: allGrades, excludedClassIds: ['m2'] };
+    const normalizedFull = { ...base, grades: [], excludedClassIds: ['m2'] };
+    assert(JSON.stringify(applies(legacyFull)) === JSON.stringify(applies(normalizedFull)),
+        'full grade list normalizes to Any without changing results');
+    assert(JSON.stringify(applies(normalizedFull)) === JSON.stringify([true, true, false]),
+        'Whole school except Navy');
+
+    // Both school bands (legacy) === neither band (normalized Any).
+    const bothBands = { ...base, grades: ['중1'], excludedClassIds: [], allElementary: true, allMiddleSchool: true };
+    const noBands = { ...bothBands, allElementary: false, allMiddleSchool: false };
+    assert(JSON.stringify(applies(bothBands)) === JSON.stringify(applies(noBands)),
+        'both bands checked equals band Any');
+
+    // Groups + Except: middle school band except Blue.
+    const groupsExcept = { ...base, grades: [], excludedClassIds: ['m1'], allMiddleSchool: true };
+    assert(JSON.stringify(applies(groupsExcept)) === JSON.stringify([false, false, true]),
+        'Groups (middle school) except Blue');
+
+    // Specific classes: only those.
+    const onlyClasses = { ...base, grades: [], excludedClassIds: [], classIds: ['e1'] };
+    assert(JSON.stringify(applies(onlyClasses)) === JSON.stringify([true, false, false]),
+        'Specific classes applies only to those');
+
+    // Legacy broad + classIds: core ignores classIds, so the editor must clear them on load.
+    const legacyBroadWithIds = { ...base, grades: allGrades, excludedClassIds: [], classIds: ['e1'] };
+    assert(JSON.stringify(applies(legacyBroadWithIds)) === JSON.stringify([true, true, true]),
+        'core ignores classIds once a broad filter is set');
+
+    const appSrc = readFileSync(path.join(root, 'app.js'), 'utf8');
+    assert(/function normalizeEventApplicabilityDraft[\s\S]{0,600}SCHOOL_GRADE_OPTIONS\.length[\s\S]{0,400}allElementary && d\.allMiddleSchool/.test(appSrc),
+        'editor normalizes full grade list and both bands');
+    assert(/function loadEventApplicabilityDraftFromHoliday[\s\S]{0,900}if \(hadBroad\) \{\s*d\.classIds = \[\];/.test(appSrc),
+        'editor clears classIds the core would ignore');
+    assert(appSrc.includes("const EVENT_APPLIES_SCOPES = ['all', 'groups', 'classes'];"),
+        'Applies To has Whole school / Groups / Specific classes');
+}
+
 console.log('class-filter-contracts.test.mjs: all passed');

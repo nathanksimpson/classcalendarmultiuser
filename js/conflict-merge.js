@@ -269,6 +269,29 @@
         return false;
     }
 
+    /**
+     * After a 409, decide whether this student's essay status can be saved again.
+     * retry: the server row is still the status we started from (revision moved for another reason).
+     * already: the server already has the status we wanted.
+     * conflict: the server has a different choice.
+     */
+    function essayStatusConflictAction(baseStatus, nextStatus, serverStatus) {
+        const norm = (value) => {
+            const text = String(value || '').trim();
+            return text || 'not_submitted';
+        };
+        const base = norm(baseStatus);
+        const next = norm(nextStatus);
+        const server = norm(serverStatus);
+        if (server === next) {
+            return 'already';
+        }
+        if (server === base) {
+            return 'retry';
+        }
+        return 'conflict';
+    }
+
     function renderSummaryHtml(lines, t, escapeHtml) {
         const esc = escapeHtml || ((s) => String(s || ''));
         const translate = t || ((k) => k);
@@ -304,6 +327,7 @@
         renderSummaryHtml,
         diffIdSets,
         mutationsOverlap,
-        studentRecordsOverlap
+        studentRecordsOverlap,
+        essayStatusConflictAction
     };
 })(typeof window !== 'undefined' ? window : globalThis);

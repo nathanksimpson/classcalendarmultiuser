@@ -3232,59 +3232,6 @@
         let cohorts = getCohorts();
         const appData = hooks.getAppData ? hooks.getAppData() : {};
         let mergedWorking = null;
-        // #region agent log
-        (function () {
-            const locate = (id) => {
-                const want = String(id || '');
-                let found = false;
-                let cohortId = '';
-                (cohorts || []).some((c) =>
-                    (c && Array.isArray(c.students) ? c.students : []).some((s) => {
-                        if (s && String(s.id) === want) {
-                            found = true;
-                            cohortId = String(c.id || '');
-                            return true;
-                        }
-                        return false;
-                    })
-                );
-                return { found, cohortId };
-            };
-            const merges = [];
-            (tmsSyncPlan || []).forEach((row, rowIdx) => {
-                ((row && row.pendingStudentMerges) || []).forEach((m) => {
-                    const keep = locate(m && m.keepId);
-                    const drop = locate(m && m.dropId);
-                    merges.push({
-                        rowIdx,
-                        keepId: m && m.keepId ? String(m.keepId) : '',
-                        dropId: m && m.dropId ? String(m.dropId) : '',
-                        sameIds: Boolean(
-                            m && m.keepId && m.dropId && String(m.keepId) === String(m.dropId)
-                        ),
-                        keepFound: keep.found,
-                        dropFound: drop.found,
-                        keepCohortId: keep.cohortId,
-                        dropCohortId: drop.cohortId,
-                        sameCohort: Boolean(keep.found && drop.found && keep.cohortId === drop.cohortId)
-                    });
-                });
-            });
-            fetch('http://127.0.0.1:7484/ingest/eb92e151-ce29-4c5a-b17a-e5d8fe9bca1a', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '4702c9' },
-                body: JSON.stringify({
-                    sessionId: '4702c9',
-                    runId: 'pre-fix',
-                    hypothesisId: 'A-B-D-E',
-                    location: 'js/classroom-roster.js:finishTmsSyncApply',
-                    message: 'pending student merges before apply',
-                    data: { mergeCount: merges.length, merges },
-                    timestamp: Date.now()
-                })
-            }).catch(() => {});
-        })();
-        // #endregion
         // Apply queued local duplicate merges before roster plan (TMS map targets keepId).
         if (domain().mergeStudentRecords) {
             let working = Object.assign({}, appData, { cohorts });
@@ -3302,25 +3249,6 @@
                         clearOffRoster: true
                     });
                     if (merged.error) {
-                        // #region agent log
-                        fetch('http://127.0.0.1:7484/ingest/eb92e151-ce29-4c5a-b17a-e5d8fe9bca1a', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '4702c9' },
-                            body: JSON.stringify({
-                                sessionId: '4702c9',
-                                runId: 'pre-fix',
-                                hypothesisId: 'A-B-D-E',
-                                location: 'js/classroom-roster.js:pendingMerge',
-                                message: 'pending merge failed',
-                                data: {
-                                    error: merged.error,
-                                    keepId: String(m.keepId || ''),
-                                    dropId: String(m.dropId || '')
-                                },
-                                timestamp: Date.now()
-                            })
-                        }).catch(() => {});
-                        // #endregion
                         setTmsSyncError(t('studentMergeFailed'));
                         return;
                     }
@@ -3458,29 +3386,6 @@
                                     clearOffRoster: true
                                 }
                             );
-                            // #region agent log
-                            fetch('http://127.0.0.1:7484/ingest/eb92e151-ce29-4c5a-b17a-e5d8fe9bca1a', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '4702c9' },
-                                body: JSON.stringify({
-                                    sessionId: '4702c9',
-                                    runId: 'pre-fix',
-                                    hypothesisId: 'C',
-                                    location: 'js/classroom-roster.js:mpidxConflictMerge',
-                                    message: 'tms id conflict merge',
-                                    data: {
-                                        error: merged.error || null,
-                                        keepId: String(sid || ''),
-                                        dropId: String(conflictingId || ''),
-                                        keepCohortId,
-                                        dropCohortId,
-                                        sameCohort: Boolean(keepCohortId && keepCohortId === dropCohortId),
-                                        targetCohortId: String(row.userTargetId || '')
-                                    },
-                                    timestamp: Date.now()
-                                })
-                            }).catch(() => {});
-                            // #endregion
                             if (merged.error) {
                                 setTmsSyncError(t('studentMergeFailed'));
                                 return;

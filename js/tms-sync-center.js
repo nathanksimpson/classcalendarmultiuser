@@ -7,6 +7,7 @@
 
     // 'attendance' = absence list only (fast; Debate Rec). 'counsel' = notes + attendance.
     const KIND_ORDER = ['roster', 'essays', 'homework', 'attendance', 'counsel'];
+    const DEFAULT_KINDS = ['roster', 'essays', 'homework', 'counsel'];
     const KIND_TAB = {
         roster: 'students',
         essays: 'essays',
@@ -877,7 +878,12 @@
     }
 
     function applyKindChecks(options) {
-        const wanted = options && Array.isArray(options.kinds) && options.kinds.length ? options.kinds : KIND_ORDER.slice();
+        let wanted = options && Array.isArray(options.kinds) && options.kinds.length
+            ? options.kinds.slice()
+            : DEFAULT_KINDS.slice();
+        if (options && options.attendanceOnly) {
+            wanted = wanted.map((kind) => (kind === 'counsel' ? 'attendance' : kind));
+        }
         KIND_ORDER.forEach((kind) => {
             const box = document.querySelector('input[name="tmsSyncKind"][value="' + kind + '"]');
             if (box) {
@@ -980,6 +986,10 @@
                 const kind = kinds[i];
                 setProgress((i + 0.2) / kinds.length, t('tmsSyncWorking', 'Loading from TMS…'));
                 try {
+                    if (kind === 'attendance' && kinds.indexOf('counsel') !== -1) {
+                        setProgress((i + 1) / kinds.length, t('tmsSyncLoadedKind', 'Loaded'));
+                        continue;
+                    }
                     await ensureKind(kind);
                     showPane(kind);
                     if (kind === 'roster' && global.CCPClassroomRoster && global.CCPClassroomRoster.loadTmsPreview) {
@@ -992,7 +1002,15 @@
                         results.homework = await global.CCPClassroomHomeworkTms.loadPreview(creds);
                     } else if ((kind === 'counsel' || kind === 'attendance') && global.CCPClassroomBriefing && global.CCPClassroomBriefing.runSync) {
                         const classId = scope.mode === 'class' ? scope.classId : '';
-                        results[kind] = await global.CCPClassroomBriefing.runSync(creds, { classId: classId, mode: kind === 'attendance' ? 'attendance' : 'full' });
+                        const through = kind === 'attendance' && openOptions && openOptions.attendanceThroughDate
+                            ? String(openOptions.attendanceThroughDate)
+                            : '';
+                        results[kind] = await global.CCPClassroomBriefing.runSync(creds, {
+                            classId: classId,
+                            mode: kind === 'attendance' ? 'attendance' : 'full',
+                            attendanceOnly: kind === 'attendance',
+                            attendanceThroughDate: through
+                        });
                         applied[kind] = true;
                     }
                 } catch (err) {
@@ -1007,7 +1025,7 @@
             }
             paintLastSync();
             paintStaleNudge(helperViewState);
-            const firstLoaded = kinds.find((k) => results[k]) || kinds[0];
+            const firstLoaded = kinds.find((k) => results[k]) || kinds.find((kind) => kind !== 'attendance') || kinds[0];
             if (firstLoaded) {
                 showPane(firstLoaded);
             }

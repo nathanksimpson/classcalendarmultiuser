@@ -81,18 +81,27 @@
                     <p id="eventTypeHint" class="section-hint event-type-hint">Shown on the calendar for reference only; does not cancel class.</p>
                 </div>
 
-                <div class="form-group">
-                    <label data-i18n="appliesTo">Applies To</label>
-                    <div class="checkbox-group">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="holidayAllClasses" checked>
-                            <span data-i18n="allClasses">All Classes</span>
-                        </label>
+                <div class="form-group event-applies-group">
+                    <label id="eventAppliesToLabel" data-i18n="appliesTo">Applies To</label>
+                    <div id="eventAppliesScope" class="calendar-view-switch fh-scope" role="radiogroup" aria-labelledby="eventAppliesToLabel">
+                        <button type="button" class="syllabus-segment-btn is-active" role="radio" aria-checked="true" data-applies-scope="all" data-i18n="eventAppliesScopeAll">Whole school</button>
+                        <button type="button" class="syllabus-segment-btn" role="radio" aria-checked="false" data-applies-scope="groups" data-i18n="eventAppliesScopeGroups">Groups</button>
+                        <button type="button" class="syllabus-segment-btn" role="radio" aria-checked="false" data-applies-scope="classes" data-i18n="eventAppliesScopeClasses">Specific classes</button>
                     </div>
-                    <div id="eventApplicabilityFilterRow" class="event-applicability-filter-row" style="display: none;">
-                        <button type="button" id="eventApplicabilityFilterBtn" class="btn btn-outline btn-small lesson-filter-btn" aria-expanded="false" aria-controls="eventApplicabilityPopover" data-i18n="eventApplicabilityFilterBtn">Choose applicability…</button>
+                    <input type="checkbox" id="holidayAllClasses" checked hidden>
+                    <div id="eventApplicabilityFilterRow" class="event-applicability-filter-row" hidden>
+                        <button type="button" id="eventApplicabilityFilterBtn" class="btn btn-outline btn-small lesson-filter-btn" aria-expanded="false" aria-controls="eventApplicabilityPopover" data-i18n="eventApplicabilityFilterBtn">Choose…</button>
                     </div>
-                    <p id="eventApplicabilitySummary" class="event-applicability-summary" hidden></p>
+                    <p id="eventApplicabilitySummary" class="event-applicability-summary" role="status" hidden></p>
+                </div>
+
+                <div id="eventExceptGroup" class="form-group event-except-group">
+                    <label id="eventExceptLabel" data-i18n="eventExceptLabel">Except</label>
+                    <p class="section-hint" data-i18n="eventExceptHint">Classes listed here keep their normal lessons.</p>
+                    <div id="eventExceptChips" class="fh-except-row" aria-labelledby="eventExceptLabel"></div>
+                    <div class="event-applicability-filter-row">
+                        <button type="button" id="eventExceptAddBtn" class="btn btn-outline btn-small" aria-expanded="false" aria-controls="eventApplicabilityPopover" data-i18n="eventExceptAddBtn">Add exceptions…</button>
+                    </div>
                 </div>
 
                 <div class="form-group form-group--full-only">

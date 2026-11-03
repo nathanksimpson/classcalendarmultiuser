@@ -317,8 +317,11 @@
     let toastTimer = null;
     let pasteOpen = false;
     const PRINT_CARDS_CLASS = 'print-debate-cards-only';
+    const PRINT_FIELD_SELECTOR = 'textarea.debate-v2-arg-input, textarea.debate-v2-notes-input';
     let printCardsCleanupTimer = null;
     let printHooksBound = false;
+    /** Live textareas swapped out for full-text blocks during Ctrl+P. */
+    let printFieldSwaps = null;
     const showArguments = true;
     const showNotes = true;
     let dragMemberSource = null;
@@ -1965,11 +1968,71 @@
         return !!(document.body && document.body.getAttribute('data-active-tab') === 'debate-teams');
     }
 
+    /**
+     * Textareas only print the visible rows. A plain block shows the whole
+     * Present / Rebut / notes value, including lines that were behind the scrollbar.
+     * Empty fields keep one blank line so the card boxes do not collapse.
+     */
+    function printFieldBlock(textarea) {
+        const block = document.createElement('div');
+        const text = textarea && textarea.value ? String(textarea.value) : '';
+        block.className =
+            ((textarea && textarea.className) || '') +
+            ' debate-v2-print-field' +
+            (text.trim() ? '' : ' debate-v2-print-field--empty');
+        block.textContent = text.trim() ? text : '\u00a0';
+        return block;
+    }
+
+    /** Clone the cards and swap each instruction textarea for its full text. */
+    function cardsHtmlForPrint(cardsEl) {
+        const clone = cardsEl.cloneNode(true);
+        const live = cardsEl.querySelectorAll(PRINT_FIELD_SELECTOR);
+        const cloned = clone.querySelectorAll(PRINT_FIELD_SELECTOR);
+        live.forEach((textarea, index) => {
+            const copy = cloned[index];
+            if (!copy || !copy.parentNode) {
+                return;
+            }
+            copy.parentNode.replaceChild(printFieldBlock(textarea), copy);
+        });
+        return clone.innerHTML;
+    }
+
+    function swapPrintFieldsForFullText() {
+        if (printFieldSwaps) {
+            return;
+        }
+        const cardsEl = el('debateV2Cards');
+        if (!cardsEl) {
+            return;
+        }
+        const fields = Array.from(cardsEl.querySelectorAll(PRINT_FIELD_SELECTOR));
+        printFieldSwaps = fields.map((textarea) => {
+            const block = printFieldBlock(textarea);
+            textarea.replaceWith(block);
+            return { textarea, block };
+        });
+    }
+
+    function restorePrintFields() {
+        if (!printFieldSwaps) {
+            return;
+        }
+        printFieldSwaps.forEach(({ textarea, block }) => {
+            if (block && block.parentNode) {
+                block.parentNode.replaceChild(textarea, block);
+            }
+        });
+        printFieldSwaps = null;
+    }
+
     function beginDebateCardsPrintMode() {
         if (!document.body) {
             return;
         }
         document.body.classList.add(PRINT_CARDS_CLASS);
+        swapPrintFieldsForFullText();
     }
 
     function endDebateCardsPrintMode() {
@@ -1977,6 +2040,7 @@
             clearTimeout(printCardsCleanupTimer);
             printCardsCleanupTimer = null;
         }
+        restorePrintFields();
         if (!document.body) {
             return;
         }
@@ -2025,7 +2089,7 @@
                 '.meta{font-size:10pt;color:#64748b;margin:0 0 12px;}' +
                 '.motion{font-size:11pt;margin:0 0 16px;padding:8px 12px;border-left:3px solid #0f766e;background:#f0fdfa;}' +
                 '.debate-v2-cards{display:flex;flex-direction:column;gap:14px;}' +
-                '.debate-v2-card{border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px;break-inside:avoid;page-break-inside:avoid;}' +
+                '.debate-v2-card{border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px;break-inside:auto;page-break-inside:auto;}' +
                 '.debate-v2-card-header{margin-bottom:10px;}' +
                 '.debate-v2-card-title{font-size:13pt;font-weight:700;}' +
                 '.debate-v2-card-format,.debate-v2-card-order{font-size:9.5pt;color:#64748b;}' +
@@ -2033,13 +2097,13 @@
                 '.debate-v2-bench-label{font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;display:flex;align-items:center;gap:6px;}' +
                 '.debate-v2-bench-dot{width:8px;height:8px;border-radius:50%;display:inline-block;}' +
                 '.debate-v2-members{display:flex;flex-direction:column;gap:8px;}' +
-                '.debate-v2-member{border:1px solid #e2e8f0;border-radius:6px;padding:8px 10px;background:#f8fafc;}' +
+                '.debate-v2-member{border:1px solid #e2e8f0;border-radius:6px;padding:8px 10px;background:#f8fafc;break-inside:avoid;page-break-inside:avoid;}' +
                 '.debate-v2-member-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;}' +
                 '.debate-v2-member-name{font-weight:600;font-size:11pt;}' +
                 '.debate-v2-role-chip{font-size:8.5pt;font-weight:700;padding:2px 6px;border-radius:4px;background:#e2e8f0;}' +
                 '.debate-v2-args{display:grid;grid-template-columns:1fr 1fr;gap:8px;}' +
                 '.debate-v2-arg-label{display:block;font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;margin-bottom:2px;}' +
-                '.debate-v2-arg-input,.debate-v2-notes-input{display:block;width:100%;box-sizing:border-box;font:inherit;font-size:10pt;border:1px solid #cbd5e1;border-radius:4px;padding:6px 8px;min-height:2.6em;resize:none;background:#fff;}' +
+                '.debate-v2-print-field{display:block;width:100%;box-sizing:border-box;font:inherit;font-size:10pt;line-height:1.35;border:1px solid #cbd5e1;border-radius:4px;padding:6px 8px;min-height:2.6em;height:auto;max-height:none;overflow:visible;white-space:pre-wrap;overflow-wrap:anywhere;background:#fff;}' +
                 '.debate-v2-card-notes{margin-top:10px;padding-top:8px;border-top:1px dashed #cbd5e1;}' +
                 '@media print{body{margin:0.4in;} .debate-v2-card{box-shadow:none;}}' +
                 '@media (max-width:700px){.debate-v2-benches,.debate-v2-args{grid-template-columns:1fr;}}' +
@@ -2051,7 +2115,7 @@
                 '</p>' +
                 (topic ? '<p class="motion"><strong>Motion:</strong> ' + escapeHtml(topic) + '</p>' : '') +
                 '<div class="debate-v2-cards">' +
-                cardsEl.innerHTML +
+                cardsHtmlForPrint(cardsEl) +
                 '</div>' +
                 '</body></html>'
         );

@@ -525,11 +525,33 @@ function meetingHooks(holidayMap) {
         dueLabel: 'Due',
         dueDateLabel: '2026-08-20',
         sessionLabel: 'Session',
-        sessionNumber: 2
+        sessionNumber: 2,
+        roleLabel: 'Grade now'
     });
     assert(!block.includes('2026-08-20'), 'clipboard text does not include due date');
     assert(block.includes('Blue T'), 'clipboard still includes class name');
+    assert(block.includes('Session 2 · Grade now'), 'grading clipboard names Grade now beside the session');
     assert(block.includes('Read p. 12'), 'clipboard includes homework body');
+
+    const assignBlock = HT.formatHomeworkBlock('Write p. 4', {
+        includeHeader: true,
+        className: 'Blue T',
+        sessionLabel: 'Session',
+        sessionNumber: 5,
+        roleLabel: 'Covered in class'
+    });
+    assert(assignBlock.includes('Session 5 · Covered in class'), 'assign clipboard names Covered in class beside the session');
+    assert(assignBlock.startsWith('Blue T\nSession 5 · Covered in class\n\nWrite p. 4'), 'assign header sits above the homework body');
+
+    const roleOnly = HT.formatHomeworkBlock('Vocab', {
+        includeHeader: true,
+        className: 'Blue T',
+        sessionLabel: 'Session',
+        sessionNumber: 0,
+        roleLabel: 'Grade now'
+    });
+    assert(roleOnly.includes('Grade now'), 'role still appears when there is no session number');
+    assert(!roleOnly.includes('Session 0'), 'missing session number is omitted');
 }
 
 {

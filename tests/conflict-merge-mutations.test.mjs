@@ -153,4 +153,13 @@ const { CCPConflictMerge } = loadScripts();
     assert(lines.some((l) => l.labelKey === 'syncConflictPoints'), 'summary includes points');
 }
 
+{
+    const decide = CCPConflictMerge.essayStatusConflictAction;
+    assert(decide('not_submitted', 'submitted', 'not_submitted') === 'retry', 'stale revision with the old status can be saved again');
+    assert(decide('submitted', 'complete', 'submitted') === 'retry', 'stale revision keeps the status this click started from');
+    assert(decide('not_submitted', 'submitted', 'submitted') === 'already', 'server already has this click');
+    assert(decide('not_submitted', 'submitted', 'complete') === 'conflict', 'a third status is a real conflict');
+    assert(decide('submitted', 'resubmit_required', 'complete') === 'conflict', 'another window chose a different status');
+}
+
 console.log('conflict-merge-mutations.test.mjs: all passed');

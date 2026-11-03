@@ -381,6 +381,7 @@ async function requestFollow(urlStr, options, maxRedirects) {
     let url = urlStr;
     let method = (options && options.method) || 'GET';
     let body = options && options.body;
+    const preservePost = Boolean(options && options.preservePost);
     const limit = maxRedirects == null ? 8 : maxRedirects;
     for (let i = 0; i <= limit; i += 1) {
         const res = await request(url, Object.assign({}, options, { method, body }));
@@ -388,8 +389,9 @@ async function requestFollow(urlStr, options, maxRedirects) {
             const nextUrl = resolveTmsRedirectUrl(url, res.headers.location);
             const upgrade = isHttpToHttpsUpgrade(url, nextUrl);
             url = nextUrl;
-            // IIS HTTPS redirects drop POST bodies if we follow as GET.
-            if (!upgrade) {
+            // IIS HTTPS upgrades must stay POST. Other redirects normally become GET,
+            // which drops a pager or month postback. preservePost keeps that body.
+            if (!upgrade && !(preservePost && method === 'POST' && body != null)) {
                 method = 'GET';
                 body = null;
             }

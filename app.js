@@ -7458,7 +7458,29 @@ function createEmptyEventApplicability() {
         allMiddleSchool: false
     };
 }
+/** Applies To segment values on the holiday/event form (Whole school / Groups / Specific classes). */
+const EVENT_APPLIES_SCOPES = ['all', 'groups', 'classes'];
 let eventApplicabilityDraft = createEmptyEventApplicability();
+
+/**
+ * Editor hygiene only: full grade list → Any grades; both school bands → no band.
+ * Who a holiday applies to is unchanged (core treats these as equivalent).
+ */
+function normalizeEventApplicabilityDraft(draft) {
+    const d = draft && typeof draft === 'object' ? draft : createEmptyEventApplicability();
+    const grades = Array.isArray(d.grades) ? d.grades.slice() : [];
+    if (grades.length >= SCHOOL_GRADE_OPTIONS.length
+        && SCHOOL_GRADE_OPTIONS.every((g) => grades.includes(g))) {
+        d.grades = [];
+    } else {
+        d.grades = grades;
+    }
+    if (d.allElementary && d.allMiddleSchool) {
+        d.allElementary = false;
+        d.allMiddleSchool = false;
+    }
+    return d;
+}
 
 function getEventApplicabilityOptionGroups() {
     const classes = getClassesInDisplayOrder()
@@ -7523,18 +7545,24 @@ function loadEventApplicabilityDraftFromHoliday(holidayData) {
         eventApplicabilityDraft = createEmptyEventApplicability();
         return;
     }
-    const classIds = Array.isArray(holidayData.classIds) && holidayData.classIds.length
-        ? [...holidayData.classIds]
-        : resolveEventClassIdsFromNames(holidayData.classNames || []);
-    eventApplicabilityDraft = {
+    const d = {
         grades: [...(holidayData.grades || [])],
-        classIds,
+        classIds: Array.isArray(holidayData.classIds) && holidayData.classIds.length
+            ? [...holidayData.classIds]
+            : resolveEventClassIdsFromNames(holidayData.classNames || []),
         classNames: [...(holidayData.classNames || [])],
         excludedClassIds: [...(holidayData.excludedClassIds || [])],
         sectionLevels: [...(holidayData.sectionLevels || [])],
         allElementary: holidayData.allElementary === true,
         allMiddleSchool: holidayData.allMiddleSchool === true
     };
+    const hadBroad = d.grades.length || d.sectionLevels.length
+        || d.allElementary || d.allMiddleSchool || d.excludedClassIds.length;
+    if (hadBroad) {
+        d.classIds = [];
+        d.classNames = [];
+    }
+    eventApplicabilityDraft = normalizeEventApplicabilityDraft(d);
 }
 
 function readEventApplicabilityFromPopoverDom() {
@@ -7719,11 +7747,70 @@ function updateEventApplicabilitySummaryText() {
     el.hidden = false;
 }
 
+function getEventAppliesScope() {
+    const d = eventApplicabilityDraft || createEmptyEventApplicability();
+    const allClasses = elements.holidayAllClasses && elements.holidayAllClasses.checked;
+    if (allClasses) {
+        return 'all';
+    }
+    const hasBroad = (d.grades?.length || 0) > 0
+        || (d.sectionLevels?.length || 0) > 0
+        || d.allElementary === true
+        || d.allMiddleSchool === true
+        || (d.excludedClassIds?.length || 0) > 0;
+    if (hasBroad) {
+        return 'groups';
+    }
+    return 'classes';
+}
+
+function setEventAppliesScope(scopeIn) {
+    const scope = EVENT_APPLIES_SCOPES.includes(scopeIn) ? scopeIn : 'all';
+    const scopeBar = document.getElementById('eventAppliesScope');
+    if (scopeBar) {
+        scopeBar.querySelectorAll('[data-applies-scope]').forEach((btn) => {
+            const on = btn.getAttribute('data-applies-scope') === scope;
+            btn.classList.toggle('is-active', on);
+            btn.setAttribute('aria-checked', on ? 'true' : 'false');
+        });
+    }
+    if (elements.holidayAllClasses) {
+        elements.holidayAllClasses.checked = scope === 'all';
+    }
+    if (scope === 'all') {
+        eventApplicabilityDraft = createEmptyEventApplicability();
+    } else if (scope === 'groups' && !holidayHasAnyTargetFilter(eventApplicabilityDraft)) {
+        eventApplicabilityDraft = getDefaultAllSelectedEventApplicability();
+        eventApplicabilityDraft.classIds = [];
+        eventApplicabilityDraft.classNames = [];
+    } else if (scope === 'classes') {
+        // Specific classes: no broad filters; keep or start with empty classIds.
+        eventApplicabilityDraft = Object.assign(createEmptyEventApplicability(), {
+            classIds: Array.isArray(eventApplicabilityDraft.classIds) ? eventApplicabilityDraft.classIds.slice() : [],
+            classNames: Array.isArray(eventApplicabilityDraft.classNames) ? eventApplicabilityDraft.classNames.slice() : []
+        });
+    }
+    syncEventApplicabilityUiFromDraft();
+}
+
 function syncEventApplicabilityUiFromDraft() {
     const row = document.getElementById('eventApplicabilityFilterRow');
-    const allClasses = elements.holidayAllClasses && elements.holidayAllClasses.checked;
+    const exceptGroup = document.getElementById('eventExceptGroup');
+    const scope = getEventAppliesScope();
+    const scopeBar = document.getElementById('eventAppliesScope');
+    if (scopeBar) {
+        scopeBar.querySelectorAll('[data-applies-scope]').forEach((btn) => {
+            const on = btn.getAttribute('data-applies-scope') === scope;
+            btn.classList.toggle('is-active', on);
+            btn.setAttribute('aria-checked', on ? 'true' : 'false');
+        });
+    }
     if (row) {
-        row.style.display = allClasses ? 'none' : 'flex';
+        row.hidden = scope === 'all';
+        row.style.display = scope === 'all' ? 'none' : 'flex';
+    }
+    if (exceptGroup) {
+        exceptGroup.hidden = scope === 'classes';
     }
     updateEventApplicabilityButtonLabel();
     updateEventApplicabilitySummaryText();
@@ -17411,14 +17498,23 @@ function navigateHomeworkQueue(delta) {
     renderHomeworkEditor();
 }
 
-function createHomeworkClassListButton(classData, { isSelected, onClick }) {
+function createHomeworkClassListButton(classData, { isSelected, onClick, showSaved }) {
     const btn = createModuleClassListButton(classData, { isSelected, onClick });
+    const titleSpan = btn.querySelector('span');
+    if (!titleSpan) {
+        return btn;
+    }
+    if (showSaved) {
+        titleSpan.insertAdjacentHTML(
+            'beforeend',
+            `<span class="homework-open-badge">${escapeHtml(t('homeworkTabSavedCheck'))}</span>`
+        );
+    }
     if (isSelected) {
-        const titleSpan = btn.querySelector('span');
-        if (titleSpan) {
-            const badge = `<span class="homework-open-badge">${escapeHtml(t('homeworkTabOpenBadge'))}</span>`;
-            titleSpan.insertAdjacentHTML('beforeend', badge);
-        }
+        titleSpan.insertAdjacentHTML(
+            'beforeend',
+            `<span class="homework-open-badge">${escapeHtml(t('homeworkTabOpenBadge'))}</span>`
+        );
     }
     return btn;
 }
@@ -17873,6 +17969,15 @@ function isClassHomeworkSaved(classId, dateStr, category) {
     return mod.isHomeworkSavedForClass(appData && appData.homeworkSavedMarks, classId, dateStr, category);
 }
 
+function isClassHomeworkFullySaved(classData, dateStr) {
+    return !!(
+        classData
+        && dateStr
+        && isClassHomeworkSaved(classData.id, dateStr, 'grading')
+        && isClassHomeworkSaved(classData.id, dateStr, 'assign')
+    );
+}
+
 function isViewerHomeworkClass(classData) {
     if (!classData || !classData.id) {
         return false;
@@ -17978,7 +18083,7 @@ function syncHomeworkSavedButtons(classData) {
                     return;
                 }
                 persistHomeworkSavedMark(selected.id, selectedDate, category, input.checked);
-                renderHomeworkSavedWarning();
+                renderHomeworkClassList();
             });
         }
         const category = input.getAttribute('data-homework-saved');
@@ -18040,9 +18145,10 @@ function renderHomeworkClassList() {
         list.appendChild(el);
     };
 
-    const renderClassButton = (c) => {
+    const renderClassButton = (c, onThisDay) => {
         list.appendChild(createHomeworkClassListButton(c, {
             isSelected: c.id === selectedId,
+            showSaved: onThisDay === true && isClassHomeworkFullySaved(c, selectedIso),
             onClick: () => {
                 const refDate = getHomeworkReferenceDateFromUi();
                 if (typeof CCPActiveContext !== 'undefined') {
@@ -18063,7 +18169,7 @@ function renderHomeworkClassList() {
                 date: formatHomeworkWorkingFromLabel(selectedIso),
                 count: String(onDay.length)
             }));
-            onDay.forEach(renderClassButton);
+            onDay.forEach((c) => renderClassButton(c, true));
         }
         return;
     }
@@ -18073,10 +18179,10 @@ function renderHomeworkClassList() {
             date: formatHomeworkWorkingFromLabel(selectedIso),
             count: String(onDay.length)
         }));
-        onDay.forEach(renderClassButton);
+        onDay.forEach((c) => renderClassButton(c, true));
     }
     appendSectionTitle(t('homeworkTabOtherClasses') || 'Other classes', { divider: onDay.length > 0 });
-    (onDay.length > 0 ? offDay : allVisible).forEach(renderClassButton);
+    (onDay.length > 0 ? offDay : allVisible).forEach((c) => renderClassButton(c, false));
 }
 
 /** Active homework tab editor state (class + packet row ids for syllabus save). */
@@ -18442,11 +18548,16 @@ function formatHomeworkPasteBlock(text, classData, packet, kind) {
     if (!mod) {
         return (text || '').trim();
     }
+    const isGrading = kind === 'grading';
+    const sessionNumber = isGrading
+        ? (Number(packet.gradingSessionNumber) || 0)
+        : (Number(packet.assignSourceSessionNumber) || Number(packet.targetSessionNumber) || 0);
     const opts = {
         includeHeader: true,
         className: classData.name,
         sessionLabel: t('homeworkTabSessionLabel'),
-        sessionNumber: packet.targetSessionNumber
+        sessionNumber,
+        roleLabel: isGrading ? t('homeworkTabGradingTitle') : t('homeworkTabCoveredInClass')
     };
     return mod.formatHomeworkBlock(text, opts);
 }
@@ -26474,6 +26585,17 @@ function setupEventListeners() {
     }
     
     // Holiday "All Classes" toggle
+    const eventAppliesScopeBar = document.getElementById('eventAppliesScope');
+    if (eventAppliesScopeBar && eventAppliesScopeBar.dataset.bound !== '1') {
+        eventAppliesScopeBar.dataset.bound = '1';
+        eventAppliesScopeBar.addEventListener('click', (e) => {
+            const btn = e.target && e.target.closest ? e.target.closest('[data-applies-scope]') : null;
+            if (!btn) {
+                return;
+            }
+            setEventAppliesScope(btn.getAttribute('data-applies-scope'));
+        });
+    }
     elements.holidayAllClasses?.addEventListener('change', (e) => {
         if (e.target.checked) {
             closeEventApplicabilityPopover();

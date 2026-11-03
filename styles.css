@@ -1671,6 +1671,179 @@ body {
     font-size: 0.8125rem;
 }
 
+/* Filter hierarchy (js/filter-hierarchy.js): Scope → Narrow by → Classes */
+.fh-scope-row {
+    flex-wrap: nowrap;
+    align-items: center;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+.fh-scope {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.fh-scope .syllabus-segment-btn {
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding: var(--space-1) var(--space-3);
+}
+
+.fh-tier-title {
+    margin-top: var(--space-3);
+}
+
+.fh-group {
+    margin-top: var(--space-2);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+}
+
+.fh-group-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 36px;
+    padding: var(--space-1) var(--space-3);
+    cursor: pointer;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.fh-group-summary::-webkit-details-marker {
+    display: none;
+}
+
+.fh-group-summary::before {
+    content: '\25B8';
+    color: var(--text-secondary);
+    transition: transform 0.15s ease;
+}
+
+.fh-group[open] > .fh-group-summary::before {
+    transform: rotate(90deg);
+}
+
+.fh-group-title {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.fh-group-count {
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.fh-group-count.is-narrowed {
+    color: var(--primary);
+}
+
+.fh-group-body {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: 0 var(--space-3) var(--space-3);
+}
+
+.fh-any-btn[hidden] {
+    display: none;
+}
+
+.fh-preview {
+    margin-top: var(--space-4);
+}
+
+.fh-preview-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-1);
+}
+
+.fh-preview-head .lesson-filter-section-title {
+    margin: 0;
+}
+
+.fh-preview-actions {
+    display: inline-flex;
+    gap: var(--space-1);
+    margin-left: auto;
+}
+
+.fh-mode-hint {
+    margin: 0 0 var(--space-2);
+}
+
+.lesson-filter-chip.is-excluded-by-facet {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.fh-except-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-2);
+    margin-top: var(--space-3);
+}
+
+.event-except-group .fh-except-row {
+    margin-top: var(--space-1);
+}
+
+.fh-except-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+}
+
+.fh-except-more,
+.fh-except-empty {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+}
+
+.fh-except-empty {
+    margin: 0;
+}
+
+.fh-footer {
+    padding: var(--space-2) 0 0;
+    border-top: 1px solid var(--border-color);
+    margin-top: var(--space-3);
+}
+
+.lesson-filter-popover-panel > .fh-footer {
+    flex-shrink: 0;
+    margin-top: 0;
+    padding: var(--space-2) var(--pad-surface);
+}
+
+.event-applicability-filter-row[hidden],
+.event-except-group[hidden] {
+    display: none;
+}
+
+@media (max-width: 1024px) {
+    .fh-scope .syllabus-segment-btn,
+    .fh-group-summary,
+    .fh-preview-actions .btn,
+    .fh-except-chip,
+    .fh-any-btn {
+        min-height: var(--touch-min);
+    }
+}
+
+
 .print-lesson-filter-hint {
     color: var(--primary, #2563eb);
     font-weight: 500;
@@ -8663,23 +8836,17 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
 
 .homework-open-badge {
     display: inline-block;
-    margin-left: 6px;
-    padding: 1px 6px;
+    margin-left: var(--space-2);
+    padding: 0 var(--space-1);
     font-size: 0.625rem;
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--primary-dark);
-    background: var(--accent-muted);
+    color: var(--class-tile-text, var(--text-primary));
+    background: var(--surface-muted);
     border: 1px solid var(--border-color);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     vertical-align: middle;
-}
-
-.module-list-item.is-selected .homework-open-badge {
-    color: var(--text-on-primary);
-    background: rgba(255, 255, 255, 0.2);
-    border-color: rgba(255, 255, 255, 0.35);
 }
 
 .homework-class-queue {
@@ -8810,8 +8977,13 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
     margin: 0;
 }
 
-.homework-saved-warn {
-    flex: 1 0 100%;
+#panel-homework > .homework-saved-warn:not([hidden]) {
+    position: sticky;
+    top: calc(var(--app-chrome-sticky-top, 72px) + var(--space-2));
+    z-index: var(--z-sticky-header);
+    align-self: stretch;
+    margin: 0 0 var(--space-2);
+    box-shadow: var(--shadow-sm);
 }
 
 .homework-copy-block-titles {
@@ -22843,21 +23015,24 @@ th[data-cohort-col] {
     color: var(--text-secondary);
 }
 
-#panel-debate-rec .debate-rec-hr {
-    margin-top: var(--space-1, 4px);
-    min-height: var(--touch-min-compact, 36px);
-    font-size: 0.6875rem;
-    font-weight: 600;
-}
-
-#panel-debate-rec .debate-rec-hr.is-active {
-    background: color-mix(in srgb, var(--success) 12%, var(--bg-card));
-    border-color: color-mix(in srgb, var(--success) 40%, var(--border-color));
-    color: var(--success);
-}
-
 #panel-debate-rec .debate-rec-row--not_recorded {
     box-shadow: inset 3px 0 0 var(--danger);
+}
+
+#panel-debate-rec .debate-rec-row--hr-needed {
+    background: var(--essay-overdue-bg);
+    color: var(--essay-overdue-text);
+}
+
+#panel-debate-rec .debate-rec-stat--hr-needed {
+    border-color: var(--essay-overdue-border);
+    background: var(--essay-overdue-bg);
+    color: var(--essay-overdue-text);
+}
+
+#panel-debate-rec .debate-rec-hr {
+    width: var(--space-4, 16px);
+    height: var(--space-4, 16px);
 }
 
 #panel-debate-rec .debate-rec-row--needs_confirmation {
@@ -22874,8 +23049,10 @@ th[data-cohort-col] {
     text-align: center;
 }
 
-html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-rec .debate-rec-choice {
+html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-rec .debate-rec-choice,
+html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-rec .debate-rec-hr {
     min-height: var(--touch-min, 44px);
+    min-width: var(--touch-min, 44px);
 }
 
 

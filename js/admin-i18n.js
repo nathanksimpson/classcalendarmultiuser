@@ -241,6 +241,7 @@
             savedLockSettings:
                 'Saved: lock {lock} min, idle sign-out {idle} min (warning {warn} min before), session {sessionDays} days.',
             couldNotSaveSettings: 'Could not save settings.',
+            couldNotLoadAdmin: 'Could not load admin.',
             bootstrapNameDefault: 'Lead teacher'
         },
         ko: {
@@ -480,6 +481,7 @@
             savedLockSettings:
                 '저장됨: 잠금 {lock}분, 유휴 로그아웃 {idle}분 (경고 {warn}분 전), 세션 {sessionDays}일.',
             couldNotSaveSettings: '설정을 저장할 수 없습니다.',
+            couldNotLoadAdmin: '관리 화면을 불러오지 못했습니다.',
             bootstrapNameDefault: '책임 선생님'
         }
     };

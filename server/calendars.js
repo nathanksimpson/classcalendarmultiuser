@@ -448,6 +448,7 @@ function deleteCalendar(id) {
     db.prepare('DELETE FROM calendar_suggestions WHERE calendar_id = ?').run(id);
     db.prepare('DELETE FROM user_notification_meta WHERE calendar_id = ?').run(id);
     db.prepare('DELETE FROM user_ui_prefs WHERE calendar_id = ?').run(id);
+    db.prepare('DELETE FROM essay_batch_drafts WHERE calendar_id = ?').run(id);
     db.prepare('DELETE FROM calendar_history WHERE calendar_id = ?').run(id);
     const result = db.prepare('DELETE FROM calendars WHERE id = ?').run(id);
     return result.changes > 0;

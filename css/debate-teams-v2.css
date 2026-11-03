@@ -648,9 +648,27 @@
     }
 
     #panel-debate-teams .classroom-debate-v2 .debate-v2-card {
+        break-inside: auto;
+        page-break-inside: auto;
+        box-shadow: none !important;
+    }
+
+    #panel-debate-teams .classroom-debate-v2 .debate-v2-member {
         break-inside: avoid;
         page-break-inside: avoid;
-        box-shadow: none !important;
+    }
+
+    #panel-debate-teams .classroom-debate-v2 .debate-v2-print-field {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        white-space: pre-wrap;
+        overflow: visible;
+        overflow-wrap: anywhere;
+        height: auto;
+        max-height: none;
+        min-height: 2.6em;
+        line-height: 1.35;
     }
 
     /*
@@ -721,10 +739,15 @@
     }
 
     body.print-debate-cards-only #panel-debate-teams .classroom-debate-v2 .debate-v2-card {
-        break-inside: avoid;
-        page-break-inside: avoid;
+        break-inside: auto;
+        page-break-inside: auto;
         box-shadow: none !important;
         margin-bottom: 12pt;
+    }
+
+    body.print-debate-cards-only #panel-debate-teams .classroom-debate-v2 .debate-v2-member {
+        break-inside: avoid;
+        page-break-inside: avoid;
     }
 
     body.print-debate-cards-only #panel-debate-teams .classroom-debate-v2 .debate-v2-toast {

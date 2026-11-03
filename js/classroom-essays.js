@@ -5808,6 +5808,19 @@
             essayTmsPlan = built.rows || [];
             essayTmsFilteredOutOfTermCount = Number(built.filteredOutOfTermCount || 0);
             essayTmsHasFetched = true;
+            const actionCounts = { map: 0, choose: 0, skip: 0, other: 0 };
+            let debateish = 0;
+            essayTmsPlan.forEach((row) => {
+                const action = row && row.userAction;
+                if (action === 'map' || action === 'choose' || action === 'skip') {
+                    actionCounts[action] += 1;
+                } else {
+                    actionCounts.other += 1;
+                }
+                if (row && /debate|토론|디베이트/i.test(String(row.title || '') + ' ' + String(row.portfolioTitle || ''))) {
+                    debateish += 1;
+                }
+            });
             const meta = body.meta || {};
             const loadedMsg = t('classroomEssayTmsSyncLoaded')
                 .replace('{assignments}', String(essayTmsPlan.length))

@@ -8,6 +8,7 @@ import * as Presence from './presence.js';
 import * as Suggestions from './suggestions.js';
 import * as NotificationMeta from './notification-meta.js';
 import * as UiPrefs from './ui-prefs.js';
+import * as EssayBatchDrafts from './essay-batch-drafts.js';
 import * as AccessRequests from './access-requests.js';
 import * as AdminUserPolicy from './admin-user-policy.js';
 import * as ViewAs from './view-as.js';
@@ -917,38 +918,23 @@ async function readPasswordLoginBody(request) {
     };
 }
 
-function escapeHtmlAttr(value) {
-    return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;')
-        .replace(/</g, '&lt;');
-}
-
 function passwordLoginSuccessHtml(returnTo) {
-    const safeUrl = escapeHtmlAttr(returnTo);
-    // 200 HTML on the form POST URL (no password fields, no auto-redirect).
-    // Desktop Chrome often needs the user to stay here to accept "Save password".
+    // 200 HTML on the POST URL (not 302) so password managers still see a successful form document.
+    // Jump immediately. JSON-encode the path so it cannot break out of the script.
+    const dest = JSON.stringify(String(returnTo || '/'))
+        .replace(/</g, '\\u003c')
+        .replace(/>/g, '\\u003e')
+        .replace(/\u2028/g, '\\u2028')
+        .replace(/\u2029/g, '\\u2029');
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Signed in — ClassManager</title>
-<link rel="stylesheet" href="styles.css?v=20260629-classmanager-redesign">
-<style>
-.signed-in-page{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;background:var(--bg-main);color:var(--text-primary)}
-.signed-in-card{max-width:420px;width:100%;background:var(--bg-card);border:1px solid var(--border-color);border-radius:12px;padding:2rem;box-shadow:var(--shadow-lg);text-align:center}
-.signed-in-card h1{margin:0 0 .5rem;font-size:1.35rem}
-.signed-in-card p{margin:0 0 1rem;color:var(--text-muted);font-size:.95rem}
-</style>
 </head>
 <body>
-<div class="signed-in-page"><div class="signed-in-card">
-<h1>Signed in</h1>
-<p>If your browser offers to save your password, you can accept it now.</p>
-<p><a class="btn btn-primary" href="${safeUrl}">Continue to ClassManager</a></p>
-</div></div>
+<script>location.replace(${dest});</script>
 </body>
 </html>`;
 }
@@ -1794,6 +1780,50 @@ export default {
             }
         }
 
+        const essayBatchDraftMatch = path.match(/^\/api\/calendars\/([^/]+)\/essay-batch-draft$/);
+        if (essayBatchDraftMatch) {
+            const calId = essayBatchDraftMatch[1];
+            if (UiPrefs.isReservedCalendarId(calId) || !(await CalAccess.canAccessCalendar(env, user, calId))) {
+                return json({ error: 'Calendar not found' }, 404);
+            }
+            if (request.method === 'GET') {
+                return json(await EssayBatchDrafts.getDraft(env, user.id, calId));
+            }
+            if (request.method === 'PUT') {
+                const blocked = rejectViewAsJson();
+                if (blocked) {
+                    return blocked;
+                }
+                let body;
+                try {
+                    body = await readJson(request, 1200000);
+                } catch (err) {
+                    if (err && err.status === 413) {
+                        return json(
+                            { error: 'Draft is too large to save', code: 'DRAFT_TOO_LARGE' },
+                            413
+                        );
+                    }
+                    body = {};
+                }
+                try {
+                    return json(await EssayBatchDrafts.putDraft(env, user.id, calId, body || {}));
+                } catch (err) {
+                    const status = err && err.status ? err.status : 500;
+                    const payload = { error: (err && err.message) || 'Could not save draft' };
+                    if (err && err.code) {
+                        payload.code = err.code;
+                    }
+                    if (status === 409) {
+                        payload.draft = err.draft || null;
+                        payload.updatedAt = err.updatedAt || null;
+                    }
+                    return json(payload, status);
+                }
+            }
+            return json({ error: 'Method not allowed' }, 405);
+        }
+
         const suggestionMatch = path.match(
             /^\/api\/calendars\/([^/]+)\/suggestions(?:\/([^/]+)(\/apply|\/dismiss)?)?$/
         );
@@ -2566,6 +2596,7 @@ export default {
                 await CalAccess.deleteCalendarAccess(env, calId);
                 await dbRun(env, 'DELETE FROM user_notification_meta WHERE calendar_id = ?', calId);
                 await dbRun(env, 'DELETE FROM user_ui_prefs WHERE calendar_id = ?', calId);
+                await dbRun(env, 'DELETE FROM essay_batch_drafts WHERE calendar_id = ?', calId);
                 await dbRun(env, 'DELETE FROM calendar_history WHERE calendar_id = ?', calId);
                 await dbRun(env, 'DELETE FROM calendars WHERE id = ?', calId);
                 await ActivityLog.recordActivityForUser(env, user, {

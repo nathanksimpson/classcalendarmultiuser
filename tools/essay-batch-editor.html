@@ -293,6 +293,7 @@
                         <span id="apiProviderBadge" class="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">—</span>
                     </button>
                     <span id="graderCalendarBadge" class="flex-shrink-0 max-w-[10rem] sm:max-w-[14rem] truncate text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded bg-slate-100 text-slate-500" title="Active ClassManager calendar for shared rules/prompts">Calendar: —</span>
+                    <span id="essayBatchDraftBadge" class="flex-shrink-0 max-w-[10rem] sm:max-w-[14rem] truncate text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded bg-slate-100 text-slate-500" title="This batch on your ClassManager account">Draft: —</span>
                     <details id="copyOptionsMenu" class="flex-shrink-0">
                         <summary class="flex items-center gap-1.5 px-2 sm:px-3 py-2 text-sm font-medium text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap cursor-pointer" title="Choose what each Copy button includes. Applies to every student until you change it.">
                             <i data-lucide="clipboard-copy" class="h-4 w-4 flex-shrink-0"></i>
@@ -909,10 +910,11 @@
     <script src="/js/session-restore.js?v=20260608-notes-app"></script>
     <script src="/js/team-auth.js?v=20260601-role-palette"></script>
     <script src="/js/calendar-mutations.js?v=20261006-essay-list-chips"></script>
-    <script src="/js/conflict-merge.js?v=20261006-essay-status-sync"></script>
-    <script src="/js/calendar-sync.js?v=20261006-essay-list-chips"></script>
+    <script src="/js/conflict-merge.js?v=20261027-essay-conflict"></script>
+    <script src="/js/calendar-sync.js?v=20261028-essay-batch-draft"></script>
     <script src="/js/classroom-domain.js?v=20261007-essay-note-sync"></script>
     <script src="/js/essay-batch-grader-calendar.js?v=20261006-essay-status-sync"></script>
+    <script src="/js/essay-batch-draft-sync.js?v=20261028-essay-batch-draft2"></script>
     <script>
         // ==========================================
         // CONFIG
@@ -1774,6 +1776,110 @@
                     notify('Storage full! Clear some old essays or download a report to free space.', 'error');
                 }
             }
+            if (!applyingCloudDraft && !freshBatchId) {
+                try { localStorage.setItem('bg_draftDirty', '1'); } catch (_) {}
+            }
+            scheduleDraftCloudSave(options);
+        }
+
+        let draftCloudReady = false;
+        let applyingCloudDraft = false;
+
+        function buildEssayBatchDraftBlob() {
+            return {
+                essayType: appState.essayType || 'news-response',
+                textInput: appState.textInput || '',
+                results: (appState.results || []).filter((row) => row && !row._pending),
+                batchTeachingNotes: appState.batchTeachingNotes || null,
+                listLinks: Array.isArray(appState.listLinks) ? appState.listLinks : []
+            };
+        }
+
+        function rememberDraftSaved(updatedAt) {
+            if (freshBatchId) return;
+            try {
+                if (updatedAt) localStorage.setItem('bg_draftSyncedAt', updatedAt);
+                localStorage.removeItem('bg_draftDirty');
+            } catch (_) {}
+        }
+
+        function updateDraftBadge(message, isError) {
+            const badge = document.getElementById('essayBatchDraftBadge');
+            if (!badge) return;
+            const full = message || 'Draft: —';
+            const short = full.indexOf('another computer') !== -1 ? 'Draft: reload' : full;
+            badge.textContent = short;
+            badge.title = full;
+            badge.classList.toggle('bg-red-50', Boolean(isError));
+            badge.classList.toggle('text-red-600', Boolean(isError));
+            badge.classList.toggle('bg-slate-100', !isError);
+            badge.classList.toggle('text-slate-500', !isError);
+            if (isError && full) notify(full, 'error');
+        }
+
+        function applyEssayBatchDraft(draft) {
+            applyingCloudDraft = true;
+            try {
+                appState.textInput = (draft && draft.textInput) || '';
+                appState.essayType = (draft && draft.essayType) || 'news-response';
+                appState.results = migrateResults(draft && Array.isArray(draft.results) ? draft.results : []);
+                appState.batchTeachingNotes = (draft && draft.batchTeachingNotes) || null;
+                appState.listLinks = draft && Array.isArray(draft.listLinks) ? draft.listLinks : [];
+                if (elements.textarea) elements.textarea.value = appState.textInput;
+                if (elements.essayTypeSelect) elements.essayTypeSelect.value = appState.essayType;
+                syncSpeechTemplatePanel();
+                renderBatchTeachingNotesCard(appState.batchTeachingNotes);
+                if (elements.resultsContainer) elements.resultsContainer.innerHTML = '';
+                if (getValidResults().length > 0) {
+                    renderAllResults();
+                    if (elements.downloadContainer) elements.downloadContainer.classList.remove('hidden');
+                    if (elements.outputToolbar) elements.outputToolbar.classList.remove('hidden');
+                } else {
+                    if (elements.downloadContainer) elements.downloadContainer.classList.add('hidden');
+                    if (elements.outputToolbar) elements.outputToolbar.classList.add('hidden');
+                    updateStats();
+                }
+                updateEssayCount();
+                saveState();
+            } finally {
+                applyingCloudDraft = false;
+            }
+        }
+
+        function scheduleDraftCloudSave(options) {
+            if (applyingCloudDraft || !draftCloudReady || !globalThis.CCPEssayBatchDraft) return;
+            CCPEssayBatchDraft.scheduleSave(buildEssayBatchDraftBlob, updateDraftBadge, {
+                allowEmpty: !freshBatchId,
+                clear: Boolean(options && options.clearDraft),
+                onSaved: rememberDraftSaved
+            });
+        }
+
+        async function bootstrapEssayBatchDraft() {
+            if (!globalThis.CCPEssayBatchDraft) {
+                updateDraftBadge('Draft: this browser only', false);
+                draftCloudReady = true;
+                return;
+            }
+            try {
+                await CCPEssayBatchDraft.bootstrap({
+                    applyCloud: !freshBatchId,
+                    localSyncedAt: freshBatchId ? '' : (localStorage.getItem('bg_draftSyncedAt') || ''),
+                    isLocalDirty: () => !freshBatchId && localStorage.getItem('bg_draftDirty') === '1',
+                    getLocalDraft: buildEssayBatchDraftBlob,
+                    applyDraft: applyEssayBatchDraft,
+                    onStatus: updateDraftBadge,
+                    onSaved: rememberDraftSaved,
+                    onReady: () => {
+                        draftCloudReady = true;
+                    }
+                });
+            } catch (err) {
+                console.error('Batch draft sync failed', err);
+                updateDraftBadge((err && err.message) || 'Draft: this browser only', true);
+            } finally {
+                draftCloudReady = true;
+            }
         }
 
         // ==========================================
@@ -2028,6 +2134,10 @@
                     try { localStorage.setItem('bg_textInput', appState.textInput); } catch(e) {} // Fast sync save for main text input
                 }
             }
+            if (!applyingCloudDraft && !freshBatchId) {
+                try { localStorage.setItem('bg_draftDirty', '1'); } catch (_) {}
+            }
+            scheduleDraftCloudSave();
         }
 
         function parseInput(text) {
@@ -2293,9 +2403,44 @@
         // ==========================================
         // ESSAY METRICS (sentence counting — shared by UI and LLM)
         // ==========================================
+        // Naive split(/[.!?]+/) over-counts: "1. Reason." → 2, "Mr. Kim said hi." → 2,
+        // "scored 95.5 points." → 2. Protect those periods, then split on real terminators.
         function countEssaySentences(text) {
-            if (!text || !text.trim()) return 0;
-            return text.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
+            if (!text || !String(text).trim()) return 0;
+
+            let t = String(text)
+                .replace(/<[^>]+>/g, ' ')
+                .replace(/\u00a0/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+            if (!t) return 0;
+
+            // Private-use placeholder — cannot appear in student essays
+            const P = '\uE000';
+
+            // Ellipsis is not a sentence boundary
+            t = t.replace(/\.{2,}/g, P);
+            // Titles / common abbreviations
+            t = t.replace(/\b(?:Mr|Mrs|Ms|Miss|Dr|Prof|Sr|Jr|St|vs|etc|approx)\./gi, (m) => m.replace(/\./g, P));
+            t = t.replace(/\b(?:e\.g|i\.e|a\.m|p\.m)\./gi, (m) => m.replace(/\./g, P));
+            // No trailing \b: period is non-word, so \b fails before a space ("U.S. is")
+            t = t.replace(/\b(?:U\.S\.A|U\.S|U\.K|A\.I)\.?/gi, (m) => m.replace(/\./g, P));
+            // Decimals: 95.5
+            t = t.replace(/(\d)\.(\d)/g, `$1${P}$2`);
+            // Numbered list markers: "1. First reason"
+            t = t.replace(/(^| )(\d{1,2})\.(?= |$)/g, `$1$2${P}`);
+            // Initials before another capital: "J. K. Rowling"
+            t = t.replace(/\b([A-Z])\.(?=\s*[A-Z])/g, `$1${P}`);
+
+            // Latin + CJK sentence terminators
+            const parts = t.split(/[.!?。？！]+/);
+            let count = 0;
+            for (let i = 0; i < parts.length; i++) {
+                const s = parts[i].split(P).join('.').trim();
+                // Need a real word (skip leftover digits from a bad split)
+                if (s && /[A-Za-z가-힣]/.test(s)) count += 1;
+            }
+            return count;
         }
 
         function getEssayRuleMetrics(essayType, className) {
@@ -4504,7 +4649,60 @@ Requirement: "${ruleDescription}"`;
             }, 500));
         }
 
+        let essayListWriteChain = Promise.resolve();
+
+        function enqueueEssayListWrite(task) {
+            const run = essayListWriteChain.then(task, task);
+            essayListWriteChain = run.then(function () {}, function () {});
+            return run;
+        }
+
+        function essayStatusConflictAction(baseStatus, nextStatus, serverStatus) {
+            if (globalThis.CCPConflictMerge && typeof globalThis.CCPConflictMerge.essayStatusConflictAction === 'function') {
+                return globalThis.CCPConflictMerge.essayStatusConflictAction(baseStatus, nextStatus, serverStatus);
+            }
+            const norm = (value) => {
+                const text = String(value || '').trim();
+                return text || 'not_submitted';
+            };
+            const base = norm(baseStatus);
+            const next = norm(nextStatus);
+            const server = norm(serverStatus);
+            if (server === next) {
+                return 'already';
+            }
+            if (server === base) {
+                return 'retry';
+            }
+            return 'conflict';
+        }
+
+        async function reloadEssayCalendar() {
+            const calendarApi = globalThis.CCPEssayBatchGraderCalendar;
+            const sync = globalThis.CalendarSync;
+            if (!calendarApi || !sync || typeof sync.loadCalendar !== 'function' || typeof sync.getActiveCalendarId !== 'function') {
+                return null;
+            }
+            const id = sync.getActiveCalendarId();
+            if (!id) {
+                return null;
+            }
+            const fresh = await sync.loadCalendar(id);
+            if (fresh && fresh.data && typeof calendarApi.replaceCalendarData === 'function') {
+                calendarApi.replaceCalendarData(fresh.data);
+            }
+            return fresh;
+        }
+
+        function isSaveConflict(err) {
+            return Boolean(err && (err.status === 409 || /conflict/i.test(String(err.message || ''))));
+        }
+
         async function saveListNote(data, noteText) {
+            return enqueueEssayListWrite(() => saveListNoteNow(data, noteText, true));
+        }
+
+        async function saveListNoteNow(data, noteText, allowRetry) {
             const domainApi = globalThis.CCPClassroomDomain;
             const calendarApi = globalThis.CCPEssayBatchGraderCalendar;
             const link = resolveCardListLink(data);
@@ -4542,6 +4740,16 @@ Requirement: "${ruleDescription}"`;
                     essaySubmissions: [Object.assign({}, submission, { touchedStudentIds: [link.studentId] })]
                 });
             } catch (err) {
+                if (allowRetry && isSaveConflict(err)) {
+                    data.listNoteSaved = '';
+                    try {
+                        await reloadEssayCalendar();
+                        return saveListNoteNow(data, noteText, false);
+                    } catch (retryErr) {
+                        notify((retryErr && retryErr.message) || 'Could not save this note to the Essays list', 'error');
+                        return;
+                    }
+                }
                 notify((err && err.message) || 'Could not save this note to the Essays list', 'error');
             }
         }
@@ -4831,6 +5039,35 @@ Requirement: "${ruleDescription}"`;
         }
 
         async function applyListStatusChoice(card, data, status, flags) {
+            return enqueueEssayListWrite(() => applyListStatusChoiceNow(card, data, status, flags));
+        }
+
+        async function recoverListStatusAfterConflict(card, data, nextStatus, flags, generation, snap) {
+            await reloadEssayCalendar();
+            if (!listStatusStillCurrent(data, generation)) {
+                return 'stale';
+            }
+            const link = resolveCardListLink(data);
+            const saved = readSavedListStatus(link);
+            const serverStatus = saved && saved.status ? saved.status : 'not_submitted';
+            const baseStatus = snap && snap.listStatus ? snap.listStatus : 'not_submitted';
+            const decision = essayStatusConflictAction(baseStatus, nextStatus, serverStatus);
+            if (decision === 'already') {
+                data.listStatus = nextStatus;
+                bindListStatus(card, data);
+                return 'ok';
+            }
+            if (decision !== 'retry') {
+                return 'conflict';
+            }
+            const savedResult = await saveListStatus(data, nextStatus, flags, generation);
+            if (!listStatusStillCurrent(data, generation) || (savedResult && savedResult.reason === 'stale')) {
+                return 'stale';
+            }
+            return savedResult && savedResult.ok ? 'ok' : 'conflict';
+        }
+
+        async function applyListStatusChoiceNow(card, data, status, flags) {
             const snap = snapshotListStatus(data);
             const generation = (data.listStatusGeneration || 0) + 1;
             data.listStatusGeneration = generation;
@@ -4867,14 +5104,22 @@ Requirement: "${ruleDescription}"`;
                 if (!stillThisClick()) {
                     return;
                 }
+                if (isSaveConflict(err)) {
+                    let outcome = 'conflict';
+                    try {
+                        outcome = await recoverListStatusAfterConflict(card, data, status, flags, generation, snap);
+                    } catch (_) {
+                        outcome = 'conflict';
+                    }
+                    if (!stillThisClick() || outcome === 'stale' || outcome === 'ok') {
+                        return;
+                    }
+                    restoreListStatusSnapshot(card, data, snap);
+                    notify('The Essays list was saved in the other window. Click the chip again.', 'error');
+                    return;
+                }
                 restoreListStatusSnapshot(card, data, snap);
-                const conflict = err && (err.status === 409 || /conflict/i.test(String(err.message || '')));
-                notify(
-                    conflict
-                        ? 'The Essays list was saved in the other window. Click the chip again.'
-                        : ((err && err.message) || 'Could not save this status to the Essays list'),
-                    'error'
-                );
+                notify((err && err.message) || 'Could not save this status to the Essays list', 'error');
             }
         }
 
@@ -5901,7 +6146,7 @@ Requirement: "${ruleDescription}"`;
                 } else {
                     localStorage.removeItem('bg_results'); localStorage.removeItem('bg_textInput'); localStorage.removeItem('bg_batchTeachingNotes');
                 }
-                saveState(); notify('All data cleared.', 'success');
+                saveState(freshBatchId ? undefined : { clearDraft: true }); notify('All data cleared.', 'success');
             });
         }
 
@@ -6361,6 +6606,7 @@ Requirement: "${ruleDescription}"`;
             }
             syncSpeechTemplatePanel();
             void bootstrapGraderCalendar();
+            void bootstrapEssayBatchDraft();
             
             if(elements.rulesBtn) elements.rulesBtn.addEventListener('click', () => {
                 updateRulesModelsMatchStatus();
