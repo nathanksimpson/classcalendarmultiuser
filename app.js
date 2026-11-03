@@ -3114,7 +3114,7 @@ function applyScheduleMatrixSuggestion(def, isNewClass) {
         const current = readMeetingDaysFromFormScope('#classForm', MEETING_DAY_INPUT_CLASS);
         if (current.length === 0 && suggestion.meetingDays && suggestion.meetingDays.length) {
             writeMeetingDaysInFormScope('#classForm', MEETING_DAY_INPUT_CLASS, suggestion.meetingDays);
-            updateMeetingDayPresetButtonLabels();
+            syncPeriodByDayUi();
         }
         if (elements.classPeriod && suggestion.period != null) {
             elements.classPeriod.value = String(suggestion.period);
@@ -40006,8 +40006,18 @@ function migrateCompressedDaySyllabusRetcon(data) {
     if (!data.ui || typeof data.ui !== 'object') {
         data.ui = {};
     }
-    if (data.ui.syllabusCompressedDayRetconV1 === true) {
+    if (!data.meta || typeof data.meta !== 'object') {
+        data.meta = {};
+    }
+    // The flag lives in data.meta (saved with the calendar). It used to live only in
+    // data.ui, which is per-viewer and stripped before saving, so every new browser
+    // or device re-ran this and re-saved the whole calendar.
+    if (data.meta.syllabusCompressedDayRetconV1 === true) {
         return false;
+    }
+    if (data.ui.syllabusCompressedDayRetconV1 === true) {
+        data.meta.syllabusCompressedDayRetconV1 = true;
+        return true;
     }
     const classes = Array.isArray(data.classes) ? data.classes : [];
     let touched = false;
@@ -40027,6 +40037,7 @@ function migrateCompressedDaySyllabusRetcon(data) {
         }
     });
     data.ui.syllabusCompressedDayRetconV1 = true;
+    data.meta.syllabusCompressedDayRetconV1 = true;
     return true;
 }
 
@@ -40252,7 +40263,10 @@ function migrateData(data) {
             data.plannerDrafts = [];
             migrated = true;
         }
-        if (!data.plannerState || typeof data.plannerState !== 'object') {
+        // null is the "no planner state" value; only fix missing or wrong-typed values,
+        // otherwise this reported a change on every load and re-saved the calendar.
+        if (data.plannerState === undefined
+            || (data.plannerState !== null && typeof data.plannerState !== 'object')) {
             data.plannerState = null;
             migrated = true;
         }
