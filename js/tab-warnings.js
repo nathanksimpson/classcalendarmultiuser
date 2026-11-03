@@ -809,7 +809,7 @@
         if (nav.type === 'pending_suggestions') {
             const user = typeof TeamAuth !== 'undefined' && TeamAuth.getUser ? TeamAuth.getUser() : null;
             if (user && user.role === 'admin') {
-                global.location.href = 'admin.html';
+                global.location.href = '/admin';
             } else if (typeof hooks.showNavWarningToast === 'function') {
                 hooks.showNavWarningToast(hooks.t('tabWarnPendingSuggestionsAction'));
             }

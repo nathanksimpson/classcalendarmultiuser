@@ -174,9 +174,9 @@ function switchAdminTab(tabKey, options) {
     });
         if (!opts.skipHash && typeof location !== 'undefined') {
             const nextHash = '#' + tabKey;
-            if (location.hash !== nextHash || location.pathname !== '/admin.html') {
+            if (location.hash !== nextHash || location.pathname !== '/admin') {
                 // Absolute path: <base href="/"> would turn "#accounts" into the calendar home.
-                history.replaceState(null, '', '/admin.html' + location.search + nextHash);
+                history.replaceState(null, '', '/admin' + location.search + nextHash);
             }
         }
     if (tabKey === 'accounts' && adminHasPerm('manage_users')) {
@@ -1542,7 +1542,7 @@ async function openViewAsUser(u) {
         if (!confirm(t('confirmViewAs', { name }))) {
             return;
         }
-        await openViewAsExchangeTab(exchangeToken, '/admin.html');
+        await openViewAsExchangeTab(exchangeToken, '/admin');
     } catch (ex) {
         showAdminSaveNotice(ex.message, true);
     }
@@ -2322,7 +2322,7 @@ async function init() {
                 showBootstrapSetup();
             } else {
                 location.replace(
-                    '/login.html?return=' + encodeURIComponent('/admin.html')
+                    '/login.html?return=' + encodeURIComponent('/admin')
                 );
                 return;
             }

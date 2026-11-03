@@ -1065,15 +1065,24 @@ export default {
         const kakaoId = (env.KAKAO_CLIENT_ID || '').trim();
 
         if (!path.startsWith('/api/')) {
-            // Support friendly admin URL and avoid broken relative asset paths.
-            if (path === '/admin' || path === '/admin/') {
-                return redirectTo('/admin.html');
+            // Admin page. Cloudflare's asset host serves admin.html at /admin and
+            // answers /admin.html with a redirect to /admin, so the Worker must not
+            // redirect /admin back to /admin.html (that loop caused
+            // "too many redirects"). Check access, then serve the file at /admin.
+            // Old "Signed in — Continue to ClassManager" card: skip it entirely.
+            // Bookmarks and home-screen icons saved on that page go straight to the app.
+            if (path === '/signed-in' || path === '/signed-in.html') {
+                return redirectTo(sanitizeReturnTo(url.searchParams.get('return') || '/'));
             }
-            if (path === '/admin.html' && env.ASSETS) {
+            if (path === '/admin/' || path === '/admin.html') {
+                return redirectTo(`/admin${url.search}`);
+            }
+            if (path === '/admin' && env.ASSETS) {
                 const adminUser = await requireCookieUser(request, env);
                 if (!adminUser || !Auth.canAccessAdminPage(adminUser)) {
-                    return redirectTo(`/login.html?return=${encodeURIComponent('/admin.html')}`);
+                    return redirectTo(`/login.html?return=${encodeURIComponent('/admin')}`);
                 }
+                return withSecurityHeaders(await env.ASSETS.fetch(new Request(new URL('/admin', url).toString(), request)));
             }
             if ((path === '/login' || path === '/login.html' || path === '/password-login.html') && request.method === 'POST') {
                 return handlePasswordLogin(request, env, secure, true);

@@ -1994,6 +1994,20 @@ app.get(['/soundboard', '/soundboard/'], (req, res) => {
 app.get('/essay-batch-editor.html', (req, res) => {
     res.sendFile(path.join(staticRoot, 'tools', 'essay-batch-editor.html'));
 });
+// Match production: the admin page lives at /admin (Cloudflare serves admin.html there).
+// The old post-login "Signed in" card is skipped: go straight to the app.
+['/signed-in', '/signed-in.html'].forEach((signedInPath) => {
+    app.get(signedInPath, (req, res) => {
+        const raw = typeof req.query.return === 'string' ? req.query.return : '/';
+        res.redirect(302, raw.startsWith('/') && !raw.startsWith('//') ? raw : '/');
+    });
+});
+['/admin.html', '/admin/'].forEach((adminAlias) => {
+    app.get(adminAlias, (req, res) => {
+        const qs = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+        res.redirect(302, `/admin${qs}`);
+    });
+});
 app.use(express.static(staticRoot, { index: false }));
 
 app.get('*', (req, res) => {
@@ -2001,11 +2015,8 @@ app.get('*', (req, res) => {
         res.status(404).json({ error: 'Not found' });
         return;
     }
-    if (req.path === '/admin' || req.path === '/admin/') {
-        res.redirect('/admin.html');
-        return;
-    }
-    const file = req.path === '/' || req.path === '' ? 'index.html' : req.path.replace(/^\//, '');
+    const file = req.path === '/' || req.path === '' ? 'index.html'
+        : (req.path === '/admin' ? 'admin.html' : req.path.replace(/^\//, ''));
     const safe = path.normalize(file).replace(/^(\.\.(\/|\\|$))+/, '');
     if (safe === 'admin.html') {
         let adminUser = null;
@@ -2016,7 +2027,7 @@ app.get('*', (req, res) => {
             adminUser = DEV_USER;
         }
         if (!adminUser || !Auth.canAccessAdminPage(adminUser)) {
-            const ret = encodeURIComponent('/admin.html');
+            const ret = encodeURIComponent('/admin');
             res.redirect(302, `/login.html?return=${ret}`);
             return;
         }

@@ -36760,7 +36760,7 @@ function setupTeamUserBar() {
                     return;
                 }
                 e.preventDefault();
-                const href = adminLink.getAttribute('href') || '/admin.html';
+                const href = adminLink.getAttribute('href') || '/admin';
                 try {
                     await CalendarSync.flushPendingSave();
                 } catch (err) {

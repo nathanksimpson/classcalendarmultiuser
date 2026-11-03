@@ -402,7 +402,7 @@
                 const path = location.pathname || '';
                 const onPending =
                     path === '/pending-access.html' || path.endsWith('/pending-access.html');
-                const onAdmin = path === '/admin.html' || path.endsWith('/admin.html');
+                const onAdmin = path === '/admin' || path === '/admin.html' || path.endsWith('/admin.html');
                 if (!onPending && !onAdmin) {
                     location.replace('/pending-access.html');
                     throw new Error('redirect');
