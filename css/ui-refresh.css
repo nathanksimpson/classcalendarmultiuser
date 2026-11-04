@@ -1213,3 +1213,15 @@ html[data-viewport="tablet-sm"] #appHeaderUnified #appZoneSegmentNavRow:not(:has
 html[data-viewport="tablet"] #appHeaderUnified #appZoneSegmentNavRow:not(:has(.app-zone-segment-panel:not([hidden]) .app-zone-segment-btn:not([hidden]))) {
     display: none;
 }
+
+/* Dropdowns lifted out of their card while open (js/ui-consolidate.js). */
+.ui-floating-menu {
+    position: fixed !important;
+    right: auto !important;
+    bottom: auto !important;
+    margin: 0 !important;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    z-index: var(--z-popover, 650);
+}

@@ -24,20 +24,34 @@
         '#classroomRosterBulkActions'
     ];
 
-    /** Controls that never move into the menu. */
-    /** Never moved: main action, menus with their own popup, Save buttons, and
-     *  plain text such as "Saved" or a row label. */
+    /** Never moved: main action, menus with their own popup, Save, Print and Report
+     *  controls, and plain text such as "Saved" or a row label. */
     const KEEP_SELECTOR = [
         '.btn-primary',
         '[aria-haspopup]',
         '[data-keep-visible]',
         '.ui-more',
         '[id*="save" i]',
+        '[id*="print" i]',
+        '[id*="report" i]',
         'span',
         'p',
         'strong',
         'small'
     ].join(', ');
+    /** A wrapper holding any of these stays too: a dropdown opened inside the More
+     *  menu would be cut off by it (the Essays "Reports" menu with Print was). */
+    const KEEP_INSIDE_SELECTOR = [
+        '[aria-haspopup]',
+        '[data-keep-visible]',
+        '[id*="print" i]',
+        '[id*="report" i]',
+        'details'
+    ].join(', ');
+
+    function isKept(el) {
+        return el.matches(KEEP_SELECTOR) || Boolean(el.querySelector(KEEP_INSIDE_SELECTOR));
+    }
     /** Direct children of a toolbar that may move into More (buttons, dropdowns, small settings). */
     const MOVABLE_SELECTOR = ':scope > :not(.ui-more):not(script):not(template)';
     const AUTOGROW_SELECTOR = '#panel-syllabus textarea, textarea[data-autogrow]';
@@ -186,7 +200,7 @@
         wrap.hidden = false;
         const menu = wrap.querySelector('.ui-more-menu');
         const candidates = Array.from(bar.querySelectorAll(MOVABLE_SELECTOR))
-            .filter((el) => !el.matches(KEEP_SELECTOR) && !el.hidden && isVisible(el));
+            .filter((el) => !isKept(el) && !el.hidden && isVisible(el));
         // Always leave the first visible button in the row.
         const firstVisible = Array.from(bar.querySelectorAll(MOVABLE_SELECTOR)).find((el) => isVisible(el));
         while (overflows(bar) && candidates.length) {
@@ -208,6 +222,29 @@
     function fitAllBars() {
         BAR_SELECTORS.forEach((sel) => {
             document.querySelectorAll(sel).forEach(fitBar);
+        });
+    }
+
+    /* ---------- Floating dropdowns ---------- */
+
+    /** Dropdowns drawn inside a card were cut off at the card's edge (Essays > Reports,
+     *  where Print lives). While open they are placed over the page instead, next to
+     *  their button, and scroll inside when taller than the screen. */
+    const FLOATING_MENU_SELECTOR = '.classroom-essay-reports-dropdown';
+
+    function placeFloatingMenus() {
+        document.querySelectorAll(FLOATING_MENU_SELECTOR).forEach((menu) => {
+            const open = !menu.hidden && menu.getClientRects().length;
+            if (!open) {
+                menu.classList.remove('ui-floating-menu');
+                return;
+            }
+            const btn = menu.parentElement && menu.parentElement.querySelector(':scope > button');
+            if (!btn) {
+                return;
+            }
+            menu.classList.add('ui-floating-menu');
+            positionMenu(btn, menu);
         });
     }
 
@@ -369,6 +406,7 @@
         try {
             syncHeaderHeight();
             fitAllBars();
+            placeFloatingMenus();
             growAllTextareas();
             labelSheetCells();
         } finally {
@@ -426,6 +464,7 @@
             if (openBar) {
                 setMenuOpen(openBar, false);
             }
+            placeFloatingMenus();
         }, { passive: true });
         schedule();
     }
