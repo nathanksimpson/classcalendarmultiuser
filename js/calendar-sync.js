@@ -5,9 +5,14 @@
     const API = '/api';
     const STORAGE_ACTIVE = 'teamCalendarActiveId';
     const SAVE_DEBOUNCE_MS = 1500;
-    const POLL_INTERVAL_ACTIVE_MS = 3000;
+    // Editing poll. Was 3000; each poll runs several database reads on the Worker.
+    const POLL_INTERVAL_ACTIVE_MS = 8000;
     const POLL_INTERVAL_IDLE_MS = 15000;
-    const POLL_INTERVAL_NOTES_MS = 2500;
+    const POLL_INTERVAL_NOTES_MS = 6000;
+    /** No click, tap, key or scroll for this long = poll at the idle rate. */
+    const POLL_USER_IDLE_AFTER_MS = 2 * 60 * 1000;
+    /** First poll after the person comes back from idle. */
+    const POLL_RESUME_DELAY_MS = 500;
     const POLL_INTERVAL_HIDDEN_MS = 60000;
     const POLL_INTERVAL_MAX_MS = 60000;
     const POLL_BACKOFF_FACTOR = 1.5;
@@ -26,6 +31,9 @@
         pollTimer: null,
         pollBackoffFactor: 1,
         pollVisibilityBound: false,
+        pollInputBound: false,
+        pollResumeSoon: false,
+        lastUserInputAt: Date.now(),
         saving: false,
         pendingGetData: null,
         saveRetryTimer: null,
@@ -586,6 +594,38 @@
         return true;
     }
 
+    /**
+     * Startup asks for the same small things from several places at once.
+     * Calls with the same key share one request while it runs, and the answer
+     * is reused for ttlMs afterwards. A failed request is not reused.
+     */
+    const sharedGets = new Map();
+    function sharedGet(key, ttlMs, run) {
+        const hit = sharedGets.get(key);
+        if (hit && (hit.pending || Date.now() - hit.at < ttlMs)) {
+            return hit.promise;
+        }
+        const entry = { pending: true, at: 0, promise: null };
+        entry.promise = Promise.resolve()
+            .then(run)
+            .then(
+                (value) => {
+                    entry.pending = false;
+                    entry.at = Date.now();
+                    return value;
+                },
+                (err) => {
+                    sharedGets.delete(key);
+                    throw err;
+                }
+            );
+        sharedGets.set(key, entry);
+        return entry.promise;
+    }
+    function forgetSharedGet(key) {
+        sharedGets.delete(key);
+    }
+
     const CalendarSync = {
         state,
 
@@ -643,7 +683,7 @@
 
         async checkHealth() {
             try {
-                const res = await apiFetch('/health', { timeoutMs: 8000 });
+                const res = await sharedGet('health', 10000, () => apiFetch('/health', { timeoutMs: 8000 }));
                 return Boolean(res && res.ok);
             } catch (_) {
                 return false;
@@ -917,8 +957,8 @@
                 };
             }
             debugLog('api', 'GET /ui-prefs', { calendarId: calId });
-            const result = await apiFetch(
-                '/calendars/' + encodeURIComponent(calId) + '/ui-prefs'
+            const result = await sharedGet('ui-prefs:' + calId, 5000, () =>
+                apiFetch('/calendars/' + encodeURIComponent(calId) + '/ui-prefs')
             );
             return result && typeof result === 'object'
                 ? result
@@ -931,6 +971,7 @@
                 return null;
             }
             debugLog('api', 'PUT /ui-prefs', { calendarId: calId });
+            forgetSharedGet('ui-prefs:' + calId);
             return apiFetch('/calendars/' + encodeURIComponent(calId) + '/ui-prefs', {
                 method: 'PUT',
                 body: body && typeof body === 'object' ? body : {}
@@ -971,7 +1012,7 @@
 
         async loadUserUiPrefs() {
             debugLog('api', 'GET /me/ui-prefs');
-            const result = await apiFetch('/me/ui-prefs');
+            const result = await sharedGet('me-ui-prefs', 5000, () => apiFetch('/me/ui-prefs'));
             return result && typeof result === 'object'
                 ? result
                 : { classScope: null, updatedAt: null };
@@ -979,6 +1020,7 @@
 
         async putUserUiPrefs(body) {
             debugLog('api', 'PUT /me/ui-prefs');
+            forgetSharedGet('me-ui-prefs');
             return apiFetch('/me/ui-prefs', {
                 method: 'PUT',
                 body: body && typeof body === 'object' ? body : {}
@@ -1773,6 +1815,10 @@
             if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
                 return POLL_INTERVAL_HIDDEN_MS;
             }
+            if (Date.now() - (state.lastUserInputAt || 0) > POLL_USER_IDLE_AFTER_MS) {
+                const idleFactor = state.pollBackoffFactor || 1;
+                return Math.min(POLL_INTERVAL_MAX_MS, Math.round(POLL_INTERVAL_IDLE_MS * idleFactor));
+            }
             try {
                 if (typeof document !== 'undefined' && document.body) {
                     if (
@@ -1808,9 +1854,30 @@
                 state.pollVisibilityBound = true;
                 document.addEventListener('visibilitychange', () => {
                     if (state.pollTimer && document.visibilityState === 'visible') {
+                        state.pollResumeSoon = true;
                         CalendarSync.stopPolling();
                         CalendarSync.startPolling();
                     }
+                });
+            }
+            if (
+                typeof document !== 'undefined' &&
+                !state.pollInputBound &&
+                typeof document.addEventListener === 'function'
+            ) {
+                state.pollInputBound = true;
+                const onUserInput = () => {
+                    const wasIdle = Date.now() - (state.lastUserInputAt || 0) > POLL_USER_IDLE_AFTER_MS;
+                    state.lastUserInputAt = Date.now();
+                    if (wasIdle && state.pollTimer) {
+                        // Back from idle: check for others' changes right away.
+                        state.pollResumeSoon = true;
+                        CalendarSync.stopPolling();
+                        CalendarSync.startPolling();
+                    }
+                };
+                ['pointerdown', 'keydown', 'touchstart', 'wheel'].forEach((type) => {
+                    document.addEventListener(type, onUserInput, { passive: true, capture: true });
                 });
             }
             const runPollTick = async () => {
@@ -1889,7 +1956,9 @@
                 }
                 state.pollTimer = setTimeout(runPollTick, CalendarSync.getPollDelayMs());
             };
-            state.pollTimer = setTimeout(runPollTick, CalendarSync.getPollDelayMs());
+            const firstDelay = state.pollResumeSoon ? POLL_RESUME_DELAY_MS : CalendarSync.getPollDelayMs();
+            state.pollResumeSoon = false;
+            state.pollTimer = setTimeout(runPollTick, firstDelay);
         },
 
         stopPolling() {

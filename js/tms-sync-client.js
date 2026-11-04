@@ -60,7 +60,33 @@
         });
     }
 
+    /** The Sync Helper only runs on a Windows or Mac computer, so phones and
+     *  tablets skip the four local pings (each one waits for a timeout there). */
+    function isMobileDevice() {
+        try {
+            const nav = global.navigator || {};
+            const ua = String(nav.userAgent || '');
+            if (/iPhone|iPad|iPod|Android/i.test(ua)) {
+                return true;
+            }
+            // iPadOS reports itself as a Mac; a Mac has no touch screen.
+            return /Macintosh/i.test(ua) && Number(nav.maxTouchPoints) > 1;
+        } catch (_) {
+            return false;
+        }
+    }
+
     async function detectBridge() {
+        if (isMobileDevice()) {
+            return applyManifest({
+                status: 'missing',
+                base: '',
+                protocol: 0,
+                version: '',
+                kinds: [],
+                bridgeKind: ''
+            });
+        }
         let outdated = null;
         for (let p = 0; p < HELPER_PORTS.length; p += 1) {
             const port = HELPER_PORTS[p];

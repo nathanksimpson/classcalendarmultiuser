@@ -9,11 +9,18 @@ import * as Suggestions from './suggestions.js';
 import * as Lock from './lock.js';
 
 export async function calendarMetaExtras(env, user, calendarId, meta) {
-    const lock = await Lock.lockStatus(env, calendarId, user.id, user);
-    const perms = await CalAccess.resolveCalendarPermissions(env, user, calendarId);
+    // Independent reads: run them together (this runs on every client poll).
+    const [lock, perms, viewers, pendingSuggestions, navNotificationActiveDays, navNotificationDismissedDays] =
+        await Promise.all([
+            Lock.lockStatus(env, calendarId, user.id, user),
+            CalAccess.resolveCalendarPermissions(env, user, calendarId),
+            Presence.listViewersForCalendar(env, calendarId, user.id),
+            Suggestions.countPendingSuggestions(env, calendarId),
+            AppSettings.getNavNotificationActiveDays(env),
+            AppSettings.getNavNotificationDismissedDays(env)
+        ]);
     const permissionReadOnly = !perms.canEdit;
     const lockReadOnly = Boolean(lock.readOnly);
-    const viewers = await Presence.listViewersForCalendar(env, calendarId, user.id);
     return Object.assign({}, meta, {
         lock: lock.lock,
         readOnly: permissionReadOnly || lockReadOnly,
@@ -26,9 +33,9 @@ export async function calendarMetaExtras(env, user, calendarId, meta) {
         accessLevel: perms.accessLevel,
         canEdit: perms.canEdit,
         canSuggest: perms.canSuggest,
-        pendingSuggestions: await Suggestions.countPendingSuggestions(env, calendarId),
-        navNotificationActiveDays: await AppSettings.getNavNotificationActiveDays(env),
-        navNotificationDismissedDays: await AppSettings.getNavNotificationDismissedDays(env),
+        pendingSuggestions,
+        navNotificationActiveDays,
+        navNotificationDismissedDays,
         createdByUserId: meta.createdByUserId || null,
         canManageAccess: CalAccess.canManageCalendarAccess(
             user,

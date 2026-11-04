@@ -13,7 +13,7 @@ Use this with [DEVELOPER.md](DEVELOPER.md) for day-to-day edits and deploy steps
 | **Branch** | `main` |
 | **Portable copy** | USB stick — carry repo between home and work PCs (includes `.git`) |
 | **Code source of truth** | **USB folder** synced with GitHub `main` — `git pull` / `git push` from `D:\Simson USB\Class Calendar Multi User` (drive letter may differ) |
-| **Live features** | Production URL after `npm run deploy` — may differ from an unsynced local copy |
+| **Live features** | Production URL after a push to `main` or `npm run deploy` — may differ from an unsynced local copy |
 
 **Open Cursor on the USB path only.** The old network workspace (`\\simson-jsl\...\Class Calendar Multi-User`) is **retired** — do not edit it or port fixes from it. Any uncommitted work there is stale; USB + `origin/main` wins.
 
@@ -72,11 +72,14 @@ Without `npm start`, the app cannot load or save calendar data.
 
 ## Deploy (required for production)
 
+> **Pushing to `main` deploys to production.** Cloudflare Workers Builds is connected to this repo: every push to `main` builds and deploys the live site within a few minutes. Anything not merged into `main` (for example a USB-only branch) **disappears from the live site** on the next push, because the deploy is built from `main` alone. Merge or rebase branch work into `main` before pushing. D1 migrations are **not** run by the build: run `npm run db:migrate:remote` yourself when a change adds one.
+
+
 1. Test locally via `npm start` when possible (see above).
 2. API changes: update **both** `server/` and `worker/src/`.
 3. **Cache strings are automatic for deploys:** `npm run build` rewrites every quoted `…?v=…` ref (HTML and JS loaders such as `js/app-tab-scripts.js`) in `dist/` to a content hash, and sets `CCP_I18N_VERSION`. Manual `?v=` bumps in the repo are only needed if you want a hard refresh to pick up changes under local `npm start`. Keep a non-empty `?v=` on new script/link tags so the build can stamp them.
 4. **What ships:** `scripts/build-assets.mjs` publishes an allow-list (`*.html`, `app.js`, `styles.css`, `js/`, `css/`, `help/`, `soundboard/`, `templates/`, `tools/`, …). A new top-level file or folder **fails the build** until you add it to `SHIP_*` (public) or `DEV_ONLY_*` (private). Security headers come from `shared/security-headers.cjs` (written to `dist/_headers`; Worker pages via `withSecurityHeaders`).
-5. `npm run deploy` (runs `npm run build` → minified `dist/`, then wrangler) — **git push alone does not update the live site.** Local `npm start` still serves unfrozen sources from the repo root. **CSS:** edit root `styles.css` only; `npm run build` runs `css:split` then bundles `css/index.css` into `dist/styles.css` for production.
+5. `npm run deploy` (runs `npm run build` → minified `dist/`, then wrangler) for a manual deploy. A push to `main` also deploys (Workers Builds). Local `npm start` still serves unfrozen sources from the repo root. **CSS:** edit root `styles.css` only; `npm run build` runs `css:split` then bundles `css/index.css` into `dist/styles.css` for production.
 6. New D1 migration: `npm run db:migrate:remote` then deploy.
 7. Production smoke test + Ctrl+F5 on browsers.
 

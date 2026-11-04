@@ -170,9 +170,12 @@ UI-only changes still need **`npx wrangler deploy`** for production (see deploy 
 
 ## Deploy verification checklist (production)
 
+> **Pushing to `main` deploys to production.** Cloudflare Workers Builds is connected to this repo: every push to `main` builds and deploys the live site within a few minutes. Anything not merged into `main` (for example a USB-only branch) **disappears from the live site** on the next push, because the deploy is built from `main` alone. Merge or rebase branch work into `main` before pushing. D1 migrations are **not** run by the build: run `npm run db:migrate:remote` yourself when a change adds one.
+
+
 Production: https://classmanager.live (see `PUBLIC_URL` in `wrangler.toml`; workers.dev URL still works).
 
-**Important:** `git push origin main` alone does **not** update the live site unless **Cloudflare Workers Builds** is connected (it runs `wrangler deploy` on push; `wrangler.toml` `[build]` runs `npm run build` first). For manual deploy, run **`npm run deploy`** (`npm run build` then `wrangler deploy`). Local dev still uses source files from the repo root (`npm start`); production static assets are minified into `dist/` (gitignored).
+**Important:** Cloudflare Workers Builds **is** connected, so `git push origin main` updates the live site (it runs `wrangler deploy` on push; `wrangler.toml` `[build]` runs `npm run build` first). For manual deploy, run **`npm run deploy`** (`npm run build` then `wrangler deploy`). Local dev still uses source files from the repo root (`npm start`); production static assets are minified into `dist/` (gitignored).
 
 - [ ] **Local smoke test** — `npm start`; confirm the feature works with `ALLOW_OPEN_ACCESS=1`.
 - [ ] **Tests** — `npm test` (language-init + `tests/i18n-parity.test.mjs` for en/ko key parity); add `node tests/<name>.test.mjs` if you touched syllabus/homework logic.
