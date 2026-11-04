@@ -6,7 +6,7 @@
  */
 import * as Auth from './auth-permissions.js';
 import * as AppSettings from './app-settings.js';
-import { dbOne, dbRun, nowIso } from './db.js';
+import { dbOne, dbRun, nowIso, rowsChanged } from './db.js';
 import {
     sessionTokenOf as sessionTokenOfCore,
     lockHeldByCaller as lockHeldByCallerCore,
@@ -60,10 +60,15 @@ export async function claimLegacyLockSession(env, lock, userId, sessionToken) {
     return Object.assign({}, lock, { holder_session_token: sessionToken });
 }
 
-export async function assignLockHolder(env, calendarId, userId, displayName, sessionToken) {
+/**
+ * Write the lock holder. With `onlyIf`, the row is replaced only when that SQL condition
+ * (on the stored calendar_locks row) still holds, so two people who both saw a free lock
+ * cannot both take it. Returns true when this call wrote the lock.
+ */
+export async function assignLockHolder(env, calendarId, userId, displayName, sessionToken, onlyIf) {
     const at = nowIso();
     const sess = String(sessionToken || '').trim() || null;
-    await dbRun(
+    const result = await dbRun(
         env,
         `INSERT INTO calendar_locks (
             calendar_id, holder_user_id, holder_name, updated_at,
@@ -79,13 +84,26 @@ export async function assignLockHolder(env, calendarId, userId, displayName, ses
            pending_requester_name = NULL,
            pending_requested_at = NULL,
            holder_session_token = excluded.holder_session_token,
-           pending_requester_session_token = NULL`,
+           pending_requester_session_token = NULL${onlyIf ? `
+         WHERE ${onlyIf.sql}` : ''}`,
         calendarId,
         userId,
         displayName,
         at,
-        sess
+        sess,
+        ...(onlyIf ? onlyIf.params : [])
     );
+    return rowsChanged(result) === 1;
+}
+
+/** Stored row is free to take: stale, or already this user's. */
+async function takeableCondition(env, userId) {
+    const staleMs = await AppSettings.getLockStaleMs(env);
+    const cutoff = new Date(Date.now() - (Number(staleMs) > 0 ? Number(staleMs) : 0)).toISOString();
+    return {
+        sql: 'calendar_locks.holder_user_id = ? OR calendar_locks.updated_at < ?',
+        params: [userId, cutoff]
+    };
 }
 
 export async function grantLockToPending(env, calendarId, holderUserId, holderSessionToken) {
@@ -102,7 +120,13 @@ export async function grantLockToPending(env, calendarId, holderUserId, holderSe
     const pendingId = lock.pending_requester_id;
     const label = lock.pending_requester_name || 'Teacher';
     const pendingSession = String(lock.pending_requester_session_token || '').trim() || null;
-    await assignLockHolder(env, calendarId, pendingId, label, pendingSession);
+    const granted = await assignLockHolder(env, calendarId, pendingId, label, pendingSession, {
+        sql: 'calendar_locks.holder_user_id = ? AND calendar_locks.pending_requester_id = ?',
+        params: [lock.holder_user_id, pendingId]
+    });
+    if (!granted) {
+        return { error: 'The lock changed before it could be handed over', status: 409 };
+    }
     return { ok: true };
 }
 
@@ -298,8 +322,18 @@ export async function acquireOrRequestLock(env, calendarId, user, opts) {
     const stale = !existing || (await isLockStale(env, existing));
     // Same user (any session) or free/stale → assign to this session (auto-takeover).
     if (stale || (existing && existing.holder_user_id === user.id)) {
-        await assignLockHolder(env, calendarId, user.id, name, sessionToken);
-        return { acquired: true, forced: false, editRequestRecorded: false };
+        // Someone else may have taken it since we read it: write only if it is still takeable.
+        const took = await assignLockHolder(
+            env,
+            calendarId,
+            user.id,
+            name,
+            sessionToken,
+            await takeableCondition(env, user.id)
+        );
+        if (took) {
+            return { acquired: true, forced: false, editRequestRecorded: false };
+        }
     }
     await recordLockEditRequest(env, calendarId, user);
     return { acquired: false, forced: false, editRequestRecorded: true };
@@ -317,7 +351,10 @@ export async function ensureSameUserSessionCanSave(env, calendarId, user) {
     }
     if (lock.holder_user_id === user.id && !lockHeldByCaller(lock, user.id, sessionToken)) {
         const name = user.displayName || user.email || 'Teacher';
-        await assignLockHolder(env, calendarId, user.id, name, sessionToken);
+        await assignLockHolder(env, calendarId, user.id, name, sessionToken, {
+            sql: 'calendar_locks.holder_user_id = ?',
+            params: [user.id]
+        });
     }
     return lockStatus(env, calendarId, user.id, user);
 }

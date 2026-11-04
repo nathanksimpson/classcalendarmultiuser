@@ -925,6 +925,7 @@ module.exports = {
     MIN_PASSWORD_LENGTH,
     permanentlyDeleteUser,
     getLock,
+    isLockStale,
     acquireLock,
     assignLockHolder,
     grantLockToPending,

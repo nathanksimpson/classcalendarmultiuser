@@ -38,8 +38,18 @@ export function calendarDocForClient(row, env) {
         revision: row.revision,
         updatedAt: row.updatedAt,
         updatedBy: row.updatedBy,
-        data: parseDataObjectFromRow(row, row.id, env)
+        data: withoutSyncMarks(parseDataObjectFromRow(row, row.id, env))
     };
+}
+
+/** Change marks (shared/sync-revs.cjs) are server bookkeeping; clients never need them. */
+function withoutSyncMarks(data) {
+    if (data && typeof data === 'object' && Object.prototype.hasOwnProperty.call(data, '_syncRevs')) {
+        const copy = Object.assign({}, data);
+        delete copy._syncRevs;
+        return copy;
+    }
+    return data;
 }
 
 export function serializeCalendarData(calendarId, dataObject, env) {

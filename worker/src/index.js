@@ -43,6 +43,8 @@ import * as Soundboard from './soundboard.js';
 import * as Lock from './lock.js';
 import * as CalendarMeta from './calendar-meta.js';
 import * as CalendarMutations from '../../shared/calendar-mutations.cjs';
+import * as SyncRevs from '../../shared/sync-revs.cjs';
+import { saveWithRetry } from './calendar-write.js';
 import { SECURITY_HEADERS } from '../../shared/security-headers.cjs';
 import { findCalendarByName, assertCalendarNameAvailable } from './calendars.js';
 import { runTmsJob } from './tms-jobs.js';
@@ -1897,22 +1899,42 @@ export default {
                 if (!suggestion || suggestion.calendarId !== calId || suggestion.status !== 'pending') {
                     return json({ error: 'Suggestion not found' }, 404);
                 }
-                const meta = await dbOne(env, 'SELECT revision, name FROM calendars WHERE id = ?', calId);
+                // Someone else is editing the schedule right now: applying would overwrite their work.
+                // Applies even for admins who may bypass the lock: the editor's work comes first.
+                const applyLockRow = await Lock.getLock(env, calId);
+                if (
+                    applyLockRow &&
+                    applyLockRow.holder_user_id !== user.id &&
+                    !(await Lock.isLockStale(env, applyLockRow))
+                ) {
+                    const applyLock = await Lock.lockStatus(env, calId, user.id, user);
+                    return json({ error: 'Calendar is locked by another user', lock: applyLock.lock }, 423);
+                }
                 const label = user.displayName || user.email || 'Teacher';
-                const nextRev = Number(meta.revision) + 1;
-                const stored = serializeCalendarData(calId, suggestion.data, env);
-                await dbRun(
-                    env,
-                    'UPDATE calendars SET name=?, data=?, data_enc_version=?, data_key_wrapped=?, revision=?, updated_at=?, updated_by=? WHERE id=?',
-                    meta.name,
-                    stored.data,
-                    stored.dataEncVersion,
-                    stored.dataKeyWrapped,
-                    nextRev,
-                    nowIso(),
-                    label,
-                    calId
-                );
+                const applied = await saveWithRetry(env, calId, label, ({ data, revision }) => {
+                    // Schedule from the suggestion; classroom data and notes stay as they are now.
+                    const merged = SyncRevs.applySuggestion(data, revision, suggestion.data, suggestion.baseRevision);
+                    if (!merged.ok) {
+                        return { stop: { status: 409, reason: merged.reason } };
+                    }
+                    return { data: SyncRevs.stampDiff(data, revision, merged.data, revision + 1) };
+                });
+                if (applied.missing) {
+                    return json({ error: 'Calendar not found' }, 404);
+                }
+                if (!applied.ok) {
+                    const doc = await dbOne(env, `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`, calId);
+                    return json(
+                        {
+                            conflict: true,
+                            code: 'SUGGESTION_OUTDATED',
+                            error: 'The schedule changed after this suggestion was written. Review it again before applying.',
+                            document: calendarDocForClient(doc, env)
+                        },
+                        409
+                    );
+                }
+                const meta = { name: applied.current.row.name };
                 await Suggestions.setSuggestionStatus(env, suggestionId, 'applied');
                 await ActivityLog.recordActivityForUser(env, user, {
                     action: 'suggestion_apply',
@@ -2207,8 +2229,13 @@ export default {
                     ) {
                         return json({ conflict: true, document: calendarDocForClient(existingRow, env) }, 409);
                     }
-                    const mergedData = Object.assign({}, existingData, prepared.merged);
                     const nextRev = Number(existingRow.revision) + 1;
+                    const mergedData = SyncRevs.stampDiff(
+                        existingData,
+                        existingRow.revision,
+                        Object.assign({}, existingData, prepared.merged),
+                        nextRev
+                    );
                     const label = user.displayName || user.email || 'Teacher';
                     const stored = serializeCalendarData(calId, mergedData, env);
                     const writeResult = await dbRun(
@@ -2275,10 +2302,13 @@ export default {
                     ) {
                         return json({ conflict: true, document: calendarDocForClient(existingRow, env) }, 409);
                     }
-                    const mergedData = Object.assign({}, existingData, {
-                        dayNotes: prepared.dayNotes
-                    });
                     const nextRev = Number(existingRow.revision) + 1;
+                    const mergedData = SyncRevs.stampDiff(
+                        existingData,
+                        existingRow.revision,
+                        Object.assign({}, existingData, { dayNotes: prepared.dayNotes }),
+                        nextRev
+                    );
                     const label = user.displayName || user.email || 'Teacher';
                     const stored = serializeCalendarData(calId, mergedData, env);
                     const writeResult = await dbRun(
@@ -2365,64 +2395,30 @@ export default {
                         return json({ error: renameClash.error, code: renameClash.code }, renameClash.status);
                     }
                 }
-                const stored = serializeCalendarData(calId, body.data, env);
-                // Compare-and-set: guard the write on the revision we just read so two
-                // concurrent writers cannot both bump from the same base revision.
-                let nextRev = Number(existing.revision) + 1;
-                let writeResult = await dbRun(
-                    env,
-                    'UPDATE calendars SET name=?, data=?, data_enc_version=?, data_key_wrapped=?, revision=?, updated_at=?, updated_by=? WHERE id=? AND revision=?',
-                    displayName,
-                    stored.data,
-                    stored.dataEncVersion,
-                    stored.dataKeyWrapped,
-                    nextRev,
-                    nowIso(),
-                    label,
-                    calId,
-                    Number(existing.revision)
-                );
-                if (rowsChanged(writeResult) !== 1) {
-                    if (!forceAllowed) {
-                        const doc = await dbOne(
-                            env,
-                            `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
-                            calId
-                        );
-                        return json({ conflict: true, document: calendarDocForClient(doc, env) }, 409);
+                // Compare-and-set on the revision the client saved from. A force save re-bases
+                // onto whatever is stored now and retries a few times.
+                const putBase = body.revision != null ? Number(body.revision) : Number(existing.revision);
+                const putSaved = await saveWithRetry(env, calId, label, ({ data, revision }) => {
+                    if (!forceAllowed && revision !== putBase) {
+                        return { stop: { status: 409 } };
                     }
-                    // Force save: re-base onto the latest revision and retry a few times.
-                    let forcedOk = false;
-                    for (let attempt = 0; attempt < 5 && !forcedOk; attempt += 1) {
-                        const cur = await dbOne(env, 'SELECT revision FROM calendars WHERE id = ?', calId);
-                        if (!cur) {
-                            break;
-                        }
-                        nextRev = Number(cur.revision) + 1;
-                        writeResult = await dbRun(
-                            env,
-                            'UPDATE calendars SET name=?, data=?, data_enc_version=?, data_key_wrapped=?, revision=?, updated_at=?, updated_by=? WHERE id=? AND revision=?',
-                            displayName,
-                            stored.data,
-                            stored.dataEncVersion,
-                            stored.dataKeyWrapped,
-                            nextRev,
-                            nowIso(),
-                            label,
-                            calId,
-                            Number(cur.revision)
-                        );
-                        forcedOk = rowsChanged(writeResult) === 1;
-                    }
-                    if (!forcedOk) {
-                        const doc = await dbOne(
-                            env,
-                            `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
-                            calId
-                        );
-                        return json({ conflict: true, document: calendarDocForClient(doc, env) }, 409);
-                    }
+                    return {
+                        name: displayName,
+                        data: SyncRevs.stampDiff(data, revision, body.data, revision + 1)
+                    };
+                }, forceAllowed ? 5 : 1);
+                if (putSaved.missing) {
+                    return json({ error: 'Calendar not found' }, 404);
                 }
+                if (!putSaved.ok) {
+                    const doc = await dbOne(
+                        env,
+                        `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
+                        calId
+                    );
+                    return json({ conflict: true, document: calendarDocForClient(doc, env) }, 409);
+                }
+                const nextRev = putSaved.revision;
                 await ActivityLog.recordActivityForUser(env, user, {
                     action: 'calendar_save',
                     calendarId: calId,
@@ -2503,59 +2499,57 @@ export default {
                         );
                     }
                 }
-                if (
-                    !forceAllowed &&
-                    body.baseRevision != null &&
-                    Number(body.baseRevision) !== Number(existingRow.revision)
-                ) {
-                    return json({ conflict: true, document: calendarDocForClient(existingRow, env) }, 409);
-                }
-                const existingData = parseDataObjectFromRow(existingRow, calId, env);
-                let mergedData = CalendarMutations.applyCalendarMutations(existingData, body.mutations);
-                if (domains.classroom) {
-                    const classroomPayload = CalendarMutations.classroomMutationsToPayload(
-                        body.mutations,
-                        existingData
-                    );
-                    const prepared = prepareClassroomForSave(user, existingData, classroomPayload);
-                    if (prepared.error) {
-                        return json({ error: prepared.error }, 403);
-                    }
-                    mergedData = Object.assign({}, mergedData, prepared.merged);
-                }
-                if (domains.dayNotes) {
-                    const prepared = prepareDayNotesForSave(user, existingData, mergedData.dayNotes);
-                    if (prepared.error) {
-                        return json({ error: prepared.error }, 403);
-                    }
-                    mergedData = Object.assign({}, mergedData, { dayNotes: prepared.dayNotes });
-                }
-                const nextRev = Number(existingRow.revision) + 1;
                 const label = user.displayName || user.email || 'Teacher';
-                const stored = serializeCalendarData(calId, mergedData, env);
-                // Compare-and-set guard: if another writer bumped the revision between our
-                // read and this write, 0 rows change and we return 409 so the client can
-                // re-apply its mutations onto the new server state.
-                const writeResult = await dbRun(
-                    env,
-                    'UPDATE calendars SET data=?, data_enc_version=?, data_key_wrapped=?, revision=?, updated_at=?, updated_by=? WHERE id=? AND revision=?',
-                    stored.data,
-                    stored.dataEncVersion,
-                    stored.dataKeyWrapped,
-                    nextRev,
-                    nowIso(),
-                    label,
-                    calId,
-                    Number(existingRow.revision)
-                );
-                if (rowsChanged(writeResult) !== 1) {
+                const hasBase = !forceAllowed && body.baseRevision != null;
+                let accessError = null;
+                // Apply onto the latest stored document. A client that saved from an older
+                // revision is only refused when an item it touches was changed after that
+                // revision (a real conflict); unrelated saves in between are fine.
+                const patched = await saveWithRetry(env, calId, label, ({ data, revision }) => {
+                    if (hasBase && Number(body.baseRevision) !== revision) {
+                        const check = SyncRevs.canRebase(data, body.mutations, body.baseRevision, revision);
+                        if (!check.ok) {
+                            return { stop: { status: 409, keys: check.keys } };
+                        }
+                    }
+                    let mergedData = CalendarMutations.applyCalendarMutations(data, body.mutations);
+                    if (domains.classroom) {
+                        const classroomPayload = CalendarMutations.classroomMutationsToPayload(body.mutations, data);
+                        const prepared = prepareClassroomForSave(user, data, classroomPayload);
+                        if (prepared.error) {
+                            accessError = prepared.error;
+                            return { stop: { status: 403 } };
+                        }
+                        mergedData = Object.assign({}, mergedData, prepared.merged);
+                    }
+                    if (domains.dayNotes) {
+                        const prepared = prepareDayNotesForSave(user, data, mergedData.dayNotes);
+                        if (prepared.error) {
+                            accessError = prepared.error;
+                            return { stop: { status: 403 } };
+                        }
+                        mergedData = Object.assign({}, mergedData, { dayNotes: prepared.dayNotes });
+                    }
+                    return {
+                        data: SyncRevs.stampMutations(data, revision, mergedData, body.mutations, revision + 1)
+                    };
+                });
+                if (patched.missing) {
+                    return json({ error: 'Calendar not found' }, 404);
+                }
+                if (accessError) {
+                    return json({ error: accessError }, 403);
+                }
+                if (!patched.ok) {
                     const doc = await dbOne(
                         env,
                         `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
                         calId
                     );
-                    return json({ conflict: true, document: calendarDocForClient(doc, env) }, 409);
+                    const conflictKeys = patched.stop && patched.stop.keys ? patched.stop.keys.slice(0, 20) : [];
+                    return json({ conflict: true, conflictKeys, document: calendarDocForClient(doc, env) }, 409);
                 }
+                const nextRev = patched.revision;
                 if (needsScheduleLock && lock.holdsLock) {
                     await Lock.touchLockHolder(env, calId, user.id, Lock.sessionTokenOf(user));
                 }

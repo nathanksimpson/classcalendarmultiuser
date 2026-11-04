@@ -7,6 +7,7 @@ const DayNotesAccess = require('./day-notes-access');
 const ClassroomAccess = require('./classroom-access');
 const CalStorage = require('./calendar-storage');
 const CalendarMutations = require('../shared/calendar-mutations.cjs');
+const SyncRevs = require('../shared/sync-revs.cjs');
 
 function listCalendars() {
     const db = getDb();
@@ -134,7 +135,11 @@ function updateCalendar(id, name, data, revision, editorLabel, force, user) {
 
     const now = nowIso();
     const label = editorLabel || user.displayName || user.email || 'Teacher';
-    const stored = CalStorage.serializeCalendarData(id, data);
+    const currentDoc = getCalendar(id);
+    const stored = CalStorage.serializeCalendarData(
+        id,
+        SyncRevs.stampDiff(currentDoc.data, currentDoc.revision, data, Number(currentDoc.revision) + 1)
+    );
     // Compare-and-set: guard the write on the revision we just read.
     let nextRevision = Number(existing.revision) + 1;
     let writeResult = db
@@ -218,9 +223,14 @@ function updateCalendarDayNotes(id, dayNotes, revision, editorLabel, user) {
     if (revision != null && Number(revision) !== Number(existingDoc.revision)) {
         return { ok: false, status: 409, document: existingDoc };
     }
-    const mergedData = Object.assign({}, existingDoc.data, {
-        dayNotes: Array.isArray(prepared.dayNotes) ? prepared.dayNotes : []
-    });
+    const mergedData = SyncRevs.stampDiff(
+        existingDoc.data,
+        existingDoc.revision,
+        Object.assign({}, existingDoc.data, {
+            dayNotes: Array.isArray(prepared.dayNotes) ? prepared.dayNotes : []
+        }),
+        Number(existingDoc.revision) + 1
+    );
     const db = getDb();
     const nextRevision = Number(existingDoc.revision) + 1;
     const now = nowIso();
@@ -272,7 +282,12 @@ function updateCalendarClassroom(id, payload, revision, editorLabel, user) {
     if (revision != null && Number(revision) !== Number(existingDoc.revision)) {
         return { ok: false, status: 409, document: existingDoc };
     }
-    const mergedData = Object.assign({}, existingDoc.data, prepared.merged);
+    const mergedData = SyncRevs.stampDiff(
+        existingDoc.data,
+        existingDoc.revision,
+        Object.assign({}, existingDoc.data, prepared.merged),
+        Number(existingDoc.revision) + 1
+    );
     const db = getDb();
     const nextRevision = Number(existingDoc.revision) + 1;
     const now = nowIso();
@@ -360,11 +375,15 @@ function patchCalendar(id, baseRevision, mutations, editorLabel, force, user) {
         }
     }
 
-    if (!forceAllowed && baseRevision != null && Number(baseRevision) !== Number(existing.revision)) {
-        return { ok: false, status: 409, document: getCalendar(id) };
-    }
-
     const existingDoc = getCalendar(id);
+    // Saved from an older revision: apply on top of the latest unless an item these
+    // mutations touch changed after that revision (shared/sync-revs.cjs).
+    if (!forceAllowed && baseRevision != null && Number(baseRevision) !== Number(existing.revision)) {
+        const check = SyncRevs.canRebase(existingDoc.data, mutations, baseRevision, existing.revision);
+        if (!check.ok) {
+            return { ok: false, status: 409, document: existingDoc, conflictKeys: check.keys.slice(0, 20) };
+        }
+    }
     let mergedData = CalendarMutations.applyCalendarMutations(existingDoc.data, mutations);
 
     if (domains.classroom) {
@@ -398,6 +417,7 @@ function patchCalendar(id, baseRevision, mutations, editorLabel, force, user) {
     const nextRevision = Number(existing.revision) + 1;
     const now = nowIso();
     const label = editorLabel || user.displayName || user.email || 'Teacher';
+    mergedData = SyncRevs.stampMutations(existingDoc.data, existing.revision, mergedData, mutations, nextRevision);
     const stored = CalStorage.serializeCalendarData(id, mergedData);
     // Compare-and-set: on contention return 409 so the client re-applies its mutations.
     const writeResult = db
@@ -442,6 +462,55 @@ function patchCalendar(id, baseRevision, mutations, editorLabel, force, user) {
     return { ok: true, document: getCalendar(id) };
 }
 
+/**
+ * Apply a suggestion onto the latest calendar: schedule from the suggestion, classroom
+ * data and day notes as they are now. Refused when the schedule changed after the
+ * suggestion was written, or while someone else holds the edit lock.
+ */
+function applySuggestion(id, suggestion, editorLabel, user) {
+    const current = getCalendar(id);
+    if (!current) {
+        return { ok: false, status: 404, error: 'Calendar not found' };
+    }
+    // Someone else is editing the schedule (admins included: the editor's work comes first).
+    const lockRow = users.getLock(id);
+    if (lockRow && lockRow.holder_user_id !== user.id && !users.isLockStale(lockRow)) {
+        const lockState = users.lockStatusForClient(id, user.id, user);
+        return { ok: false, status: 423, error: 'Calendar is locked by another user', lock: lockState.lock };
+    }
+    const merged = SyncRevs.applySuggestion(current.data, current.revision, suggestion.data, suggestion.baseRevision);
+    if (!merged.ok) {
+        return {
+            ok: false,
+            status: 409,
+            code: 'SUGGESTION_OUTDATED',
+            error: 'The schedule changed after this suggestion was written. Review it again before applying.',
+            document: current
+        };
+    }
+    const nextRevision = Number(current.revision) + 1;
+    const data = SyncRevs.stampDiff(current.data, current.revision, merged.data, nextRevision);
+    const stored = CalStorage.serializeCalendarData(id, data);
+    const writeResult = getDb()
+        .prepare(
+            `UPDATE calendars SET data = ?, data_enc_version = ?, data_key_wrapped = ?, revision = ?, updated_at = ?, updated_by = ? WHERE id = ? AND revision = ?`
+        )
+        .run(
+            stored.data,
+            stored.dataEncVersion,
+            stored.dataKeyWrapped,
+            nextRevision,
+            nowIso(),
+            editorLabel || user.displayName || user.email || 'Teacher',
+            id,
+            Number(current.revision)
+        );
+    if (writeResult.changes !== 1) {
+        return { ok: false, status: 409, document: getCalendar(id) };
+    }
+    return { ok: true, document: getCalendar(id) };
+}
+
 function deleteCalendar(id) {
     const db = getDb();
     db.prepare('DELETE FROM calendar_locks WHERE calendar_id = ?').run(id);
@@ -465,6 +534,7 @@ module.exports = {
     updateCalendarDayNotes,
     updateCalendarClassroom,
     patchCalendar,
+    applySuggestion,
     deleteCalendar,
     newId
 };

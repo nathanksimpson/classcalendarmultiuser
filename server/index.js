@@ -1720,17 +1720,15 @@ app.post('/api/calendars/:id/suggestions/:suggestionId/apply', requireUser, reje
     }
     const meta = calendars.getCalendarMeta(calId);
     const label = req.user.displayName || req.user.email || 'Teacher';
-    const result = calendars.updateCalendar(
-        calId,
-        meta && meta.name,
-        suggestion.data,
-        suggestion.baseRevision,
-        label,
-        true,
-        req.user
-    );
+    const result = calendars.applySuggestion(calId, suggestion, label, req.user);
     if (!result.ok) {
-        res.status(result.status || 500).json({ error: result.error || 'Apply failed', document: result.document });
+        res.status(result.status || 500).json({
+            error: result.error || 'Apply failed',
+            code: result.code,
+            conflict: result.status === 409 || undefined,
+            lock: result.lock,
+            document: result.document
+        });
         return;
     }
     Suggestions.setSuggestionStatus(suggestionId, 'applied');
