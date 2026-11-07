@@ -29,7 +29,10 @@ const SHIP_FILES = new Set([
     'help.css',
     'homework-import-standard.json',
     'FOR TEACHERS.md',
-    'FOR TEACHERS-ko.md'
+    'FOR TEACHERS-ko.md',
+    'favicon.svg',
+    'favicon.ico',
+    'apple-touch-icon.png'
 ]);
 
 /** Known dev-only top-level items: skipped quietly. Anything not shipped or listed here fails the build. */
