@@ -336,28 +336,35 @@ const appData = {
     ];
     assert(
         summary.assignmentListMonth(assignments[0]) === '2026-09',
-        'teacher list month wins over due date'
+        'class-list month still prefers the teacher month'
     );
     assert(
-        summary.assignmentListMonth({ lessonDate: '2026-09-10', ssDueDate: '2026-10-02' }) ===
-            '2026-09',
-        'syllabus date used when no teacher month'
+        summary.assignmentSummaryMonth(assignments[0]) === '2026-10',
+        'print month follows the due date, not the list month'
+    );
+    assert(
+        summary.assignmentSummaryMonth({ lessonDate: '2026-09-10', ssDueDate: '' }) === '2026-09',
+        'no due date falls back to the syllabus date'
+    );
+    assert(
+        summary.assignmentSummaryMonth({ listMonth: '2026-12', ssDueDate: '' }) === '2026-12',
+        'no due date falls back to the teacher month'
     );
     const months = summary.listMonthFilterOptions(assignments);
-    assert(months.includes('2026-09') && months.includes('2026-11'), 'month options follow list month');
-    assert(
-        !months.includes('2026-10'),
-        'due-date month is not a filter option when list month differs'
-    );
+    assert(months.includes('2026-09') && months.includes('2026-10'), 'month options follow due dates');
+    assert(!months.includes('2026-11'), 'teacher list month alone is not a print month');
     const sept = summary.filterAssignmentsByHrAndMonth(assignments, appData, { month: '2026-09' });
     assert(
-        sept.length === 1 && sept[0].key === 'c1|r1',
-        'September filter keeps the September list month'
+        sept.length === 1 && sept[0].key === 'c1|r2',
+        'September keeps the essay due in September'
     );
     const oct = summary.filterAssignmentsByHrAndMonth(assignments, appData, { month: '2026-10' });
-    assert(oct.length === 0, 'October due date does not put the row in October');
+    assert(
+        oct.length === 1 && oct[0].key === 'c1|r1',
+        'essay assigned in September but due in October prints in October'
+    );
     const nov = summary.filterAssignmentsByHrAndMonth(assignments, appData, { month: '2026-11' });
-    assert(nov.length === 1 && nov[0].key === 'c1|r2', 'teacher month 2026-11 is the print month');
+    assert(nov.length === 0, 'teacher month does not move a dated essay');
 }
 
 {

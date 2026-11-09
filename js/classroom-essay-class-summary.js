@@ -139,6 +139,18 @@
         return monthKeyFromDueDate(row.ssDueDate);
     }
 
+    /**
+     * Month the class-summary / print filter sorts by: the student due date.
+     * Falls back to the class-list month (teacher-set, else syllabus date) only
+     * when the essay has no due date.
+     */
+    function assignmentSummaryMonth(row) {
+        if (!row) {
+            return '';
+        }
+        return monthKeyFromDueDate(row.ssDueDate) || assignmentListMonth(row);
+    }
+
     function findClassForAssignment(assignment, appData, options) {
         const opts = options || {};
         const classId = assignment && assignment.classId;
@@ -189,7 +201,7 @@
     function listMonthFilterOptions(assignments) {
         const months = new Set();
         (Array.isArray(assignments) ? assignments : []).forEach((row) => {
-            const month = assignmentListMonth(row);
+            const month = assignmentSummaryMonth(row);
             if (month) {
                 months.add(month);
             }
@@ -198,7 +210,7 @@
     }
 
     /**
-     * Narrow assignment checklist by HR teacher and/or class-list month (YYYY-MM).
+     * Narrow assignment checklist by HR teacher and/or due month (YYYY-MM).
      * Empty homeroomKey / month = no filter on that axis.
      */
     function filterAssignmentsByHrAndMonth(assignments, appData, filters, options) {
@@ -215,7 +227,7 @@
                 return false;
             }
             if (month) {
-                if (assignmentListMonth(row) !== month) {
+                if (assignmentSummaryMonth(row) !== month) {
                     return false;
                 }
             }
@@ -551,6 +563,7 @@
         resolveHomeroomMeta,
         monthKeyFromDueDate,
         assignmentListMonth,
+        assignmentSummaryMonth,
         listHomeroomFilterOptions,
         listMonthFilterOptions,
         filterAssignmentsByHrAndMonth,
