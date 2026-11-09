@@ -850,6 +850,12 @@ html[data-viewport="phone"] .classroom-sheet .classroom-student-row-status > .cl
     white-space: nowrap;
 }
 
+/* Last resort when even the kept controls and More don't fit on one line. */
+#appMain .ui-one-row.ui-one-row--wrap {
+    flex-wrap: wrap;
+    row-gap: var(--space-2, 8px);
+}
+
 
 .ui-more[hidden] {
     display: none;

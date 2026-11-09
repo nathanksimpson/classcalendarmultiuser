@@ -183,6 +183,30 @@
         return bar.scrollWidth > bar.clientWidth + 1;
     }
 
+    /**
+     * Width the row needs for what can never move into More: kept controls
+     * (Save, Reports…), the first button and More itself. Used as the row's
+     * min-width so a toolbar that shares its line with other content drops the
+     * row onto its own line instead of squeezing it until More is cut off
+     * (Essays toolbar at laptop widths).
+     */
+    function requiredWidth(bar, wrap, firstVisible) {
+        const cs = getComputedStyle(bar);
+        const gap = parseFloat(cs.columnGap) || 0;
+        let need = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+        let count = 0;
+        Array.from(bar.children).forEach((el) => {
+            if (!isVisible(el)) {
+                return;
+            }
+            if (el === wrap || el === firstVisible || isKept(el)) {
+                need += el.getBoundingClientRect().width;
+                count += 1;
+            }
+        });
+        return Math.ceil(need + gap * Math.max(0, count - 1));
+    }
+
     function fitBar(bar) {
         if (!bar.isConnected || !isVisible(bar)) {
             return;
@@ -193,6 +217,12 @@
         const wasOpen = !wrap.querySelector('.ui-more-menu').hidden;
         setMenuOpen(bar, false);
         restoreAll(bar, wrap);
+        bar.classList.remove('ui-one-row--wrap');
+        // Always leave the first visible button in the row.
+        const firstVisible = Array.from(bar.querySelectorAll(MOVABLE_SELECTOR)).find((el) => isVisible(el));
+        wrap.hidden = false;
+        const need = requiredWidth(bar, wrap, firstVisible);
+        bar.style.minWidth = need > 0 ? `min(100%, ${Math.max(need, 288)}px)` : '';
         wrap.hidden = true;
         if (!overflows(bar)) {
             return;
@@ -201,8 +231,6 @@
         const menu = wrap.querySelector('.ui-more-menu');
         const candidates = Array.from(bar.querySelectorAll(MOVABLE_SELECTOR))
             .filter((el) => !isKept(el) && !el.hidden && isVisible(el));
-        // Always leave the first visible button in the row.
-        const firstVisible = Array.from(bar.querySelectorAll(MOVABLE_SELECTOR)).find((el) => isVisible(el));
         while (overflows(bar) && candidates.length) {
             const el = candidates.pop();
             if (el === firstVisible) {
@@ -216,6 +244,11 @@
             wrap.hidden = true;
         } else if (wasOpen) {
             setMenuOpen(bar, true);
+        }
+        // Too narrow even for the kept controls (phones): wrap the row rather
+        // than let More or Save run off the edge where they can't be reached.
+        if (overflows(bar)) {
+            bar.classList.add('ui-one-row--wrap');
         }
     }
 
