@@ -19,7 +19,9 @@
         essaySubject: '',
         classScope: 'all'
     };
-    const classSummarySelectedKeys = new Set();
+    // Keys the teacher unticked. Everything matching the filters is included unless listed here,
+    // so essays added later (or first seen under another month) are never silently dropped.
+    const classSummaryExcludedKeys = new Set();
     let classSummaryFilters = {
         homeroomKey: '',
         month: '',
@@ -965,13 +967,13 @@
 
     function loadClassSummarySelection() {
         const data = getAppData();
-        classSummarySelectedKeys.clear();
-        const raw = data.ui && data.ui.essayClassSummarySelection;
+        classSummaryExcludedKeys.clear();
+        const raw = data.ui && data.ui.essayClassSummaryExcluded;
         if (typeof raw === 'string' && raw.trim()) {
             raw.split(',').forEach((key) => {
                 const trimmed = key.trim();
                 if (trimmed) {
-                    classSummarySelectedKeys.add(trimmed);
+                    classSummaryExcludedKeys.add(trimmed);
                 }
             });
         }
@@ -1025,8 +1027,8 @@
     function saveClassSummarySelection() {
         if (hooks && hooks.setUiPref) {
             hooks.setUiPref(
-                'essayClassSummarySelection',
-                Array.from(classSummarySelectedKeys).join(',')
+                'essayClassSummaryExcluded',
+                Array.from(classSummaryExcludedKeys).join(',')
             );
         }
     }
@@ -1127,14 +1129,9 @@
         if (!progressApi) {
             return [];
         }
-        const filtered = listFilteredClassSummaryAssignments();
-        if (!classSummarySelectedKeys.size) {
-            return [];
-        }
-        return progressApi.filterAssignments(filtered, {
-            selectedKeys: classSummarySelectedKeys,
-            outstandingOnly: false
-        });
+        return listFilteredClassSummaryAssignments().filter(
+            (row) => row && row.key && !classSummaryExcludedKeys.has(row.key)
+        );
     }
 
     function getClassSummaryHrGroups(assignments) {
@@ -1317,16 +1314,11 @@
         const grouped = global.CCPClassroomEssayProgress
             ? global.CCPClassroomEssayProgress.groupAssignmentsByClass(assignments)
             : [];
-        const savedSelection = getAppData().ui && getAppData().ui.essayClassSummarySelection;
-        const neverSavedSelection = savedSelection === undefined || savedSelection === null;
-        if (neverSavedSelection && !classSummarySelectedKeys.size && assignments.length) {
-            assignments.forEach((row) => classSummarySelectedKeys.add(row.key));
-        }
         listEl.innerHTML = grouped
             .map((group) => {
                 const rows = (group.rows || [])
                     .map((row) => {
-                        const checked = classSummarySelectedKeys.has(row.key) ? ' checked' : '';
+                        const checked = classSummaryExcludedKeys.has(row.key) ? '' : ' checked';
                         const hint = formatClassSummaryAssignmentHint(row);
                         return `<label class="classroom-essay-progress-assignment-row">
                             <input type="checkbox" data-assignment-key="${escapeAttr(row.key)}"${checked} />
@@ -1347,9 +1339,9 @@
                     return;
                 }
                 if (input.checked) {
-                    classSummarySelectedKeys.add(key);
+                    classSummaryExcludedKeys.delete(key);
                 } else {
-                    classSummarySelectedKeys.delete(key);
+                    classSummaryExcludedKeys.add(key);
                 }
                 saveClassSummarySelection();
                 if (previewEl) {
@@ -1411,14 +1403,14 @@
             renderClassSummaryModal();
         });
         document.getElementById('essayClassSummarySelectAll')?.addEventListener('click', () => {
-            listFilteredClassSummaryAssignments().forEach((row) => classSummarySelectedKeys.add(row.key));
+            listFilteredClassSummaryAssignments().forEach((row) => classSummaryExcludedKeys.delete(row.key));
             saveClassSummarySelection();
             renderClassSummaryModal();
         });
         document.getElementById('essayClassSummaryClearAll')?.addEventListener('click', () => {
             listFilteredClassSummaryAssignments().forEach((row) => {
                 if (row && row.key) {
-                    classSummarySelectedKeys.delete(row.key);
+                    classSummaryExcludedKeys.add(row.key);
                 }
             });
             saveClassSummarySelection();
