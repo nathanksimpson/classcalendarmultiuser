@@ -60,7 +60,7 @@ const mark = (studentId, status) => [
 ];
 const statuses = (doc) => Object.fromEntries(doc.data.attendanceSessions[0].records.map((r) => [r.studentId, r.status]));
 
-// Two teachers ask for a free lock at the same moment: exactly one gets it.
+// Edit lock retired: two teachers (or two devices) asking at once both may edit, nothing stored.
 {
     const { env, id } = await setup();
     const ua = { id: 'ua', displayName: 'A', role: 'teacher', sessionToken: 'tok-ua' };
@@ -69,20 +69,9 @@ const statuses = (doc) => Object.fromEntries(doc.data.attendanceSessions[0].reco
         Lock.acquireOrRequestLock(env, id, ua, {}),
         Lock.acquireOrRequestLock(env, id, ub, {})
     ]);
-    const holder = env.DB.raw.prepare('SELECT holder_user_id AS h FROM calendar_locks WHERE calendar_id = ?').get(id).h;
-    check('only one simultaneous lock acquire succeeds', ra.acquired !== rb.acquired, `A=${ra.acquired} B=${rb.acquired}`);
-    const winner = ra.acquired ? 'ua' : 'ub';
-    check('the stored holder is the one told it won', holder === winner, `holder=${holder} winner=${winner}`);
-}
-
-// Same teacher on a second device still takes over their own lock.
-{
-    const { env, id } = await setup();
-    const phone = { id: 'ua', displayName: 'A', role: 'teacher', sessionToken: 'tok-phone' };
-    const laptop = { id: 'ua', displayName: 'A', role: 'teacher', sessionToken: 'tok-laptop' };
-    await Lock.acquireOrRequestLock(env, id, phone, {});
-    const r = await Lock.acquireOrRequestLock(env, id, laptop, {});
-    check('same user can take over own lock', r.acquired === true);
+    const rows = env.DB.raw.prepare('SELECT COUNT(*) AS n FROM calendar_locks').get().n;
+    check('both may edit at once', ra.acquired === true && rb.acquired === true);
+    check('no lock row written', rows === 0, `rows=${rows}`);
 }
 
 // Different students in the same session, saved at the same moment: both kept.
@@ -98,16 +87,18 @@ const statuses = (doc) => Object.fromEntries(doc.data.attendanceSessions[0].reco
     check('different students: both marks kept', s.k1 === 'late' && s.k2 === 'absent', JSON.stringify(s));
 }
 
-// Same student changed by two teachers from the same base: the second is a conflict.
+// Same student changed by two teachers from the same base: latest save wins and says so.
 {
     const { A, B, id } = await setup();
     const rev = (await A('GET', `/api/calendars/${id}`)).body.revision;
     const ra = await A('PATCH', `/api/calendars/${id}`, { baseRevision: rev, mutations: mark('k1', 'late') });
     const rb = await B('PATCH', `/api/calendars/${id}`, { baseRevision: rev, mutations: mark('k1', 'absent') });
     const s = statuses((await A('GET', `/api/calendars/${id}`)).body);
-    check('same student: second save is a conflict', ra.status === 200 && rb.status === 409, `A=${ra.status} B=${rb.status}`);
-    check('same student: first value kept', s.k1 === 'late', JSON.stringify(s));
-    check('conflict names the item', rb.body && rb.body.conflictKeys && rb.body.conflictKeys.includes('attendanceSessions:s1@k1'));
+    check('same student: both saves accepted', ra.status === 200 && rb.status === 200, `A=${ra.status} B=${rb.status}`);
+    check('same student: latest value kept', s.k1 === 'absent', JSON.stringify(s));
+    check('latest save told what it replaced', rb.body && Array.isArray(rb.body.overwritten) &&
+        rb.body.overwritten.includes('attendanceSessions:s1@k1'), JSON.stringify(rb.body && rb.body.overwritten));
+    check('first save had nothing to report', Array.isArray(ra.body.overwritten) && ra.body.overwritten.length === 0);
 }
 
 // Re-sending a value that is already stored is not a conflict.
@@ -145,8 +136,9 @@ const statuses = (doc) => Object.fromEntries(doc.data.attendanceSessions[0].reco
         mutations: [{ entity: 'attendanceSessions', action: 'upsert', payload: { session: Object.assign({}, stale, { records: [{ studentId: 'k1', status: 'late' }, { studentId: 'k2', status: 'present' }] }) } }]
     });
     const s = statuses((await A('GET', `/api/calendars/${id}`)).body);
-    check('stale whole-session save is a conflict', r.status === 409, `status=${r.status}`);
-    check("other teacher's mark survives", s.k2 === 'absent', JSON.stringify(s));
+    check('stale whole-session save is accepted', r.status === 200, `status=${r.status}`);
+    check("other teacher's newer mark survives", s.k2 === 'absent', JSON.stringify(s));
+    check('own mark from that save applied', s.k1 === 'late', JSON.stringify(s));
 }
 
 // Suggestion applied after the schedule changed: refused, newer edit kept.
@@ -186,14 +178,32 @@ const statuses = (doc) => Object.fromEntries(doc.data.attendanceSessions[0].reco
     check('attendance kept', statuses(after).k2 === 'absent', JSON.stringify(statuses(after)));
 }
 
-// Suggestion applied while someone else holds the lock: refused.
+// Another teacher "taking the lock" (old tab) no longer blocks applying a suggestion.
 {
     const { A, B, S, id } = await setup();
     const doc = (await A('GET', `/api/calendars/${id}`)).body;
     const sug = await S('POST', `/api/calendars/${id}/suggestions`, { revision: doc.revision, data: doc.data, summary: 'x' });
     await B('POST', `/api/calendars/${id}/lock`, {});
     const ap = await A('POST', `/api/calendars/${id}/suggestions/${sug.body.id}/apply`, {});
-    check('apply refused while another teacher is editing', ap.status === 423, `status=${ap.status}`);
+    check('apply not blocked by a lock', ap.status === 200, `status=${ap.status}`);
+}
+
+// Live-sync field patches from two teachers on the same class: both fields kept.
+{
+    const { A, B, id } = await setup();
+    const rev = (await A('GET', `/api/calendars/${id}`)).body.revision;
+    const ra = await A('PATCH', `/api/calendars/${id}`, {
+        baseRevision: rev,
+        mutations: [{ entity: 'classes', action: 'patch', payload: { id: 'c1', set: { room: '201' } } }]
+    });
+    const rb = await B('PATCH', `/api/calendars/${id}`, {
+        baseRevision: rev,
+        mutations: [{ entity: 'classes', action: 'patch', payload: { id: 'c1', set: { period: 4 } } }]
+    });
+    const c1 = (await A('GET', `/api/calendars/${id}`)).body.data.classes.find((c) => c.id === 'c1');
+    check('field patches accepted', ra.status === 200 && rb.status === 200, `A=${ra.status} B=${rb.status}`);
+    check('both fields kept', c1.room === '201' && c1.period === 4, JSON.stringify(c1));
+    check('different fields not reported', rb.body.overwritten.length === 0, JSON.stringify(rb.body.overwritten));
 }
 
 // Marks stay on the server: clients never receive them, and a full save keeps them.

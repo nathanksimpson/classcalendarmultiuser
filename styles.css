@@ -10086,7 +10086,8 @@ html.role-super-admin[data-theme="dark"] {
     background: var(--lock-btn-bg);
 }
 
-.team-lock-status--held .team-lock-status-btn {
+.team-lock-status--held .team-lock-status-btn,
+.team-lock-status--live .team-lock-status-btn {
     color: #047857;
     border-color: #6ee7b7;
     background: var(--lock-btn-bg);
@@ -10208,7 +10209,8 @@ html.role-super-admin[data-theme="dark"] {
     background: var(--lock-status-free-bg);
 }
 
-.team-lock-status--held {
+.team-lock-status--held,
+.team-lock-status--live {
     color: var(--status-success-color);
     border-color: var(--lock-status-held-border);
     background: var(--lock-status-held-bg);
@@ -10282,7 +10284,8 @@ html.role-super-admin[data-theme="dark"] {
     border-color: #475569;
 }
 
-[data-theme="dark"] .team-lock-status--held .team-lock-status-btn {
+[data-theme="dark"] .team-lock-status--held .team-lock-status-btn,
+[data-theme="dark"] .team-lock-status--live .team-lock-status-btn {
     color: #6ee7b7;
     background: #1e3a32;
     border-color: #059669;
@@ -23738,4 +23741,10 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-boo
 
 .source-version-banner p {
     margin: 0;
+}
+
+/* Live sync (no edit lock): the chip is a status, not a button. */
+.team-lock-status--live .team-lock-status-btn:disabled {
+    cursor: default;
+    opacity: 1;
 }

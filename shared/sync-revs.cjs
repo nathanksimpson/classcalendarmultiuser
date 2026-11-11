@@ -136,6 +136,40 @@ function mutationKeys(m) {
         const k = `dayNotes:${id}`;
         return { stamp: [k], check: [k] };
     }
+    // Lock-free sync actions (js/sync-diff.js).
+    if (action === 'order') {
+        return null;
+    }
+    if (action === 'mapSet' || action === 'mapUnset') {
+        if (payload.key == null) {
+            return null;
+        }
+        const k = `${entity}:${payload.key}`;
+        return { stamp: [k], check: [k, `field:${entity}`] };
+    }
+    if (action === 'set') {
+        const item = payload.item;
+        if (!item || item.id == null) {
+            return null;
+        }
+        const whole = `${entity}:${item.id}`;
+        return { stamp: [whole], check: [whole, `${whole}#rm`], prefix: `${whole}.` };
+    }
+    if (action === 'patch') {
+        if (payload.id == null) {
+            return null;
+        }
+        const whole = `${entity}:${payload.id}`;
+        const fieldKeys = Object.keys(payload.set || {})
+            .concat(Array.isArray(payload.unset) ? payload.unset : [])
+            .map((f) => `${whole}.${f}`);
+        const recordKeys = (Array.isArray(payload.records) ? payload.records : [])
+            .filter((r) => r && r.studentId != null)
+            .map((r) => `${whole}@${r.studentId}`)
+            .concat((Array.isArray(payload.recordsRemoved) ? payload.recordsRemoved : []).map((sid) => `${whole}@${sid}`));
+        const stamp = fieldKeys.concat(recordKeys);
+        return { stamp, check: stamp.concat([whole, `${whole}#rm`]) };
+    }
     if (entity === 'periodSlotMap') {
         const map = payload.periodSlotMap || payload.map || payload;
         const keys = Object.keys(map || {}).map((slot) => `periodSlotMap:${slot}`);
@@ -436,8 +470,45 @@ function applySuggestion(currentData, currentRevision, suggestionData, baseRevis
     return { ok: true, data: next };
 }
 
+/**
+ * A whole-session save (records without touchedStudentIds, e.g. from an older browser tab)
+ * built from an old copy is not a deliberate edit of every student. Narrow it to the
+ * students whose records were not changed by someone else after that copy, so newer
+ * marks on other students are kept. Returns the (possibly adjusted) mutation list.
+ */
+function protectNewerRecords(data, mutations, baseRevision, currentRevision) {
+    const base = Number(baseRevision);
+    if (!Number.isFinite(base) || base >= Number(currentRevision)) {
+        return mutations;
+    }
+    const revs = readRevs(data);
+    return (mutations || []).map((m) => {
+        if (!m || m.action !== 'upsert' || !Mutations.SESSION_RECORD_ENTITIES.has(String(m.entity))) {
+            return m;
+        }
+        const item = upsertItem(m.entity, m.payload);
+        if (!item || item.id == null || Array.isArray(item.touchedStudentIds) || !Array.isArray(item.records)) {
+            return m;
+        }
+        const whole = `${m.entity}:${item.id}`;
+        // Without marks reaching back to the base we can't tell: assume all are newer.
+        const newer = (sid) => !revs || revs.since > base || Number(revs.keys[`${whole}@${sid}`]) > base;
+        const keep = item.records
+            .filter((r) => r && r.studentId != null && !newer(String(r.studentId)))
+            .map((r) => String(r.studentId));
+        // Nothing left to write: send no records (an empty touched list would mean "all").
+        const nextItem = keep.length
+            ? Object.assign({}, item, { touchedStudentIds: keep })
+            : Object.assign({}, item, { records: [] });
+        const key = SCHEDULE_PAYLOAD_KEY[m.entity] || CLASSROOM_PAYLOAD_KEY[m.entity];
+        const payload = Object.assign({}, m.payload, key && m.payload && m.payload[key] ? { [key]: nextItem } : nextItem);
+        return Object.assign({}, m, { payload });
+    });
+}
+
 module.exports = {
     SYNC_REVS_KEY,
+    protectNewerRecords,
     KEEP_REVISIONS,
     mutationKeys,
     canRebase,

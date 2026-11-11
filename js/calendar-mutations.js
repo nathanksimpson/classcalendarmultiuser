@@ -329,6 +329,59 @@
         return [cohort.id, cohort.name, people].join('\u001d');
     }
 
+    /** Generic lock-free sync actions (js/sync-diff.js); shared with the browser. */
+    function getSyncDiff() {
+        return global.CCPSyncDiff || null;
+    }
+
+    /** Source-version bumps for set / patch / remove / order (same rules as upsert). */
+    function noteGenericSourceBump(doc, bumpSet, entity, action, payload) {
+        if (entity === 'events' || entity === 'timetableTimeSlots' || entity === 'periodSlotMap') {
+            bumpSet.add('lessons');
+            return;
+        }
+        if (entity === 'customSyllabusTemplates') {
+            bumpSet.add('syllabus');
+            return;
+        }
+        if (entity !== 'classes' && entity !== 'cohorts') {
+            return;
+        }
+        if (action === 'order') {
+            return;
+        }
+        if (action === 'remove') {
+            bumpSet.add(entity === 'classes' ? 'lessons' : 'roster');
+            return;
+        }
+        const id = action === 'set' ? payload.item && payload.item.id : payload.id;
+        const prev = (doc[entity] || []).find((row) => row && String(row.id) === String(id));
+        let after = null;
+        if (action === 'set') {
+            after = payload.item;
+        } else if (prev) {
+            after = Object.assign({}, prev, payload.set || {});
+            (payload.unset || []).forEach((k) => {
+                delete after[k];
+            });
+        }
+        if (!after) {
+            return;
+        }
+        if (entity === 'cohorts') {
+            if (cohortRosterSignature(prev) !== cohortRosterSignature(after)) {
+                bumpSet.add('roster');
+            }
+            return;
+        }
+        if (sourceFieldChanged(prev, after, LESSON_CLASS_FIELDS)) {
+            bumpSet.add('lessons');
+        }
+        if (sourceFieldChanged(prev, after, SYLLABUS_CLASS_FIELDS)) {
+            bumpSet.add('syllabus');
+        }
+    }
+
     function noteSourceVersionBump(doc, bumpSet, mutation) {
         if (!mutation || !mutation.entity) {
             return;
@@ -336,6 +389,11 @@
         const entity = mutation.entity;
         const action = mutation.action;
         const payload = mutation.payload || {};
+        if (action === 'set' || action === 'patch' || action === 'order' ||
+            (action === 'remove' && payload.id != null && Object.keys(payload).length === 1)) {
+            noteGenericSourceBump(doc, bumpSet, entity, action, payload);
+            return;
+        }
         if (entity === 'events' || entity === 'timetableTimeSlots' || entity === 'periodSlotMap') {
             bumpSet.add('lessons');
             return;
@@ -377,7 +435,7 @@
         }
     }
 
-    function applyCalendarMutations(data, mutations) {
+    function applyCalendarMutations(data, mutations, options) {
         const next = deepClone(data);
         const list = Array.isArray(mutations) ? mutations : [];
         const sourceBumpSet = new Set();
@@ -386,6 +444,11 @@
                 continue;
             }
             noteSourceVersionBump(next, sourceBumpSet, m);
+        // Lock-free sync actions (set / patch / remove {id} / order / map / replace {value}).
+        const SyncDiff = getSyncDiff();
+        if (SyncDiff && SyncDiff.applyGenericMutation(next, m)) {
+            continue;
+        }
             const key = `${m.entity}/${m.action}`;
             const payload = m.payload || {};
             switch (key) {
@@ -447,7 +510,9 @@
                 break;
         }
     }
-    if (sourceBumpSet.size) {
+    // The browser replays server copies with bumpVersions: false (versions are server-owned).
+    const bump = !(options && options.bumpVersions === false);
+    if (bump && sourceBumpSet.size) {
         const versions = ensureSourceVersions(next);
         sourceBumpSet.forEach((key) => {
             versions[key] = (Number(versions[key]) || 0) + 1;

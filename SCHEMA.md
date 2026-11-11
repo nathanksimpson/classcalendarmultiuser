@@ -443,7 +443,20 @@ If no targeting filters are set, the event applies to all classes. See **Class f
 
 ## Team sync PATCH mutations (API)
 
-`PATCH /api/calendars/:id` accepts `{ "baseRevision": number, "mutations": [...] }`. Empty `mutations` returns **400**. Stale `baseRevision` returns **409** with `{ conflict: true, document }` (same as PUT).
+`PATCH /api/calendars/:id` accepts `{ "baseRevision": number, "mutations": [...] }`. Empty `mutations` returns **400**. There is no edit lock: mutations are applied on top of the latest calendar. When an item or field they change was also changed after `baseRevision`, the latest save wins and the response (the saved document) includes `overwritten: string[]` naming what was replaced (e.g. `classes:c1.room`, `attendanceSessions:s1@studentId`). A whole-session upsert without `touchedStudentIds` sent from an older revision never overwrites student records changed after that revision.
+
+**Live-sync actions** (any top-level field; written by `js/sync-diff.js`):
+
+| action | payload | effect |
+|--------|---------|--------|
+| `set` | `{ item }` | add or replace one `{ id }` item |
+| `patch` | `{ id, set?, unset?, records?, recordsRemoved? }` | change some fields of one item (records merged by `studentId`); skipped if the item was deleted |
+| `remove` | `{ id }` | delete one item |
+| `order` | `{ ids }` | reorder items (unlisted items keep their order at the end) |
+| `mapSet` / `mapUnset` | `{ key, value }` / `{ key }` | one key of an object field (`periodSlotMap`, `curriculumOverrides`, `meta`, …; `meta.versions` is server-owned) |
+| `replace` | `{ value }` or `{ deleted: true }` | whole field |
+
+The older actions below are still accepted.
 
 Each mutation:
 

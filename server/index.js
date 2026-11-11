@@ -1949,7 +1949,7 @@ app.patch('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {
         res.status(result.status || 500).json({ error: result.error || 'Patch failed' });
         return;
     }
-    res.json(result.document);
+    res.json(Object.assign({}, result.document, { overwritten: result.overwritten || [] }));
 });
 
 app.delete('/api/calendars/:id', requireUser, rejectViewAsWrites, (req, res) => {

@@ -110,24 +110,9 @@ function updateCalendar(id, name, data, revision, editorLabel, force, user) {
         }
     }
 
-    const lockState = users.ensureSameUserSessionCanSave(id, user);
-    const forceAllowed =
-        Boolean(force) &&
-        (Auth.canForceUnlock(user) ||
-            Auth.hasPermission(user, Auth.PERMS.FORCE_SAVE) ||
-            lockState.holdsLock);
-    if (lockState.readOnly && !forceAllowed) {
-        return { ok: false, status: 423, error: 'Calendar is locked by another user', lock: lockState.lock };
-    }
-    const lockRow = users.getLock(id);
-    if (!forceAllowed && lockRow && lockRow.holder_user_id !== user.id) {
-        return {
-            ok: false,
-            status: 423,
-            error: 'Calendar is locked by another user',
-            lock: lockState.lock
-        };
-    }
+    // No edit lock. A full save replaces the whole calendar (import / restore), so it still
+    // needs the revision it was built from unless the user chose to overwrite.
+    const forceAllowed = Boolean(force);
 
     if (!forceAllowed && revision != null && Number(revision) !== Number(existing.revision)) {
         return { ok: false, status: 409, document: getCalendar(id) };
@@ -199,10 +184,6 @@ function updateCalendar(id, name, data, revision, editorLabel, force, user) {
         summary: `Saved calendar (revision ${nextRevision})`,
         detail: { revision: nextRevision }
     });
-
-    if (lockState.holdsLock) {
-        users.refreshLock(id, user.id, users.sessionTokenOf(user));
-    }
 
     return { ok: true, document: getCalendar(id) };
 }
@@ -336,52 +317,30 @@ function patchCalendar(id, baseRevision, mutations, editorLabel, force, user) {
     }
 
     const domains = CalendarMutations.classifyMutations(mutations);
-    const needsScheduleLock = domains.schedule;
+    const needsScheduleEdit = domains.schedule;
     const canEdit = CalAccess.canEditCalendar(user, id);
     const canSuggest = CalAccess.canSuggestChanges(user, id);
     // Schedule mutations require full edit access. Classroom/dayNotes-only may use suggester
     // (same as classroomOnly / dayNotesOnly PUT paths).
-    if (needsScheduleLock && !canEdit) {
+    if (needsScheduleEdit && !canEdit) {
         return { ok: false, status: 403, error: 'You do not have edit access to this calendar' };
     }
-    if (!needsScheduleLock && !canEdit && !canSuggest) {
+    if (!needsScheduleEdit && !canEdit && !canSuggest) {
         return { ok: false, status: 403, error: 'You do not have edit access to this calendar' };
-    }
-
-    let lockState = users.lockStatusForClient(id, user.id, user);
-    const forceAllowed =
-        Boolean(force) &&
-        (Auth.canForceUnlock(user) ||
-            Auth.hasPermission(user, Auth.PERMS.FORCE_SAVE) ||
-            lockState.holdsLock);
-    if (needsScheduleLock) {
-        lockState = users.ensureSameUserSessionCanSave(id, user);
-        if (lockState.readOnly && !forceAllowed) {
-            return {
-                ok: false,
-                status: 423,
-                error: 'Calendar is locked by another user',
-                lock: lockState.lock
-            };
-        }
-        const lockRow = users.getLock(id);
-        if (!forceAllowed && lockRow && !users.lockHeldByCaller(lockRow, user.id, users.sessionTokenOf(user))) {
-            return {
-                ok: false,
-                status: 423,
-                error: 'Calendar is locked by another user',
-                lock: lockState.lock
-            };
-        }
     }
 
     const existingDoc = getCalendar(id);
-    // Saved from an older revision: apply on top of the latest unless an item these
-    // mutations touch changed after that revision (shared/sync-revs.cjs).
-    if (!forceAllowed && baseRevision != null && Number(baseRevision) !== Number(existing.revision)) {
+    // No edit lock: apply on top of the latest. An item these mutations change that was also
+    // changed after the client's base revision is "latest save wins"; report which ones.
+    let overwritten = [];
+    // Whole-session saves from an old copy never undo newer marks on other students.
+    if (baseRevision != null) {
+        mutations = SyncRevs.protectNewerRecords(existingDoc.data, mutations, baseRevision, existing.revision);
+    }
+    if (baseRevision != null && Number(baseRevision) !== Number(existing.revision)) {
         const check = SyncRevs.canRebase(existingDoc.data, mutations, baseRevision, existing.revision);
-        if (!check.ok) {
-            return { ok: false, status: 409, document: existingDoc, conflictKeys: check.keys.slice(0, 20) };
+        if (!check.ok && check.reason === 'conflict') {
+            overwritten = Array.from(new Set(check.keys)).slice(0, 40);
         }
     }
     let mergedData = CalendarMutations.applyCalendarMutations(existingDoc.data, mutations);
@@ -455,28 +414,18 @@ function patchCalendar(id, baseRevision, mutations, editorLabel, force, user) {
         }
     });
 
-    if (needsScheduleLock && lockState.holdsLock) {
-        users.refreshLock(id, user.id, users.sessionTokenOf(user));
-    }
-
-    return { ok: true, document: getCalendar(id) };
+    return { ok: true, document: getCalendar(id), overwritten };
 }
 
 /**
  * Apply a suggestion onto the latest calendar: schedule from the suggestion, classroom
  * data and day notes as they are now. Refused when the schedule changed after the
- * suggestion was written, or while someone else holds the edit lock.
+ * suggestion was written.
  */
 function applySuggestion(id, suggestion, editorLabel, user) {
     const current = getCalendar(id);
     if (!current) {
         return { ok: false, status: 404, error: 'Calendar not found' };
-    }
-    // Someone else is editing the schedule (admins included: the editor's work comes first).
-    const lockRow = users.getLock(id);
-    if (lockRow && lockRow.holder_user_id !== user.id && !users.isLockStale(lockRow)) {
-        const lockState = users.lockStatusForClient(id, user.id, user);
-        return { ok: false, status: 423, error: 'Calendar is locked by another user', lock: lockState.lock };
     }
     const merged = SyncRevs.applySuggestion(current.data, current.revision, suggestion.data, suggestion.baseRevision);
     if (!merged.ok) {

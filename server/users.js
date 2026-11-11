@@ -554,258 +554,83 @@ function permanentlyDeleteUser(targetId, actingAdminId) {
     return result.changes > 0;
 }
 
+/*
+ * Calendar edit lock: retired (lock-free team sync). Same contract as worker/src/lock.js:
+ * every caller is told the calendar is free and may be edited; edit permission comes from
+ * calendar access. Kept so older browser tabs and any leftover callers keep working.
+ */
 function sessionTokenOf(user) {
     return LockCore.sessionTokenOf(user);
 }
 
-function lockHeldByCaller(lock, userId, sessionToken) {
-    return LockCore.lockHeldByCaller(lock, userId, sessionToken);
-}
-
-function getLock(calendarId) {
-    const db = getDb();
-    return db.prepare('SELECT * FROM calendar_locks WHERE calendar_id = ?').get(calendarId);
-}
-
-function isLockStale(lock) {
-    return LockCore.isLockStaleByUpdatedAt(lock, appSettings.getLockStaleMs());
-}
-
-function lockExpiresAtIso(lock) {
-    return LockCore.lockExpiresAtIso(lock, appSettings.getLockStaleMs());
-}
-
-function purgeStaleLock(calendarId) {
-    const lock = getLock(calendarId);
-    if (lock && isLockStale(lock)) {
-        getDb().prepare('DELETE FROM calendar_locks WHERE calendar_id = ?').run(calendarId);
-        return true;
-    }
-    return false;
-}
-
-function claimLegacyLockSession(lock, userId, sessionToken) {
-    if (!lock || !userId || !sessionToken) {
-        return lock;
-    }
-    if (lock.holder_user_id !== userId) {
-        return lock;
-    }
-    if (String(lock.holder_session_token || '').trim()) {
-        return lock;
-    }
-    getDb()
-        .prepare(
-            `UPDATE calendar_locks SET holder_session_token = ?, updated_at = ?
-             WHERE calendar_id = ? AND holder_user_id = ?
-               AND (holder_session_token IS NULL OR holder_session_token = '')`
-        )
-        .run(sessionToken, nowIso(), lock.calendar_id, userId);
-    return Object.assign({}, lock, { holder_session_token: sessionToken });
-}
-
-function recordLockEditRequest(calendarId, userId, displayName, sessionToken) {
-    const db = getDb();
-    db.prepare(
-        `UPDATE calendar_locks SET
-            pending_requester_id = ?,
-            pending_requester_name = ?,
-            pending_requested_at = ?,
-            pending_requester_session_token = ?
-         WHERE calendar_id = ?`
-    ).run(userId, displayName, nowIso(), String(sessionToken || '').trim() || null, calendarId);
-}
-
-function lockToClient(lock) {
-    if (!lock) {
-        return null;
-    }
-    const db = getDb();
-    const holder = db.prepare('SELECT email, display_name FROM users WHERE id = ?').get(lock.holder_user_id);
-    let pendingRequester = null;
-    if (lock.pending_requester_id) {
-        const pending = db.prepare('SELECT email, display_name FROM users WHERE id = ?').get(lock.pending_requester_id);
-        pendingRequester = {
-            userId: lock.pending_requester_id,
-            displayName: lock.pending_requester_name || (pending && pending.display_name) || '',
-            email: pending && pending.email ? pending.email : null,
-            requestedAt: lock.pending_requested_at || null
-        };
-    }
-    return {
-        holderUserId: lock.holder_user_id,
-        holderName: lock.holder_name,
-        holderEmail: holder && holder.email ? holder.email : null,
-        updatedAt: lock.updated_at,
-        pendingRequester,
-        holderSessionBound: Boolean(String(lock.holder_session_token || '').trim())
-    };
-}
-
-function assignLockHolder(calendarId, userId, displayName, sessionToken) {
-    const at = nowIso();
-    const sess = String(sessionToken || '').trim() || null;
-    getDb()
-        .prepare(
-            `INSERT INTO calendar_locks (
-                calendar_id, holder_user_id, holder_name, updated_at,
-                pending_requester_id, pending_requester_name, pending_requested_at,
-                holder_session_token, pending_requester_session_token
-             )
-             VALUES (?, ?, ?, ?, NULL, NULL, NULL, ?, NULL)
-             ON CONFLICT(calendar_id) DO UPDATE SET
-               holder_user_id = excluded.holder_user_id,
-               holder_name = excluded.holder_name,
-               updated_at = excluded.updated_at,
-               pending_requester_id = NULL,
-               pending_requester_name = NULL,
-               pending_requested_at = NULL,
-               holder_session_token = excluded.holder_session_token,
-               pending_requester_session_token = NULL`
-        )
-        .run(calendarId, userId, displayName, at, sess);
-}
-
-function acquireLock(calendarId, user, opts) {
-    const userId = user.id;
-    const displayName = user.displayName || user.email || 'Teacher';
-    const sessionToken = sessionTokenOf(user);
-    const force = Boolean(opts && opts.force);
-    purgeStaleLock(calendarId);
-    const existing = getLock(calendarId);
-    if (force && Auth.canForceUnlock(user)) {
-        assignLockHolder(calendarId, userId, displayName, sessionToken);
-        return {
-            acquired: true,
-            forced: true,
-            lock: getLock(calendarId),
-            editRequestRecorded: false
-        };
-    }
-    const stale = !existing || isLockStale(existing);
-    if (stale || (existing && existing.holder_user_id === userId)) {
-        assignLockHolder(calendarId, userId, displayName, sessionToken);
-        return { acquired: true, lock: getLock(calendarId), editRequestRecorded: false, forced: false };
-    }
-    recordLockEditRequest(calendarId, userId, displayName, sessionToken);
-    return { acquired: false, lock: getLock(calendarId), editRequestRecorded: true, forced: false };
-}
-
-function grantLockToPending(calendarId, holderUserId, holderSessionToken) {
-    const lock = getLock(calendarId);
-    if (!lock || isLockStale(lock)) {
-        const err = new Error('No active lock on this calendar');
-        err.status = 400;
-        throw err;
-    }
-    if (!lockHeldByCaller(lock, holderUserId, holderSessionToken)) {
-        const err = new Error('Only the current editor can allow another user');
-        err.status = 403;
-        throw err;
-    }
-    if (!lock.pending_requester_id) {
-        const err = new Error('No edit request is pending');
-        err.status = 400;
-        throw err;
-    }
-    const pendingId = lock.pending_requester_id;
-    const label = lock.pending_requester_name || 'Teacher';
-    const pendingSession = String(lock.pending_requester_session_token || '').trim() || null;
-    assignLockHolder(calendarId, pendingId, label, pendingSession);
-    return getLock(calendarId);
-}
-
-function dismissLockRequest(calendarId, holderUserId, holderSessionToken) {
-    const lock = getLock(calendarId);
-    if (!lock || isLockStale(lock)) {
-        const err = new Error('No active lock on this calendar');
-        err.status = 400;
-        throw err;
-    }
-    if (!lockHeldByCaller(lock, holderUserId, holderSessionToken)) {
-        const err = new Error('Only the current editor can dismiss a request');
-        err.status = 403;
-        throw err;
-    }
-    getDb()
-        .prepare(
-            `UPDATE calendar_locks SET
-                pending_requester_id = NULL,
-                pending_requester_name = NULL,
-                pending_requested_at = NULL,
-                pending_requester_session_token = NULL
-             WHERE calendar_id = ?`
-        )
-        .run(calendarId);
-    return getLock(calendarId);
-}
-
-function touchLock(calendarId, userId, sessionToken) {
-    return refreshLock(calendarId, userId, sessionToken);
-}
-
-function refreshLock(calendarId, userId, sessionToken) {
-    let lock = getLock(calendarId);
-    if (!lock) {
-        return false;
-    }
-    lock = claimLegacyLockSession(lock, userId, sessionToken);
-    if (!lockHeldByCaller(lock, userId, sessionToken)) {
-        return false;
-    }
-    getDb()
-        .prepare('UPDATE calendar_locks SET updated_at = ? WHERE calendar_id = ?')
-        .run(nowIso(), calendarId);
+function lockHeldByCaller() {
     return true;
 }
 
-function releaseLock(calendarId, userId, sessionToken) {
-    let lock = getLock(calendarId);
-    if (!lock) {
-        return { released: false, reason: 'none' };
-    }
-    lock = claimLegacyLockSession(lock, userId, sessionToken);
-    if (!lockHeldByCaller(lock, userId, sessionToken)) {
-        return { released: false, reason: 'not_holder' };
-    }
-    getDb().prepare('DELETE FROM calendar_locks WHERE calendar_id = ?').run(calendarId);
-    return { released: true };
+function getLock() {
+    return null;
 }
 
-/** Release every lock held by this user; clear any pending edit requests they sent. */
+function isLockStale() {
+    return true;
+}
+
+function freeLockStatus(user) {
+    return {
+        held: false,
+        holdsLock: true,
+        readOnly: false,
+        lock: null,
+        pendingEditRequest: false,
+        lockStaleMinutes: appSettings.getLockStaleMinutes(),
+        bypassLock: Boolean(user),
+        lockExpiresAt: null,
+        lockTimedOut: false
+    };
+}
+
+function assignLockHolder() {
+    return true;
+}
+
+function acquireLock() {
+    return { acquired: true, forced: false, editRequestRecorded: false };
+}
+
+function grantLockToPending() {
+    return { ok: true };
+}
+
+function dismissLockRequest() {
+    return { ok: true };
+}
+
+function touchLock() {
+    return true;
+}
+
+function refreshLock() {
+    return true;
+}
+
+function releaseLock() {
+    return { ok: true, released: false };
+}
+
+/** Clear rows left from before the lock was retired. */
 function releaseAllLocksHeldByUser(userId) {
-    if (!userId) {
-        return { released: 0 };
+    if (userId) {
+        getDb().prepare('DELETE FROM calendar_locks WHERE holder_user_id = ?').run(userId);
     }
-    const db = getDb();
-    db.prepare(
-        `UPDATE calendar_locks SET
-            pending_requester_id = NULL,
-            pending_requester_name = NULL,
-            pending_requested_at = NULL,
-            pending_requester_session_token = NULL
-         WHERE pending_requester_id = ?`
-    ).run(userId);
-    const result = db.prepare('DELETE FROM calendar_locks WHERE holder_user_id = ?').run(userId);
-    return { released: result.changes || 0 };
+    return { released: true };
 }
 
 function releaseLocksHeldBySession(sessionToken) {
     const token = String(sessionToken || '').trim();
-    if (!token) {
-        return { released: 0 };
+    if (token) {
+        getDb().prepare('DELETE FROM calendar_locks WHERE holder_session_token = ?').run(token);
     }
-    const db = getDb();
-    db.prepare(
-        `UPDATE calendar_locks SET
-            pending_requester_id = NULL,
-            pending_requester_name = NULL,
-            pending_requested_at = NULL,
-            pending_requester_session_token = NULL
-         WHERE pending_requester_session_token = ?`
-    ).run(token);
-    const result = db.prepare('DELETE FROM calendar_locks WHERE holder_session_token = ?').run(token);
-    return { released: result.changes || 0 };
+    return { released: 0 };
 }
 
 function countSessionsForUser(userId) {
@@ -819,73 +644,25 @@ function countSessionsForUser(userId) {
 }
 
 function ensureSameUserSessionCanSave(calendarId, user) {
-    const sessionToken = sessionTokenOf(user);
-    let lock = getLock(calendarId);
-    if (!lock || isLockStale(lock)) {
-        return lockStatusForClient(calendarId, user.id, user);
-    }
-    if (lock.holder_user_id === user.id && !lockHeldByCaller(lock, user.id, sessionToken)) {
-        const name = user.displayName || user.email || 'Teacher';
-        assignLockHolder(calendarId, user.id, name, sessionToken);
-    }
-    return lockStatusForClient(calendarId, user.id, user);
+    return freeLockStatus(user);
 }
 
 function lockStatusForClient(calendarId, userId, user) {
-    const lockTimedOut = purgeStaleLock(calendarId);
-    let lock = getLock(calendarId);
-    const lockStaleMinutes = appSettings.getLockStaleMinutes();
-    const bypassLock =
-        user && Auth.hasPermission(user, Auth.PERMS.BYPASS_COLLABORATIVE_LOCK);
-    const sessionToken = sessionTokenOf(user);
-    if (!lock || isLockStale(lock)) {
-        return {
-            held: false,
-            holdsLock: false,
-            readOnly: false,
-            lock: null,
-            pendingEditRequest: false,
-            lockStaleMinutes,
-            bypassLock: Boolean(bypassLock),
-            lockExpiresAt: null,
-            lockTimedOut: Boolean(lockTimedOut)
-        };
-    }
-    lock = claimLegacyLockSession(lock, userId, sessionToken);
-    const heldByMe = lockHeldByCaller(lock, userId, sessionToken);
-    const pendingEditRequest = Boolean(
-        lock.pending_requester_id &&
-            lock.pending_requester_id === userId &&
-            (!lock.pending_requester_session_token ||
-                lock.pending_requester_session_token === sessionToken)
-    );
-    const readOnly = bypassLock ? false : !heldByMe;
-    return {
-        held: true,
-        holdsLock: heldByMe,
-        readOnly,
-        lock: lockToClient(lock),
-        pendingEditRequest,
-        lockStaleMinutes,
-        bypassLock: Boolean(bypassLock),
-        lockExpiresAt: lockExpiresAtIso(lock),
-        lockTimedOut: false
-    };
+    return freeLockStatus(user);
 }
 
 function lockPayloadForClient(calendarId, userId, user, extra) {
-    const status = lockStatusForClient(calendarId, userId, user);
     return Object.assign(
         {
-            acquired: Boolean(status.holdsLock),
-            lock: status.lock,
-            readOnly: status.readOnly,
-            holdsLock: Boolean(status.holdsLock),
-            pendingEditRequest: status.pendingEditRequest,
-            lockStaleMinutes: status.lockStaleMinutes,
-            bypassLock: status.bypassLock,
-            lockExpiresAt: status.lockExpiresAt,
-            lockTimedOut: status.lockTimedOut,
+            acquired: true,
+            lock: null,
+            readOnly: false,
+            holdsLock: true,
+            pendingEditRequest: false,
+            lockStaleMinutes: appSettings.getLockStaleMinutes(),
+            bypassLock: Boolean(user),
+            lockExpiresAt: null,
+            lockTimedOut: false,
             editRequestRecorded: false,
             forced: false
         },

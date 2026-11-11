@@ -2357,28 +2357,9 @@ export default {
                 if (!(await CalAccess.canEditCalendar(env, user, calId))) {
                     return json({ error: 'You do not have edit access to this calendar' }, 403);
                 }
-                const lock = await Lock.ensureSameUserSessionCanSave(env, calId, user);
-                const forceAllowed =
-                    Boolean(body.force) &&
-                    (Auth.canForceUnlock(user) ||
-                        Auth.hasPermission(user, Auth.PERMS.FORCE_SAVE) ||
-                        Boolean(lock.holdsLock));
-                if (lock.readOnly && !forceAllowed) {
-                    return json({ error: 'Calendar is locked by another user', lock: lock.lock }, 423);
-                }
-                const lockRow = await Lock.getLock(env, calId);
-                if (!forceAllowed && lockRow && lockRow.holder_user_id !== user.id) {
-                    return json(
-                        {
-                            error: 'Calendar is locked by another user',
-                            lock: lock.lock
-                        },
-                        423
-                    );
-                }
-                if (lock.holdsLock) {
-                    await Lock.touchLockHolder(env, calId, user.id, Lock.sessionTokenOf(user));
-                }
+                // No edit lock. A full save replaces the whole calendar (import / restore), so it
+                // still needs the revision it was built from unless the user chose to overwrite.
+                const forceAllowed = Boolean(body.force);
                 if (!forceAllowed && body.revision != null && Number(body.revision) !== Number(existing.revision)) {
                     const doc = await dbOne(
                         env,
@@ -2461,60 +2442,37 @@ export default {
                     return json({ error: 'Calendar not found' }, 404);
                 }
                 const domains = CalendarMutations.classifyMutations(body.mutations);
-                const needsScheduleLock = domains.schedule;
+                const needsScheduleEdit = domains.schedule;
                 const canEdit = await CalAccess.canEditCalendar(env, user, calId);
                 const canSuggest = await CalAccess.canSuggestChanges(env, user, calId);
-                if (needsScheduleLock && !canEdit) {
+                if (needsScheduleEdit && !canEdit) {
                     return json({ error: 'You do not have edit access to this calendar' }, 403);
                 }
-                if (!needsScheduleLock && !canEdit && !canSuggest) {
+                if (!needsScheduleEdit && !canEdit && !canSuggest) {
                     return json({ error: 'You do not have edit access to this calendar' }, 403);
-                }
-                let lock = await Lock.lockStatus(env, calId, user.id, user);
-                const forceAllowed =
-                    Boolean(body.force) &&
-                    (Auth.canForceUnlock(user) ||
-                        Auth.hasPermission(user, Auth.PERMS.FORCE_SAVE) ||
-                        Boolean(lock.holdsLock));
-                if (needsScheduleLock) {
-                    lock = await Lock.ensureSameUserSessionCanSave(env, calId, user);
-                    if (lock.readOnly && !forceAllowed) {
-                        return json(
-                            { error: 'Calendar is locked by another user', lock: lock.lock },
-                            423
-                        );
-                    }
-                    const lockRow = await Lock.getLock(env, calId);
-                    if (
-                        !forceAllowed &&
-                        lockRow &&
-                        !Lock.lockHeldByCaller(lockRow, user.id, Lock.sessionTokenOf(user))
-                    ) {
-                        return json(
-                            {
-                                error: 'Calendar is locked by another user',
-                                lock: lock.lock
-                            },
-                            423
-                        );
-                    }
                 }
                 const label = user.displayName || user.email || 'Teacher';
-                const hasBase = !forceAllowed && body.baseRevision != null;
+                const hasBase = body.baseRevision != null;
                 let accessError = null;
-                // Apply onto the latest stored document. A client that saved from an older
-                // revision is only refused when an item it touches was changed after that
-                // revision (a real conflict); unrelated saves in between are fine.
+                let overwritten = [];
+                // No edit lock: apply onto the latest stored document. When an item these
+                // mutations change was also changed after the client's base revision, the
+                // latest save wins and the client is told which items it replaced.
                 const patched = await saveWithRetry(env, calId, label, ({ data, revision }) => {
+                    overwritten = [];
+                    // Whole-session saves from an old copy never undo newer marks on other students.
+                    const mutations = hasBase
+                        ? SyncRevs.protectNewerRecords(data, body.mutations, body.baseRevision, revision)
+                        : body.mutations;
                     if (hasBase && Number(body.baseRevision) !== revision) {
-                        const check = SyncRevs.canRebase(data, body.mutations, body.baseRevision, revision);
-                        if (!check.ok) {
-                            return { stop: { status: 409, keys: check.keys } };
+                        const check = SyncRevs.canRebase(data, mutations, body.baseRevision, revision);
+                        if (!check.ok && check.reason === 'conflict') {
+                            overwritten = Array.from(new Set(check.keys)).slice(0, 40);
                         }
                     }
-                    let mergedData = CalendarMutations.applyCalendarMutations(data, body.mutations);
+                    let mergedData = CalendarMutations.applyCalendarMutations(data, mutations);
                     if (domains.classroom) {
-                        const classroomPayload = CalendarMutations.classroomMutationsToPayload(body.mutations, data);
+                        const classroomPayload = CalendarMutations.classroomMutationsToPayload(mutations, data);
                         const prepared = prepareClassroomForSave(user, data, classroomPayload);
                         if (prepared.error) {
                             accessError = prepared.error;
@@ -2531,7 +2489,7 @@ export default {
                         mergedData = Object.assign({}, mergedData, { dayNotes: prepared.dayNotes });
                     }
                     return {
-                        data: SyncRevs.stampMutations(data, revision, mergedData, body.mutations, revision + 1)
+                        data: SyncRevs.stampMutations(data, revision, mergedData, mutations, revision + 1)
                     };
                 });
                 if (patched.missing) {
@@ -2541,18 +2499,10 @@ export default {
                     return json({ error: accessError }, 403);
                 }
                 if (!patched.ok) {
-                    const doc = await dbOne(
-                        env,
-                        `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
-                        calId
-                    );
-                    const conflictKeys = patched.stop && patched.stop.keys ? patched.stop.keys.slice(0, 20) : [];
-                    return json({ conflict: true, conflictKeys, document: calendarDocForClient(doc, env) }, 409);
+                    // Only reachable when several saves kept landing in between: try again shortly.
+                    return json({ error: 'Calendar is busy, try again', busy: true }, 503);
                 }
                 const nextRev = patched.revision;
-                if (needsScheduleLock && lock.holdsLock) {
-                    await Lock.touchLockHolder(env, calId, user.id, Lock.sessionTokenOf(user));
-                }
                 await ActivityLog.recordActivityForUser(env, user, {
                     action: 'calendar_patch',
                     calendarId: calId,
@@ -2574,7 +2524,9 @@ export default {
                     calId
                 );
                 const doc = calendarDocForClient(saved, env);
-                return json(await CalendarMeta.calendarMetaExtras(env, user, calId, doc));
+                const payload = await CalendarMeta.calendarMetaExtras(env, user, calId, doc);
+                payload.overwritten = overwritten;
+                return json(payload);
             }
 
             if (!sub && request.method === 'DELETE') {

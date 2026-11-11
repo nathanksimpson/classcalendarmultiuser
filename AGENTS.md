@@ -83,16 +83,20 @@ Without `npm start`, the app cannot load or save calendar data.
 6. New D1 migration: `npm run db:migrate:remote` then deploy.
 7. Production smoke test + Ctrl+F5 on browsers.
 
-## Collaborative lock (current behavior)
+## Live sync — no edit lock (since Nov 2026)
 
-- No force takeover: blocked user sends **edit request** only.
-- Holder: **Allow** | **Dismiss** (`POST .../lock/grant`, `.../lock/dismiss`).
-- Allow → `flushPendingSave()` then grant.
-- Policy: Allow, release, or admin **stale timeout** only (`app_settings.lock_stale_minutes`, 5–120 min).
-- Poll ~3s in `calendar-sync.js`; holder **heartbeat** `POST .../lock/touch` when `holdsLock`.
-- Worker blocks PUT save if another user holds lock; refreshes lock on holder save.
-- Logout releases all locks (`team-auth.js` + server + worker).
-- Debug: `?lockDebug=1` or `CalendarSync.setLockDebugEnabled(true)` — panel in `index.html`, log in `calendar-sync.js` / `app.js`.
+The calendar edit lock is retired. Everyone with edit access edits at the same time, on any number of tabs and devices.
+
+- **Saves send only what changed.** `js/sync-diff.js` compares the page's data (`appData`) with the last server copy (`CalendarSync.state.base`) and sends per-item / per-field mutations (`set`, `patch`, `remove`, `order`, `mapSet`, `mapUnset`, `replace`) with `PATCH /api/calendars/:id`. Attendance-style records go per student.
+- **Server applies on top of the latest copy.** No 409 for PATCH: two people changing different fields both keep their change; the same field changed in two places is **latest save wins**, and the response lists what it replaced in `overwritten` (the page shows a notice).
+- **Other devices' changes merge in.** The poll (8–15 s) sees a newer revision, fetches it, and replays this page's unsaved changes on top (`rebaseOnto`), so nothing unsaved is lost. A pull waits while the person is typing in a field.
+- **Offline / closed tab:** unsaved changes are kept in `localStorage` (`classCalendarLivePending:<calId>`) and replayed on the next load.
+- **Permissions still apply on the server** (calendar access + classroom access); suggesters only send classroom/day-note changes.
+- Lock endpoints and `worker/src/lock.js` / `server/users.js` lock functions remain as no-ops that always answer "free, you may edit", so tabs cached from before the change keep working.
+- Full `PUT` (whole calendar) is only for import/restore and still needs the matching revision unless forced.
+- Next step planned: one Durable Object per calendar applying these same mutations in order and pushing them over WebSockets instead of polling.
+- Debug: `?lockDebug=1` still logs sync events (`Merged server copy`, `live pull`).
+- Tests: `tests/sync-diff.test.mjs` (diff/apply), `tests/live-sync-tabs.test.mjs` (two tabs, real calendar-sync.js), `tests/worker-concurrency.test.mjs` (real Worker; needs better-sqlite3).
 
 ## Key files
 
@@ -110,9 +114,9 @@ Without `npm start`, the app cannot load or save calendar data.
 ## Pitfalls
 
 1. Always change **worker AND server** for API behavior.
-2. Use server **`holdsLock`** — do not rely only on client inferring from `lock.holderUserId`.
+2. There is no edit lock: `holdsLock` now just means "may edit" (from permissions). Never add a save path that sends the whole calendar for normal edits — use the live-sync diff.
 3. `409`: revision conflict has `body.document`; duplicate name has `code: DUPLICATE_NAME`.
-4. Lock bugs: same `calendarId` on both browsers; `?lockDebug=1`; hard refresh after deploy.
+4. Sync bugs: same `calendarId` on both browsers; `?lockDebug=1`; hard refresh after deploy.
 5. Do not edit Cursor plan files unless the user asks.
 6. **Fixtures must never contain real student/teacher names.** Use `*-real.html` (gitignored) locally and commit redacted `*-snippet.html` only. Fake names in committed fixtures follow the `김테가` / `(Stuaa)` pattern.
 7. **Encoding:** save every file as UTF-8 without BOM (`.editorconfig`). `npm test` (`tests/encoding.test.mjs`) and `npm run build` fail on invalid UTF-8, BOM, U+FFFD, or `??` glued to Hangul (Korean re-saved through the wrong codepage).

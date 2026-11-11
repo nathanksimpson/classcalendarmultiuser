@@ -1016,6 +1016,7 @@ function initListViewModules() {
 }
 
 function bindAppStoreMutationSync(calendarId) {
+    bindLiveSyncSource();
     if (!appStore || typeof appStore.setMutationCalendarId !== 'function') {
         return;
     }
@@ -1026,6 +1027,79 @@ function bindAppStoreMutationSync(calendarId) {
             flushMutationQueue: (n) => appStore.flushMutationQueue(n)
         });
     }
+}
+
+/**
+ * Live sync (no edit lock): CalendarSync diffs appData against the last server copy and
+ * merges newer copies from other tabs, devices and teachers into appData.
+ */
+function bindLiveSyncSource() {
+    if (typeof CalendarSync === 'undefined' || !CalendarSync.setLiveSource) {
+        return;
+    }
+    CalendarSync.setLiveSource({
+        getData: () => appData,
+        applyData(merged, doc) {
+            applyServerDocument(doc, { liveMerged: merged, skipSessionRestore: true });
+            saveDataToLocalCache();
+            if (!isNotesPage() && !isWorkspacePage() && !isPlannerPage()) {
+                initializeTermStart();
+                requestUiCalendarRender();
+            } else if (isWorkspacePage()) {
+                refreshWorkspaceHomeworkUi();
+            } else if (isPlannerPage() && typeof window.refreshPlannerPageUi === 'function') {
+                window.refreshPlannerPageUi();
+            }
+        }
+    });
+}
+
+/** Readable names for overwrite notices ("Rainbow 1", "Chuseok", …). */
+function describeSyncTargets(keys) {
+    const names = [];
+    const seen = new Set();
+    (keys || []).forEach((key) => {
+        const m = String(key || '').match(/^(?:field:)?([A-Za-z]+)(?::([^.@#]+))?/);
+        if (!m) {
+            return;
+        }
+        const entity = m[1];
+        const id = m[2];
+        let label = '';
+        if (entity === 'classes' && id) {
+            const cls = (appData.classes || []).find((c) => String(c.id) === String(id));
+            label = cls ? cls.name || cls.displayName || '' : '';
+        } else if (entity === 'events' && id) {
+            const ev = (appData.events || []).find((e) => String(e.id) === String(id));
+            label = ev ? getEventDisplayName(ev) || ev.name || '' : '';
+        } else if (entity === 'cohorts' && id) {
+            const co = (appData.cohorts || []).find((c) => String(c.id) === String(id));
+            label = co ? co.name || '' : '';
+        }
+        if (!label) {
+            label = t('syncOverwrittenItemGeneric');
+        }
+        if (!seen.has(label)) {
+            seen.add(label);
+            names.push(label);
+        }
+    });
+    if (names.length > 3) {
+        return names.slice(0, 3).join(', ') + ' +' + (names.length - 3);
+    }
+    return names.join(', ');
+}
+
+let lastSyncOverwriteNoticeAt = 0;
+
+function showSyncOverwrittenNotice(keys) {
+    const now = Date.now();
+    if (now - lastSyncOverwriteNoticeAt < 4000) {
+        return;
+    }
+    lastSyncOverwriteNoticeAt = now;
+    const items = describeSyncTargets(keys);
+    showSyncToast(t('syncOverwrittenNotice').replace('{items}', items), false);
 }
 
 function updateOfflineQueueNotice(queueCount) {
@@ -22133,7 +22207,9 @@ async function saveClassroomPartial(fields, options) {
                 doc = await CalendarSync.saveClassroomData(fieldBag, opts);
             }
             settlePending();
-            if (doc && doc.data) {
+            // Live sync already merged the server copy into appData (keeping unsaved edits).
+            const liveMerged = CalendarSync.isLiveSync && CalendarSync.isLiveSync();
+            if (doc && doc.data && !liveMerged) {
                 mergeClassroomFieldsFromServer(doc.data, opts);
                 reapplyPendingClassroomMutations();
                 saveDataToLocalCache();
@@ -35918,7 +35994,6 @@ function getTeamLockInteractionState(lockState) {
             ? lockState.pendingEditRequest
             : typeof CalendarSync !== 'undefined' && CalendarSync.state.pendingEditRequest
     );
-    const pending = holdsLock && lock && lock.pendingRequester;
 
     let mode = 'free';
     let summaryText = t('teamLockStatusFree');
@@ -35950,16 +36025,11 @@ function getTeamLockInteractionState(lockState) {
         summaryText = t('teamLockStatusBlocked').replace('{name}', formatLockParty(lock));
         actionLabel = t('teamLockActionRequest');
     } else if (holdsLock) {
-        if (pending) {
-            mode = 'pending';
-            summaryText = t('teamLockStatusPending').replace('{name}', formatLockParty(pending));
-            actionLabel = t('teamLockActionRelease');
-            lockBtnDisabled = true;
-        } else {
-            mode = 'held';
-            summaryText = t('teamLockStatusHeld');
-            actionLabel = t('teamLockActionRelease');
-        }
+        // No edit lock any more: everyone with edit access edits at once and changes merge.
+        mode = 'live';
+        summaryText = t('teamLockStatusLive');
+        actionLabel = summaryText;
+        lockBtnDisabled = true;
     }
 
     return { mode, summaryText, actionLabel, lockBtnDisabled, holdsLock: Boolean(holdsLock) };
@@ -35995,7 +36065,7 @@ function applyTeamLockButtonChrome(btn, lockState) {
     btn.disabled = lockBtnDisabled;
     btn.setAttribute('data-holds-lock', holdsLock ? 'true' : 'false');
     btn.setAttribute('data-lock-mode', mode);
-    const showOpenPadlock = mode === 'free';
+    const showOpenPadlock = mode === 'free' || mode === 'live';
     const closedBadge = btn.querySelector('.team-lock-skeuo-badge--closed');
     const openBadge = btn.querySelector('.team-lock-skeuo-badge--open');
     if (closedBadge) {
@@ -36154,7 +36224,8 @@ function applyTeamLockAccessState(lockState) {
         'team-lock-status--held',
         'team-lock-status--blocked',
         'team-lock-status--pending',
-        'team-lock-status--waiting'
+        'team-lock-status--waiting',
+        'team-lock-status--live'
     );
 
     statusBar.classList.add('team-lock-status--' + mode);
@@ -38132,10 +38203,32 @@ function applyServerDocument(doc, options) {
         return;
     }
     const opts = options || {};
-    const data = mergeDayNotesForServerApply(Object.assign({}, doc.data));
-    const serverName = doc.name && String(doc.name).trim();
-    if (serverName) {
-        data.calendarName = serverName;
+    const liveSyncOn =
+        typeof CalendarSync !== 'undefined' && CalendarSync.isLiveSync && CalendarSync.isLiveSync();
+    // Live sync, same calendar: merge the newer copy and keep this page's unsaved changes
+    // (calls back here with liveMerged).
+    if (!opts.liveMerged && !opts.replaceLocal && liveSyncOn && CalendarSync.mergeServerDoc(doc)) {
+        return;
+    }
+    let data;
+    if (opts.liveMerged) {
+        // Already server copy + this page's unsaved changes (CalendarSync.rebaseOnto).
+        data = opts.liveMerged;
+    } else {
+        data = mergeDayNotesForServerApply(Object.assign({}, doc.data));
+        const serverName = doc.name && String(doc.name).trim();
+        if (serverName) {
+            data.calendarName = serverName;
+        }
+    }
+    if (!opts.liveMerged && typeof CalendarSync !== 'undefined' && CalendarSync.adoptServerDoc) {
+        // Fresh load: this copy is what later changes are measured against. Edits kept from a
+        // closed tab or lost connection are replayed on top so the next save sends them.
+        CalendarSync.adoptServerDoc(doc);
+        const calId = doc.id || CalendarSync.getActiveCalendarId();
+        if (calId && CalendarSync.replayPendingChanges) {
+            data = CalendarSync.replayPendingChanges(calId, data);
+        }
     }
     applyLoadedAppData(data);
     if (hasTeamSyncStatusEl()) {
@@ -38144,7 +38237,7 @@ function applyServerDocument(doc, options) {
     if (elements.calendarName) {
         elements.calendarName.value = appData.calendarName || '';
     }
-    if (typeof CalendarSync !== 'undefined') {
+    if (typeof CalendarSync !== 'undefined' && !(CalendarSync.isLiveSync && CalendarSync.isLiveSync())) {
         CalendarSync.state.revision = doc.revision;
     }
     updateActiveTeamCalendarOptionLabel();
@@ -39663,6 +39756,24 @@ async function initTeamSync() {
         async onLockOrRevisionChange(meta, lockState) {
             await maybeAutoReloadTeamCalendar(meta, lockState);
         },
+        onOverwritten(keys) {
+            showSyncOverwrittenNotice(keys);
+        },
+        onLiveTick(meta) {
+            // Live sync merges other devices' changes itself; just keep "who's here" fresh.
+            updateTeamLockRoster(
+                meta
+                    ? {
+                          readOnly: CalendarSync.state.readOnly,
+                          lock: null,
+                          holdsLock: CalendarSync.state.holdsLock,
+                          pendingEditRequest: false,
+                          viewers: meta.viewers,
+                          lockExpiresAt: null
+                      }
+                    : null
+            );
+        },
         onRemoteNewer(meta) {
             if (document.body.classList.contains('workspace-page')) {
                 const wsBanner = document.getElementById('workspaceRemoteBanner');
@@ -39705,7 +39816,7 @@ async function initTeamSync() {
                 if (appStore && typeof appStore.clearMutationQueue === 'function') {
                     appStore.clearMutationQueue();
                 }
-                applyServerDocument(serverDocument);
+                applyServerDocument(serverDocument, { replaceLocal: true });
                 initializeTermStart();
                 requestUiCalendarRender();
                 return;

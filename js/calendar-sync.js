@@ -55,7 +55,15 @@
         navNotificationActiveDays: 14,
         navNotificationDismissedDays: 3,
         notificationMeta: {},
-        syncStatus: 'idle'
+        syncStatus: 'idle',
+        // Live sync (see "Live sync" below)
+        base: null,
+        baseCalendarId: null,
+        liveSource: null,
+        saveAgain: false,
+        pulling: false,
+        deferredPull: false,
+        livePagehideBound: false
     };
 
     let handlers = {
@@ -71,7 +79,10 @@
         onPrepareLogout: null,
         onNotificationMetaLoaded: null,
         onQueueChange: null,
-        onOfflineQueued: null
+        onOfflineQueued: null,
+        // Live sync: (keys, 'save' | 'incoming') when the same thing changed in two places.
+        onOverwritten: null,
+        onLiveTick: null
     };
 
     const lockDebug = {
@@ -311,19 +322,13 @@
         const wasReadOnly = state.readOnly;
         const wasHoldsLock = state.holdsLock;
         applyCalendarAccessFromMeta(json);
-        state.readOnly = Boolean(json && json.readOnly);
-        if (state.canEdit === false) {
-            state.readOnly = true;
-        }
-        state.lock = (json && json.lock) || null;
-        // Trust server holdsLock (session-scoped). Do not infer from holderUserId.
-        // Same user on another device is view-only until quiet acquire / save takeover.
-        if (json && typeof json.holdsLock === 'boolean') {
-            state.holdsLock = json.holdsLock;
-        } else {
-            state.holdsLock = false;
-        }
-        state.pendingEditRequest = Boolean(json && json.pendingEditRequest);
+        // No edit lock: anyone with edit access edits at the same time (live sync merges
+        // changes). Read-only comes from permissions only. holdsLock stays as "may edit"
+        // for the page code that still asks.
+        state.readOnly = state.canEdit === false || Boolean(state.permissionReadOnly);
+        state.lock = null;
+        state.holdsLock = !state.readOnly;
+        state.pendingEditRequest = false;
         if (json && json.lockStaleMinutes != null) {
             state.lockStaleMinutes = json.lockStaleMinutes;
         }
@@ -391,43 +396,8 @@
      * @returns {Promise<boolean>} true when this session may write schedule data
      */
     async function ensureLockForScheduleWrite() {
-        if (state.permissionReadOnly || state.canEdit === false) {
-            return false;
-        }
-        if (!state.readOnly && state.holdsLock) {
-            return true;
-        }
-        if (isViewAsMode()) {
-            return !state.readOnly;
-        }
-        const me =
-            typeof TeamAuth !== 'undefined' && TeamAuth.getUser ? TeamAuth.getUser() : null;
-        const lock = state.lock;
-        const heldByOther =
-            lock &&
-            lock.holderUserId &&
-            (!me || String(lock.holderUserId) !== String(me.id));
-        if (heldByOther) {
-            return false;
-        }
-        const id = CalendarSync.getActiveCalendarId();
-        if (!id) {
-            return false;
-        }
-        try {
-            debugLog('api', 'Quiet acquire before schedule write', {
-                calendarId: id,
-                hadLock: Boolean(lock && lock.holderUserId),
-                holdsLock: state.holdsLock
-            });
-            const result = await CalendarSync.acquireLock(id);
-            return Boolean(result && (result.acquired || state.holdsLock) && !state.readOnly);
-        } catch (err) {
-            debugLog('error', 'Quiet acquire before schedule write failed', {
-                message: err && err.message
-            });
-            return false;
-        }
+        // No edit lock: edit access is all a schedule write needs.
+        return !(state.permissionReadOnly || state.canEdit === false);
     }
 
     function setStatus(status, detail) {
@@ -558,14 +528,14 @@
 
     function scheduleSaveRetry(reason) {
         clearSaveRetryTimer();
-        if (!getPendingMutations().length) {
+        if (!getPendingMutations().length && !(liveSyncActive() && computeLocalChanges().length)) {
             return;
         }
         const delay = state.saveRetryBackoffMs || SAVE_RETRY_BASE_MS;
         state.saveRetryTimer = setTimeout(async () => {
             state.saveRetryTimer = null;
             try {
-                await CalendarSync.saveCalendarMutations({ fromRetry: true });
+                await CalendarSync.saveNow();
                 state.saveRetryBackoffMs = SAVE_RETRY_BASE_MS;
             } catch (err) {
                 if (err && err.queuedOffline) {
@@ -592,6 +562,335 @@
             return global.CCPConflictMerge.mutationsOverlap(mutations, serverData);
         }
         return true;
+    }
+
+    /*
+     * ---- Live sync (no edit lock) ----------------------------------------------------
+     * state.base is the last calendar data this page received from the server. A save
+     * sends diffCalendar(base, local): only what this page changed, as per-item / per-field
+     * mutations. Any newer server copy (another tab, device or teacher) is merged by
+     * replaying those same local changes on top of it, so nothing unsaved is lost.
+     * The page registers its data with setLiveSource({ getData, applyData }).
+     */
+    const LIVE_PENDING_PREFIX = 'classCalendarLivePending:';
+    /** Don't swap in another device's changes while the person is typing in a field. */
+    const LIVE_TYPING_GRACE_MS = 4000;
+
+    function syncDiffApi() {
+        return global.CCPSyncDiff || null;
+    }
+
+    function mutationsApi() {
+        return global.CCPCalendarMutations || null;
+    }
+
+    function liveSyncActive() {
+        return Boolean(
+            state.liveSource &&
+                state.base &&
+                syncDiffApi() &&
+                mutationsApi() &&
+                typeof mutationsApi().applyCalendarMutations === 'function'
+        );
+    }
+
+    function baseFromDoc(doc) {
+        const data = JSON.parse(JSON.stringify((doc && doc.data) || {}));
+        delete data._syncRevs;
+        delete data.ui;
+        const name = doc && doc.name && String(doc.name).trim();
+        if (name) {
+            // The page shows the calendar's own name (applyServerDocument does the same).
+            data.calendarName = name;
+        }
+        return data;
+    }
+
+    function localData() {
+        try {
+            return state.liveSource && typeof state.liveSource.getData === 'function'
+                ? state.liveSource.getData() || {}
+                : {};
+        } catch (_) {
+            return {};
+        }
+    }
+
+    /** Everything this page changed since state.base. */
+    function computeLocalChanges() {
+        if (!liveSyncActive()) {
+            return [];
+        }
+        return syncDiffApi().diffCalendar(state.base, localData());
+    }
+
+    /** Changes this account may send (suggesters / classroom-only editors skip schedule). */
+    function sendableChanges(mutations) {
+        if (state.canEdit !== false) {
+            return mutations;
+        }
+        const api = mutationsApi();
+        return mutations.filter(
+            (m) => api.CLASSROOM_ENTITIES.has(m.entity) || api.DAYNOTES_ENTITIES.has(m.entity)
+        );
+    }
+
+    function livePendingKey(calId) {
+        return LIVE_PENDING_PREFIX + String(calId || '');
+    }
+
+    /** Keep unsaved changes across a closed tab or lost connection. */
+    function persistLivePending(calId, mutations) {
+        if (!calId) {
+            return;
+        }
+        try {
+            if (mutations && mutations.length) {
+                localStorage.setItem(
+                    livePendingKey(calId),
+                    JSON.stringify({ revision: state.revision, savedAt: Date.now(), mutations })
+                );
+            } else {
+                localStorage.removeItem(livePendingKey(calId));
+            }
+        } catch (_) {
+            /* storage full or blocked: the in-page copy still saves on reconnect */
+        }
+    }
+
+    function readLivePending(calId) {
+        try {
+            const raw = localStorage.getItem(livePendingKey(calId));
+            const parsed = raw ? JSON.parse(raw) : null;
+            return parsed && Array.isArray(parsed.mutations) ? parsed.mutations : [];
+        } catch (_) {
+            return [];
+        }
+    }
+
+    function userIsTyping() {
+        if (typeof document === 'undefined') {
+            return false;
+        }
+        const el = document.activeElement;
+        if (!el) {
+            return false;
+        }
+        const tag = String(el.tagName || '').toUpperCase();
+        const textInput =
+            tag === 'TEXTAREA' ||
+            el.isContentEditable ||
+            (tag === 'INPUT' &&
+                !/^(checkbox|radio|button|submit|reset|range|color|file|image)$/i.test(el.type || ''));
+        return Boolean(textInput) && Date.now() - (state.lastUserInputAt || 0) < LIVE_TYPING_GRACE_MS;
+    }
+
+    /**
+     * Merge a server copy into this page: replay local changes on top of it.
+     * opts.ownSave: the response to this page's save (no "changed elsewhere" notice).
+     * Returns { applied, overlaps }.
+     */
+    function rebaseOnto(doc, opts) {
+        const o = opts || {};
+        if (!doc || !doc.data) {
+            return { applied: false, overlaps: [] };
+        }
+        if (!liveSyncActive()) {
+            adoptServerRevision(doc);
+            return { applied: false, overlaps: [] };
+        }
+        if (doc.id != null && state.baseCalendarId && String(doc.id) !== String(state.baseCalendarId)) {
+            return { applied: false, overlaps: [] };
+        }
+        if (doc.revision != null && Number(doc.revision) < Number(state.revision)) {
+            // An older answer arriving late: the page already has something newer.
+            return { applied: false, overlaps: [] };
+        }
+        const SyncDiff = syncDiffApi();
+        const local = localData();
+        const oldBase = state.base;
+        const nextBase = baseFromDoc(doc);
+        const pending = SyncDiff.diffCalendar(oldBase, local);
+        const merged = mutationsApi().applyCalendarMutations(nextBase, pending, { bumpVersions: false });
+        let overlaps = [];
+        if (!o.ownSave && pending.length) {
+            overlaps = SyncDiff.overlappingTargets(SyncDiff.diffCalendar(oldBase, nextBase), pending);
+        }
+        state.base = nextBase;
+        state.revision = doc.revision;
+        state.remoteNewer = false;
+        state.deferredPull = false;
+        // Only touch the page when something it shows actually changed.
+        const changed = SyncDiff.diffCalendar(merged, local).length > 0;
+        if (changed) {
+            merged.ui = local.ui;
+            try {
+                state.liveSource.applyData(merged, doc, { overlaps, ownSave: Boolean(o.ownSave) });
+            } catch (err) {
+                debugLog('error', 'Applying merged calendar failed', { message: err && err.message });
+            }
+        }
+        if (overlaps.length && typeof handlers.onOverwritten === 'function') {
+            handlers.onOverwritten(overlaps, 'incoming');
+        }
+        debugLog('apply', 'Merged server copy', {
+            revision: doc.revision,
+            pending: pending.length,
+            changed,
+            overlaps: overlaps.length,
+            ownSave: Boolean(o.ownSave)
+        });
+        return { applied: changed, overlaps };
+    }
+
+    /** Responses from any save carry the latest calendar: fold them in. */
+    function adoptSavedDoc(doc) {
+        if (!doc) {
+            return;
+        }
+        if (liveSyncActive() && doc.data) {
+            rebaseOnto(doc, { ownSave: true });
+        } else {
+            adoptServerRevision(doc);
+        }
+    }
+
+    function flushLegacyQueue(calId) {
+        const src = getMutationSource();
+        const queued = getPendingMutations().length;
+        if (queued && src && typeof src.flushMutationQueue === 'function') {
+            src.flushMutationQueue(queued);
+        }
+        if (
+            calId &&
+            typeof global.CCPSessionRestore !== 'undefined' &&
+            global.CCPSessionRestore.clearOfflineQueue
+        ) {
+            global.CCPSessionRestore.clearOfflineQueue(calId);
+        }
+        notifyQueueChange();
+    }
+
+    function isNetworkError(err) {
+        return (
+            !err ||
+            !err.status ||
+            err.status === 0 ||
+            err.message === 'Failed to fetch' ||
+            err.message === 'Request timed out'
+        );
+    }
+
+    /** Send this page's changes. Safe to call any time; overlapping calls coalesce. */
+    async function saveLiveChanges() {
+        if (!liveSyncActive()) {
+            return null;
+        }
+        if (state.saving) {
+            state.saveAgain = true;
+            return null;
+        }
+        // Changes belong to the calendar the base came from; never send them anywhere else
+        // (e.g. mid-way through switching calendars).
+        const calId = state.baseCalendarId;
+        if (!calId || calId !== String(CalendarSync.getActiveCalendarId() || '')) {
+            return null;
+        }
+        if (isViewAsMode()) {
+            return { simulated: true, revision: state.revision };
+        }
+        const mutations = sendableChanges(computeLocalChanges());
+        if (!mutations.length) {
+            flushLegacyQueue(calId);
+            persistLivePending(calId, []);
+            return null;
+        }
+        clearSaveRetryTimer();
+        setStatus('saving');
+        state.saving = true;
+        try {
+            const doc = await apiFetch('/calendars/' + encodeURIComponent(calId), {
+                method: 'PATCH',
+                body: { baseRevision: state.revision, mutations }
+            });
+            flushLegacyQueue(calId);
+            rebaseOnto(doc, { ownSave: true });
+            // Anything still different was changed while this save was in flight.
+            persistLivePending(calId, sendableChanges(computeLocalChanges()));
+            state.saveRetryBackoffMs = SAVE_RETRY_BASE_MS;
+            setStatus('saved');
+            if (doc && Array.isArray(doc.overwritten) && doc.overwritten.length &&
+                typeof handlers.onOverwritten === 'function') {
+                handlers.onOverwritten(doc.overwritten, 'save');
+            }
+            if (typeof handlers.onSaved === 'function') {
+                handlers.onSaved(doc);
+            }
+            return doc;
+        } catch (err) {
+            persistLivePending(calId, mutations);
+            if (err && err.status === 409 && err.body && err.body.code === 'DUPLICATE_NAME') {
+                setStatus('error', err.message);
+                if (typeof handlers.onDuplicateName === 'function') {
+                    handlers.onDuplicateName(err.message);
+                }
+                throw err;
+            }
+            if (isNetworkError(err)) {
+                setStatus('queued');
+                if (typeof handlers.onOfflineQueued === 'function') {
+                    handlers.onOfflineQueued(mutations.length);
+                }
+                scheduleSaveRetry('offline');
+                const queuedErr = new Error((err && err.message) || 'Offline');
+                queuedErr.queuedOffline = true;
+                queuedErr.status = err && err.status;
+                throw queuedErr;
+            }
+            if (err.status === 429 || err.status >= 500) {
+                setStatus('queued');
+                scheduleSaveRetry('busy');
+            } else {
+                setStatus('error', err.message);
+            }
+            throw err;
+        } finally {
+            state.saving = false;
+            if (state.saveAgain) {
+                state.saveAgain = false;
+                CalendarSync.scheduleSave();
+            }
+        }
+    }
+
+    /** Fetch the newest calendar and merge it in (skipped while the person is typing). */
+    async function pullLatest(reason) {
+        if (!liveSyncActive() || state.saving || state.pulling) {
+            return false;
+        }
+        if (userIsTyping()) {
+            state.deferredPull = true;
+            state.remoteNewer = true;
+            return false;
+        }
+        const calId = state.baseCalendarId;
+        if (!calId || calId !== String(CalendarSync.getActiveCalendarId() || '')) {
+            return false;
+        }
+        state.pulling = true;
+        try {
+            debugLog('api', 'GET /calendars/:id (live pull)', { calendarId: calId, reason: reason || '' });
+            const doc = await apiFetch('/calendars/' + encodeURIComponent(calId));
+            applyLockFromResponse(tagLockDebugSource(doc, 'livePull'));
+            if (state.saving) {
+                // A save started meanwhile; its answer carries the same or newer copy.
+                return false;
+            }
+            rebaseOnto(doc, { ownSave: false });
+            return true;
+        } finally {
+            state.pulling = false;
+        }
     }
 
     /**
@@ -717,80 +1016,115 @@
             return meta;
         },
 
-        async acquireLock(id, opts) {
+        /** Edit lock retired: editing never waits for anyone. Kept for older callers. */
+        async acquireLock() {
             if (state.canEdit === false) {
                 const err = new Error('You do not have edit access to this calendar');
                 err.status = 403;
                 throw err;
             }
-            if (isViewAsMode()) {
-                const calId = id || CalendarSync.getActiveCalendarId();
-                const meta = await apiFetch('/calendars/' + encodeURIComponent(calId) + '/meta');
-                if (meta.readOnly && !meta.holdsLock) {
-                    const err = new Error(
-                        meta.permissionReadOnly
-                            ? 'You do not have edit access to this calendar'
-                            : 'Calendar is locked by another teacher'
-                    );
-                    err.status = meta.permissionReadOnly ? 403 : 423;
-                    throw err;
-                }
-                state.simulatedLock = true;
-                state.holdsLock = true;
-                state.readOnly = false;
-                applyLockFromResponse(
-                    tagLockDebugSource(
-                        Object.assign({}, meta, { holdsLock: true, readOnly: false, simulatedLock: true }),
-                        'acquireLockSimulated'
-                    )
-                );
-                return { acquired: true, simulated: true };
-            }
-            const force = Boolean(opts && opts.force);
-            debugLog('api', 'POST /lock (acquire)', { calendarId: id, force });
-            const result = await apiFetch('/calendars/' + encodeURIComponent(id) + '/lock', {
-                method: 'POST',
-                body: { force }
-            });
-            applyLockFromResponse(tagLockDebugSource(result, 'acquireLock'));
-            debugLog('api', 'POST /lock result', {
-                editRequestRecorded: result && result.editRequestRecorded,
-                acquired: result && result.acquired
-            });
-            return result;
+            return { acquired: true, holdsLock: true, readOnly: false };
         },
 
-        async grantLockToPending(id) {
-            const calId = id || CalendarSync.getActiveCalendarId();
-            if (!calId) {
-                throw new Error('No active team calendar');
-            }
+        async grantLockToPending() {
             await CalendarSync.flushPendingSave();
-            debugLog('api', 'POST /lock/grant', { calendarId: calId });
-            const result = await apiFetch('/calendars/' + encodeURIComponent(calId) + '/lock/grant', {
-                method: 'POST',
-                body: {}
-            });
-            applyLockFromResponse(tagLockDebugSource(result, 'grantLock'));
-            return result;
+            return { ok: true };
         },
 
-        async dismissLockRequest(id) {
-            const calId = id || CalendarSync.getActiveCalendarId();
-            if (!calId) {
-                throw new Error('No active team calendar');
-            }
-            debugLog('api', 'POST /lock/dismiss', { calendarId: calId });
-            const result = await apiFetch('/calendars/' + encodeURIComponent(calId) + '/lock/dismiss', {
-                method: 'POST',
-                body: {}
-            });
-            applyLockFromResponse(tagLockDebugSource(result, 'dismissLock'));
-            return result;
+        async dismissLockRequest() {
+            return { ok: true };
         },
 
         hasPendingSave() {
-            return Boolean(state.saveTimer || state.pendingGetData || state.saving);
+            return Boolean(
+                state.saveTimer ||
+                    state.pendingGetData ||
+                    state.saving ||
+                    (liveSyncActive() && computeLocalChanges().length > 0)
+            );
+        },
+
+        /**
+         * Live sync: the page registers its calendar data here.
+         * source = { getData(): calendar data, applyData(mergedData, serverDoc, info) }
+         */
+        setLiveSource(source) {
+            state.liveSource = source && typeof source.getData === 'function' &&
+                typeof source.applyData === 'function' ? source : null;
+            if (!state.livePagehideBound && typeof global.addEventListener === 'function') {
+                state.livePagehideBound = true;
+                // Closing the tab inside the save delay: keep the edit for next time.
+                global.addEventListener('pagehide', () => {
+                    if (liveSyncActive()) {
+                        persistLivePending(
+                            state.baseCalendarId,
+                            sendableChanges(computeLocalChanges())
+                        );
+                    }
+                });
+            }
+        },
+
+        isLiveSync() {
+            return liveSyncActive();
+        },
+
+        /**
+         * The page just replaced its data with this server copy (load / switch / reload).
+         * It becomes the base that local changes are measured against.
+         */
+        adoptServerDoc(doc) {
+            if (!doc || !doc.data) {
+                return;
+            }
+            state.base = baseFromDoc(doc);
+            state.baseCalendarId = doc.id != null ? String(doc.id) : CalendarSync.getActiveCalendarId();
+            state.revision = doc.revision;
+            state.remoteNewer = false;
+            state.deferredPull = false;
+        },
+
+        /**
+         * Unsaved changes from a closed tab or lost connection, replayed onto freshly
+         * loaded data so the next save sends them. Returns the data to show.
+         */
+        replayPendingChanges(calId, data) {
+            const api = mutationsApi();
+            if (!api || !data) {
+                return data;
+            }
+            const live = readLivePending(calId);
+            let queued = [];
+            try {
+                if (typeof global.CCPSessionRestore !== 'undefined' &&
+                    global.CCPSessionRestore.loadOfflineQueue) {
+                    queued = global.CCPSessionRestore.loadOfflineQueue(calId) || [];
+                }
+            } catch (_) {
+                queued = [];
+            }
+            const all = (Array.isArray(queued) ? queued : []).concat(live);
+            if (!all.length) {
+                return data;
+            }
+            debugLog('apply', 'Replaying unsaved changes', { count: all.length });
+            const ui = data.ui;
+            const replayed = api.applyCalendarMutations(data, all, { bumpVersions: false });
+            if (ui !== undefined) {
+                replayed.ui = ui;
+            }
+            return replayed;
+        },
+
+        /** Save now (live sync) — used by flush, retries and the poll. */
+        async saveNow() {
+            if (liveSyncActive()) {
+                return saveLiveChanges();
+            }
+            if (CalendarSync.hasPendingMutations()) {
+                return CalendarSync.saveCalendarMutations();
+            }
+            return null;
         },
 
         async waitForSaveComplete(timeoutMs) {
@@ -811,6 +1145,11 @@
             const fn = state.pendingGetData;
             state.pendingGetData = null;
             if (!CalendarSync.getActiveCalendarId()) {
+                return;
+            }
+            if (liveSyncActive()) {
+                await saveLiveChanges();
+                await CalendarSync.waitForSaveComplete();
                 return;
             }
             if (state.readOnly) {
@@ -868,64 +1207,15 @@
          * fresher half of the stale window (cuts poll cost; policy unchanged).
          */
         shouldTouchLock() {
-            if (!state.holdsLock) {
-                return false;
-            }
-            const lock = state.lock;
-            if (!lock || !lock.updatedAt) {
-                return true;
-            }
-            const staleMs = Math.max(60 * 1000, (Number(state.lockStaleMinutes) || 20) * 60 * 1000);
-            const updated = Date.parse(lock.updatedAt);
-            if (!Number.isFinite(updated)) {
-                return true;
-            }
-            const remaining = updated + staleMs - Date.now();
-            return remaining < staleMs * 0.5;
+            return false;
         },
 
-        async touchLock(id) {
-            if (isViewAsMode() && state.simulatedLock) {
-                return { touched: true, simulated: true };
-            }
-            const calId = id || CalendarSync.getActiveCalendarId();
-            if (!calId || !state.holdsLock) {
-                return { touched: false };
-            }
-            try {
-                const result = await apiFetch('/calendars/' + encodeURIComponent(calId) + '/lock/touch', {
-                    method: 'POST',
-                    body: {}
-                });
-                applyLockFromResponse(tagLockDebugSource(result, 'touchLock'));
-                return result;
-            } catch (err) {
-                debugLog('error', 'POST /lock/touch failed', { message: err && err.message });
-                return { touched: false };
-            }
+        async touchLock() {
+            return { touched: true };
         },
 
-        async releaseLock(id) {
-            if (isViewAsMode() && state.simulatedLock) {
-                state.simulatedLock = false;
-                state.holdsLock = false;
-                const calId = id || CalendarSync.getActiveCalendarId();
-                if (calId) {
-                    await CalendarSync.refreshLockMeta(calId);
-                }
-                return { released: true, simulated: true };
-            }
-            const calId = id || CalendarSync.getActiveCalendarId();
-            if (!calId) {
-                return { released: false };
-            }
-            debugLog('api', 'DELETE /lock (release)', { calendarId: calId });
-            const result = await apiFetch('/calendars/' + encodeURIComponent(calId) + '/lock', {
-                method: 'DELETE'
-            });
-            debugLog('api', 'DELETE /lock result', result);
-            await CalendarSync.refreshLockMeta(calId);
-            return result;
+        async releaseLock() {
+            return { released: true };
         },
 
         async loadNotificationMeta(calendarId) {
@@ -1070,10 +1360,30 @@
         async loadCalendar(id) {
             debugLog('api', 'GET /calendars/:id (load)', { calendarId: id });
             const doc = await apiFetch('/calendars/' + encodeURIComponent(id));
-            state.revision = doc.revision || 0;
-            state.remoteNewer = false;
+            if (!liveSyncActive() || String(id) !== String(state.baseCalendarId || '')) {
+                state.revision = doc.revision || 0;
+                state.remoteNewer = false;
+            }
+            // Live sync: the revision moves only when the page merges this copy
+            // (adoptServerDoc / mergeServerDoc), so nothing in it is skipped.
             applyLockFromResponse(tagLockDebugSource(doc, 'loadCalendar'));
             return doc;
+        },
+
+        /**
+         * Same calendar, newer copy: merge it in, keeping this page's unsaved changes.
+         * Returns false when it can't (no live sync or a different calendar).
+         */
+        mergeServerDoc(doc) {
+            if (!liveSyncActive() || !doc || String(doc.id || '') !== String(state.baseCalendarId || '')) {
+                return false;
+            }
+            rebaseOnto(doc, { ownSave: false });
+            return true;
+        },
+
+        hasUnsavedLiveChanges() {
+            return liveSyncActive() && computeLocalChanges().length > 0;
         },
 
         async createCalendar(data, name, options) {
@@ -1107,6 +1417,11 @@
                 throw err;
             }
             const opts = options || {};
+            // Live sync: the page already holds these fields, so send the per-student /
+            // per-field diff (never a whole session that could undo another teacher's marks).
+            if (liveSyncActive() && !opts.force && !opts.forcePut) {
+                return saveLiveChanges();
+            }
             // Prefer granular PATCH mutations (no schedule lock) when available.
             if (
                 !opts.forcePut &&
@@ -1183,7 +1498,7 @@
                     method: 'PUT',
                     body
                 });
-                state.revision = doc.revision || state.revision;
+                adoptSavedDoc(doc);
                 setStatus('saved');
                 if (typeof handlers.onSaved === 'function') {
                     handlers.onSaved(doc);
@@ -1273,7 +1588,7 @@
                             method: 'PUT',
                             body: retryBody
                         });
-                        state.revision = retryDoc.revision || state.revision;
+                        adoptSavedDoc(retryDoc);
                         setStatus('saved');
                         if (typeof handlers.onSaved === 'function') {
                             handlers.onSaved(retryDoc);
@@ -1326,6 +1641,10 @@
                 return null;
             }
             const opts = options || {};
+            if (liveSyncActive() && !opts.force && state.liveSource && opts.pageAlreadyApplied !== false) {
+                // The page applied these already (saveClassroomPartial / day notes): diff covers them.
+                return saveLiveChanges();
+            }
             setStatus('saving');
             state.saving = true;
             try {
@@ -1337,7 +1656,7 @@
                         force: Boolean(opts.force)
                     }
                 });
-                state.revision = doc.revision || state.revision;
+                adoptSavedDoc(doc);
                 setStatus('saved');
                 if (typeof handlers.onSaved === 'function') {
                     handlers.onSaved(doc);
@@ -1359,7 +1678,7 @@
                                     force: Boolean(opts.force)
                                 }
                             });
-                            state.revision = retryDoc.revision || state.revision;
+                            adoptSavedDoc(retryDoc);
                             setStatus('saved');
                             if (typeof handlers.onSaved === 'function') {
                                 handlers.onSaved(retryDoc);
@@ -1476,7 +1795,7 @@
                         force: Boolean(opts.force)
                     }
                 });
-                state.revision = doc.revision || state.revision;
+                adoptSavedDoc(doc);
                 setStatus('saved');
                 if (typeof handlers.onSaved === 'function') {
                     handlers.onSaved(doc);
@@ -1496,6 +1815,10 @@
 
         async saveCalendarMutations(options) {
             assertSignedIn();
+            if (liveSyncActive()) {
+                // The queued changes are already in the page data; the live diff sends them.
+                return saveLiveChanges();
+            }
             if (isViewAsMode()) {
                 viewAsNotice('View As: change not saved');
                 setStatus('saved');
@@ -1697,7 +2020,7 @@
                     method: 'PUT',
                     body: putBody
                 });
-                state.revision = doc.revision || state.revision;
+                adoptSavedDoc(doc);
                 setStatus('saved');
                 if (typeof handlers.onSaved === 'function') {
                     handlers.onSaved(doc);
@@ -1735,6 +2058,25 @@
 
         scheduleSave(getDataFn) {
             if (typeof TeamAuth !== 'undefined' && TeamAuth.isSignedIn && !TeamAuth.isSignedIn()) {
+                return;
+            }
+            if (state.canEdit === false && state.accessLevel !== 'suggester') {
+                return;
+            }
+            if (liveSyncActive()) {
+                // Live sync reads the page data itself when the timer fires.
+                state.pendingGetData = null;
+                if (state.saveTimer) {
+                    clearTimeout(state.saveTimer);
+                }
+                state.saveTimer = setTimeout(() => {
+                    state.saveTimer = null;
+                    saveLiveChanges().catch((err) => {
+                        if (err && !err.queuedOffline) {
+                            console.error('Team save failed:', err);
+                        }
+                    });
+                }, SAVE_DEBOUNCE_MS);
                 return;
             }
             if (state.canEdit === false) {
@@ -1897,8 +2239,23 @@
                     // poll (skipped in View As there), so no separate heartbeat request
                     // is needed per tick.
                     const lockState = applyLockFromResponse(tagLockDebugSource(meta, 'poll'));
-                    if (state.holdsLock && CalendarSync.shouldTouchLock()) {
-                        await CalendarSync.touchLock(id);
+                    if (liveSyncActive() && !isViewAsMode()) {
+                        // Live sync: send what this page changed, pull what others changed.
+                        const idle = !state.saving && !state.saveTimer;
+                        if (idle && Number(meta.revision) > Number(state.revision)) {
+                            await pullLatest('poll').catch((err) => {
+                                debugLog('error', 'Live pull failed', { message: err && err.message });
+                            });
+                        }
+                        if (!state.saving && !state.saveTimer && !state.saveRetryTimer &&
+                            sendableChanges(computeLocalChanges()).length) {
+                            saveLiveChanges().catch(() => {});
+                        }
+                        if (typeof handlers.onLiveTick === 'function') {
+                            handlers.onLiveTick(meta, lockState);
+                        }
+                        state.pollTimer = setTimeout(runPollTick, CalendarSync.getPollDelayMs());
+                        return;
                     }
                     debugLog('poll', 'Meta poll', {
                         revision: meta.revision,
