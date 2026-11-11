@@ -7,7 +7,8 @@
 
     // 'attendance' = absence list only (fast; Debate Rec). 'counsel' = notes + attendance.
     const KIND_ORDER = ['roster', 'essays', 'homework', 'attendance', 'counsel'];
-    const DEFAULT_KINDS = ['roster', 'essays', 'homework', 'counsel'];
+    // Counsel (notes) is opt-in: it's slow and heavy. Attendance covers the default sync.
+    const DEFAULT_KINDS = ['roster', 'essays', 'homework', 'attendance'];
     const KIND_TAB = {
         roster: 'students',
         essays: 'essays',
@@ -1086,6 +1087,9 @@
             const kind = input.value;
             if (SAFE_QUICK_KINDS.includes(kind)) {
                 input.checked = true;
+            } else if (kind === 'counsel') {
+                /* Counsel is too slow for quick sync — attendance covers it */
+                input.checked = false;
             }
             /* leave roster as the teacher left it — Load may include it, Apply will not */
         });

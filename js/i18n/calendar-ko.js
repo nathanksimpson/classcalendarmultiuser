@@ -1493,7 +1493,7 @@
         tmsSyncScopeClass: '이 반',
         tmsSyncLoadBtn: '불러오기',
         tmsSyncQuickBtn: '빠른 동기화',
-        tmsSyncQuickBtnTitle: '숙제·에세이·상담을 불러와 적용합니다. 명단은 검토 후 적용하세요.',
+        tmsSyncQuickBtnTitle: '숙제·에세이·출결을 불러와 적용합니다. 명단은 검토 후 적용하세요.',
         tmsSyncQuickDone: '안전한 항목 빠른 동기화를 마쳤습니다.',
         tmsSyncQuickRosterLeft: '안전한 항목을 적용했습니다. 명단을 검토한 뒤 적용하세요.',
         tmsSyncQuickNone: '동기화할 항목을 하나 이상 선택하세요.',

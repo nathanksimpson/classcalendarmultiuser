@@ -1493,7 +1493,7 @@
         tmsSyncScopeClass: 'This class',
         tmsSyncLoadBtn: 'Load',
         tmsSyncQuickBtn: 'Quick sync',
-        tmsSyncQuickBtnTitle: 'Load and apply homework, essays, and counsel. Roster stays for review.',
+        tmsSyncQuickBtnTitle: 'Load and apply homework, essays, and attendance. Roster stays for review.',
         tmsSyncQuickDone: 'Quick sync finished for safe kinds.',
         tmsSyncQuickRosterLeft: 'Quick sync applied safe kinds. Review roster, then Apply.',
         tmsSyncQuickNone: 'Select at least one kind to sync.',
