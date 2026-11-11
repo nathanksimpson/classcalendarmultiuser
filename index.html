@@ -865,9 +865,9 @@
             </section>
 
             <section id="panel-notes" class="app-tab-panel" data-tab="notes" role="tabpanel" aria-labelledby="zoneBtn-classroom" hidden>
-                <div class="notes-mobile-app-promo">
+                <div class="notes-mobile-app-promo" id="notesMobileAppPromo">
                     <p class="section-hint notes-mobile-app-promo-hint" data-i18n="notesMobilePromoHint">Phone-friendly journal: pick a date, tap your class, write what happened.</p>
-                    <button type="button" id="openNotesAppTabBtn" class="btn btn-primary btn-small" data-i18n="notesOpenMobile">Mobile day notes</button>
+                    <button type="button" id="openNotesAppTabBtn" class="btn btn-outline btn-small class-notes-mobile-app-btn" data-i18n="notesOpenMobile" data-i18n-title="notesOpenMobileTitle" title="Open the mobile day-notes journal (date and class list)">Mobile day notes</button>
                 </div>
                 <div id="panelNotesMount" class="class-notes-mount"></div>
             </section>
@@ -941,7 +941,10 @@
                         </aside>
                         <div class="module-editor-panel class-notes-main-panel">
                             <section class="class-notes-add-panel class-notes-panel-card" aria-labelledby="classNotesAddHeading">
-                                <h2 id="classNotesAddHeading" class="class-notes-add-title" data-i18n="classNotesAddHeading">Add note</h2>
+                                <div class="class-notes-card-header">
+                                    <h2 id="classNotesAddHeading" class="class-notes-add-title" data-i18n="classNotesAddHeading">Add note</h2>
+                                    <div id="classNotesAddHeaderSlot" class="class-notes-card-header-actions"></div>
+                                </div>
                                 <form id="classNotesAddForm" class="class-notes-add-form">
                                     <div class="class-notes-add-fields">
                                         <label class="class-notes-filter-field" for="classNotesAddClass">
@@ -955,31 +958,49 @@
                                                 <button type="button" id="classNotesAddNowBtn" class="btn btn-outline btn-small" data-i18n="classNotesAddNow">Now</button>
                                             </div>
                                         </label>
-                                        <label class="class-notes-filter-field" for="classNotesAddCategory">
-                                            <span data-i18n="dayNoteCategoryLabel">Category</span>
+                                        <div class="class-notes-filter-field class-notes-add-category-field">
+                                            <span class="class-notes-field-label-row">
+                                                <label for="classNotesAddCategory" data-i18n="dayNoteCategoryLabel">Category</label>
+                                                <button type="button" id="classNotesManageCategoriesBtn" class="class-notes-inline-link" data-i18n="classNotesManageCategoriesShort" data-i18n-title="dayNoteCategoryManage" title="Manage categories">Manage</button>
+                                            </span>
                                             <select id="classNotesAddCategory" class="field-select class-notes-add-select"></select>
-                                        </label>
+                                        </div>
                                     </div>
                                     <label class="class-notes-filter-field" for="classNotesAddText">
                                         <span data-i18n="dayNoteTextLabel">What happened in this class?</span>
                                         <textarea id="classNotesAddText" class="day-note-textarea class-notes-add-textarea" rows="2" spellcheck="true" required></textarea>
-                                        <p id="classNotesAddMentionHint" class="section-hint day-note-mention-hint"></p>
                                     </label>
                                     <p id="classNotesAddReadOnly" class="section-hint day-note-readonly-hint" hidden data-i18n="dayNoteReadOnlyHint"></p>
                                     <div class="class-notes-add-actions">
+                                        <p id="classNotesAddMentionHint" class="section-hint day-note-mention-hint"></p>
                                         <button type="submit" id="classNotesAddSaveBtn" class="btn btn-primary btn-small" data-i18n="dayNoteSave">Save note</button>
                                     </div>
                                 </form>
                             </section>
                             <section class="class-notes-list-section class-notes-panel-card" aria-labelledby="classNotesListHeading">
                                 <div class="class-notes-list-top">
-                                    <div class="class-notes-list-title-block">
-                                        <h2 id="classNotesListHeading" class="class-notes-list-heading" data-i18n="classNotesListHeading">Saved notes</h2>
-                                        <p id="classNotesSummaryLine" class="class-notes-summary-line" role="status" aria-live="polite"></p>
+                                    <div class="class-notes-list-title-row">
+                                        <div class="class-notes-list-title-block">
+                                            <h2 id="classNotesListHeading" class="class-notes-list-heading" data-i18n="classNotesListHeading">Saved notes</h2>
+                                            <p id="classNotesSummaryLine" class="class-notes-summary-line" role="status" aria-live="polite"></p>
+                                        </div>
+                                        <details class="header-dropdown class-notes-export-menu">
+                                            <summary class="btn btn-outline btn-small header-dropdown-trigger" data-i18n="classNotesExportMenu">Export</summary>
+                                            <div class="header-dropdown-panel class-notes-export-menu-panel" role="menu">
+                                                <button type="button" id="classNotesExportCopyBtn" class="header-dropdown-item btn btn-outline btn-small" role="menuitem" data-i18n="classNotesExportCopy">Copy export</button>
+                                                <button type="button" id="classNotesExportDownloadBtn" class="header-dropdown-item btn btn-outline btn-small" role="menuitem" data-i18n="classNotesExportDownload">Download .txt</button>
+                                                <button type="button" id="classNotesDaySummaryBtn" class="header-dropdown-item btn btn-outline btn-small" role="menuitem" data-i18n="classNotesDaySummaryBtn">Day summary&hellip;</button>
+                                                <label class="class-notes-export-menu-toggle" for="classNotesTranslateOnCopy">
+                                                    <input type="checkbox" id="classNotesTranslateOnCopy">
+                                                    <span data-i18n="classNotesTranslateOnCopy">Translate EN→KO when copying</span>
+                                                </label>
+                                                <p class="class-notes-export-menu-hint section-hint" data-i18n="classNotesExportMenuHint">Uses the current filters and sort.</p>
+                                            </div>
+                                        </details>
                                     </div>
                                     <div class="class-notes-list-toolbar">
                                         <input type="search" id="classNotesTextSearch" class="module-list-search class-notes-text-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="classNotesTextSearchPlaceholder" placeholder="Search notes, classes&hellip;">
-                                        <label class="class-notes-sort-label" for="classNotesSortSelect">
+                                        <label class="class-notes-sort-label" for="classNotesSortSelect" data-i18n-title="classNotesSortHint" title="Newest/Oldest use exact time. By day sorts calendar dates.">
                                             <span data-i18n="classNotesSortLabel">Sort</span>
                                             <select id="classNotesSortSelect" class="field-select class-notes-sort-select" aria-label="Sort notes" data-i18n-aria-label="classNotesSortLabel">
                                                 <option value="newest" selected data-i18n="classNotesSortNewest">Newest (time)</option>
@@ -990,23 +1011,7 @@
                                                 <option value="dateDesc" data-i18n="classNotesSortDateDesc">By day (newest)</option>
                                             </select>
                                         </label>
-                                        <div id="classNotesExportCategoriesWrap" class="class-notes-export-categories" hidden>
-                                            <span class="class-notes-export-categories-label" data-i18n="classNotesExportCategories">Export categories</span>
-                                            <div id="classNotesExportCategories" class="class-notes-filter-chips lesson-filter-chip-grid"></div>
-                                            <p class="class-notes-export-categories-hint section-hint" data-i18n="classNotesExportCategoriesHint">Uncheck categories to exclude them from export.</p>
-                                        </div>
-                                        <label class="class-notes-sort-label" for="classNotesTranslateOnCopy">
-                                            <span data-i18n="classNotesTranslateOnCopy">Translate EN→KO when copying</span>
-                                            <input type="checkbox" id="classNotesTranslateOnCopy">
-                                        </label>
-                                        <div class="class-notes-export-actions">
-                                            <button type="button" id="classNotesManageCategoriesBtn" class="btn btn-outline btn-small" data-i18n="dayNoteCategoryManage">Manage categories</button>
-                                            <button type="button" id="classNotesExportCopyBtn" class="btn btn-outline btn-small" data-i18n="classNotesExportCopy">Copy export</button>
-                                            <button type="button" id="classNotesExportDownloadBtn" class="btn btn-outline btn-small" data-i18n="classNotesExportDownload">Download .txt</button>
-                                            <button type="button" id="classNotesDaySummaryBtn" class="btn btn-outline btn-small" data-i18n="classNotesDaySummaryBtn">Day summary&hellip;</button>
-                                        </div>
                                     </div>
-                                    <p class="class-notes-sort-hint section-hint" data-i18n="classNotesSortHint">Newest/Oldest use exact time. By day sorts calendar dates.</p>
                                 </div>
                                 <p id="classNotesEmptyFiltered" class="module-empty-hint class-notes-empty-filtered" hidden data-i18n="classNotesEmptyFiltered">No notes match these filters. Add a note above or from the calendar (right-click a class).</p>
                                 <div id="classNotesPreview" class="class-notes-preview" role="list" aria-labelledby="classNotesListHeading"></div>

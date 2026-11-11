@@ -6912,22 +6912,84 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
 
 .class-notes-list-top {
     display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 10px 14px;
+    flex-direction: column;
+    gap: var(--space-2);
     padding: var(--space-3) 14px;
     border-bottom: 1px solid var(--border-color);
 }
 
+.class-notes-list-title-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
 .class-notes-list-title-block {
-    flex: 1 1 12rem;
+    flex: 1 1 auto;
     min-width: 0;
 }
 
-.class-notes-sort-hint {
-    flex: 1 1 100%;
+.class-notes-list-title-block .class-notes-list-heading {
+    margin-bottom: 2px;
+}
+
+/* Export menu (details.header-dropdown) — one trigger instead of a row of buttons. */
+.class-notes-export-menu {
+    position: relative;
+    flex: 0 0 auto;
+}
+
+.class-notes-export-menu > summary {
+    list-style: none;
+    cursor: pointer;
+    gap: 6px;
+}
+
+.class-notes-export-menu > summary::-webkit-details-marker {
+    display: none;
+}
+
+.class-notes-export-menu > summary::after {
+    content: '';
+    width: 0.4em;
+    height: 0.4em;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: translateY(-2px) rotate(45deg);
+    transition: transform 0.15s ease;
+}
+
+.class-notes-export-menu[open] > summary::after {
+    transform: translateY(1px) rotate(-135deg);
+}
+
+.class-notes-export-menu-panel.header-dropdown-panel {
+    min-width: 15rem;
+    max-width: min(18rem, calc(100vw - 2 * var(--space-4)));
+}
+
+.class-notes-export-menu-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-1);
+    padding: var(--pad-control-y) var(--pad-control-x);
+    border-top: 1px solid var(--border-color);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.class-notes-export-menu-toggle input {
+    flex: 0 0 auto;
     margin: 0;
+}
+
+.class-notes-export-menu-hint {
+    margin: 0;
+    padding: 0 var(--pad-control-x) var(--space-1);
     font-size: 0.75rem;
 }
 
@@ -6944,22 +7006,75 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
     overflow: visible;
 }
 
+.class-notes-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: 10px;
+}
+
+.class-notes-card-header .class-notes-add-title {
+    margin: 0;
+}
+
+.class-notes-card-header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.class-notes-card-header-actions:empty {
+    display: none;
+}
+
+.class-notes-card-header-actions .class-notes-mobile-app-btn {
+    min-height: 32px;
+    padding: 4px var(--space-3);
+    font-size: 0.8125rem;
+    white-space: nowrap;
+}
+
+html[data-viewport="phone"] .class-notes-mobile-app-btn {
+    display: none;
+}
+
+/* The global `form { padding }` rule would inset this form inside its own card. */
 .class-notes-add-form {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    padding: 0;
 }
 
+/* Class · Date & time · Category share one row when there is room, then wrap. */
 .class-notes-add-fields {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
     gap: 10px;
 }
 
-@media (max-width: 720px) {
-    .class-notes-add-fields {
-        grid-template-columns: 1fr;
-    }
+.class-notes-field-label-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.class-notes-inline-link {
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--primary-dark);
+    cursor: pointer;
+}
+
+.class-notes-inline-link:hover,
+.class-notes-inline-link:focus-visible {
+    text-decoration: underline;
 }
 
 .class-notes-add-select,
@@ -6976,13 +7091,19 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
 
 .class-notes-add-datetime-row {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
+    align-items: stretch;
+    gap: 6px;
 }
 
 .class-notes-add-datetime-row .class-notes-datetime-input {
-    flex: 1 1 12rem;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.class-notes-add-datetime-row .btn {
+    flex: 0 0 auto;
+    min-height: 0;
+    padding-block: 0;
 }
 
 .class-notes-add-textarea {
@@ -6994,7 +7115,19 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
 .class-notes-add-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px var(--space-3);
+}
+
+.class-notes-add-actions .day-note-mention-hint {
+    flex: 1 1 12rem;
+    margin: 0;
+    font-size: 0.75rem;
+}
+
+.class-notes-add-actions .day-note-mention-hint:empty {
+    display: none;
 }
 
 .class-notes-empty-filtered {
@@ -7011,19 +7144,19 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
 
 .class-notes-list-toolbar {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: 10px 14px;
+    gap: var(--space-2) var(--space-3);
 }
 
 .class-notes-list-toolbar .class-notes-text-search {
-    flex: 1 1 12rem;
-    min-width: 10rem;
-    max-width: 22rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 26rem;
 }
 
 .class-notes-sort-label {
     display: inline-flex;
+    flex: 0 0 auto;
     align-items: center;
     gap: 6px;
     font-size: 0.8125rem;
@@ -7041,62 +7174,28 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
     font-size: 0.8125rem;
 }
 
-.class-notes-export-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.class-notes-export-categories {
-    flex: 1 1 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.class-notes-export-categories-label {
-    font-size: 0.8125rem;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.class-notes-export-categories-hint {
-    margin: 0;
-    font-size: 0.75rem;
-}
-
-.class-notes-export-categories .class-notes-filter-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-
 @media (max-width: 900px) {
-    .class-notes-list-top {
-        flex-direction: column;
-        align-items: stretch;
+    .class-notes-list-toolbar .class-notes-text-search {
+        max-width: none;
     }
+}
 
-    .class-notes-list-toolbar {
-        width: 100%;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 10px;
+@media (max-width: 480px) {
+    .class-notes-sort-label > span {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
     }
 
     .class-notes-list-toolbar .class-notes-text-search {
-        max-width: none;
-        flex: none;
-        width: 100%;
+        min-width: 7rem;
     }
 
-    .class-notes-export-categories {
-        width: 100%;
-    }
-
-    .class-notes-export-actions {
-        width: 100%;
-        flex-wrap: wrap;
+    .class-notes-sort-select {
+        max-width: 8rem;
     }
 }
 
@@ -7227,6 +7326,108 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) .class-notes-filt
     margin-top: var(--space-2);
     padding-top: var(--space-2);
     border-top: 1px solid var(--border-color);
+}
+
+/* Notes tab list: meta + actions on one line, body below — no button row per note. */
+.class-notes-list-section .class-notes-preview-entry {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+        "meta actions"
+        "body body"
+        "edit edit";
+    column-gap: var(--space-2);
+    align-items: start;
+    border-radius: var(--radius-md);
+}
+
+.class-notes-list-section .class-notes-preview-entry > .class-notes-preview-entry-meta {
+    grid-area: meta;
+    margin-bottom: 4px;
+    min-height: 28px;
+}
+
+.class-notes-list-section .class-notes-preview-entry > .class-notes-preview-entry-body {
+    grid-area: body;
+}
+
+.class-notes-list-section .class-notes-preview-entry > .class-notes-preview-entry-edit {
+    grid-area: edit;
+}
+
+.class-notes-list-section .class-notes-preview-entry > .class-notes-preview-entry-actions {
+    grid-area: actions;
+    flex-wrap: nowrap;
+    gap: 2px;
+    margin: -2px -6px 0 0;
+    padding: 0;
+    border: none;
+}
+
+.class-notes-list-section .class-notes-preview-entry-actions .btn {
+    min-height: 28px;
+    padding: 2px 8px;
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.class-notes-list-section .class-notes-preview-entry-actions .btn:not(:disabled):hover,
+.class-notes-list-section .class-notes-preview-entry-actions .btn:focus-visible {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.class-notes-list-section .class-notes-preview-entry-actions .class-notes-delete-btn:not(:disabled):hover {
+    border-color: transparent;
+    color: var(--danger);
+}
+
+.class-notes-list-section .class-notes-preview-entry-actions .btn:disabled {
+    display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .class-notes-list-section .class-notes-preview-entry > .class-notes-preview-entry-actions {
+        opacity: 0;
+        transition: opacity 0.12s ease;
+    }
+
+    .class-notes-list-section .class-notes-preview-entry:hover > .class-notes-preview-entry-actions,
+    .class-notes-list-section .class-notes-preview-entry:focus-within > .class-notes-preview-entry-actions {
+        opacity: 1;
+    }
+
+    .class-notes-list-section .class-notes-preview-entry:hover {
+        background: color-mix(in srgb, var(--bg-hover) 60%, transparent);
+    }
+}
+
+@media (pointer: coarse) {
+    .class-notes-list-section .class-notes-preview-entry-actions .btn {
+        min-height: 36px;
+        padding: 4px 10px;
+    }
+}
+
+/* Narrow screens: keep the meta line whole; actions sit under the note, right-aligned. */
+@media (max-width: 640px) {
+    .class-notes-list-section .class-notes-preview-entry {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+            "meta"
+            "body"
+            "actions"
+            "edit";
+    }
+
+    .class-notes-list-section .class-notes-preview-entry > .class-notes-preview-entry-actions {
+        justify-self: end;
+        margin: 2px -6px -4px 0;
+    }
 }
 
 .class-notes-delete-btn:not(:disabled):hover {

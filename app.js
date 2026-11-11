@@ -11722,11 +11722,49 @@ function ensureClassNotesShell() {
         if (panel) {
             panel.classList.remove('class-notes-filters-panel--expanded');
         }
+        relocateClassNotesMobileAppButton(shell);
         requestAnimationFrame(() => {
             initClassNotesFiltersToggle();
         });
     }
     return shell;
+}
+
+/** Move the "Mobile day notes" button (bound at init) into the Add note card header. */
+function relocateClassNotesMobileAppButton(shell) {
+    const slot = shell && shell.querySelector('#classNotesAddHeaderSlot');
+    const btn = document.getElementById('openNotesAppTabBtn');
+    if (!slot || !btn || slot.contains(btn)) {
+        return;
+    }
+    slot.appendChild(btn);
+    const promo = document.getElementById('notesMobileAppPromo');
+    if (promo) {
+        promo.hidden = true;
+    }
+}
+
+function initClassNotesExportMenu(shell) {
+    const menu = shell && shell.querySelector('.class-notes-export-menu');
+    if (!menu) {
+        return;
+    }
+    menu.querySelectorAll('.header-dropdown-item').forEach((item) => {
+        item.addEventListener('click', () => {
+            menu.open = false;
+        });
+    });
+    document.addEventListener('pointerdown', (e) => {
+        if (menu.open && !menu.contains(e.target)) {
+            menu.open = false;
+        }
+    });
+    menu.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && menu.open) {
+            menu.open = false;
+            menu.querySelector('summary')?.focus();
+        }
+    });
 }
 
 function mountClassNotesShell(mountEl) {
@@ -13509,7 +13547,6 @@ function initClassNotesPanelListeners() {
         saveClassNotesFiltersToUi();
     }
     shell.querySelector('#classNotesFilterCategories')?.addEventListener('change', handleClassNotesCategoryFilterChange);
-    shell.querySelector('#classNotesExportCategories')?.addEventListener('change', handleClassNotesCategoryFilterChange);
     shell.querySelector('#classNotesFilterSelectAllBtn')?.addEventListener('click', () => {
         shell.querySelectorAll(`input[${CLASS_NOTES_FILTER_ATTR}="classIds"]`).forEach((input) => {
             input.checked = true;
@@ -13529,6 +13566,7 @@ function initClassNotesPanelListeners() {
         saveClassNotesSortToUi();
         renderClassNotesTab();
     });
+    initClassNotesExportMenu(shell);
     initClassNotesFiltersToggle();
 }
 
