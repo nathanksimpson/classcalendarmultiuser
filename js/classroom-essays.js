@@ -349,10 +349,30 @@
             .some((r) => d.getSyllabusRowKey(r) === rowId);
     }
 
+    /** Shared Tools month: 'YYYY-MM', or '' for All months. */
+    function getToolsMonth() {
+        const api = global.CCPToolsMonth;
+        return api ? api.get(getAppData()) : '';
+    }
+
     function resolveEssayAssignmentForClass(classData, preferredDate) {
         const d = domain();
         if (!classData || !d) {
             return null;
+        }
+        const month = getToolsMonth();
+        if (month && global.CCPAssignments && global.CCPAssignments.resolve) {
+            // The essay listed in the shared month (saved pick if it's in that month).
+            // None that month → null, and the tab shows its empty state.
+            const hit = global.CCPAssignments.resolve('essay', classData, getAppData(), { month });
+            if (!hit) {
+                return null;
+            }
+            return (
+                d
+                    .getEssayRowsFromSyllabus(classData.syllabusRows, { classData })
+                    .find((r) => d.getSyllabusRowKey(r) === hit.id) || null
+            );
         }
         const today = d.todayISO ? d.todayISO() : '';
         const preferred = String(preferredDate || '').trim();
@@ -3078,16 +3098,16 @@
                         <input type="text" id="classroomEssaysSubjectOtherInput" class="field-input field-control classroom-essay-datefield" maxlength="80" placeholder="${escapeAttr(t('classroomEssaySubjectNewPlaceholder'))}" aria-label="${escapeAttr(t('classroomEssaySubjectNewLabel'))}"${subjectDisabled} />
                     </label>
                     <label class="classroom-essay-context-field">
-                        <span class="classroom-essay-context-label">${escapeHtml(t('classroomEssayListMonthLabel'))}</span>
-                        <input type="month" id="classroomEssaysListMonth" class="field-input field-control classroom-essay-datefield" value="${escapeHtml(listMonth)}" aria-label="${escapeAttr(t('classroomEssayListMonthLabel'))}"${listMonthDisabled} />
-                    </label>
-                    <label class="classroom-essay-context-field">
                         <span class="classroom-essay-context-label">${escapeHtml(t('classroomEssaySsDueShort'))}</span>
                         <input type="date" id="classroomEssaysSsDue" class="field-input field-control classroom-essay-datefield" value="${escapeHtml(ss)}"${deadlineDisabled} />
                     </label>
                     <label class="classroom-essay-context-field">
                         <span class="classroom-essay-context-label">${escapeHtml(t('classroomEssayTeacherEvalDueShort'))}</span>
                         <input type="date" id="classroomEssaysTeacherEvalDue" class="field-input field-control classroom-essay-datefield" value="${escapeHtml(te)}"${deadlineDisabled} />
+                    </label>
+                    <label class="classroom-essay-context-field classroom-essay-context-field--secondary" title="${escapeAttr(t('classroomEssayListMonthHint'))}">
+                        <span class="classroom-essay-context-label">${escapeHtml(t('classroomEssayListMonthLabel'))}</span>
+                        <input type="month" id="classroomEssaysListMonth" class="field-input field-control classroom-essay-datefield" value="${escapeHtml(listMonth)}" aria-label="${escapeAttr(t('classroomEssayListMonthLabel'))}"${listMonthDisabled} />
                     </label>
                 </div>`;
         } else {
@@ -4819,12 +4839,33 @@
         if (!syllabusRowId) {
             const classData = getClassData();
             const canAdd = Boolean(editable && classData);
+            const month = getToolsMonth();
+            const monthApi = global.CCPToolsMonth;
+            const monthLabel = month && monthApi ? monthApi.label(month, document.documentElement.lang) : '';
+            const nearestMonth =
+                month && monthApi && classData && global.CCPAssignments && global.CCPAssignments.months
+                    ? monthApi.nearest(month, global.CCPAssignments.months('essay', classData, getAppData(), {}))
+                    : '';
+            const nearestCta = nearestMonth
+                ? `<button type="button" class="btn btn-outline btn-compact" data-action="essay-nearest-month" data-month="${escapeAttr(nearestMonth)}">${escapeHtml(
+                      t('toolsMonthGoNearest').replace('{month}', monthApi.label(nearestMonth, document.documentElement.lang))
+                  )}</button>`
+                : '';
             const emptyCta = canAdd
                 ? `<button type="button" class="btn btn-primary btn-compact" data-action="add-essay-assignment">${escapeHtml(t('classroomEssayAddAssignmentTitle'))}</button>`
                 : '';
-            rowsMount.innerHTML = `<tr><td colspan="7" class="classroom-sheet-empty"><div class="classroom-sheet-empty--essay-add"><p class="section-hint">${escapeHtml(t('classroomEssayNoAssignment'))}</p>${emptyCta}</div></td></tr>`;
+            const emptyText = month
+                ? t('toolsMonthNoEssayInClass').replace('{month}', monthLabel)
+                : t('classroomEssayNoAssignment');
+            rowsMount.innerHTML = `<tr><td colspan="7" class="classroom-sheet-empty"><div class="classroom-sheet-empty--essay-add"><p class="section-hint">${escapeHtml(emptyText)}</p>${nearestCta}${emptyCta}</div></td></tr>`;
             rowsMount.querySelector('[data-action="add-essay-assignment"]')?.addEventListener('click', () => {
                 openAddAssignmentModal(panel);
+            });
+            rowsMount.querySelector('[data-action="essay-nearest-month"]')?.addEventListener('click', (e) => {
+                const target = e.currentTarget.getAttribute('data-month');
+                if (monthApi && target) {
+                    monthApi.set(target, { appData: getAppData(), source: 'essays-empty' });
+                }
             });
             renderFooterHint(panel);
             return;
@@ -4982,6 +5023,25 @@
             autosave.bindManualSaveBtn(panel, '#classroomEssaysSaveBtn', () =>
                 access() && access().canEditClass(getClassData())
             );
+        }
+    }
+
+    /** Shared Tools month changed: show this class's essay for the new month (or the empty state). */
+    async function onToolsMonthChange() {
+        const panel = document.getElementById('panel-essays');
+        if (!panel || panel.hidden) {
+            return;
+        }
+        await flushBeforeLeave();
+        applyResolvedAssignment(getClassData(), '');
+        selectedStudentIds.clear();
+        loadSubmission();
+        render(panel);
+        if (global.CCPClassroomZoneContext && global.CCPClassroomZoneContext.render) {
+            const mount = document.getElementById('classroomZoneContextBar');
+            if (mount && !mount.hidden) {
+                global.CCPClassroomZoneContext.render(mount);
+            }
         }
     }
 
@@ -6148,6 +6208,11 @@
             initTab._assignmentSubscribed = true;
             if (global.CCPAssignments && global.CCPAssignments.subscribe) {
                 global.CCPAssignments.subscribe(onSharedAssignmentChanged);
+            }
+            if (global.CCPToolsMonth && global.CCPToolsMonth.subscribe) {
+                global.CCPToolsMonth.subscribe(() => {
+                    void onToolsMonthChange();
+                });
             }
             if (typeof global.addEventListener === 'function') {
                 global.addEventListener('ccp:essayNewCustomAssignment', () => {

@@ -88,20 +88,104 @@
         ) {
             essaysOnly = true;
         }
-        const warnMonthRaw = String(ui.classroomZoneEssayWarnMonth || '').trim();
-        const essayWarnMonth = /^\d{4}-\d{2}$/.test(warnMonthRaw) ? warnMonthRaw : '';
+        // Warn pills follow the shared Tools month ('' = All months).
+        const toolsMonth = getToolsMonth();
+        const essayWarnMonth = toolsMonth;
         const recOnlyPref = ui.classroomZoneDebateRecOnly;
-        const recMonthRaw = String(ui.classroomZoneDebateRecMonth || '').trim();
         return {
             // Debate Rec: "Has Debate Day 4" defaults on until the teacher turns it off.
             debateRecOnly: !(recOnlyPref === false || recOnlyPref === '0'),
-            debateRecMonth: /^\d{4}-\d{2}$/.test(recMonthRaw) ? recMonthRaw : '',
+            debateRecMonth: toolsMonth,
             myClassesOnly: global.CCPClassScope
                 ? global.CCPClassScope.effectiveMine('classroom')
                 : ui.classroomZoneMyClassesOnly === true || ui.classroomZoneMyClassesOnly === '1',
             essaysOnly,
             essayWarnMonth
         };
+    }
+
+    /** Tabs where the shared Tools month decides what is shown. */
+    const TOOLS_MONTH_TABS = new Set(['essays', 'debate-rec', 'debate-books', 'debate-teams', 'debate-scores']);
+
+    function usesToolsMonth() {
+        return TOOLS_MONTH_TABS.has(activeTabId);
+    }
+
+    /** 'YYYY-MM', or '' for All months. */
+    function getToolsMonth() {
+        const api = global.CCPToolsMonth;
+        return api ? api.get(getAppData()) : '';
+    }
+
+    function uiLang() {
+        const el = typeof document !== 'undefined' ? document.documentElement : null;
+        return (el && el.lang) || 'en';
+    }
+
+    function toolsMonthLabel(month) {
+        const api = global.CCPToolsMonth;
+        return api && month ? api.label(month, uiLang()) : t('classroomEssayClassSummaryFilterAllMonths');
+    }
+
+    /** Months worth offering: content months for this tab, the current month, and the selection. */
+    function listToolsMonthOptions(selected) {
+        const api = global.CCPToolsMonth;
+        const set = new Set();
+        if (activeTabId === 'essays') {
+            listEssayWarnMonthOptions().forEach((m) => set.add(m));
+        } else if (activeTabId === 'debate-rec') {
+            const d = domain();
+            if (d && d.listDebateRecWarnMonths) {
+                d.listDebateRecWarnMonths(getAppData(), getBaseAccessibleClasses()).forEach((m) => set.add(m));
+            }
+        } else if (global.CCPAssignments && global.CCPAssignments.months) {
+            const data = getAppData();
+            getBaseAccessibleClasses().forEach((c) => {
+                if (c && !c.isEssayGroup) {
+                    global.CCPAssignments.months('debate', c, data, {}).forEach((m) => set.add(m));
+                }
+            });
+        }
+        if (api) {
+            set.add(api.currentMonth());
+        }
+        if (selected) {
+            set.add(selected);
+        }
+        return Array.from(set).filter((m) => /^\d{4}-\d{2}$/.test(m)).sort((a, b) => b.localeCompare(a));
+    }
+
+    function buildToolsMonthFieldHtml() {
+        if (!usesToolsMonth() || !global.CCPToolsMonth) {
+            return '';
+        }
+        const month = getToolsMonth();
+        const options = [
+            `<option value="all"${month ? '' : ' selected'}>${escapeHtml(t('classroomEssayClassSummaryFilterAllMonths'))}</option>`,
+            ...listToolsMonthOptions(month).map(
+                (m) => `<option value="${escapeAttr(m)}"${m === month ? ' selected' : ''}>${escapeHtml(toolsMonthLabel(m))}</option>`
+            )
+        ].join('');
+        const label = t('toolsMonthLabel');
+        return `<div class="classroom-zone-field classroom-zone-month-field">
+                    <span>${escapeHtml(label)}</span>
+                    <div class="classroom-zone-month-stepper" role="group" aria-label="${escapeAttr(label)}">
+                        <button type="button" class="btn btn-outline btn-compact classroom-zone-month-step" data-month-step="-1" aria-label="${escapeAttr(t('toolsMonthPrev'))}" title="${escapeAttr(t('toolsMonthPrev'))}"${month ? '' : ' disabled'}>‹</button>
+                        <select id="classroomZoneToolsMonth" class="field-select field-control--compact" aria-label="${escapeAttr(label)}">${options}</select>
+                        <button type="button" class="btn btn-outline btn-compact classroom-zone-month-step" data-month-step="1" aria-label="${escapeAttr(t('toolsMonthNext'))}" title="${escapeAttr(t('toolsMonthNext'))}"${month ? '' : ' disabled'}>›</button>
+                    </div>
+                </div>`;
+    }
+
+    function setToolsMonth(value, mountEl) {
+        const api = global.CCPToolsMonth;
+        if (!api) {
+            return;
+        }
+        api.set(value, { appData: getAppData(), source: 'zone' });
+        if (mountEl) {
+            render(mountEl);
+        }
     }
 
     /** Distinct class-list months (teacher month, else syllabus date) across accessible classes. */
@@ -816,7 +900,8 @@
             return '';
         }
         const appData = getAppData();
-        const opts = { scheduledLessons: kind === 'debate' ? scheduledLessonsFor(classData) : [] };
+        const month = usesToolsMonth() ? getToolsMonth() : '';
+        const opts = { scheduledLessons: kind === 'debate' ? scheduledLessonsFor(classData) : [], month };
         const items = api.list(kind, classData, appData, opts);
         const editable = !access() || !access().canEditClass || access().canEditClass(classData) ||
             (access().canBypass && access().canBypass());
@@ -829,7 +914,10 @@
         }
         const label = t(kind === 'debate' ? 'classroomDebateAssignmentLabel' : 'classroomEssayAssignmentLabel');
         if (!items.length && kind === 'debate') {
-            return `<span class="classroom-zone-assignment-empty section-hint" id="classroomZoneAssignmentEmpty">${escapeHtml(t('classroomDebateAssignmentEmpty'))}</span>`;
+            const emptyText = month
+                ? t('toolsMonthNoDebateDay').replace('{month}', toolsMonthLabel(month))
+                : t('classroomDebateAssignmentEmpty');
+            return `<span class="classroom-zone-assignment-empty section-hint" id="classroomZoneAssignmentEmpty">${escapeHtml(emptyText)}</span>`;
         }
         const option = (item) =>
             `<option value="${escapeAttr(item.id)}"${item.id === selectedId ? ' selected' : ''}>${escapeHtml(
@@ -840,7 +928,10 @@
             const regular = items.filter((item) => !item.custom);
             const custom = items.filter((item) => item.custom);
             if (!items.length) {
-                optionsHtml += `<option value="">${escapeHtml(t('classroomEssayNoAssignment'))}</option>`;
+                const emptyText = month
+                    ? t('toolsMonthNoEssay').replace('{month}', toolsMonthLabel(month))
+                    : t('classroomEssayNoAssignment');
+                optionsHtml += `<option value="">${escapeHtml(emptyText)}</option>`;
             }
             optionsHtml += regular.map(option).join('');
             if (custom.length) {
@@ -938,36 +1029,8 @@
                 .join(', ')
             : '';
         const showEssaysToggle = activeTabId === 'essays';
-        const essayWarnMonths = showEssaysToggle ? listEssayWarnMonthOptions() : [];
-        const essayWarnMonth = toggles.essayWarnMonth || '';
-        if (essayWarnMonth && !essayWarnMonths.includes(essayWarnMonth)) {
-            essayWarnMonths.unshift(essayWarnMonth);
-        }
-        const essayWarnMonthOptionsHtml = showEssaysToggle
-            ? [
-                  `<option value="">${escapeHtml(t('classroomEssayClassSummaryFilterAllMonths'))}</option>`,
-                  ...essayWarnMonths.map(
-                      (m) =>
-                          `<option value="${escapeAttr(m)}"${m === essayWarnMonth ? ' selected' : ''}>${escapeHtml(m)}</option>`
-                  )
-              ].join('')
-            : '';
         const showDebateRecToggle = activeTabId === 'debate-rec';
-        const debateRecMonth = toggles.debateRecMonth || '';
-        let debateRecMonthOptionsHtml = '';
-        if (showDebateRecToggle) {
-            const d = domain();
-            const months = d && d.listDebateRecWarnMonths
-                ? d.listDebateRecWarnMonths(getAppData(), getBaseAccessibleClasses())
-                : [];
-            if (debateRecMonth && !months.includes(debateRecMonth)) {
-                months.unshift(debateRecMonth);
-            }
-            debateRecMonthOptionsHtml = [
-                `<option value="">${escapeHtml(t('classroomEssayClassSummaryFilterAllMonths'))}</option>`,
-                ...months.map((m) => `<option value="${escapeAttr(m)}"${m === debateRecMonth ? ' selected' : ''}>${escapeHtml(m)}</option>`)
-            ].join('');
-        }
+        const showSessionDate = activeTabId !== 'essays';
         const comboboxValue = comboboxOpen ? classSearchQuery : getSelectedClassName({ classId, classes });
         const sessionDate = getSessionDate() || todayISO();
         const closedTabBadges =
@@ -983,6 +1046,7 @@
 
         mountEl.innerHTML = `
             <div class="classroom-zone-context-inner">
+                ${buildToolsMonthFieldHtml()}
                 <div class="classroom-zone-class-combobox${comboboxOpen ? ' is-open' : ''}" data-class-combobox>
                     <label class="classroom-zone-field classroom-zone-class-field">
                         <span>${escapeHtml(t('classroomClassLabel'))}</span>
@@ -994,11 +1058,11 @@
                     <div id="classroomZoneClassList" class="classroom-zone-class-list module-list" role="listbox"${comboboxOpen ? '' : ' hidden'}>${buildComboboxListHtml({ classId, classes, classSearchQuery })}</div>
                 </div>
                 ${buildAssignmentFieldHtml(classData)}
-                <label class="classroom-zone-field classroom-zone-date-field">
+                ${showSessionDate ? `<label class="classroom-zone-field classroom-zone-date-field">
                     <span>${escapeHtml(t('classroomDateLabel'))}</span>
                     <input type="date" id="classroomZoneSessionDate" class="field-input field-control--compact" value="${escapeAttr(sessionDate)}" />
                 </label>
-                <button type="button" class="btn btn-outline btn-compact" id="classroomZoneTodayBtn">${escapeHtml(t('classroomToday'))}</button>
+                <button type="button" class="btn btn-outline btn-compact" id="classroomZoneTodayBtn">${escapeHtml(t('classroomToday'))}</button>` : ''}
                 <div class="classroom-zone-toggles">
                     <label class="checkbox-label classroom-zone-toggle">
                         <input type="checkbox" id="classroomZoneMyClassesOnly"${toggles.myClassesOnly ? ' checked' : ''} />
@@ -1012,14 +1076,6 @@
                     ${showDebateRecToggle ? `<label class="checkbox-label classroom-zone-toggle">
                         <input type="checkbox" id="classroomZoneDebateRecOnly"${toggles.debateRecOnly ? ' checked' : ''} />
                         <span>${escapeHtml(t('debateRecZoneOnly'))}</span>
-                    </label>
-                    <label class="classroom-essay-resubmit-filter-field classroom-zone-essay-warn-month">
-                        <span class="section-hint">${escapeHtml(t('classroomEssayClassSummaryFilterMonth'))}</span>
-                        <select id="classroomZoneDebateRecMonth" class="field-select field-control--compact">${debateRecMonthOptionsHtml}</select>
-                    </label>` : ''}
-                    ${showEssaysToggle ? `<label class="classroom-essay-resubmit-filter-field classroom-zone-essay-warn-month">
-                        <span class="section-hint">${escapeHtml(t('classroomEssayClassSummaryFilterMonth'))}</span>
-                        <select id="classroomZoneEssayWarnMonth" class="field-select field-control--compact">${essayWarnMonthOptionsHtml}</select>
                     </label>` : ''}
                 </div>
                 ${classData && !canEditClassRow(classData) ? `<span class="classroom-zone-view-only-chip" role="status" title="${escapeAttr(t('classroomClassViewOnlyHint'))}">🔒 ${escapeHtml(t('classroomClassViewOnly'))}</span>` : ''}
@@ -1069,20 +1125,18 @@
             ensureActiveClassVisible();
             render(mountEl);
         });
-        mountEl.querySelector('#classroomZoneDebateRecMonth')?.addEventListener('change', (e) => {
-            const raw = String(e.target.value || '').trim();
-            if (hooks && hooks.setUiPref) {
-                hooks.setUiPref('classroomZoneDebateRecMonth', /^\d{4}-\d{2}$/.test(raw) ? raw : '');
-            }
-            render(mountEl);
+        mountEl.querySelector('#classroomZoneToolsMonth')?.addEventListener('change', (e) => {
+            setToolsMonth(String(e.target.value || ''), mountEl);
         });
-        mountEl.querySelector('#classroomZoneEssayWarnMonth')?.addEventListener('change', (e) => {
-            const raw = String(e.target.value || '').trim();
-            const value = /^\d{4}-\d{2}$/.test(raw) ? raw : '';
-            if (hooks && hooks.setUiPref) {
-                hooks.setUiPref('classroomZoneEssayWarnMonth', value);
-            }
-            render(mountEl);
+        mountEl.querySelectorAll('[data-month-step]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const api = global.CCPToolsMonth;
+                const current = getToolsMonth();
+                if (!api || !current) {
+                    return;
+                }
+                setToolsMonth(api.shift(current, Number(btn.getAttribute('data-month-step')) || 0), mountEl);
+            });
         });
         mountEl.querySelector('#classroomZoneAssignmentSelect')?.addEventListener('change', (e) => {
             onAssignmentSelectChange(e, mountEl);

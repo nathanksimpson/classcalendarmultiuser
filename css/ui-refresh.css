@@ -1085,6 +1085,28 @@ html[data-viewport="phone"] #appHeaderUnified #appZoneNav .app-zone-btn[data-zon
     flex: 1 1 100%;
 }
 
+/* Shared Tools month: first control in the bar (decides what every Tools tab shows) */
+.classroom-zone-context-inner .classroom-zone-month-stepper {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.classroom-zone-context-inner .classroom-zone-month-step {
+    min-width: 32px;
+    padding-inline: 8px;
+    font-size: 1.05rem;
+    line-height: 1;
+}
+
+.classroom-zone-context-inner #classroomZoneToolsMonth {
+    min-width: 8.5rem;
+}
+
+.classroom-essay-context-field--secondary {
+    opacity: 0.85;
+}
+
 /* Class the viewer can open but not edit */
 .classroom-zone-context-inner .classroom-zone-view-only-chip {
     align-self: center;
