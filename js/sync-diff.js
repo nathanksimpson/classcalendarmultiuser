@@ -38,6 +38,58 @@
 
     const GENERIC_ACTIONS = new Set(['set', 'patch', 'order', 'mapSet', 'mapUnset']);
 
+    /**
+     * Which edit-area permission (shared/auth-permissions.cjs) a top-level field needs.
+     * Fields not listed (classroom data, day notes, bookkeeping) follow their own rules.
+     */
+    const EDIT_AREA_BY_FIELD = {
+        curriculumOverrides: 'edit_curriculum',
+        curriculumRemovedIds: 'edit_curriculum',
+        bookOverrides: 'edit_curriculum',
+        customSyllabusTemplates: 'edit_curriculum',
+        defaultClassTypeOverrides: 'edit_curriculum',
+        customClassTypes: 'edit_curriculum',
+        classes: 'edit_classes',
+        events: 'edit_events',
+        holidays: 'edit_events',
+        timetableTimeSlots: 'edit_events',
+        periodSlotMap: 'edit_events',
+        calendarName: 'edit_events',
+        termStart: 'edit_events',
+        termEnd: 'edit_events',
+        useAutoTermEnd: 'edit_events',
+        termMonthCount: 'edit_events',
+        dayNoteCategories: 'edit_events',
+        rooms: 'edit_planner',
+        teacherProfiles: 'edit_planner',
+        plannerDrafts: 'edit_planner',
+        plannerState: 'edit_planner'
+    };
+
+    function editAreaForField(field) {
+        return Object.prototype.hasOwnProperty.call(EDIT_AREA_BY_FIELD, field)
+            ? EDIT_AREA_BY_FIELD[field]
+            : null;
+    }
+
+    /**
+     * Split mutations by whether this person may edit each field's area.
+     * hasArea(perm) → boolean. Returns { allowed, deniedFields }.
+     */
+    function splitByEditArea(mutations, hasArea) {
+        const allowed = [];
+        const denied = new Set();
+        (mutations || []).forEach((m) => {
+            const area = m && m.entity ? editAreaForField(String(m.entity)) : null;
+            if (area && !hasArea(area)) {
+                denied.add(String(m.entity));
+            } else {
+                allowed.push(m);
+            }
+        });
+        return { allowed, deniedFields: Array.from(denied) };
+    }
+
     function isPlainObject(v) {
         return v !== null && typeof v === 'object' && !Array.isArray(v);
     }
@@ -505,6 +557,9 @@
     return {
         SKIP_FIELDS,
         GENERIC_ACTIONS,
+        EDIT_AREA_BY_FIELD,
+        editAreaForField,
+        splitByEditArea,
         deepEqual,
         isIdArray,
         diffCalendar,

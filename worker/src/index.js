@@ -2360,6 +2360,14 @@ export default {
                 // No edit lock. A full save replaces the whole calendar (import / restore), so it
                 // still needs the revision it was built from unless the user chose to overwrite.
                 const forceAllowed = Boolean(body.force);
+                {
+                    const currentRow = await dbOne(env, `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`, calId);
+                    const currentData = currentRow ? parseDataObjectFromRow(currentRow, calId, env) : {};
+                    const deniedWhole = Auth.deniedFieldsForWholeSave(user, currentData, body.data);
+                    if (deniedWhole.length) {
+                        return json({ error: 'You do not have permission to change some of this calendar', denied: deniedWhole }, 403);
+                    }
+                }
                 if (!forceAllowed && body.revision != null && Number(body.revision) !== Number(existing.revision)) {
                     const doc = await dbOne(
                         env,
@@ -2451,6 +2459,18 @@ export default {
                 if (!needsScheduleEdit && !canEdit && !canSuggest) {
                     return json({ error: 'You do not have edit access to this calendar' }, 403);
                 }
+                // Edit areas (Admin → Accounts): changes to areas this person may not edit are
+                // dropped and listed in `denied` so the page can put them back.
+                const areaSplit = Auth.filterMutationsByEditArea(user, body.mutations);
+                const denied = areaSplit.deniedFields;
+                body.mutations = areaSplit.allowed;
+                if (!body.mutations.length) {
+                    const current = calendarDocForClient(existingRow, env);
+                    const payload = await CalendarMeta.calendarMetaExtras(env, user, calId, current);
+                    payload.overwritten = [];
+                    payload.denied = denied;
+                    return json(payload);
+                }
                 const label = user.displayName || user.email || 'Teacher';
                 const hasBase = body.baseRevision != null;
                 let accessError = null;
@@ -2526,6 +2546,7 @@ export default {
                 const doc = calendarDocForClient(saved, env);
                 const payload = await CalendarMeta.calendarMetaExtras(env, user, calId, doc);
                 payload.overwritten = overwritten;
+                payload.denied = denied;
                 return json(payload);
             }
 

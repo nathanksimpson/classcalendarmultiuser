@@ -82,6 +82,8 @@
         onOfflineQueued: null,
         // Live sync: (keys, 'save' | 'incoming') when the same thing changed in two places.
         onOverwritten: null,
+        // Live sync: (fields) changes to areas this person may not edit were put back.
+        onDenied: null,
         onLiveTick: null
     };
 
@@ -635,6 +637,55 @@
         );
     }
 
+    /** Edit areas (Admin → Accounts). Unknown user → let the server decide. */
+    function userHasEditArea(area) {
+        if (!area) {
+            return true;
+        }
+        if (typeof TeamAuth === 'undefined' || !TeamAuth.getUser || !TeamAuth.getUser()) {
+            return true;
+        }
+        if (typeof TeamAuth.hasPermission === 'function') {
+            return TeamAuth.hasPermission(area);
+        }
+        return true;
+    }
+
+    /**
+     * Put fields this person may not edit back to the server copy (on screen too),
+     * so a blocked change isn't resent forever. Returns the fields reverted.
+     */
+    function revertDeniedFields(fields) {
+        const list = (fields || []).filter(Boolean);
+        if (!list.length || !liveSyncActive()) {
+            return [];
+        }
+        const local = localData();
+        const merged = JSON.parse(JSON.stringify(Object.assign({}, local, { ui: undefined })));
+        list.forEach((f) => {
+            if (Object.prototype.hasOwnProperty.call(state.base, f)) {
+                merged[f] = JSON.parse(JSON.stringify(state.base[f]));
+            } else {
+                delete merged[f];
+            }
+        });
+        merged.ui = local.ui;
+        try {
+            state.liveSource.applyData(merged, {
+                id: state.baseCalendarId,
+                name: state.base.calendarName,
+                revision: state.revision,
+                data: state.base
+            }, { denied: list });
+        } catch (err) {
+            debugLog('error', 'Reverting blocked changes failed', { message: err && err.message });
+        }
+        if (typeof handlers.onDenied === 'function') {
+            handlers.onDenied(list);
+        }
+        return list;
+    }
+
     function livePendingKey(calId) {
         return LIVE_PENDING_PREFIX + String(calId || '');
     }
@@ -799,7 +850,13 @@
         if (isViewAsMode()) {
             return { simulated: true, revision: state.revision };
         }
-        const mutations = sendableChanges(computeLocalChanges());
+        let mutations = sendableChanges(computeLocalChanges());
+        // Areas this person may not edit (curriculum, …): don't send, put them back.
+        const areaSplit = syncDiffApi().splitByEditArea(mutations, userHasEditArea);
+        if (areaSplit.deniedFields.length) {
+            revertDeniedFields(areaSplit.deniedFields);
+            mutations = areaSplit.allowed;
+        }
         if (!mutations.length) {
             flushLegacyQueue(calId);
             persistLivePending(calId, []);
@@ -815,6 +872,10 @@
             });
             flushLegacyQueue(calId);
             rebaseOnto(doc, { ownSave: true });
+            if (doc && Array.isArray(doc.denied) && doc.denied.length) {
+                // The server blocked these (permissions changed since the page loaded).
+                revertDeniedFields(doc.denied);
+            }
             // Anything still different was changed while this save was in flight.
             persistLivePending(calId, sendableChanges(computeLocalChanges()));
             state.saveRetryBackoffMs = SAVE_RETRY_BASE_MS;

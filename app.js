@@ -2841,6 +2841,7 @@ function initCurriculumTabPanel(options = {}) {
             },
             onDuplicated: handleDuplicateCurriculum
         });
+        applyEditAreaRestrictions();
     } else {
         mount.innerHTML = `<p class="module-empty-hint" data-i18n="curriculumTabPick">${escapeHtml(t('curriculumTabPick'))}</p>`;
     }
@@ -24803,6 +24804,7 @@ function openClassEditorAfterLoad(classData, context, options = {}) {
         mountClassForm('modal');
         openModal(elements.classModal);
     }
+    applyEditAreaRestrictions();
 }
 
 function openEventEditor(holidayData, context, options = {}) {
@@ -24818,6 +24820,7 @@ function openEventEditor(holidayData, context, options = {}) {
             mountHolidayForm('modal');
             openModal(elements.holidayModal);
         }
+        applyEditAreaRestrictions();
     };
     if (isTeamCalendarViewOnly() && !holidayData) {
         if (isTeamAutoLockOnLoginPending()) {
@@ -35955,6 +35958,91 @@ function applyTeamViewOnlyEditingState(viewOnly) {
             el.disabled = teamViewOnlyActive;
         }
     });
+    if (!teamViewOnlyActive) {
+        applyEditAreaRestrictions();
+    }
+}
+
+/** Edit areas an admin turned off for this account (Admin → Accounts). */
+function canEditArea(area) {
+    if (!teamSyncEnabled || typeof TeamAuth === 'undefined' || !TeamAuth.getUser || !TeamAuth.getUser()) {
+        return true;
+    }
+    return typeof TeamAuth.hasPermission === 'function' ? TeamAuth.hasPermission(area) : true;
+}
+
+/** Controls (by id) and editor roots that belong to each edit area. */
+const EDIT_AREA_CONTROLS = {
+    edit_curriculum: {
+        ids: ['curriculumAddBtn', 'syllabusNewTemplateBtn', 'syllabusSaveTemplateBtn',
+            'syllabusSaveAsTemplateBtn', 'syllabusDeleteTemplateBtn'],
+        roots: ['curriculumTabEditorMount']
+    },
+    edit_classes: {
+        ids: ['classesTabAddBtn', 'syllabusSaveClassBtn', 'headerNewClassItem', 'homeworkRefreshSyllabiBtn'],
+        roots: ['classForm']
+    },
+    edit_events: {
+        ids: ['eventsTabAddBtn', 'fetchKrHolidaysBtn', 'headerNewEventItem', 'calendarName', 'termStart',
+            'termEnd', 'termMonthCount'],
+        roots: ['holidayForm'],
+        selectors: ['#termSettingsModal .term-selector', '#calendarContextMenu [data-action="add-event"]']
+    }
+};
+
+function applyEditAreaRestrictions() {
+    Object.keys(EDIT_AREA_CONTROLS).forEach((area) => {
+        const blocked = !canEditArea(area);
+        const spec = EDIT_AREA_CONTROLS[area];
+        document.body.classList.toggle('no-' + area.replace(/_/g, '-'), blocked);
+        if (!blocked) {
+            return;
+        }
+        (spec.ids || []).forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) {
+                setTeamViewOnlyControlState(el, true);
+            }
+        });
+        (spec.roots || []).forEach((id) => applyTeamViewOnlyToSubtree(document.getElementById(id), true));
+        (spec.selectors || []).forEach((sel) => {
+            document.querySelectorAll(sel).forEach((el) => {
+                if (el.matches('input, select, textarea, button')) {
+                    setTeamViewOnlyControlState(el, true);
+                } else {
+                    applyTeamViewOnlyToSubtree(el, true);
+                }
+            });
+        });
+    });
+}
+
+const EDIT_AREA_LABEL_KEYS = {
+    edit_curriculum: 'editAreaCurriculum',
+    edit_classes: 'editAreaClasses',
+    edit_events: 'editAreaEvents',
+    edit_planner: 'editAreaPlanner'
+};
+
+let lastEditDeniedNoticeAt = 0;
+
+function showEditDeniedNotice(fields) {
+    const api = typeof CCPSyncDiff !== 'undefined' ? CCPSyncDiff : null;
+    const areas = new Set();
+    (fields || []).forEach((f) => {
+        const area = api ? api.editAreaForField(f) : null;
+        if (area) {
+            areas.add(t(EDIT_AREA_LABEL_KEYS[area] || 'editAreaGeneric'));
+        }
+    });
+    const now = Date.now();
+    if (now - lastEditDeniedNoticeAt < 3000) {
+        return;
+    }
+    lastEditDeniedNoticeAt = now;
+    const list = Array.from(areas).join(', ') || t('editAreaGeneric');
+    showSyncToast(t('syncEditDeniedNotice').replace('{areas}', list), true);
+    applyEditAreaRestrictions();
 }
 
 function blockIfCalendarViewOnly() {
@@ -39758,6 +39846,9 @@ async function initTeamSync() {
         },
         onOverwritten(keys) {
             showSyncOverwrittenNotice(keys);
+        },
+        onDenied(fields) {
+            showEditDeniedNotice(fields);
         },
         onLiveTick(meta) {
             // Live sync merges other devices' changes itself; just keep "who's here" fresh.

@@ -16,8 +16,22 @@ const PERMS = {
     VIEW_PRESENCE: 'view_presence',
     VIEW_AUDIT: 'view_audit',
     APPLY_SUGGESTIONS: 'apply_suggestions',
-    ACCESS_ADMIN_PAGE: 'access_admin_page'
+    ACCESS_ADMIN_PAGE: 'access_admin_page',
+    // Edit areas (what a calendar editor may change). Classroom data and day notes keep
+    // their own per-class rules.
+    EDIT_CURRICULUM: 'edit_curriculum',
+    EDIT_CLASSES: 'edit_classes',
+    EDIT_EVENTS: 'edit_events',
+    EDIT_PLANNER: 'edit_planner'
 };
+
+/**
+ * Stored on custom permission lists saved after edit areas existed. Lists without it
+ * predate edit areas and get the role's default areas, so nobody loses editing on deploy.
+ */
+const EDIT_AREAS_MARKER = 'edit_areas_set';
+
+const EDIT_AREA_PERMS = [PERMS.EDIT_CURRICULUM, PERMS.EDIT_CLASSES, PERMS.EDIT_EVENTS, PERMS.EDIT_PLANNER];
 
 const ALL_PERMS = Object.values(PERMS);
 
@@ -30,8 +44,10 @@ const PERM_DEFINITIONS = [
     { id: PERMS.DELETE_CALENDARS, labelKey: 'permDeleteCalendars' },
     { id: PERMS.VIEW_CALENDARS, labelKey: 'permViewCalendars' },
     { id: PERMS.VIEW_ALL_CALENDARS, labelKey: 'permViewAllCalendars' },
-    { id: PERMS.FORCE_SAVE, labelKey: 'permForceSave' },
-    { id: PERMS.BYPASS_COLLABORATIVE_LOCK, labelKey: 'permBypassLock' },
+    { id: PERMS.EDIT_CURRICULUM, labelKey: 'permEditCurriculum' },
+    { id: PERMS.EDIT_CLASSES, labelKey: 'permEditClasses' },
+    { id: PERMS.EDIT_EVENTS, labelKey: 'permEditEvents' },
+    { id: PERMS.EDIT_PLANNER, labelKey: 'permEditPlanner' },
     { id: PERMS.VIEW_PRESENCE, labelKey: 'permViewPresence' },
     { id: PERMS.VIEW_AUDIT, labelKey: 'permViewAudit' },
     { id: PERMS.APPLY_SUGGESTIONS, labelKey: 'permApplySuggestions' },
@@ -52,10 +68,13 @@ const ROLE_PRESETS = {
         PERMS.BYPASS_COLLABORATIVE_LOCK,
         PERMS.VIEW_PRESENCE,
         PERMS.APPLY_SUGGESTIONS,
-        PERMS.ACCESS_ADMIN_PAGE
+        PERMS.ACCESS_ADMIN_PAGE,
+        ...EDIT_AREA_PERMS
     ],
     settings_admin: [PERMS.MANAGE_SETTINGS, PERMS.ACCESS_ADMIN_PAGE],
-    teacher: [PERMS.VIEW_CALENDARS, PERMS.CREATE_CALENDARS],
+    // Teachers edit classes, events/timetable/term and the planner; curriculum and default
+    // syllabi are for admins and head teachers unless an admin allows it.
+    teacher: [PERMS.VIEW_CALENDARS, PERMS.CREATE_CALENDARS, PERMS.EDIT_CLASSES, PERMS.EDIT_EVENTS, PERMS.EDIT_PLANNER],
     viewer: [PERMS.VIEW_CALENDARS]
 };
 
@@ -97,7 +116,13 @@ function getEffectivePermissions(user) {
     }
     const stored = parseStoredPermissions(user);
     if (stored) {
-        return stored;
+        if (stored.includes(EDIT_AREAS_MARKER)) {
+            return stored.filter((p) => p !== EDIT_AREAS_MARKER);
+        }
+        // Saved before edit areas: keep editing what the role allows.
+        const rolePreset = ROLE_PRESETS[normalizeRole(user.role)] || ROLE_PRESETS.teacher;
+        const areas = rolePreset.filter((p) => EDIT_AREA_PERMS.includes(p) && !stored.includes(p));
+        return stored.concat(areas);
     }
     const role = normalizeRole(user.role);
     return ROLE_PRESETS[role] || ROLE_PRESETS.teacher;
@@ -163,7 +188,7 @@ function sanitizePermissions(input) {
     if (!Array.isArray(input)) {
         return [];
     }
-    const allowed = new Set(ALL_PERMS);
+    const allowed = new Set(ALL_PERMS.concat([EDIT_AREAS_MARKER]));
     const out = [];
     for (const item of input) {
         const id = String(item || '').trim();
@@ -234,19 +259,52 @@ function getPermissionMetaForAdmin() {
 }
 
 function resolvePermissionsForSave(role, permissionsInput) {
-    const sanitized = sanitizePermissions(permissionsInput);
+    const sanitized = sanitizePermissions(permissionsInput).filter((p) => p !== EDIT_AREAS_MARKER);
     const r = normalizeRole(role);
     if (permissionsEquivalentToSuperAdmin(sanitized)) {
-        return sanitized;
+        return sanitized.concat([EDIT_AREAS_MARKER]).sort();
     }
     if (permissionsMatchRole(r, sanitized)) {
         return null;
     }
-    return sanitized;
+    // Custom list chosen with edit areas visible: its areas are exactly what was ticked.
+    return sanitized.concat([EDIT_AREAS_MARKER]).sort();
+}
+
+/** Field → edit area map lives with the sync code (shared with the browser). */
+const SyncDiff = require('../js/sync-diff.js');
+
+function hasEditArea(user, area) {
+    return !area || hasPermission(user, area);
+}
+
+/** Mutations this user may apply, and the fields they may not change. */
+function filterMutationsByEditArea(user, mutations) {
+    return SyncDiff.splitByEditArea(mutations, (area) => hasEditArea(user, area));
+}
+
+/** Top-level fields that differ between two calendars and need an area this user lacks. */
+function deniedFieldsForWholeSave(user, before, after) {
+    const a = before || {};
+    const b = after || {};
+    const fields = new Set(Object.keys(a).concat(Object.keys(b)));
+    const denied = [];
+    fields.forEach((f) => {
+        const area = SyncDiff.editAreaForField(f);
+        if (area && !hasEditArea(user, area) && !SyncDiff.deepEqual(a[f], b[f])) {
+            denied.push(f);
+        }
+    });
+    return denied;
 }
 
 module.exports = {
     PERMS,
+    hasEditArea,
+    filterMutationsByEditArea,
+    deniedFieldsForWholeSave,
+    EDIT_AREAS_MARKER,
+    EDIT_AREA_PERMS,
     ALL_PERMS,
     PERM_DEFINITIONS,
     ROLE_PRESETS,

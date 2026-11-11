@@ -70,7 +70,7 @@ function createServer(initial) {
 }
 
 /** One browser tab: its own CalendarSync, localStorage and page data. */
-function createTab(server, name) {
+function createTab(server, name, opts = {}) {
     const storage = new Map();
     const tab = { name, data: null, notices: [], applied: 0 };
     const context = {
@@ -87,6 +87,14 @@ function createTab(server, name) {
         },
         addEventListener() {}
     };
+    if (opts.perms) {
+        context.TeamAuth = {
+            getUser: () => ({ id: 'u1' }),
+            isSignedIn: () => true,
+            isViewAsMode: () => false,
+            hasPermission: (p) => opts.perms.includes(p)
+        };
+    }
     context.globalThis = context;
     context.window = context;
     vm.createContext(context);
@@ -96,7 +104,8 @@ function createTab(server, name) {
     const CS = context.CalendarSync;
     CS.setActiveCalendarId('cal1');
     CS.setHandlers({
-        onOverwritten: (keys, kind) => tab.notices.push({ keys, kind })
+        onOverwritten: (keys, kind) => tab.notices.push({ keys, kind }),
+        onDenied: (fields) => tab.notices.push({ denied: fields })
     });
     CS.setLiveSource({
         getData: () => tab.data,
@@ -237,6 +246,23 @@ const initial = {
     const before = server.patches;
     await pc.save();
     assert(server.patches === before, 'nothing to save → no request');
+}
+
+// Scenario F: teacher without curriculum rights — blocked change put back, not resent.
+{
+    const server = createServer(Object.assign({}, initial, { curriculumOverrides: { book1: { note: 'admin' } } }));
+    const t = createTab(server, 'teacher', { perms: ['edit_classes', 'edit_events', 'edit_planner'] });
+    await t.open();
+    t.data.curriculumOverrides.book1.note = 'teacher tried';
+    t.data.classes[0].note = 'allowed';
+    await t.save();
+    assert(server.data.classes[0].note === 'allowed', 'allowed change saved');
+    assert(server.data.curriculumOverrides.book1.note === 'admin', 'curriculum untouched on server');
+    assert(t.data.curriculumOverrides.book1.note === 'admin', 'blocked change put back on screen');
+    assert(t.notices.some((n) => n.denied && n.denied.includes('curriculumOverrides')), 'teacher told');
+    const before = server.patches;
+    await t.save();
+    assert(server.patches === before, 'blocked change not resent');
 }
 
 console.log('live-sync-tabs.test.mjs: all passed');

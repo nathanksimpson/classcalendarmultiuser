@@ -113,6 +113,10 @@ function updateCalendar(id, name, data, revision, editorLabel, force, user) {
     // No edit lock. A full save replaces the whole calendar (import / restore), so it still
     // needs the revision it was built from unless the user chose to overwrite.
     const forceAllowed = Boolean(force);
+    const deniedWhole = Auth.deniedFieldsForWholeSave(user, (getCalendar(id) || {}).data, data);
+    if (deniedWhole.length) {
+        return { ok: false, status: 403, error: 'You do not have permission to change some of this calendar', denied: deniedWhole };
+    }
 
     if (!forceAllowed && revision != null && Number(revision) !== Number(existing.revision)) {
         return { ok: false, status: 409, document: getCalendar(id) };
@@ -330,6 +334,13 @@ function patchCalendar(id, baseRevision, mutations, editorLabel, force, user) {
     }
 
     const existingDoc = getCalendar(id);
+    // Edit areas (Admin → Accounts): drop changes to areas this person may not edit.
+    const areaSplit = Auth.filterMutationsByEditArea(user, mutations);
+    const denied = areaSplit.deniedFields;
+    mutations = areaSplit.allowed;
+    if (!mutations.length) {
+        return { ok: true, document: existingDoc, overwritten: [], denied };
+    }
     // No edit lock: apply on top of the latest. An item these mutations change that was also
     // changed after the client's base revision is "latest save wins"; report which ones.
     let overwritten = [];
@@ -414,7 +425,7 @@ function patchCalendar(id, baseRevision, mutations, editorLabel, force, user) {
         }
     });
 
-    return { ok: true, document: getCalendar(id), overwritten };
+    return { ok: true, document: getCalendar(id), overwritten, denied };
 }
 
 /**

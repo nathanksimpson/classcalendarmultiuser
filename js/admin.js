@@ -976,7 +976,11 @@ function getRolePresetFromMeta(meta, role) {
 /** Checkbox UI: stored custom list, else preset for the selected/account role (not effective permissions). */
 function effectivePermissionsForUser(user, meta, roleFallback) {
     if (Array.isArray(user.customPermissions) && user.customPermissions.length) {
-        return user.customPermissions.slice().sort();
+        // Lists saved before edit areas existed: show what the user can actually edit
+        // (role default areas), so saving the form unchanged keeps their editing.
+        const marked = user.customPermissions.includes('edit_areas_set');
+        const list = !marked && Array.isArray(user.permissions) ? user.permissions : user.customPermissions;
+        return list.filter((p) => p !== 'edit_areas_set').sort();
     }
     const role = normalizeRoleKey(roleFallback || user.role);
     return getRolePresetFromMeta(meta, role);
