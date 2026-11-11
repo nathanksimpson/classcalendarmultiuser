@@ -1203,6 +1203,8 @@
         toolsMonthGoNearest: 'Go to {month}',
         toolsMonthNoBooksInClass: 'No book month for {month} in this class.',
         classroomDebateBooksBookLabel: 'Book',
+        toolsMonthEarlierWarns: '+{count} earlier',
+        toolsMonthEarlierWarnsTitle: 'Open warns in earlier months. Click to go to {month}.',
         classroomClassHiddenByFilter: 'hidden by filter',
         classroomZoneEssaysOnly: 'Has essay assignments',
         essayClassFilterBtnActive: 'Filter ({visible}/{total})',

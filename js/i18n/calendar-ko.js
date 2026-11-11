@@ -1203,6 +1203,8 @@
         toolsMonthGoNearest: '{month}(으)로 이동',
         toolsMonthNoBooksInClass: '이 반에는 {month} 교재 월이 없습니다.',
         classroomDebateBooksBookLabel: '교재',
+        toolsMonthEarlierWarns: '이전 +{count}',
+        toolsMonthEarlierWarnsTitle: '이전 달에 미처리 경고가 있습니다. 클릭하면 {month}(으)로 이동합니다.',
         classroomClassHiddenByFilter: '필터로 숨김',
         classroomZoneEssaysOnly: '에세이 과제 있는 수업',
         essayClassFilterBtnActive: '필터 ({visible}/{total})',

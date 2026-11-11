@@ -1107,6 +1107,29 @@ html[data-viewport="phone"] #appHeaderUnified #appZoneNav .app-zone-btn[data-zon
     opacity: 0.85;
 }
 
+.classroom-zone-earlier-chip {
+    display: inline-flex;
+    align-items: center;
+    margin-inline-start: 6px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    border: 1px dashed var(--border-color, #d0d5dd);
+    background: transparent;
+    color: var(--text-secondary, #555);
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+button.classroom-zone-earlier-chip {
+    align-self: center;
+    cursor: pointer;
+}
+
+button.classroom-zone-earlier-chip:hover {
+    background: var(--bg-secondary, #f5f6f8);
+}
+
 /* Class the viewer can open but not edit */
 .classroom-zone-context-inner .classroom-zone-view-only-chip {
     align-self: center;

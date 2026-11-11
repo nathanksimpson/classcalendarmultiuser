@@ -6560,7 +6560,12 @@
             return { ni: 0, ms: 0 };
         }
         const periodKey = resolveDebateBookPeriodKeyForClass(classData, uiPeriodByClassId);
-        if (!periodKey) {
+        return debateBookAlertCountsForPeriod(distributions, classData, cohorts, periodKey);
+    }
+
+    /** NI / MS for one book period ('YYYY-MM' or the term key). */
+    function debateBookAlertCountsForPeriod(distributions, classData, cohorts, periodKey) {
+        if (!classData || !classData.id || !periodKey) {
             return { ni: 0, ms: 0 };
         }
         const students = resolveStudentsForClass(classData, cohorts);
@@ -11023,6 +11028,7 @@
         applyDebateBookRecordPatch,
         resolveDebateBookIssuedDate,
         resolveDebateBookPeriodKeyForClass,
+        debateBookAlertCountsForPeriod,
         debateBookAlertCountsForClass,
         normalizeDebateBookSummaryKey,
         listDebateBookSummaryEntries,

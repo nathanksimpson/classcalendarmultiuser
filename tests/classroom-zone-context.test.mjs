@@ -286,4 +286,38 @@ function loadZone(options = {}) {
     assert(visible.length === 1 && visible[0].id === 'c-green', 'fallback keeps edit-only listing');
 }
 
+// Warns by month: "+N earlier" counts open warns in months before the shared month
+{
+    const sandbox = loadZone();
+    vm.runInNewContext(readFileSync(path.join(root, 'js', 'tools-month.js'), 'utf8'), sandbox);
+    const zone = sandbox.CCPClassroomZoneContext;
+    zone.syncVisibility('debate-rec');
+    const d = sandbox.CCPClassroomDomain;
+    d.listDebateRecWarnMonths = () => ['2026-11', '2026-10', '2026-09', '2026-08'];
+    const perMonth = {
+        '2026-11': { nv: 2, cf: 0, nc: 0 },
+        '2026-10': { nv: 1, cf: 1, nc: 0 },
+        '2026-09': { nv: 0, cf: 0, nc: 0 },
+        '2026-08': { nv: 0, cf: 0, nc: 3 }
+    };
+    d.debateRecAlertCountsForClass = (_data, _cls, opts) => perMonth[opts.month] || { nv: 0, cf: 0, nc: 0 };
+    const cls = sandbox.appData.classes[0];
+
+    sandbox.CCPToolsMonth.set('2026-11', { appData: sandbox.appData });
+    const earlier = zone.getEarlierWarns(cls);
+    assert(earlier.count === 5, `Oct (2) + Aug (3) earlier, Nov excluded (got ${earlier.count})`);
+    assert(earlier.oldestMonth === '2026-08', 'chip jumps to the oldest month with warns');
+
+    sandbox.CCPToolsMonth.set('2026-08', { appData: sandbox.appData });
+    assert(zone.getEarlierWarns(cls).count === 0, 'nothing earlier than the oldest month');
+
+    sandbox.CCPToolsMonth.set('', { appData: sandbox.appData });
+    assert(zone.getEarlierWarns(cls).count === 0, 'All months shows no earlier chip');
+    assert(zone.getToolsMonth() === '', 'All months reads back as empty');
+
+    zone.syncVisibility('attendance');
+    sandbox.CCPToolsMonth.set('2026-11', { appData: sandbox.appData });
+    assert(zone.getEarlierWarns(cls).count === 0, 'no earlier chip on tabs without warn badges');
+}
+
 console.log('classroom-zone-context.test.mjs: all passed');

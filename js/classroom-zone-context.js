@@ -420,11 +420,33 @@
             : {};
     }
 
+    /** Book period the warns count for: the shared month for monthly classes, else the term. */
+    function debateBookWarnPeriod(classData, month) {
+        const d = domain();
+        if (!d || !classData) {
+            return '';
+        }
+        if (!d.classUsesMonthlyDebateBooks || !d.classUsesMonthlyDebateBooks(classData)) {
+            return d.DEBATE_BOOK_TERM_PERIOD_KEY || '';
+        }
+        const options = d.listDebateBookMonthOptions ? d.listDebateBookMonthOptions(classData) : [];
+        return options.some((opt) => opt.periodKey === month) ? month : '';
+    }
+
     function getDebateBookAlertCounts(classData) {
         if (!classData || !domain() || !domain().debateBookAlertCountsForClass) {
             return { ni: 0, ms: 0 };
         }
         const data = getAppData();
+        const month = getToolsMonth();
+        if (month && domain().debateBookAlertCountsForPeriod) {
+            return domain().debateBookAlertCountsForPeriod(
+                data.debateBookDistributions,
+                classData,
+                data.cohorts || [],
+                debateBookWarnPeriod(classData, month)
+            );
+        }
         return domain().debateBookAlertCountsForClass(
             data.debateBookDistributions,
             classData,
@@ -497,6 +519,78 @@
         return parts.length
             ? `<span class="classroom-essay-alert-badges">${parts.join('')}</span>`
             : '';
+    }
+
+    /**
+     * Open warns in months before the shared month (backlog), for the "+N earlier" chip.
+     * @returns {{ count: number, oldestMonth: string }}
+     */
+    function getEarlierWarns(classData) {
+        const none = { count: 0, oldestMonth: '' };
+        const month = getToolsMonth();
+        const d = domain();
+        if (!month || !classData || !d || !usesTabAlertBadges()) {
+            return none;
+        }
+        const data = getAppData();
+        let months = [];
+        let countFor = () => 0;
+        if (activeTabId === 'essays') {
+            if (!d.essayAlertCountsForClass || !global.CCPAssignments || !global.CCPAssignments.months) {
+                return none;
+            }
+            months = global.CCPAssignments.months('essay', classData, data, {});
+            countFor = (m) => {
+                const c = d.essayAlertCountsForClass(getEssayAlertSubmissions(), classData, data.cohorts || [], { month: m });
+                return (c.rs || 0) + (c.as || 0) + (c.od || 0) + (c.ae || 0) + (c.nv || 0);
+            };
+        } else if (activeTabId === 'debate-rec') {
+            if (!d.debateRecAlertCountsForClass || !d.listDebateRecWarnMonths) {
+                return none;
+            }
+            months = d.listDebateRecWarnMonths(data, [classData]);
+            countFor = (m) => {
+                const c = d.debateRecAlertCountsForClass(data, classData, { month: m });
+                return (c.nv || 0) + (c.cf || 0) + (c.nc || 0);
+            };
+        } else if (activeTabId === 'debate-books') {
+            if (!d.debateBookAlertCountsForPeriod || !d.classUsesMonthlyDebateBooks || !d.classUsesMonthlyDebateBooks(classData)) {
+                return none; /* term classes have no earlier months */
+            }
+            months = (d.listDebateBookMonthOptions(classData) || []).map((opt) => opt.periodKey);
+            countFor = (m) => {
+                const c = d.debateBookAlertCountsForPeriod(data.debateBookDistributions, classData, data.cohorts || [], m);
+                return (c.ni || 0) + (c.ms || 0);
+            };
+        }
+        let count = 0;
+        let oldestMonth = '';
+        months
+            .filter((m) => /^\d{4}-\d{2}$/.test(m) && m < month)
+            .forEach((m) => {
+                const n = countFor(m);
+                if (n > 0) {
+                    count += n;
+                    if (!oldestMonth || m < oldestMonth) {
+                        oldestMonth = m;
+                    }
+                }
+            });
+        return { count, oldestMonth };
+    }
+
+    /** "+N earlier": grey chip; a button for the selected class (jumps to the oldest month). */
+    function buildEarlierWarnsHtml(classData, asButton) {
+        const earlier = getEarlierWarns(classData);
+        if (!earlier.count) {
+            return '';
+        }
+        const text = tf('toolsMonthEarlierWarns', { count: earlier.count });
+        const title = tf('toolsMonthEarlierWarnsTitle', { month: toolsMonthLabel(earlier.oldestMonth) });
+        if (asButton) {
+            return `<button type="button" class="classroom-zone-earlier-chip" data-earlier-month="${escapeAttr(earlier.oldestMonth)}" title="${escapeAttr(title)}">${escapeHtml(text)}</button>`;
+        }
+        return `<span class="classroom-zone-earlier-chip" title="${escapeAttr(title)}">${escapeHtml(text)}</span>`;
     }
 
     function usesTabAlertBadges() {
@@ -637,7 +731,7 @@
                 const viewOnlyHint = canEditClassRow(c)
                     ? ''
                     : ` <span class="classroom-zone-view-only-tag section-hint">${escapeHtml(t('classroomClassViewOnly'))}</span>`;
-                return `<button type="button" class="module-list-item classroom-zone-combobox-item${selected}${highlighted}" role="option" data-class-id="${escapeAttr(c.id)}" aria-selected="${c.id === s.classId ? 'true' : 'false'}">${getClassPickerItemHtml(c)}${viewOnlyHint}${hiddenHint}</button>`;
+                return `<button type="button" class="module-list-item classroom-zone-combobox-item${selected}${highlighted}" role="option" data-class-id="${escapeAttr(c.id)}" aria-selected="${c.id === s.classId ? 'true' : 'false'}">${getClassPickerItemHtml(c)}${usesTabAlertBadges() ? buildEarlierWarnsHtml(c, false) : ''}${viewOnlyHint}${hiddenHint}</button>`;
             })
             .join('');
     }
@@ -1057,6 +1151,7 @@
                     </label>
                     <div id="classroomZoneClassList" class="classroom-zone-class-list module-list" role="listbox"${comboboxOpen ? '' : ' hidden'}>${buildComboboxListHtml({ classId, classes, classSearchQuery })}</div>
                 </div>
+                ${usesTabAlertBadges() && classData ? buildEarlierWarnsHtml(classData, true) : ''}
                 ${buildAssignmentFieldHtml(classData)}
                 ${showSessionDate ? `<label class="classroom-zone-field classroom-zone-date-field">
                     <span>${escapeHtml(t('classroomDateLabel'))}</span>
@@ -1124,6 +1219,12 @@
             }
             ensureActiveClassVisible();
             render(mountEl);
+        });
+        mountEl.querySelector('[data-earlier-month]')?.addEventListener('click', (e) => {
+            const target = e.currentTarget.getAttribute('data-earlier-month');
+            if (target) {
+                setToolsMonth(target, mountEl);
+            }
         });
         mountEl.querySelector('#classroomZoneToolsMonth')?.addEventListener('change', (e) => {
             setToolsMonth(String(e.target.value || ''), mountEl);
@@ -1216,6 +1317,8 @@
         buildDebateRecAlertBadgesHtml,
         getDebateBookAlertCounts,
         getEssayAlertCounts,
+        getEarlierWarns,
+        getToolsMonth,
         withEssayAlertSubmissions,
         filterClassesForSearch
     };
