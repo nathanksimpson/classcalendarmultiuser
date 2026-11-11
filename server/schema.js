@@ -79,6 +79,7 @@ function migrate(db) {
     migrateSuggestionsPresence(db);
     migrateActivityLog(db);
     migrateCalendarsCreatedBy(db);
+    migratePresenceFocus(db);
     migrateSessionViewAs(db);
     migrateHeadTeacherPresetRefresh(db);
     migrateCalendarBlobEncryption(db);
@@ -169,6 +170,17 @@ function migrateHeadTeacherPresetRefresh(db) {
     db.prepare(
         "INSERT INTO app_settings (key, value) VALUES ('head_teacher_preset_refresh_v1', '1')"
     ).run();
+}
+
+function migratePresenceFocus(db) {
+    const cols = db.prepare('PRAGMA table_info(user_presence)').all();
+    const names = new Set(cols.map((c) => c.name));
+    if (cols.length && !names.has('focus')) {
+        db.exec('ALTER TABLE user_presence ADD COLUMN focus TEXT');
+    }
+    if (cols.length && !names.has('focus_label')) {
+        db.exec('ALTER TABLE user_presence ADD COLUMN focus_label TEXT');
+    }
 }
 
 function migrateCalendarsCreatedBy(db) {

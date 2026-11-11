@@ -1994,7 +1994,10 @@ export default {
                 if (!viewAsSession) {
                     const presenceWrite = Presence.upsertPresence(env, user, {
                         calendarId: calId,
-                        calendarName: meta.name || ''
+                        calendarName: meta.name || '',
+                        // What this page is working on (live sync "also editing" notice).
+                        focus: url.searchParams.get('focus') || '',
+                        focusLabel: url.searchParams.get('focusLabel') || ''
                     }).catch(() => {});
                     if (execCtx && typeof execCtx.waitUntil === 'function') {
                         execCtx.waitUntil(presenceWrite);

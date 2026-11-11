@@ -1017,6 +1017,7 @@ function initListViewModules() {
 
 function bindAppStoreMutationSync(calendarId) {
     bindLiveSyncSource();
+    startEditFocusWatch();
     if (!appStore || typeof appStore.setMutationCalendarId !== 'function') {
         return;
     }
@@ -1088,6 +1089,171 @@ function describeSyncTargets(keys) {
         return names.slice(0, 3).join(', ') + ' +' + (names.length - 3);
     }
     return names.join(', ');
+}
+
+/** Classroom tabs where the selected class is the thing being edited. */
+const CLASSROOM_FOCUS_TABS = new Set([
+    'attendance', 'homework-tracking', 'essays', 'points', 'speaking-test', 'tests',
+    'debate-teams', 'debate-scores', 'debate-rec', 'debate-books', 'ledger'
+]);
+
+function classFocus(classId, prefix) {
+    if (!classId) {
+        return null;
+    }
+    const cls = (appData.classes || []).find((c) => String(c.id) === String(classId));
+    if (!cls) {
+        return null;
+    }
+    return { key: `${prefix || 'classes'}:${cls.id}`, label: cls.name || '' };
+}
+
+/**
+ * What this page is editing right now, for the "also editing" notice:
+ * { key: 'classes:<id>' | 'classroom:<id>' | 'curriculum:<id>' | 'events:<id>' |
+ *   'templates:<id>' | 'timetable', label } or null when just browsing.
+ */
+function getCurrentEditFocus() {
+    if (!teamSyncEnabled || isTeamCalendarViewOnly()) {
+        return null;
+    }
+    ensureUiState();
+    const ui = appData.ui || {};
+    if (isClassPopoutOpen()) {
+        return classFocus(elements.classId && elements.classId.value);
+    }
+    if (elements.holidayModal && elements.holidayModal.classList.contains('active')) {
+        const id = elements.holidayId && elements.holidayId.value;
+        const ev = id ? (appData.events || []).find((e) => String(e.id) === String(id)) : null;
+        return ev ? { key: `events:${ev.id}`, label: getEventDisplayName(ev) || ev.name || '' } : null;
+    }
+    const tab = getActiveTab();
+    if (tab === 'classes') {
+        return classFocus(elements.classId && elements.classId.value);
+    }
+    if (tab === 'syllabus') {
+        if (ui.syllabusTabTemplateId) {
+            const tpl = (appData.customSyllabusTemplates || []).find((x) => String(x.id) === String(ui.syllabusTabTemplateId));
+            return tpl ? { key: `templates:${tpl.id}`, label: tpl.name || '' } : null;
+        }
+        return classFocus(ui.syllabusTabClassId);
+    }
+    if (tab === 'homework') {
+        return classFocus(ui.homeworkTabClassId);
+    }
+    if (tab === 'events') {
+        const id = elements.holidayId && elements.holidayId.value;
+        const ev = id ? (appData.events || []).find((e) => String(e.id) === String(id)) : null;
+        return ev ? { key: `events:${ev.id}`, label: getEventDisplayName(ev) || ev.name || '' } : null;
+    }
+    if (tab === 'curriculum' && curriculumTabSelectedId) {
+        const label = window.CCPBooksEditor && window.CCPBooksEditor.getCurriculumDisplayName
+            ? window.CCPBooksEditor.getCurriculumDisplayName(curriculumTabSelectedId, appData)
+            : '';
+        return { key: `curriculum:${curriculumTabSelectedId}`, label: label || '' };
+    }
+    if (tab === 'timetable') {
+        return { key: 'timetable', label: t('editFocusTimetable') };
+    }
+    if (CLASSROOM_FOCUS_TABS.has(tab)) {
+        return classFocus(ui.classroomTabClassId, 'classroom');
+    }
+    return null;
+}
+
+let editFocusWatchTimer = null;
+
+/** Report focus changes promptly (the poll also carries it every 8–15 s). */
+function startEditFocusWatch() {
+    if (editFocusWatchTimer || typeof CalendarSync === 'undefined' || !CalendarSync.reportFocusSoon) {
+        return;
+    }
+    editFocusWatchTimer = setInterval(() => {
+        if (!teamSyncEnabled || document.hidden) {
+            return;
+        }
+        const focus = getCurrentEditFocus();
+        const key = focus ? focus.key : '';
+        if (key !== CalendarSync.lastSentFocusKey()) {
+            CalendarSync.reportFocusSoon();
+        }
+        refreshEditOverlapToasts();
+    }, 1500);
+}
+
+/** Overlaps the person dismissed, by "<userId>|<focus key>"; forgotten when the overlap ends. */
+const dismissedEditOverlaps = new Set();
+let latestEditOverlapViewers = [];
+
+function editOverlapContainer() {
+    let box = document.getElementById('editOverlapToasts');
+    if (!box) {
+        box = document.createElement('div');
+        box.id = 'editOverlapToasts';
+        box.className = 'edit-overlap-toasts';
+        box.setAttribute('role', 'region');
+        box.setAttribute('aria-label', t('editOverlapRegion'));
+        document.body.appendChild(box);
+    }
+    return box;
+}
+
+function describeFocusForOverlap(viewer, focus) {
+    // Prefer this page's own name for the item; fall back to the other person's label.
+    return (focus && focus.label) || viewer.focusLabel || t('syncOverwrittenItemGeneric');
+}
+
+/** Show (or keep) a dismiss-only toast per other account editing the same thing as this page. */
+function refreshEditOverlapToasts(viewers) {
+    if (Array.isArray(viewers)) {
+        latestEditOverlapViewers = viewers;
+    }
+    const focus = getCurrentEditFocus();
+    const myKey = focus ? focus.key : '';
+    const active = new Map();
+    if (myKey) {
+        const myId = typeof TeamAuth !== 'undefined' && TeamAuth.getUser && TeamAuth.getUser()
+            ? String(TeamAuth.getUser().id)
+            : '';
+        latestEditOverlapViewers.forEach((v) => {
+            if (v && v.focus === myKey && String(v.userId) !== myId) {
+                active.set(`${v.userId}|${myKey}`, v);
+            }
+        });
+    }
+    // An overlap that ended can warn again next time.
+    Array.from(dismissedEditOverlaps).forEach((id) => {
+        if (!active.has(id)) {
+            dismissedEditOverlaps.delete(id);
+        }
+    });
+    const box = editOverlapContainer();
+    // Toasts stay until dismissed, even after the other person moves on.
+    active.forEach((v, id) => {
+        if (dismissedEditOverlaps.has(id) || box.querySelector(`[data-overlap-id="${CSS.escape(id)}"]`)) {
+            return;
+        }
+        const toast = document.createElement('div');
+        toast.className = 'edit-overlap-toast';
+        toast.dataset.overlapId = id;
+        toast.setAttribute('role', 'alert');
+        const msg = document.createElement('p');
+        msg.className = 'edit-overlap-toast__message';
+        msg.textContent = t('editOverlapNotice')
+            .replace('{name}', v.displayName || t('editOverlapSomeone'))
+            .replace('{item}', describeFocusForOverlap(v, focus));
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-outline btn-small edit-overlap-toast__dismiss';
+        btn.textContent = t('editOverlapDismiss');
+        btn.addEventListener('click', () => {
+            dismissedEditOverlaps.add(id);
+            toast.remove();
+        });
+        toast.appendChild(msg);
+        toast.appendChild(btn);
+        box.appendChild(toast);
+    });
 }
 
 let lastSyncOverwriteNoticeAt = 0;
@@ -36317,6 +36483,9 @@ function applyTeamLockAccessState(lockState) {
     );
 
     statusBar.classList.add('team-lock-status--' + mode);
+    // No edit lock: editors get no lock control (the "also editing" toast replaces it).
+    // View-only accounts keep the chip so they can see why they can't edit.
+    statusBar.hidden = mode === 'live';
     applyTeamLockButtonChrome(btn, lockState);
 
     if (allowBtn) {
@@ -39850,7 +40019,13 @@ async function initTeamSync() {
         onDenied(fields) {
             showEditDeniedNotice(fields);
         },
+        getEditFocus() {
+            return getCurrentEditFocus();
+        },
         onLiveTick(meta) {
+            if (meta && Array.isArray(meta.viewers)) {
+                refreshEditOverlapToasts(meta.viewers);
+            }
             // Live sync merges other devices' changes itself; just keep "who's here" fresh.
             updateTeamLockRoster(
                 meta

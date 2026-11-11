@@ -84,6 +84,8 @@
         onOverwritten: null,
         // Live sync: (fields) changes to areas this person may not edit were put back.
         onDenied: null,
+        // Live sync: () => { key, label } — what this page is editing right now.
+        getEditFocus: null,
         onLiveTick: null
     };
 
@@ -577,6 +579,29 @@
     const LIVE_PENDING_PREFIX = 'classCalendarLivePending:';
     /** Don't swap in another device's changes while the person is typing in a field. */
     const LIVE_TYPING_GRACE_MS = 4000;
+
+    /**
+     * Meta poll URL, carrying what this page is working on (handlers.getEditFocus →
+     * { key, label }) so other accounts can be told they're editing the same thing.
+     */
+    function metaPath(calId) {
+        let path = '/calendars/' + encodeURIComponent(calId) + '/meta';
+        let focus = null;
+        try {
+            focus = typeof handlers.getEditFocus === 'function' ? handlers.getEditFocus() : null;
+        } catch (_) {
+            focus = null;
+        }
+        const key = focus && focus.key ? String(focus.key).slice(0, 120) : '';
+        state.sentFocusKey = key;
+        if (key) {
+            path += '?focus=' + encodeURIComponent(key);
+            if (focus.label) {
+                path += '&focusLabel=' + encodeURIComponent(String(focus.label).slice(0, 80));
+            }
+        }
+        return path;
+    }
 
     function syncDiffApi() {
         return global.CCPSyncDiff || null;
@@ -1072,7 +1097,7 @@
                 return null;
             }
             debugLog('api', 'GET /meta (refreshLockMeta)', { calendarId: calId });
-            const meta = await apiFetch('/calendars/' + encodeURIComponent(calId) + '/meta');
+            const meta = await apiFetch(metaPath(calId));
             applyLockFromResponse(tagLockDebugSource(meta, 'refreshLockMeta'));
             return meta;
         },
@@ -1441,6 +1466,33 @@
             }
             rebaseOnto(doc, { ownSave: false });
             return true;
+        },
+
+        /** The page's edit focus changed: tell the server soon (one meta request). */
+        reportFocusSoon() {
+            if (state.focusTimer) {
+                clearTimeout(state.focusTimer);
+            }
+            state.focusTimer = setTimeout(async () => {
+                state.focusTimer = null;
+                const calId = CalendarSync.getActiveCalendarId();
+                if (!calId || isViewAsMode()) {
+                    return;
+                }
+                try {
+                    const meta = await apiFetch(metaPath(calId));
+                    applyLockFromResponse(tagLockDebugSource(meta, 'focus'));
+                    if (typeof handlers.onLiveTick === 'function') {
+                        handlers.onLiveTick(meta);
+                    }
+                } catch (_) {
+                    /* presence is best-effort */
+                }
+            }, 800);
+        },
+
+        lastSentFocusKey() {
+            return state.sentFocusKey || '';
         },
 
         hasUnsavedLiveChanges() {
@@ -2294,7 +2346,7 @@
                     return;
                 }
                 try {
-                    const meta = await apiFetch('/calendars/' + encodeURIComponent(id) + '/meta');
+                    const meta = await apiFetch(metaPath(id));
                     state.pollBackoffFactor = 1;
                     // Presence is stamped server-side as a side effect of this meta
                     // poll (skipped in View As there), so no separate heartbeat request

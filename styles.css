@@ -23748,3 +23748,62 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-boo
     cursor: default;
     opacity: 1;
 }
+
+/* "Also editing" notice: another account is working on the same class / book / event.
+   Stays until dismissed; stacks bottom-right (bottom-centre on phones). */
+.edit-overlap-toasts {
+    position: fixed;
+    right: max(var(--space-4), var(--safe-right, 0px));
+    bottom: max(var(--space-4), var(--safe-bottom, 0px));
+    z-index: var(--z-modal-popover);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    max-width: min(24rem, calc(100vw - 2 * var(--space-4)));
+    pointer-events: none;
+}
+.edit-overlap-toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+    border: 1px solid var(--warning-border, #f59e0b);
+    border-left-width: 4px;
+    border-radius: var(--radius-md, 10px);
+    background: var(--warning-bg, #fffbeb);
+    color: var(--warning-text, #92400e);
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.16);
+    font-size: var(--text-body-md, 0.875rem);
+    line-height: 1.4;
+    animation: edit-overlap-in var(--notify-ms-in, 200ms) ease;
+}
+.edit-overlap-toast__message {
+    flex: 1 1 auto;
+    margin: 0;
+}
+.edit-overlap-toast__dismiss {
+    flex: 0 0 auto;
+    min-height: 32px;
+}
+@keyframes edit-overlap-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .edit-overlap-toast { animation: none; }
+}
+@media (max-width: 640px) {
+    .edit-overlap-toasts {
+        left: var(--space-4);
+        right: var(--space-4);
+        max-width: none;
+        /* Above the phone bottom tab bar */
+        bottom: calc(var(--bottom-nav-height, 64px) + var(--space-3) + var(--safe-bottom, 0px));
+    }
+}
+[data-theme="dark"] .edit-overlap-toast {
+    background: #3a2a0a;
+    color: #fde68a;
+    border-color: #b45309;
+}

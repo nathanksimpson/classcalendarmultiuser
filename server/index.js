@@ -1402,7 +1402,9 @@ app.get('/api/calendars/:id/meta', requireUser, (req, res) => {
         try {
             Presence.upsertPresence(req.user, {
                 calendarId: req.params.id,
-                calendarName: meta.name || ''
+                calendarName: meta.name || '',
+                focus: req.query.focus || '',
+                focusLabel: req.query.focusLabel || ''
             });
         } catch (_) {
             /* presence is best-effort */
