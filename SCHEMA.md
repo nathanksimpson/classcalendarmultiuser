@@ -506,6 +506,28 @@ These optional top-level fields were reserved earlier; prefer `teacherProfiles[]
 | `classes[].roomId` | string | Default room for class (combined `cohortIds[]` share one class → one room) |
 | `classes[].roomIdByWeekday` | object | Optional `{ "1": roomId, ... }` weekday overrides |
 
+## Class board (not inside the calendar JSON)
+
+Class board posts, replies, and reactions are **not** fields on the calendar document. They live in D1 / local SQLite (`worker/migrations/0022_class_board.sql`, mirrored by `migrateClassBoard()` in `server/schema.js`) so a new term does not wipe them when `dayNotes` is cleared.
+
+`dayNotes[]` is unchanged. A later import may copy those notes into `board_posts`. Do not delete `dayNotes` data.
+
+Bodies (`board_posts.body`, `board_replies.body`, `board_revisions.body`) use the same envelope as calendar blobs: ciphertext in `body`, plus `body_enc_version` and `body_key_wrapped`. With no `DATA_ENCRYPTION_MASTER_KEY`, the body is stored as plaintext JSON, same as calendars.
+
+| Table | Purpose |
+|-------|---------|
+| `board_posts` | One note. `board_kind` is `class`, `cohort`, or `staff`. `board_ref` is the class id, cohort id, or `''` for staff. `lesson_date` is `YYYY-MM-DD` or null. `is_special` pins a 특이사항 note. `deleted_at` / `deleted_by` are a tombstone. |
+| `board_post_students` | Students tagged on a post. Stores both `student_id` and `tms_mpidx` so a profile still finds the post after Migrate gives the student a new `stu_…` id. |
+| `board_post_mentions` | `@teacher` mentions (`user_id`). |
+| `board_replies` | One row per reply. Not stored inside the post, so two replies at once both keep. |
+| `board_reactions` | One row per person per emoji. Primary key `(target_id, user_id, emoji)`. Emoji is one of 👍 ✅ 👀 ❤️. `target_id` is a post id or a reply id. |
+| `board_revisions` | Previous body, kept when the author edits. |
+| `board_read_state` | `last_read_at` per user, calendar, and board key. |
+
+Anyone who can open the calendar may read and write the board, including view-only accounts. Writes do not go through calendar `PATCH` and do not change edit permissions. Only the author edits a post or reply. The author, or an account with `manage_calendar_access`, may soft-delete it.
+
+Student history: `GET /api/board/students/history?studentId=` or `?tmsMpidx=` across every calendar the caller can open. A row matches if either id matches.
+
 ## Migration
 
 `migrateData()` in `app.js` upgrades older files (legacy A/B/C levels, `dayOfWeek` → `meetingDays`, holidays → events).

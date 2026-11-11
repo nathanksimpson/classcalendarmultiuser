@@ -66,6 +66,7 @@ Frontend calls `/api` via `js/calendar-sync.js` (save debounce, poll, locks, rev
 | Export JSON shape | `SCHEMA.md`, `Example Calendars/` |
 | Class / event filter semantics | `SCHEMA.md` → **Class filter contracts** (viewer intersection vs event applicability + exclusions) |
 | Daily class log (calendar) | `js/day-notes.js`, `appData.dayNotes[]`, calendar context menus in `app.js` |
+| Class board (posts, replies, reactions) | `shared/board-core.cjs`, `server/board-access.js`, `worker/src/board-access.js`. Routes under `/api/calendars/:id/board` and `GET /api/board/students/history`. Any calendar access may write. Does not use calendar PATCH. |
 
 ### UI tokens and shared controls
 
@@ -199,6 +200,7 @@ Production: https://classmanager.live (see `PUBLIC_URL` in `wrangler.toml`; work
   | `0004_calendar_access.sql` | Groups and calendar access |
   | `0005_app_settings.sql` | App settings (e.g. lock stale minutes) |
   | `0015_calendar_blob_encryption.sql` | `data_enc_version`, `data_key_wrapped` on calendars + suggestions |
+  | `0022_class_board.sql` | Class board posts, replies, reactions, revisions, read state. Not applied by the build — run `npm run db:migrate:remote` yourself before this is used in production. |
 
 - [ ] **Blob encryption** (if enabling application-level calendar encryption):
   1. Generate key: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`

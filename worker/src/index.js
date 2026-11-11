@@ -9,6 +9,7 @@ import * as Suggestions from './suggestions.js';
 import * as NotificationMeta from './notification-meta.js';
 import * as UiPrefs from './ui-prefs.js';
 import * as EssayBatchDrafts from './essay-batch-drafts.js';
+import * as BoardAccess from './board-access.js';
 import * as AccessRequests from './access-requests.js';
 import * as AdminUserPolicy from './admin-user-policy.js';
 import * as ViewAs from './view-as.js';
@@ -1967,6 +1968,41 @@ export default {
             }
         }
 
+        if (path === '/api/board/students/history' || /\/board(?:\/|$)/.test(path)) {
+            if (request.method !== 'GET' && request.method !== 'HEAD') {
+                const blocked = rejectViewAsJson();
+                if (blocked) {
+                    return blocked;
+                }
+            }
+            let body = {};
+            if (request.method !== 'GET' && request.method !== 'HEAD') {
+                try {
+                    body = await readJson(request);
+                } catch (err) {
+                    if (err && err.status === 413) {
+                        return json({ error: 'Payload too large' }, 413);
+                    }
+                    body = {};
+                }
+            }
+            const query = {};
+            url.searchParams.forEach((value, key) => {
+                query[key] = value;
+            });
+            const result = await BoardAccess.dispatch(env, {
+                method: request.method,
+                pathname: path,
+                query,
+                user,
+                viewAs: viewAsSession,
+                body
+            });
+            if (result) {
+                return json(result.body, result.status || 200);
+            }
+        }
+
         const calMatch = path.match(
             /^\/api\/calendars\/([^/]+)(\/meta|\/lock\/grant|\/lock\/dismiss|\/lock\/touch|\/lock)?$/
         );
@@ -2576,6 +2612,7 @@ export default {
                 await dbRun(env, 'DELETE FROM user_notification_meta WHERE calendar_id = ?', calId);
                 await dbRun(env, 'DELETE FROM user_ui_prefs WHERE calendar_id = ?', calId);
                 await dbRun(env, 'DELETE FROM essay_batch_drafts WHERE calendar_id = ?', calId);
+                await BoardAccess.deleteForCalendar(env, calId);
                 await dbRun(env, 'DELETE FROM calendar_history WHERE calendar_id = ?', calId);
                 await dbRun(env, 'DELETE FROM calendars WHERE id = ?', calId);
                 await ActivityLog.recordActivityForUser(env, user, {

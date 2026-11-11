@@ -6,8 +6,8 @@
     'use strict';
 
     const ARCHIVED_SEGMENT_IDS = new Set(['command-center']);
-    const FIXED_SEGMENT_TAB_IDS = new Set(['teachers', 'portfolio', 'command-center', 'data']);
-    const NO_SEGMENT_ZONES = new Set(['more']);
+    const FIXED_SEGMENT_TAB_IDS = new Set(['teachers', 'portfolio', 'command-center', 'data', 'notes']);
+    const NO_SEGMENT_ZONES = new Set(['more', 'notes']);
 
     function buildTabIdToSegment(zoneSegmentToTab) {
         const map = {};

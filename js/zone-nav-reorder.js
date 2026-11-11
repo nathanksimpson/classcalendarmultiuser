@@ -9,8 +9,8 @@
     const TOUCH_MOVE_CANCEL_PX = 8;
     const MOUSE_DRAG_START_PX = 6;
     const ARCHIVED_SEGMENT_IDS = new Set(['command-center']);
-    const FIXED_SEGMENT_TAB_IDS = new Set(['teachers', 'portfolio', 'command-center', 'data']);
-    const NO_SEGMENT_ZONES = new Set(['more']);
+    const FIXED_SEGMENT_TAB_IDS = new Set(['teachers', 'portfolio', 'command-center', 'data', 'notes']);
+    const NO_SEGMENT_ZONES = new Set(['more', 'notes']);
 
     let hooks = null;
     let bound = false;

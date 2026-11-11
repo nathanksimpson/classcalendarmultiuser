@@ -98,7 +98,6 @@ Navigation is **two-level**: **zones** (top folder tabs) → **segments** (sub-t
 | Homework | `#panel-homework-tracking` | Per-student homework tracking sheet |
 | Points | `#panel-points` | Points sheet with reason picker |
 | Tests | `#panel-tests` | Test scores sheet |
-| Notes | `#panel-notes` | In-app class notes (desktop); phone redirects to `notes.html` |
 | Portfolio | — | **Disabled / coming soon** (hidden segment; **no panel**) |
 
 ### Zone 4: Tools (`data-zone="tools"`)
@@ -111,7 +110,13 @@ Navigation is **two-level**: **zones** (top folder tabs) → **segments** (sub-t
 | Books | `#panel-debate-books` | Debate book progress sheet |
 | Speaking Test | `#panel-speaking-test` | Speaking test session UI |
 
-### Zone 5: Data (`data-zone="more"` — internal id; tab label **Data**)
+### Zone 5: Notes (`data-zone="notes"`)
+
+| Segment | Panel ID | Layout pattern |
+|---------|----------|----------------|
+| Notes | `#panel-notes` | Main tab, no sub-tab (same pattern as Data). In-app class notes on desktop; phone redirects to `notes.html` |
+
+### Zone 6: Data (`data-zone="more"` — internal id; tab label **Data**)
 
 | Segment | Panel ID | Layout pattern |
 |---------|----------|----------------|
@@ -136,7 +141,7 @@ The shell lives in `#appTopBar` (sticky, `z-index: 200`, frosted glass). Content
 │  │ ◳ ClassManager │ 🔒 lock/sync badge · saved │ 🔔 │ tools… │ │
 │  └───────────────────────────────────────────────────────────────┘ │
 │  ┌─ Row 2 ZONES (.app-zone-nav) ────────────────────────────────┐ │
-│  │ Schedule │ Class Setup │ Classroom │ Tools │ Data            │ │
+│  │ Schedule │ Class Setup │ Classroom │ Tools │ Notes │ Data │ │
 │  └───────────────────────────────────────────────────────────────┘ │
 │  ┌─ Row 3 SEGMENTS + TERM STRIP ─────────────────────────────────┐ │
 │  │ [segment pills for active zone]     Term name · dates · settings│ │
@@ -157,7 +162,7 @@ The shell lives in `#appTopBar` (sticky, `z-index: 200`, frosted glass). Content
 Order (Phase 6): `[logo] [save/lock pill] [Sync ●] … [bell] [+ New ▾ · Day notes · Calendar ▾ · Print · Help · ◐] [All | Mine] [Term settings] [Helper ●] [Account ▾]`.
 
 - **+ New:** `#headerNewMenuBtn` (`.btn-primary`) → `#headerNewPopover` (`.header-fixed-popover`): Class · Event · Cohort (calendar lock) │ Day note · Custom essay assignment (no lock). Essay item awaits Tools → Essays, then dispatches `ccp:essayNewCustomAssignment`.
-- **Day notes:** `#headerDayNotesBtn` — opens Classroom → Notes for the shared active class (phones: notes page).
+- **Day notes:** `#headerDayNotesBtn` — opens the Notes main tab for the shared active class (phones: notes page).
 - **Calendar menu:** `#teamCalendarMenuBtn` — switch calendars + **New calendar** only. Add class/event moved to + New; Back up / Remove moved to Data.
 - **Print:** `#openPrintBtn` (`.btn-header-print`, blue tint) → **Print Center** `#printCenterModal` (every printable, "For this tab" first; rows open the owning tab and click its own print control).
 - **Help:** link to `help.html`, outline style.
@@ -486,7 +491,7 @@ Full token list: `css/tokens.css` + `[data-theme="dark"]` block in `css/features
 
 **Mobile setup banner:** `#mobileSetupLimitedBanner` on cohorts/setup-heavy tabs.
 
-**Notes on phone:** Classroom Notes segment redirects to `notes.html`; label becomes “Day notes”.
+**Notes on phone:** The Notes main tab redirects to `notes.html`; the tab label becomes “Day notes”.
 
 ---
 

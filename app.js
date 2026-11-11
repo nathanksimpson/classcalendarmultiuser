@@ -5948,7 +5948,7 @@ function syncWorkspaceMobileLimitedBanner() {
 }
 
 function syncNotesTabPhoneChrome() {
-    const btn = document.getElementById('tabBtn-notes');
+    const btn = document.getElementById('zoneBtn-notes');
     if (btn) {
         const phone = isViewportPhone();
         const label = phone ? t('tabNotesMobile') : t('tabNotes');
@@ -14744,10 +14744,19 @@ const APP_ZONE_SCHEDULE = 'schedule';
 const APP_ZONE_CLASSES = 'classes';
 const APP_ZONE_CLASSROOM = 'classroom';
 const APP_ZONE_TOOLS = 'tools';
+const APP_ZONE_NOTES = 'notes';
 const APP_ZONE_MORE = 'more';
-const APP_ZONE_IDS = [APP_ZONE_SCHEDULE, APP_ZONE_CLASSES, APP_ZONE_CLASSROOM, APP_ZONE_TOOLS, APP_ZONE_MORE];
+const APP_ZONE_IDS = [
+    APP_ZONE_SCHEDULE,
+    APP_ZONE_CLASSES,
+    APP_ZONE_CLASSROOM,
+    APP_ZONE_TOOLS,
+    APP_ZONE_NOTES,
+    APP_ZONE_MORE
+];
 
 const DIRECT_ZONE_TAB = {
+    [APP_ZONE_NOTES]: 'notes',
     [APP_ZONE_MORE]: 'data'
 };
 
@@ -14767,9 +14776,9 @@ const ZONE_SEGMENT_TO_TAB = {
         ledger: 'ledger',
         'homework-tracking': 'homework-tracking',
         points: 'points',
-        tests: 'tests',
-        notes: 'notes'
+        tests: 'tests'
     },
+    notes: { notes: 'notes' },
     tools: {
         essays: 'essays',
         'debate-teams': 'debate-teams',
@@ -15247,10 +15256,12 @@ function normalizeLegacyZoneAndSegment(zoneId, segmentId) {
             zone = APP_ZONE_SCHEDULE;
         }
     } else if (zone === 'journal') {
-        zone = APP_ZONE_CLASSROOM;
-        if (!segment) {
-            segment = 'notes';
-        }
+        zone = APP_ZONE_NOTES;
+        segment = '';
+    }
+    if (zone === APP_ZONE_CLASSROOM && segment === 'notes') {
+        zone = APP_ZONE_NOTES;
+        segment = '';
     }
     if (segment === 'events' && zone === APP_ZONE_CLASSES) {
         zone = APP_ZONE_SCHEDULE;
@@ -15310,7 +15321,7 @@ const LEGACY_TAB_ZONE_REDIRECT = {
     cohorts: { zone: APP_ZONE_CLASSES, segment: 'cohorts' },
     homework: { zone: APP_ZONE_SCHEDULE, segment: 'homework' },
     'command-center': { zone: APP_ZONE_SCHEDULE, segment: 'timetable' },
-    notes: { zone: APP_ZONE_CLASSROOM, segment: 'notes' },
+    notes: { zone: APP_ZONE_NOTES, segment: '' },
     briefing: { zone: APP_ZONE_CLASSROOM, segment: 'briefing' },
     students: { zone: APP_ZONE_CLASSROOM, segment: 'students' },
     attendance: { zone: APP_ZONE_CLASSROOM, segment: 'attendance' },
@@ -15394,13 +15405,22 @@ function canAccessZone(zoneId) {
     if (zoneId === APP_ZONE_MORE) {
         return canAccessSetupHost();
     }
-    if (zoneId === APP_ZONE_CLASSES || zoneId === APP_ZONE_SCHEDULE || zoneId === APP_ZONE_CLASSROOM || zoneId === APP_ZONE_TOOLS) {
+    if (
+        zoneId === APP_ZONE_CLASSES
+        || zoneId === APP_ZONE_SCHEDULE
+        || zoneId === APP_ZONE_CLASSROOM
+        || zoneId === APP_ZONE_TOOLS
+        || zoneId === APP_ZONE_NOTES
+    ) {
         return true;
     }
     return canAccessSetupHost();
 }
 
 function canAccessZoneSegment(zoneId, segmentId) {
+    if (zoneId === APP_ZONE_NOTES) {
+        return true;
+    }
     if (!segmentId && DIRECT_ZONE_TAB[zoneId]) {
         return canAccessSetupHost();
     }
@@ -26370,13 +26390,13 @@ function getSharedActiveClassId() {
     return classId && (appData.classes || []).some((c) => c && c.id === classId) ? classId : '';
 }
 
-/** Open Classroom → Notes with the shared active class pre-selected (phones open /notes.html). */
+/** Open the Notes tab with the shared active class pre-selected (phones open /notes.html). */
 async function openNotesForActiveClass(options = {}) {
     if (prefersMobileNotesNav()) {
         void openNotesPage(Object.assign({ sameTab: true }, resolveDefaultOpenNotesParams()));
         return;
     }
-    await navigateToZone(APP_ZONE_CLASSROOM, 'notes');
+    await navigateToZone(APP_ZONE_NOTES, '');
     if (getActiveTab() !== 'notes') {
         return;
     }

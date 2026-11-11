@@ -39,9 +39,9 @@ const ZONE_SEGMENT_TO_TAB = {
         ledger: 'ledger',
         homework: 'homework-tracking',
         points: 'points',
-        tests: 'tests',
-        notes: 'notes'
+        tests: 'tests'
     },
+    notes: { notes: 'notes' },
     tools: {
         essays: 'essays',
         'debate-teams': 'debate-teams',
@@ -51,7 +51,7 @@ const ZONE_SEGMENT_TO_TAB = {
     more: { data: 'data' }
 };
 
-const ZONE_IDS = ['schedule', 'classes', 'classroom', 'tools', 'more'];
+const ZONE_IDS = ['schedule', 'classes', 'classroom', 'tools', 'notes', 'more'];
 
 const api = loadApi();
 
@@ -61,18 +61,20 @@ assert(defaultsZone['speaking-test'] === 'tools', 'default speaking-test in tool
 assert(defaultsZone['homework-tracking'] === 'classroom', 'classroom homework tab');
 assert(defaultsZone.homework === 'schedule', 'schedule homework tab');
 assert(!defaultsZone.data, 'data not in default tab zone map');
+assert(!defaultsZone.notes, 'notes is a main tab, not a classroom segment');
 
 const migrated = api.migrateSegmentOrderToTabOrder(
     {
         tools: ['debate-teams', 'essays'],
-        classroom: ['notes', 'students']
+        classroom: ['attendance', 'students']
     },
     ZONE_SEGMENT_TO_TAB
 );
 assert(migrated.tools[0] === 'debate-teams', 'migrate preserves tools order');
 assert(migrated.tools.includes('essays'), 'migrate keeps essays in tools');
-assert(migrated.classroom[0] === 'notes', 'migrate classroom order');
-assert(migrated.classroom.includes('attendance'), 'migrate fills missing classroom tabs');
+assert(migrated.classroom[0] === 'attendance', 'migrate classroom order');
+assert(migrated.classroom.includes('ledger'), 'migrate fills missing classroom tabs');
+assert(!api.canAcceptSegmentDrop('notes', 'essays'), 'Notes zone rejects segment drops');
 
 const moved = api.normalizeTabLayout(
     {
@@ -126,12 +128,11 @@ const okMove = api.applyCrossZoneMove(
             ledger: 'classroom',
             'homework-tracking': 'classroom',
             points: 'classroom',
-            tests: 'classroom',
-            notes: 'classroom'
+            tests: 'classroom'
         },
         navTabOrder: {
             tools: ['essays', 'debate-teams', 'debate-scores', 'speaking-test'],
-            classroom: ['students', 'attendance', 'ledger', 'homework-tracking', 'points', 'tests', 'notes']
+            classroom: ['students', 'attendance', 'ledger', 'homework-tracking', 'points', 'tests']
         }
     },
     'essays',

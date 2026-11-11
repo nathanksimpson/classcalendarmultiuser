@@ -18,6 +18,7 @@ const Suggestions = require('./suggestions');
 const NotificationMeta = require('./notification-meta');
 const UiPrefs = require('./ui-prefs');
 const EssayBatchDrafts = require('./essay-batch-drafts');
+const BoardAccess = require('./board-access');
 const CalendarMeta = require('./calendar-meta');
 const AccessRequests = require('./access-requests');
 const AdminUserPolicy = require('./admin-user-policy');
@@ -1507,6 +1508,70 @@ app.put('/api/calendars/:id/essay-batch-draft', requireUser, rejectViewAsWrites,
         }
         res.status(status).json(payload);
     }
+});
+
+const BOARD_HTTP_PATHS = [
+    '/api/calendars/:id/board',
+    '/api/calendars/:id/board/feed',
+    '/api/calendars/:id/board/search',
+    '/api/calendars/:id/board/inbox',
+    '/api/calendars/:id/board/read',
+    '/api/calendars/:id/board/reactions',
+    '/api/calendars/:id/board/posts',
+    '/api/calendars/:id/board/posts/:postId',
+    '/api/calendars/:id/board/posts/:postId/replies',
+    '/api/calendars/:id/board/replies/:replyId',
+    '/api/board/students/history'
+];
+
+function sendBoardResult(res, result) {
+    const status = result && result.status ? result.status : 200;
+    res.status(status).json(result && result.body != null ? result.body : {});
+}
+
+async function handleBoardHttp(req, res) {
+    try {
+        const result = await BoardAccess.dispatch({
+            method: req.method,
+            pathname: req.path,
+            query: req.query || {},
+            user: req.user,
+            viewAs: Boolean(req.viewAsSession),
+            body: req.body && typeof req.body === 'object' ? req.body : {}
+        });
+        if (!result) {
+            res.status(404).json({ error: 'Not found' });
+            return;
+        }
+        sendBoardResult(res, result);
+    } catch (err) {
+        const payload = { error: (err && err.message) || 'Board request failed' };
+        if (err && err.code) {
+            payload.code = err.code;
+        }
+        res.status(err && err.status ? err.status : 500).json(payload);
+    }
+}
+
+function settleBoardHttp(req, res) {
+    Promise.resolve(handleBoardHttp(req, res)).catch((err) => {
+        if (res.headersSent) {
+            return;
+        }
+        res.status(500).json({ error: (err && err.message) || 'Board request failed' });
+    });
+}
+
+BOARD_HTTP_PATHS.forEach((boardPath) => {
+    app.all(boardPath, requireUser, (req, res) => {
+        if (req.method === 'GET' || req.method === 'HEAD') {
+            settleBoardHttp(req, res);
+            return;
+        }
+        rejectViewAsWrites(req, res, () => {
+            settleBoardHttp(req, res);
+        });
+    });
 });
 
 app.get('/api/calendars/:id', requireUser, (req, res) => {

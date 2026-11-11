@@ -139,7 +139,6 @@ function block(id) {
         'homework',
         'homework-tracking',
         'ledger',
-        'notes',
         'points',
         'portfolio',
         'speaking-test',
@@ -151,7 +150,7 @@ function block(id) {
     ];
     assert(JSON.stringify(tabs) === JSON.stringify(expected), `zone/segment data-tab set unchanged (got ${tabs.join(',')})`);
     const zones = Array.from(html.matchAll(/class="app-zone-btn[^"]*"[^>]*data-zone="([^"]+)"/g)).map((m) => m[1]);
-    assert(zones.join(',') === 'schedule,classes,classroom,tools,more', `zone ids unchanged (got ${zones.join(',')})`);
+    assert(zones.join(',') === 'schedule,classes,classroom,tools,notes,more', `zone ids unchanged (got ${zones.join(',')})`);
     assert(html.includes('id="panel-data"') && html.includes('data-tab="data"'), 'Data panel id unchanged');
 }
 

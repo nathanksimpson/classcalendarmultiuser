@@ -511,9 +511,9 @@
         { code: 'E11', direction: 'export', group: 'debate', labelKey: 'classroomDebateExportBackup', mode: 'jump', zone: 'tools', segment: 'debate-teams', targetId: 'debateV2ExportJson' },
         { code: 'E12', direction: 'export', group: 'debate', labelKey: 'classroomDebateDownloadWord', mode: 'jump', zone: 'tools', segment: 'debate-teams', targetId: 'debateV2Word' },
         { code: 'E13', direction: 'export', group: 'debate', labelKey: 'classroomDebateDownloadPdf', mode: 'jump', zone: 'tools', segment: 'debate-teams', targetId: 'debateV2Pdf' },
-        { code: 'E14', direction: 'export', group: 'notes', labelKey: 'classNotesExportDownload', mode: 'jump', zone: 'classroom', segment: 'notes', targetId: 'classNotesExportDownloadBtn' },
-        { code: 'E15', direction: 'export', group: 'notes', labelKey: 'classNotesExportCopy', mode: 'jump', zone: 'classroom', segment: 'notes', targetId: 'classNotesExportCopyBtn' },
-        { code: 'E16', direction: 'export', group: 'notes', labelKey: 'dataIoDayNotesSummary', mode: 'jump', zone: 'classroom', segment: 'notes', targetId: 'classNotesDaySummaryBtn' },
+        { code: 'E14', direction: 'export', group: 'notes', labelKey: 'classNotesExportDownload', mode: 'jump', zone: 'notes', segment: 'notes', targetId: 'classNotesExportDownloadBtn' },
+        { code: 'E15', direction: 'export', group: 'notes', labelKey: 'classNotesExportCopy', mode: 'jump', zone: 'notes', segment: 'notes', targetId: 'classNotesExportCopyBtn' },
+        { code: 'E16', direction: 'export', group: 'notes', labelKey: 'dataIoDayNotesSummary', mode: 'jump', zone: 'notes', segment: 'notes', targetId: 'classNotesDaySummaryBtn' },
         { code: 'E17', direction: 'export', group: 'debate', labelKey: 'dataIoHomeworkDebateFiles', mode: 'jump', zone: 'schedule', segment: 'homework', targetId: 'panel-homework' }
     ];
 
