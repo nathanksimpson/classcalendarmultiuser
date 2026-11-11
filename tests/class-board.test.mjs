@@ -173,6 +173,48 @@ const checkMark = core.REACTIONS[1];
     check('history stays inside calendars the person can open', outsider.status === 200 && (outsider.body.posts || []).length === 0, `n=${outsider.body && outsider.body.posts && outsider.body.posts.length}`);
 }
 
+{
+    const { env, A, V } = setup();
+    const id = await makeCalendar(A, env, 'Import Term', {
+        dayNotes: [
+            {
+                id: 'dn-old',
+                classId: 'c1',
+                date: '2026-11-02',
+                text: 'Old note about class',
+                authorUserId: 'uv',
+                categoryId: 'parent-consult',
+                taggedStudentIds: ['stu_old']
+            },
+            {
+                id: 'dn-points',
+                classId: 'c1',
+                date: '2026-11-03',
+                text: 'Point noise that should stay out',
+                categoryId: 'class-points'
+            }
+        ]
+    });
+    grant(env, id, 'uv', 'viewer');
+    const first = await V('POST', `/api/calendars/${id}/board/import-day-notes`, {});
+    check('day notes import once', first.status === 200 && first.body.imported === 1, JSON.stringify(first.body));
+    const second = await V('POST', `/api/calendars/${id}/board/import-day-notes`, {});
+    check('day notes import is safe to repeat', second.status === 200 && second.body.imported === 0, JSON.stringify(second.body));
+    const board = await V('GET', `/api/calendars/${id}/board?kind=class&ref=c1`);
+    const posts = (board.body && board.body.posts) || [];
+    check(
+        'imported note is on the class board',
+        posts.some((post) => post.body === 'Old note about class' && post.authorUserId === 'uv' && (post.tags || []).includes('parent-consult')),
+        JSON.stringify(posts.map((post) => post.body))
+    );
+    check('points notes are not imported', !posts.some((post) => String(post.body || '').includes('Point noise')));
+    const byTms = await V('GET', '/api/board/students/history?tmsMpidx=mp-100');
+    check(
+        'imported tag keeps tms id',
+        (byTms.body.posts || []).some((post) => post.body === 'Old note about class')
+    );
+}
+
 if (failures) {
     console.error(`\n${failures} class-board check(s) failed`);
     process.exit(1);

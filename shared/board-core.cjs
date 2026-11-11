@@ -813,8 +813,8 @@ async function listFeed(ctx, user, calendarId, query) {
     const cursor = readCursor(query);
     const where = ['calendar_id = ?'];
     const params = [calendarId];
+    const data = await ctx.loadCalendar(calendarId);
     if (scope === 'mine') {
-        const data = await ctx.loadCalendar(calendarId);
         if (!data) {
             throw boardError('Calendar not found', 404, 'BOARD_NOT_FOUND');
         }
@@ -831,14 +831,154 @@ async function listFeed(ctx, user, calendarId, query) {
     const hasMore = page.length > limit;
     const slice = hasMore ? page.slice(0, limit) : page;
     const last = slice[slice.length - 1];
+    const unreadBoards = data
+        ? await unreadBoardList(ctx, user, calendarId, mineBoardKeys(user.id, data))
+        : [];
     return {
         status: 200,
         body: {
             scope,
             posts: await presentPosts(ctx, slice),
-            nextCursor: hasMore && last ? encodeCursor(last.createdAt, last.id) : null
+            nextCursor: hasMore && last ? encodeCursor(last.createdAt, last.id) : null,
+            unreadBoards
         }
     };
+}
+
+async function unreadBoardList(ctx, user, calendarId, keys) {
+    if (!keys.length) {
+        return [];
+    }
+    const parts = keys.map(() => '(board_kind = ? AND board_ref = ?)');
+    const params = [calendarId];
+    keys.forEach((key) => {
+        params.push(key.kind, key.ref);
+    });
+    const newestRows = await ctx.db.all(
+        `SELECT board_kind AS boardKind, board_ref AS boardRef, MAX(created_at) AS newest
+         FROM board_posts
+         WHERE calendar_id = ? AND deleted_at IS NULL AND (${parts.join(' OR ')})
+         GROUP BY board_kind, board_ref`,
+        params
+    );
+    const reads = await ctx.db.all(
+        `SELECT board_key AS boardKey, last_read_at AS lastReadAt
+         FROM board_read_state WHERE user_id = ? AND calendar_id = ?`,
+        [String(user.id), calendarId]
+    );
+    const readAt = new Map(reads.map((row) => [row.boardKey, row.lastReadAt]));
+    return newestRows
+        .filter((row) => {
+            const seen = readAt.get(boardKey(row.boardKind, row.boardRef || ''));
+            return Boolean(row.newest) && (!seen || row.newest > seen);
+        })
+        .map((row) => ({ boardKind: row.boardKind, boardRef: row.boardRef || '' }));
+}
+
+const IMPORT_SKIP_CATEGORIES = new Set(['class-points', 'essay-resubmit']);
+
+async function importDayNotes(ctx, user, calendarId) {
+    await requireCalendar(ctx, user, calendarId);
+    const data = await ctx.loadCalendar(calendarId);
+    if (!data) {
+        throw boardError('Calendar not found', 404, 'BOARD_NOT_FOUND');
+    }
+    const classIds = new Set((data.classes || []).filter((row) => row && row.id).map((row) => String(row.id)));
+    const studentsById = new Map();
+    (data.cohorts || []).forEach((cohort) => {
+        (cohort.students || []).forEach((student) => {
+            if (student && student.id) {
+                studentsById.set(String(student.id), student);
+            }
+        });
+    });
+    const notes = Array.isArray(data.dayNotes) ? data.dayNotes : [];
+    let imported = 0;
+    let skipped = 0;
+    for (const note of notes) {
+        if (!note || typeof note !== 'object') {
+            skipped += 1;
+            continue;
+        }
+        const noteId = String(note.id || '').trim();
+        const classId = String(note.classId || '').trim();
+        const category = String(note.categoryId || 'class-notes').trim() || 'class-notes';
+        if (!noteId || !classId || !classIds.has(classId) || IMPORT_SKIP_CATEGORIES.has(category)) {
+            skipped += 1;
+            continue;
+        }
+        const bodyCheck = validateBody(String(note.text || '').slice(0, BODY_MAX));
+        const dateCheck = validateLessonDate(note.date);
+        if (bodyCheck.error || dateCheck.error) {
+            skipped += 1;
+            continue;
+        }
+        const sourceRef = `daynote:${noteId}`.slice(0, 200);
+        const existing = await ctx.db.one(
+            'SELECT id FROM board_posts WHERE calendar_id = ? AND source_ref = ?',
+            [calendarId, sourceRef]
+        );
+        if (existing) {
+            skipped += 1;
+            continue;
+        }
+        const tagged = Array.isArray(note.taggedStudentIds) ? note.taggedStudentIds : [];
+        const students = takeChecked(
+            validateStudents(
+                tagged.map((studentId) => {
+                    const student = studentsById.get(String(studentId));
+                    return {
+                        studentId: String(studentId),
+                        tmsMpidx: student && student.tmsMpidx ? String(student.tmsMpidx) : ''
+                    };
+                })
+            ),
+            400,
+            'BOARD_STUDENTS'
+        ).students;
+        const tags = category === 'class-notes' ? [] : takeChecked(validateTags([category]), 400, 'BOARD_TAGS').tags;
+        const author = String(note.authorUserId || user.id || '').trim() || String(user.id);
+        const id = ctx.newId();
+        const now = ctx.now();
+        const blob = ctx.encrypt(id, bodyCheck.body);
+        try {
+            await ctx.db.run(
+                `INSERT INTO board_posts (
+                    id, calendar_id, board_kind, board_ref, lesson_date, author_user_id,
+                    body, body_enc_version, body_key_wrapped, tags_json, is_special,
+                    created_at, updated_at, source_ref
+                ) VALUES (?, ?, 'class', ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+                [
+                    id,
+                    calendarId,
+                    classId,
+                    dateCheck.date,
+                    author,
+                    blob.body,
+                    blob.bodyEncVersion,
+                    blob.bodyKeyWrapped,
+                    JSON.stringify(tags),
+                    now,
+                    now,
+                    sourceRef
+                ]
+            );
+        } catch (err) {
+            if (err && /unique/i.test(String(err.message || ''))) {
+                skipped += 1;
+                continue;
+            }
+            throw err;
+        }
+        await replaceStudents(ctx, id, calendarId, students);
+        imported += 1;
+    }
+    if (imported) {
+        await logWrite(ctx, user, calendarId, 'board_post_create', 'Brought old day notes onto the class board', {
+            imported
+        });
+    }
+    return { status: 200, body: { imported, skipped } };
 }
 
 async function searchBoard(ctx, user, calendarId, query) {
@@ -1445,7 +1585,15 @@ function matchRoute(pathname) {
     if (rest === '' ) {
         return { name: 'board', calendarId };
     }
-    if (rest === 'feed' || rest === 'search' || rest === 'inbox' || rest === 'read' || rest === 'reactions' || rest === 'posts') {
+    if (
+        rest === 'feed' ||
+        rest === 'search' ||
+        rest === 'inbox' ||
+        rest === 'read' ||
+        rest === 'reactions' ||
+        rest === 'posts' ||
+        rest === 'import-day-notes'
+    ) {
         return { name: rest, calendarId };
     }
     const post = rest.match(/^posts\/([^/]+)$/);
@@ -1507,6 +1655,9 @@ async function route(ctx, http) {
     }
     if (found.name === 'posts' && method === 'POST') {
         return createPost(ctx, http.user, found.calendarId, body);
+    }
+    if (found.name === 'import-day-notes' && method === 'POST') {
+        return importDayNotes(ctx, http.user, found.calendarId);
     }
     if (found.name === 'posts' && method === 'GET') {
         return listBoard(ctx, http.user, found.calendarId, query);

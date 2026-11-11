@@ -201,6 +201,7 @@ Production: https://classmanager.live (see `PUBLIC_URL` in `wrangler.toml`; work
   | `0005_app_settings.sql` | App settings (e.g. lock stale minutes) |
   | `0015_calendar_blob_encryption.sql` | `data_enc_version`, `data_key_wrapped` on calendars + suggestions |
   | `0022_class_board.sql` | Class board posts, replies, reactions, revisions, read state. Not applied by the build — run `npm run db:migrate:remote` yourself before this is used in production. |
+  | `0023_class_board_source.sql` | `source_ref` on board posts so old day notes can be copied in once. |
 
 - [ ] **Blob encryption** (if enabling application-level calendar encryption):
   1. Generate key: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`

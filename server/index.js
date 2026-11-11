@@ -1518,6 +1518,7 @@ const BOARD_HTTP_PATHS = [
     '/api/calendars/:id/board/read',
     '/api/calendars/:id/board/reactions',
     '/api/calendars/:id/board/posts',
+    '/api/calendars/:id/board/import-day-notes',
     '/api/calendars/:id/board/posts/:postId',
     '/api/calendars/:id/board/posts/:postId/replies',
     '/api/calendars/:id/board/replies/:replyId',

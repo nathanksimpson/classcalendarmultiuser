@@ -104,6 +104,7 @@ const MINIFY_JS = [
     'js/day-note-categories.js',
     'js/day-note-mentions.js',
     'js/class-notes-panel.js',
+    'js/class-board.js',
     'js/books-editor.js',
     'js/syllabus-table.js',
     'js/homework-import.js',

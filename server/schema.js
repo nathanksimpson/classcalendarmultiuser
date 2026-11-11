@@ -88,6 +88,7 @@ function migrate(db) {
     migrateSoundboardBoard(db);
     migrateEssayBatchDrafts(db);
     migrateClassBoard(db);
+    migrateClassBoardSourceRef(db);
 }
 
 function migrateClassBoard(db) {
@@ -197,6 +198,16 @@ function migrateUserNotificationMeta(db) {
         CREATE INDEX IF NOT EXISTS idx_user_notification_meta_calendar
             ON user_notification_meta(calendar_id, user_id);
     `);
+}
+
+function migrateClassBoardSourceRef(db) {
+    const cols = db.prepare('PRAGMA table_info(board_posts)').all();
+    if (!cols.some((col) => col.name === 'source_ref')) {
+        db.exec('ALTER TABLE board_posts ADD COLUMN source_ref TEXT');
+    }
+    db.exec(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_board_posts_source ON board_posts(calendar_id, source_ref)'
+    );
 }
 
 function migrateSoundboardBoard(db) {

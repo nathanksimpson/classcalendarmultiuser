@@ -13139,6 +13139,10 @@ function scheduleFlushDeferredClassNotesRender() {
 }
 
 function renderClassNotesTab() {
+    if (typeof CCPClassBoard !== 'undefined' && CCPClassBoard.show) {
+        CCPClassBoard.show();
+        return;
+    }
     const summaryEl = document.getElementById('classNotesSummaryLine');
     const emptyEl = document.getElementById('classNotesEmptyFiltered');
     const previewEl = document.getElementById('classNotesPreview');
@@ -16828,7 +16832,7 @@ async function navigateToTabBody(tabId, options = {}) {
     if (!APP_TAB_IDS.includes(tabId)) {
         tabId = 'calendar';
     }
-    if (tabId === 'notes' && prefersMobileNotesNav()) {
+    if (tabId === 'notes' && prefersMobileNotesNav() && typeof CCPClassBoard === 'undefined') {
         openNotesPage({ sameTab: true });
         return;
     }
@@ -16892,10 +16896,14 @@ async function navigateToTabBody(tabId, options = {}) {
 
     let tabInitPromise = null;
     if (tabId === 'notes') {
-        mountClassNotesToNotesTab();
-        initClassNotesTab();
-        resetClassNotesAddForm();
-        renderClassNotesTab();
+        if (typeof CCPClassBoard !== 'undefined' && CCPClassBoard.show) {
+            CCPClassBoard.show();
+        } else {
+            mountClassNotesToNotesTab();
+            initClassNotesTab();
+            resetClassNotesAddForm();
+            renderClassNotesTab();
+        }
     } else if (tabId === 'classes') {
         if (options.segment === 'notes' || options.segment === 'info') {
             setClassesPanelSegment(options.segment, options);
@@ -26392,10 +26400,6 @@ function getSharedActiveClassId() {
 
 /** Open the Notes tab with the shared active class pre-selected (phones open /notes.html). */
 async function openNotesForActiveClass(options = {}) {
-    if (prefersMobileNotesNav()) {
-        void openNotesPage(Object.assign({ sameTab: true }, resolveDefaultOpenNotesParams()));
-        return;
-    }
     await navigateToZone(APP_ZONE_NOTES, '');
     if (getActiveTab() !== 'notes') {
         return;
