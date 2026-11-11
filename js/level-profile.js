@@ -27,6 +27,12 @@
         ['\uC548\uB098', MID3], ['\uB0AD\uAC00', MID3], ['\uB85C\uCCB4', MID3], ['\uCE89\uCCB8', MID3]
     ];
 
+    /** Shown name for a middle level id. The 중2 id keeps its old spelling 바이컬 (stored in data); it shows as 바이칼. */
+    const MIDDLE_DISPLAY = { '\uBC14\uC774\uCEEC': '\uBC14\uC774\uCE7C' };
+    function middleName(id) {
+        return MIDDLE_DISPLAY[id] || id;
+    }
+
     const ELEMENTARY_IDS = [
         'Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Navy', 'Purple',
         'Yeoul', 'Saemmul', 'Garam', 'Bada', 'Byeolmaru', 'Mirinae'
@@ -44,13 +50,13 @@
             id: 'pre-middle',
             labelKey: 'simsonLevelsPreMiddle',
             fallbackLabel: 'Pre middle school',
-            levels: MIDDLE_LEVELS.map(([id]) => ({ id: `Pre ${id}`, name: `Pre ${id}`, grade: null, preOf: id }))
+            levels: MIDDLE_LEVELS.map(([id]) => ({ id: `Pre ${id}`, name: `Pre ${middleName(id)}`, grade: null, preOf: id }))
         },
         {
             id: 'middle',
             labelKey: 'simsonLevelsMiddleSchool',
             fallbackLabel: 'Middle school',
-            levels: MIDDLE_LEVELS.map(([id, grade]) => ({ id, name: id, grade }))
+            levels: MIDDLE_LEVELS.map(([id, grade]) => ({ id, name: middleName(id), grade }))
         }
     ]);
 
@@ -422,6 +428,206 @@
         return { levelOverrides: overrides, levelProfileMigrated: VERSION };
     }
 
+    /**
+     * English + Korean names of each level, as TMS and teachers write them.
+     * Keyed by level id (stored in class.levelPreset). `aliases` are other spellings
+     * that should still match (old ids, common misspellings). The 중2 level's id is
+     * the old spelling 바이컬; it shows and matches as 바이칼, and the id is kept so
+     * stored data still resolves.
+     */
+    const LEVEL_NAMES = deepFreeze({
+        Red: { en: 'Red', ko: '레드' },
+        Orange: { en: 'Orange', ko: '오렌지' },
+        Yellow: { en: 'Yellow', ko: '옐로우', aliases: ['옐로'] },
+        Green: { en: 'Green', ko: '그린' },
+        Blue: { en: 'Blue', ko: '블루' },
+        Navy: { en: 'Navy', ko: '네이비' },
+        Purple: { en: 'Purple', ko: '퍼플' },
+        Yeoul: { en: 'Yeoul', ko: '여울' },
+        Saemmul: { en: 'Saemmul', ko: '샘물' },
+        Garam: { en: 'Garam', ko: '가람' },
+        Bada: { en: 'Bada', ko: '바다' },
+        Byeolmaru: { en: 'Byeolmaru', ko: '별마루', aliases: ['Byeomaru'] },
+        Mirinae: { en: 'Mirinae', ko: '미리내' },
+        '유마': { en: 'Yuma', ko: '유마' },
+        '레오': { en: 'Leo', ko: '레오' },
+        '파보': { en: 'Pavo', ko: '파보' },
+        '폴라': { en: 'Polar', ko: '폴라', aliases: ['Pola', '포라'] },
+        '홉스': { en: 'Hobbs', ko: '홉스' },
+        '티카': { en: 'Tika', ko: '티카' },
+        '빅키': { en: 'Vicci', ko: '빅키' },
+        '바이컬': { en: 'Baikal', ko: '바이칼', aliases: ['바이컬'] },
+        '안나': { en: 'Anna', ko: '안나' },
+        '낭가': { en: 'Nangga', ko: '낭가' },
+        '로체': { en: 'Roche', ko: '로체' },
+        '캉첸': { en: 'Kanchen', ko: '캉첸' }
+    });
+
+    const PRE_PREFIXES = ['pre', '프리'];
+
+    /** Lower-case, no spaces or punctuation: how names are compared. */
+    function nameKey(v) {
+        return str(v)
+            .toLowerCase()
+            .replace(/[\s._\-·]+/g, '')
+            .replace(/[^a-z0-9가-힣]/g, '');
+    }
+
+    /**
+     * Every name a level answers to (id, English, Korean, aliases).
+     * @returns {{ id: string, en: string, ko: string, pre: boolean, names: string[] } | null}
+     */
+    function getLevelNames(id) {
+        const def = getLevelById(id);
+        if (!def) {
+            return null;
+        }
+        const baseId = def.preOf || def.id;
+        const base = LEVEL_NAMES[baseId] || { en: baseId, ko: '' };
+        const baseNames = Array.from(
+            new Set([baseId, base.en, base.ko].concat(base.aliases || []).filter(Boolean))
+        );
+        if (!def.preOf) {
+            return { id: def.id, en: base.en, ko: base.ko, pre: false, names: baseNames };
+        }
+        const names = [];
+        baseNames.forEach((n) => {
+            names.push(`Pre ${n}`, `pre${n}`, `프리${n}`);
+        });
+        return {
+            id: def.id,
+            en: `Pre ${base.en}`,
+            ko: base.ko ? `pre${base.ko}` : '',
+            pre: true,
+            names: Array.from(new Set(names))
+        };
+    }
+
+    /** Level label in the UI language (Korean when lang starts with 'ko' and a name exists). */
+    function levelDisplayName(id, lang) {
+        const names = getLevelNames(id);
+        if (!names) {
+            return str(id);
+        }
+        return String(lang || '').toLowerCase().startsWith('ko') ? names.ko || names.en : names.en;
+    }
+
+    /** Base levels' name keys, longest first, so 별마루 wins over a shorter name inside it. */
+    let nameIndex = null;
+    function getNameIndex() {
+        if (nameIndex) {
+            return nameIndex;
+        }
+        const rows = [];
+        Object.keys(LEVEL_NAMES).forEach((id) => {
+            const def = getLevelById(id);
+            if (!def) {
+                return;
+            }
+            const n = LEVEL_NAMES[id];
+            [id, n.en, n.ko].concat(n.aliases || []).forEach((name) => {
+                const key = nameKey(name);
+                if (key) {
+                    rows.push({ key, id });
+                }
+            });
+        });
+        rows.sort((a, b) => b.key.length - a.key.length);
+        nameIndex = rows;
+        return rows;
+    }
+
+    /**
+     * Read a class or cohort name in TMS or ClassManager form:
+     *   "샘물M^2609" · "Saemmul M" · "pre폴라M^2609" · "Pre 폴라" · "Pre Leo T News" · "[잠실] 가람T"
+     * @returns {{ levelId: string, baseId: string, pre: boolean, section: string } | null}
+     *   section is 'm' or 't' (the letter after the level), or '' when there is none.
+     */
+    function parseClassName(name) {
+        let key = str(name)
+            .replace(/^\[[^\]]*\]\s*/u, '') // TMS branch tag
+            .replace(/[\^_].*$/u, ''); // TMS term suffix: ^2609, _26SP
+        key = nameKey(key);
+        if (!key) {
+            return null;
+        }
+        let pre = false;
+        for (let i = 0; i < PRE_PREFIXES.length; i += 1) {
+            const prefix = PRE_PREFIXES[i];
+            if (key.startsWith(prefix) && key.length > prefix.length) {
+                const rest = key.slice(prefix.length);
+                if (getNameIndex().some((row) => rest.startsWith(row.key))) {
+                    pre = true;
+                    key = rest;
+                }
+                break;
+            }
+        }
+        const hit = getNameIndex().find((row) => key.startsWith(row.key));
+        if (!hit) {
+            return null;
+        }
+        const after = key.slice(hit.key.length);
+        const section = /^[mt]/.test(after) ? after.charAt(0) : '';
+        const levelId = pre ? `Pre ${hit.id}` : hit.id;
+        if (!getLevelById(levelId)) {
+            return null;
+        }
+        return { levelId, baseId: hit.id, pre, section };
+    }
+
+    /**
+     * Pick the one candidate whose name is the same level (and M/T section) as `name`.
+     * Same level + same section wins; when either side has no section, a level match
+     * counts only if it is the only one. Ambiguous → null (no suggestion).
+     * @param {string} name e.g. a TMS class name
+     * @param {object[]} candidates
+     * @param {(c: object) => string} [getName]
+     */
+    function matchByLevelName(name, candidates, getName) {
+        const target = parseClassName(name);
+        if (!target) {
+            return null;
+        }
+        const nameOf = typeof getName === 'function' ? getName : (c) => (c && c.name) || '';
+        const sameLevel = (Array.isArray(candidates) ? candidates : []).filter((c) => {
+            const parsed = parseClassName(nameOf(c));
+            return parsed && parsed.levelId === target.levelId;
+        });
+        if (target.section) {
+            const exact = sameLevel.filter((c) => parseClassName(nameOf(c)).section === target.section);
+            if (exact.length === 1) {
+                return exact[0];
+            }
+            if (exact.length > 1) {
+                return null;
+            }
+            const loose = sameLevel.filter((c) => !parseClassName(nameOf(c)).section);
+            return loose.length === 1 ? loose[0] : null;
+        }
+        return sameLevel.length === 1 ? sameLevel[0] : null;
+    }
+
+    /** Space-joined level names for a class, for search ("샘물" finds Saemmul M). */
+    function searchNamesForClass(classData) {
+        if (!classData) {
+            return '';
+        }
+        const out = new Set();
+        const add = (id) => {
+            const names = getLevelNames(id);
+            if (names) {
+                names.names.forEach((n) => out.add(n));
+            }
+        };
+        add(resolveLevelId(classData));
+        const parsed = parseClassName(classData.name);
+        if (parsed) {
+            add(parsed.levelId);
+        }
+        return Array.from(out).join(' ');
+    }
+
     const api = {
         VERSION,
         LEVEL_GROUPS,
@@ -430,8 +636,14 @@
         DEBATE_BAND_DEFAULTS,
         DEBATE_PRESET_IDS,
         AUTO_FIELDS,
+        LEVEL_NAMES,
         getAllLevels,
         getLevelById,
+        getLevelNames,
+        levelDisplayName,
+        parseClassName,
+        matchByLevelName,
+        searchNamesForClass,
         resolveLevelId,
         debateBandForLevel,
         debateDefaultsForBand,

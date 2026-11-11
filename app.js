@@ -16069,7 +16069,7 @@ function renderSyllabusClassList() {
         if (!q) {
             return true;
         }
-        const hay = [c.name, c.grade, c.book, c.levelCustom, formatClassLabelWithPeriod(c)].join(' ').toLowerCase();
+        const hay = [c.name, c.grade, c.book, c.levelCustom, formatClassLabelWithPeriod(c), typeof CCPLevelProfile !== 'undefined' && CCPLevelProfile.searchNamesForClass ? CCPLevelProfile.searchNamesForClass(c) : ''].join(' ').toLowerCase();
         return hay.includes(q);
     });
     if (classes.length === 0) {
@@ -17302,7 +17302,7 @@ function renderClassList() {
         if (!q) {
             return true;
         }
-        const hay = [c.name, c.grade, c.book, c.levelCustom, formatClassLabelWithPeriod(c)].join(' ').toLowerCase();
+        const hay = [c.name, c.grade, c.book, c.levelCustom, formatClassLabelWithPeriod(c), typeof CCPLevelProfile !== 'undefined' && CCPLevelProfile.searchNamesForClass ? CCPLevelProfile.searchNamesForClass(c) : ''].join(' ').toLowerCase();
         return hay.includes(q);
     });
     if (classes.length === 0) {
@@ -17673,7 +17673,7 @@ function getHomeworkVisibleClasses() {
         if (!q) {
             return true;
         }
-        const hay = [c.name, c.grade, c.book, c.levelCustom, formatClassLabelWithPeriod(c)].join(' ').toLowerCase();
+        const hay = [c.name, c.grade, c.book, c.levelCustom, formatClassLabelWithPeriod(c), typeof CCPLevelProfile !== 'undefined' && CCPLevelProfile.searchNamesForClass ? CCPLevelProfile.searchNamesForClass(c) : ''].join(' ').toLowerCase();
         return hay.includes(q);
     });
 

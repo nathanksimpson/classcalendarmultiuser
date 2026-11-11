@@ -1463,7 +1463,9 @@
         if (normHits.length === 1) {
             return normHits[0].id;
         }
-        return '';
+        const lp = global.CCPLevelProfile;
+        const hit = lp && lp.matchByLevelName ? lp.matchByLevelName(tmsName, list) : null;
+        return hit ? hit.id : '';
     }
 
     function buildTmsPlanRowFromScrape(c, calendar, links) {

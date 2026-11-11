@@ -1586,6 +1586,16 @@
                 suggestedTargetId = normHits[0].id;
             }
         }
+        if (!suggestedTargetId) {
+            // Same level in another language or form: 샘물M^2609 → "Saemmul M", pre폴라M → "Pre 폴라".
+            const lp = global.CCPLevelProfile;
+            const hit = lp && lp.matchByLevelName
+                ? lp.matchByLevelName(tmsClassName, list.filter((c) => c && !isArchiveCohort(c)))
+                : null;
+            if (hit) {
+                suggestedTargetId = hit.id;
+            }
+        }
 
         return {
             key,
@@ -7396,6 +7406,30 @@
         return found;
     }
 
+    /** Classes whose level (by name, else levelPreset) is the TMS class's level; M/T must agree when both say. */
+    function essayClassesForTmsLevel(classes, tmsClassName) {
+        const lp = global.CCPLevelProfile;
+        if (!lp || !lp.parseClassName) {
+            return [];
+        }
+        const target = lp.parseClassName(tmsClassName);
+        if (!target) {
+            return [];
+        }
+        return (Array.isArray(classes) ? classes : []).filter((c) => {
+            if (!c) {
+                return false;
+            }
+            const parsed = lp.parseClassName(c.name);
+            const levelId = parsed ? parsed.levelId : lp.resolveLevelId ? lp.resolveLevelId(c) : '';
+            if (levelId !== target.levelId) {
+                return false;
+            }
+            const section = parsed ? parsed.section : '';
+            return !target.section || !section || section === target.section;
+        });
+    }
+
     function cleanCohortNameForEssayMatch(name) {
         return normalizeStr(name)
             .replace(/^\[[^\]]+\]\s*/u, '')
@@ -8158,7 +8192,14 @@
         let suggestedClassId = '';
         let suggestedSyllabusRowId = '';
         const cohortId = findCohortIdForTmsClass(data, assign.tmsClassId, assign.className);
-        const classes = cohortId ? listClassesForCohort(data, cohortId) : listEssayClasses(data);
+        let classes = cohortId ? listClassesForCohort(data, cohortId) : listEssayClasses(data);
+        if (!cohortId) {
+            // No saved roster link: prefer classes of the same level (and M/T) as the TMS class.
+            const sameLevel = essayClassesForTmsLevel(classes, assign && assign.className);
+            if (sameLevel.length) {
+                classes = sameLevel;
+            }
+        }
         let best = null;
         classes.forEach((classData) => {
             const hit = matchEssayAssignmentRow(classData, assign.title, assignedDate, {

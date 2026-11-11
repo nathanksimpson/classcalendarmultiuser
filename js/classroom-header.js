@@ -72,6 +72,12 @@
             .join(', ');
     }
 
+    /** English + Korean level names ("샘물" finds Saemmul M). */
+    function levelSearchNames(classData) {
+        const lp = global.CCPLevelProfile;
+        return lp && lp.searchNamesForClass ? lp.searchNamesForClass(classData) : '';
+    }
+
     function classSearchHaystack(classData) {
         if (!classData) {
             return '';
@@ -86,7 +92,8 @@
             classData.subject,
             teachers,
             classData.homeroomTeacherName,
-            classData.homeroomTeacherUserId
+            classData.homeroomTeacherUserId,
+            levelSearchNames(classData)
         ]
             .filter(Boolean)
             .join(' ')

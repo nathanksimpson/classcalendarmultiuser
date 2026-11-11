@@ -3,6 +3,12 @@
  * window.CCPClassListView
  */
 (function (global) {
+    /** English + Korean level names ("샘물" finds Saemmul M). */
+    function levelSearchNames(classData) {
+        const lp = global.CCPLevelProfile;
+        return lp && lp.searchNamesForClass ? lp.searchNamesForClass(classData) : '';
+    }
+
     let hooks = {
         getClasses: () => [],
         getSelectedId: () => '',
@@ -110,7 +116,7 @@
             if (!q) {
                 return true;
             }
-            const hay = [c.name, c.grade, c.book, c.levelCustom, hooks.formatClassLabelWithPeriod(c)]
+            const hay = [c.name, c.grade, c.book, c.levelCustom, hooks.formatClassLabelWithPeriod(c), levelSearchNames(c)]
                 .join(' ')
                 .toLowerCase();
             return hay.includes(q);
