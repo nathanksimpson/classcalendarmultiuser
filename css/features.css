@@ -209,6 +209,25 @@
     color: var(--text-primary);
 }
 
+/* Keep the title and close (×) in view while a long pop-out scrolls. */
+.modal-content > .modal-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bg-card);
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+}
+
+.modal-header h2 {
+    min-width: 0;
+}
+
+.modal-header .modal-close {
+    flex-shrink: 0;
+    margin-left: var(--space-3);
+}
+
 
 
 /* Forms */
@@ -7428,7 +7447,8 @@ html.role-super-admin[data-theme="dark"] {
     background: var(--lock-btn-bg);
 }
 
-.team-lock-status--held .team-lock-status-btn {
+.team-lock-status--held .team-lock-status-btn,
+.team-lock-status--live .team-lock-status-btn {
     color: #047857;
     border-color: #6ee7b7;
     background: var(--lock-btn-bg);
@@ -7550,7 +7570,8 @@ html.role-super-admin[data-theme="dark"] {
     background: var(--lock-status-free-bg);
 }
 
-.team-lock-status--held {
+.team-lock-status--held,
+.team-lock-status--live {
     color: var(--status-success-color);
     border-color: var(--lock-status-held-border);
     background: var(--lock-status-held-bg);
@@ -7624,7 +7645,8 @@ html.role-super-admin[data-theme="dark"] {
     border-color: #475569;
 }
 
-[data-theme="dark"] .team-lock-status--held .team-lock-status-btn {
+[data-theme="dark"] .team-lock-status--held .team-lock-status-btn,
+[data-theme="dark"] .team-lock-status--live .team-lock-status-btn {
     color: #6ee7b7;
     background: #1e3a32;
     border-color: #059669;
@@ -14095,6 +14117,7 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
     font-size: var(--text-body-sm);
     font-weight: 600;
     color: var(--text-muted);
+    margin-bottom: 0;
 }
 
 .classroom-essay-resubmit-toggles {
@@ -15397,18 +15420,41 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
     white-space: nowrap;
 }
 
-.classroom-essay-progress-modal-body {
+.classroom-essay-progress-modal-body,
+.classroom-essay-resubmit-summary-modal-body {
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-    max-height: min(70vh, 560px);
+}
+
+/* Report pop-outs: Copy / Print stay at the bottom while the lists scroll. */
+.classroom-essay-progress-modal-body > .form-actions,
+.classroom-essay-resubmit-summary-modal-body > .form-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    margin-top: 0;
+    padding-bottom: var(--pad-overlay);
+    margin-bottom: calc(-1 * var(--pad-overlay));
+    background: var(--bg-card);
+}
+
+.classroom-essay-resubmit-summary-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: flex-end;
+}
+
+.classroom-essay-resubmit-summary-filters > input[type="search"] {
+    flex: 1 1 100%;
 }
 
 .classroom-essay-progress-filters {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
-    align-items: center;
+    align-items: flex-end;
 }
 
 .classroom-essay-progress-assignment-list {
@@ -15418,6 +15464,7 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
     padding: var(--space-2);
     flex: 1;
     min-height: 200px;
+    max-height: 40vh;
 }
 
 .classroom-essay-progress-class-group + .classroom-essay-progress-class-group {
@@ -21061,4 +21108,10 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-boo
 
 .source-version-banner p {
     margin: 0;
+}
+
+/* Live sync (no edit lock): the chip is a status, not a button. */
+.team-lock-status--live .team-lock-status-btn:disabled {
+    cursor: default;
+    opacity: 1;
 }
