@@ -1004,6 +1004,37 @@ function assert(cond, msg) {
     assert(detail.includes('HW-DAY-2') && detail.includes('HW-DAY-3'), 'already merged stays complete');
 }
 
+// Regression: Copy with duties on Day 2 & 3 Combined must not duplicate homework or duties
+{
+    const D2 = 'Day 2 HW:\n- Read A\n- Vocab p. 4\n- Quiz prep';
+    const D3 = 'Day 3 HW:\n- Speech\n- Notes p. 5\n- Timer';
+    const indexes = globalThis.CCPSyllabusTemplates.buildTemplateIndexes([
+        { sessionNumber: 2, planTitle: 'Day 2', planDetail: D2 },
+        { sessionNumber: 3, planTitle: 'Day 3', planDetail: D3 }
+    ]);
+    const opts = { classData: { scheduleModel: 'debateMonthly' }, templateIndexes: indexes };
+    const wrap = (b) => `--- Debate teams ---\n${b}\n--- End debate teams ---`;
+    const orphan = [{ kind: 'lesson', date: '2026-11-13', lessonNumber: 3, planDetail: `${D3}\n\n${wrap('OLD')}` }];
+    let row = {
+        kind: 'lesson', date: '2026-11-11', lessonNumber: 2, planTitle: 'Day 2 & 3 Combined',
+        planDetail: `${D2}\n\n${D3.replace('p. 5', 'p. 5-6')}`,
+        scheduleCompressed: true, compressedGroupStart: 2, compressedGroupEnd: 3,
+        debateCompressed: true, debateGroupStart: 2, debateGroupEnd: 3
+    };
+    const count = (s, n) => s.split(n).length - 1;
+    for (let i = 0; i < 3; i += 1) {
+        const shown = CCPSyllabus.resolveCompressedPlanDetail(row, orphan, [row], opts);
+        const body = shown.replace(/--- Debate teams ---[\s\S]*?--- End debate teams ---/g, '').trim();
+        row = { ...row, planDetail: `${body}\n\n${wrap(`NEW ${i}`)}` };
+    }
+    const out = CCPSyllabus.resolveCompressedPlanDetail(row, orphan, [row], opts);
+    assert(count(out, 'Day 3 HW') === 1, 'duties copy: Day 3 homework once');
+    assert(count(out, 'Day 2 HW') === 1, 'duties copy: Day 2 homework once');
+    assert(count(out, '--- Debate teams ---') === 1, 'duties copy: one duties block');
+    assert(out.includes('NEW 2') && !out.includes('OLD'), 'duties copy: newest block only');
+    assert(out.includes('p. 5-6'), 'duties copy: teacher edit kept');
+}
+
 // stripRedundantPlanDetailLines: Write Now style duplicate title line
 {
     const detail = 'Unit 1 Part 1\nCovered in Class:\nUnit 1\np. 8-11\nHomework:\nWB p. 2';

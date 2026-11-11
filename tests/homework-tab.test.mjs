@@ -611,6 +611,12 @@ function meetingHooks(holidayMap) {
     assert((twice.match(new RegExp(start.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length === 1,
         'only one start marker after re-inject');
 
+    const piled = `${once}\n\nMore homework\n\n${start}\nDEBATE 9\n${end}`;
+    const fixed = HT.injectDebateTeamsIntoAssignText(piled, 'DEBATE 1\n1. Cho (PM)');
+    assert(fixed.split(start).length === 2, 'inject clears every stale duties block');
+    assert(!fixed.includes('Alice') && !fixed.includes('DEBATE 9'), 'stale blocks gone');
+    assert(fixed.includes('More homework'), 'homework between blocks kept');
+
     const stripped = HT.stripDebateTeamsBlock(twice);
     assert(!stripped.includes(start), 'strip removes teams block');
     assert(stripped.includes(base), 'strip keeps homework body');

@@ -600,18 +600,26 @@
         return false;
     }
 
+    /** Remove every auto-inserted teams/duties block (older copies can pile up). */
     function stripDebateTeamsBlock(text) {
-        const raw = String(text || '');
-        const start = raw.indexOf(DEBATE_TEAMS_BLOCK_START);
-        if (start < 0) {
+        let raw = String(text || '');
+        if (raw.indexOf(DEBATE_TEAMS_BLOCK_START) < 0) {
             return raw;
         }
-        const end = raw.indexOf(DEBATE_TEAMS_BLOCK_END, start);
-        if (end < 0) {
-            return (raw.slice(0, start) + raw.slice(start + DEBATE_TEAMS_BLOCK_START.length)).trimEnd();
+        for (;;) {
+            const start = raw.indexOf(DEBATE_TEAMS_BLOCK_START);
+            if (start < 0) {
+                break;
+            }
+            const end = raw.indexOf(DEBATE_TEAMS_BLOCK_END, start);
+            if (end < 0) {
+                raw = raw.slice(0, start) + raw.slice(start + DEBATE_TEAMS_BLOCK_START.length);
+                continue;
+            }
+            const after = end + DEBATE_TEAMS_BLOCK_END.length;
+            raw = raw.slice(0, start) + '\n\n' + raw.slice(after);
         }
-        const after = end + DEBATE_TEAMS_BLOCK_END.length;
-        return (raw.slice(0, start) + raw.slice(after)).replace(/\n{3,}/g, '\n\n').trimEnd();
+        return raw.replace(/\n{3,}/g, '\n\n').trim();
     }
 
     const HOMEWORK_SAVED_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;

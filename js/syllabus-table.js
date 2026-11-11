@@ -1056,6 +1056,57 @@
         return false;
     }
 
+    // Same markers as CCPHomeworkTab (Copy with duties / Day 3 speaking order).
+    const AUTO_DEBATE_BLOCK_START = '--- Debate teams ---';
+    const AUTO_DEBATE_BLOCK_END = '--- End debate teams ---';
+
+    /**
+     * Pull every auto-inserted debate teams/duties block out of planDetail text.
+     * Returns the remaining homework text and the last block found (the newest).
+     */
+    function splitAutoDebateBlocks(text) {
+        let rest = String(text || '');
+        let lastBlock = '';
+        for (;;) {
+            const s = rest.indexOf(AUTO_DEBATE_BLOCK_START);
+            if (s < 0) {
+                break;
+            }
+            const e = rest.indexOf(AUTO_DEBATE_BLOCK_END, s);
+            const stop = e < 0 ? rest.length : e + AUTO_DEBATE_BLOCK_END.length;
+            if (e >= 0) {
+                lastBlock = rest.slice(s, stop).trim();
+            }
+            rest = rest.slice(0, s) + '\n\n' + rest.slice(stop);
+        }
+        return {
+            body: rest.replace(/\n{3,}/g, '\n\n').trim(),
+            block: lastBlock
+        };
+    }
+
+    function stripAutoDebateBlocks(text) {
+        return splitAutoDebateBlocks(text).body;
+    }
+
+    /** Most of a slot's lines already appear in text (tolerates small edits). */
+    function textCoversSlot(text, slotValue) {
+        const slot = String(slotValue || '').trim();
+        if (!slot) {
+            return true;
+        }
+        if (text.includes(slot)) {
+            return true;
+        }
+        const have = new Set(text.split('\n').map((l) => l.trim()).filter(Boolean));
+        const lines = [...new Set(slot.split('\n').map((l) => l.trim()).filter(Boolean))];
+        if (!lines.length) {
+            return true;
+        }
+        const hits = lines.filter((l) => have.has(l)).length;
+        return hits / lines.length >= 0.6;
+    }
+
     function assignCurrentTextToCompressionSlots(current, slots, start, end, options, isDebate) {
         const text = String(current || '').trim();
         if (!text) {
@@ -1063,6 +1114,14 @@
         }
         const partCount = end - start + 1;
         const textParts = text.split(/\n\n+/).map((s) => s.trim()).filter(Boolean);
+        // Saved combined text (e.g. Day 2 & 3, possibly teacher-edited) already holds every day:
+        // keep it whole instead of re-adding template days next to it.
+        if (partCount > 1 && textParts.length >= partCount && slots.size > 0
+            && [...slots.values()].every((v) => textCoversSlot(text, v))) {
+            slots.clear();
+            slots.set(start, text);
+            return;
+        }
         if ((combinedTemplateCoversAllDays(text, options, start, end, isDebate)
             || textParts.length >= partCount)
             && partCount > 1) {
@@ -1164,7 +1223,8 @@
             }
             const ln = getCurriculumLessonNumber(r);
             if (ln >= start && ln <= end) {
-                const t = (r.planDetail || '').trim();
+                // Old single-day duties blocks (e.g. Day 3 copied before the merge) are dropped.
+                const t = stripAutoDebateBlocks(r.planDetail);
                 if (t) {
                     slots.set(ln, t);
                 }
@@ -1181,11 +1241,13 @@
         }
 
         const genRow = (generatedRows || []).find((g) => rowKey(g) === rowKey(row));
-        const genDetail = genRow ? String(genRow.planDetail || '').trim() : '';
+        const genDetail = genRow ? stripAutoDebateBlocks(genRow.planDetail) : '';
         fillSlotsFromGeneratedDetail(slots, genDetail, start, end, options, isDebate);
 
+        // Match on homework text only; the row's own duties block is re-added once at the end.
+        const current = splitAutoDebateBlocks(row.planDetail);
         assignCurrentTextToCompressionSlots(
-            row.planDetail,
+            current.body,
             slots,
             start,
             end,
@@ -1198,6 +1260,9 @@
             if (slots.has(n)) {
                 parts.push(slots.get(n));
             }
+        }
+        if (current.block && parts.length) {
+            parts.push(current.block);
         }
         return parts;
     }
