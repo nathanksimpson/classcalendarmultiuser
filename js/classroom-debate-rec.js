@@ -1127,15 +1127,17 @@
     }
 
     function renderToolbarState() {
-        const btn = panelRef && panelRef.querySelector('#classroomDebateRecCheckBtn');
         const editable = canEdit();
-        if (btn) {
-            btn.disabled = checkRunning || !editable || !classId;
-            btn.textContent = checkRunning ? t('debateRecChecking') : t('debateRecCheckTms');
-        }
-        const scope = panelRef && panelRef.querySelector('#classroomDebateRecCheckScope');
-        if (scope) {
-            scope.disabled = checkRunning || !editable;
+        // TMS ▾ menu: "Check this class…" needs a class; "Check all…" doesn't.
+        if (panelRef) {
+            panelRef.querySelectorAll('[data-rec-check-scope]').forEach((item) => {
+                const needsClass = item.getAttribute('data-rec-check-scope') === 'class';
+                item.disabled = checkRunning || !editable || (needsClass && !classId);
+            });
+            const summary = panelRef.querySelector('.debate-rec-tms-menu > summary');
+            if (summary) {
+                summary.textContent = checkRunning ? t('debateRecChecking') : t('toolsMenuTms');
+            }
         }
         const last = panelRef && panelRef.querySelector('#classroomDebateRecLastChecked');
         if (last) {
@@ -1402,7 +1404,15 @@
                 render();
                 return;
             }
-            if (target.closest('#classroomDebateRecCheckBtn')) {
+            const checkItem = target.closest('[data-rec-check-scope]');
+            if (checkItem) {
+                if (checkItem.disabled) {
+                    return;
+                }
+                const scopeSel = panelRef && panelRef.querySelector('#classroomDebateRecCheckScope');
+                if (scopeSel) {
+                    scopeSel.value = checkItem.getAttribute('data-rec-check-scope') === 'all' ? 'all' : 'class';
+                }
                 void runTmsCheck();
                 return;
             }

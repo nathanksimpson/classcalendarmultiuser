@@ -1296,3 +1296,31 @@ html[data-viewport="tablet"] #appHeaderUnified #appZoneSegmentNavRow:not(:has(.a
     -webkit-overflow-scrolling: touch;
     z-index: var(--z-popover, 650);
 }
+
+/* Tools toolbar menus (TMS ▾ · Actions ▾): <details> around the tab's own buttons */
+details.toolbar-menu > summary {
+    list-style: none;
+    cursor: pointer;
+    user-select: none;
+}
+
+details.toolbar-menu > summary::-webkit-details-marker {
+    display: none;
+}
+
+details.toolbar-menu:not([open]) > .classroom-essay-reports-dropdown {
+    display: none;
+}
+
+details.toolbar-menu[hidden] {
+    display: none;
+}
+
+details.toolbar-menu .classroom-essay-reports-item[hidden] {
+    display: none;
+}
+
+details.toolbar-menu .classroom-essay-reports-item:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

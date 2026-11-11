@@ -560,15 +560,25 @@
                             <div id="classroomEssaysBatchActions" class="classroom-essay-filters classroom-batch-row"></div>
                             <p id="classroomEssaysToolbarHint" class="classroom-essay-toolbar-hint section-hint" role="status"></p>
                             <div class="toolbar-actions">
-                                <button type="button" id="classroomEssaysNewGroupBtn" class="btn btn-outline btn-compact" data-i18n="classroomEssayGroupNewBtn">New essay group</button>
-                                <button type="button" id="classroomEssaysEditGroupBtn" class="btn btn-outline btn-compact" hidden data-i18n="classroomEssayGroupEditBtn">Edit group</button>
-                                <button type="button" id="classroomEssaysOpenSavedEditorBtn" class="btn btn-outline btn-compact" data-i18n="classroomEssayOpenSavedEditorBtn">Open batch editor</button>
-                                <button type="button" id="classroomEssaysScrapeEditorBtn" class="btn btn-outline btn-compact" data-i18n="classroomEssayScrapeEditorBtn">Scrape &amp; open editor&hellip;</button>
-                                <button type="button" id="classroomEssaysTmsSyncAllBtn" class="btn btn-outline btn-compact" data-i18n="classroomEssayTmsSyncAllBtn">Sync all from TMS&hellip;</button>
-                                <button type="button" id="classroomEssaysTmsSyncBtn" class="btn btn-outline btn-compact" data-i18n="classroomEssayTmsSyncThisClassBtn">Sync this class&hellip;</button>
+                                <details class="toolbar-menu classroom-essay-reports-menu">
+                                    <summary class="btn btn-outline btn-compact classroom-essay-reports-btn" data-i18n="toolsMenuTms">TMS ▾</summary>
+                                    <div class="classroom-essay-reports-dropdown" role="menu">
+                                        <button type="button" id="classroomEssaysTmsSyncBtn" class="classroom-essay-reports-item" role="menuitem" data-i18n="classroomEssayTmsSyncThisClassBtn">Sync this class&hellip;</button>
+                                        <button type="button" id="classroomEssaysTmsSyncAllBtn" class="classroom-essay-reports-item" role="menuitem" data-i18n="classroomEssayTmsSyncAllBtn">Sync all from TMS&hellip;</button>
+                                    </div>
+                                </details>
+                                <details class="toolbar-menu classroom-essay-reports-menu">
+                                    <summary class="btn btn-outline btn-compact classroom-essay-reports-btn" data-i18n="toolsMenuActions">Actions ▾</summary>
+                                    <div class="classroom-essay-reports-dropdown" role="menu">
+                                        <button type="button" id="classroomEssaysOpenSavedEditorBtn" class="classroom-essay-reports-item" role="menuitem" data-i18n="classroomEssayOpenSavedEditorBtn">Open batch editor</button>
+                                        <button type="button" id="classroomEssaysScrapeEditorBtn" class="classroom-essay-reports-item" role="menuitem" data-i18n="classroomEssayScrapeEditorBtn">Scrape &amp; open editor&hellip;</button>
+                                        <button type="button" id="classroomEssaysNewGroupBtn" class="classroom-essay-reports-item" role="menuitem" data-i18n="classroomEssayGroupNewBtn">New essay group</button>
+                                        <button type="button" id="classroomEssaysEditGroupBtn" class="classroom-essay-reports-item" role="menuitem" data-i18n="classroomEssayGroupEditBtn" hidden>Edit group</button>
+                                    </div>
+                                </details>
                                 <div id="classroomEssaysReportsWrap" class="classroom-essay-reports-menu"></div>
                                 <span id="classroomEssaysSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomEssaySaveSaved">Saved</span>
-                                <button type="button" id="classroomEssaysSaveBtn" class="btn btn-outline btn-compact" data-i18n="classroomEssaySaveAll">Save all</button>
+                                <button type="button" id="classroomEssaysSaveBtn" class="btn btn-outline btn-compact" data-i18n="classroomSaveNow">Save now</button>
                             </div>
                         </div>
                         <div class="classroom-sheet-scroll classroom-essay-sheet-scroll" tabindex="0">
@@ -658,12 +668,12 @@
                     <button type="button" id="debateSourceBannerUpdate" class="btn btn-outline btn-small" data-i18n="sourceChangedUpdate">Update</button>
                 </div>
                 <div class="module-toolbar classroom-tab-toolbar" data-noprint>
-                    <details class="header-dropdown">
-                        <summary class="btn btn-outline btn-compact header-dropdown-trigger" data-i18n="sourceChangedMore">More</summary>
-                        <div class="header-dropdown-panel">
-                            <button type="button" id="classroomDebateRefreshRosterBtn" class="header-dropdown-item" data-i18n="classroomDebateRefreshRoster">Refresh roster</button>
-                        </div>
-                    </details>
+                    <details class="toolbar-menu classroom-essay-reports-menu">
+                                    <summary class="btn btn-outline btn-compact classroom-essay-reports-btn" data-i18n="toolsMenuActions">Actions ▾</summary>
+                                    <div class="classroom-essay-reports-dropdown" role="menu">
+                                        <button type="button" id="classroomDebateRefreshRosterBtn" class="classroom-essay-reports-item" role="menuitem" data-i18n="classroomDebateRefreshRoster">Refresh roster</button>
+                                    </div>
+                                </details>
                     <div class="toolbar-actions">
                         <span id="classroomDebateSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomSaveSaved">Saved</span>
                         <button type="button" id="classroomDebateSaveBtn" class="btn btn-outline btn-compact" data-i18n="classroomSaveNow">Save now</button>
@@ -679,20 +689,23 @@
                     <div class="module-toolbar classroom-tab-toolbar">
                         <div id="classroomDebateRecBatchActions" class="classroom-batch-row" hidden></div>
                         <div class="toolbar-actions">
-                            <label class="debate-rec-scope-field">
-                                <span class="sr-only" data-i18n="debateRecCheckScopeLabel">Check scope</span>
-                                <select id="classroomDebateRecCheckScope" class="field-select field-control field-select--compact" aria-label="Check scope" data-i18n-aria-label="debateRecCheckScopeLabel">
-                                    <option value="class" data-i18n="debateRecScopeClass">This class</option>
-                                    <option value="all" data-i18n="debateRecScopeAll">All my debate classes</option>
-                                </select>
-                            </label>
-                            <button type="button" id="classroomDebateRecCheckBtn" class="btn btn-outline btn-compact" data-i18n="debateRecCheckTms">Check TMS attendance&hellip;</button>
+                            <select id="classroomDebateRecCheckScope" hidden aria-hidden="true" tabindex="-1">
+                                <option value="class">class</option>
+                                <option value="all">all</option>
+                            </select>
+                            <details class="toolbar-menu classroom-essay-reports-menu debate-rec-tms-menu">
+                                    <summary class="btn btn-outline btn-compact classroom-essay-reports-btn" data-i18n="toolsMenuTms">TMS ▾</summary>
+                                    <div class="classroom-essay-reports-dropdown" role="menu">
+                                        <button type="button" class="classroom-essay-reports-item" role="menuitem" data-rec-check-scope="class" data-i18n="debateRecCheckThisClass">Check this class&hellip;</button>
+                                        <button type="button" class="classroom-essay-reports-item" role="menuitem" data-rec-check-scope="all" data-i18n="debateRecCheckAllClasses">Check all my debate classes&hellip;</button>
+                                    </div>
+                                </details>
                             <span id="classroomDebateRecLastChecked" class="section-hint"></span>
                             <div id="classroomDebateRecReportsWrap" class="classroom-essay-reports-menu"></div>
                             <span id="classroomDebateRecSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomSaveSaved">Saved</span>
                         </div>
                     </div>
-                    <p class="section-hint debate-rec-intro" data-i18n="debateRecIntro">Every student on each Debate Day 4. Students absent (결석) are marked Not recorded and late, early leave or other statuses need confirmation after Check TMS attendance. You can set students yourself at any time; your choices are never changed by a TMS check.</p>
+                    <p class="section-hint debate-rec-intro" data-i18n="debateRecIntro">Every student on each Debate Day 4. Students absent (결석) are marked Not recorded and late, early leave or other statuses need confirmation after a TMS check (TMS ▾). You can set students yourself at any time; your choices are never changed by a TMS check.</p>
                     <p id="classroomDebateRecSyncWarn" class="debate-rec-sync-warn" role="status" hidden></p>
                     <div class="classroom-sheet-scroll" tabindex="0">
                         <table class="classroom-sheet classroom-sheet--debate-rec">
@@ -786,9 +799,14 @@
 
             <section id="panel-speaking-test" class="app-tab-panel speaking-test-panel" data-tab="speaking-test" role="tabpanel" aria-labelledby="zoneBtn-tools" hidden>
                 <div class="module-toolbar classroom-tab-toolbar" data-noprint>
-                    <button type="button" id="speakingTestPrintBlankBtn" class="btn btn-outline btn-compact" data-i18n="speakingTestPrintBlank" disabled>Print blank sheets</button>
-                    <button type="button" id="speakingTestPrintAllBtn" class="btn btn-outline btn-compact" data-i18n="speakingTestPrintAll" disabled>Print all summaries</button>
                     <div class="toolbar-actions">
+                        <details class="toolbar-menu classroom-essay-reports-menu">
+                                    <summary class="btn btn-outline btn-compact classroom-essay-reports-btn" data-i18n="toolsMenuActions">Actions ▾</summary>
+                                    <div class="classroom-essay-reports-dropdown" role="menu">
+                                        <button type="button" id="speakingTestPrintBlankBtn" class="classroom-essay-reports-item" role="menuitem" data-i18n="speakingTestPrintBlank" disabled>Print blank sheets</button>
+                                        <button type="button" id="speakingTestPrintAllBtn" class="classroom-essay-reports-item" role="menuitem" data-i18n="speakingTestPrintAll" disabled>Print all summaries</button>
+                                    </div>
+                                </details>
                         <span id="speakingTestSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomSaveSaved">Saved</span>
                         <button type="button" id="speakingTestSaveBtn" class="btn btn-outline btn-compact" data-i18n="classroomSaveNow">Save now</button>
                     </div>
@@ -815,14 +833,17 @@
                         </label>
                         <span id="classroomDebateScoresBookChip" class="section-hint classroom-debate-scores-book-chip" hidden></span>
                         <div class="toolbar-actions">
+                            <details class="toolbar-menu classroom-essay-reports-menu">
+                                    <summary class="btn btn-outline btn-compact classroom-essay-reports-btn" data-i18n="toolsMenuActions">Actions ▾</summary>
+                                    <div class="classroom-essay-reports-dropdown" role="menu">
+                                        <button type="button" id="classroomDebateScoresPrintBtn" class="classroom-essay-reports-item" role="menuitem" data-i18n="classroomDebateScoresPrint">Print</button>
+                                        <button type="button" id="classroomDebateScoresPdfBtn" class="classroom-essay-reports-item" role="menuitem" data-i18n="classroomDebateScoresDownloadPdf">Download PDF</button>
+                                        <button type="button" id="classroomDebateScoresWordBtn" class="classroom-essay-reports-item" role="menuitem" data-i18n="classroomDebateScoresDownloadWord">Download Word</button>
+                                    </div>
+                                </details>
                             <span id="classroomDebateScoresSaveStatus" class="classroom-save-status section-hint classroom-save-status--saved" role="status" aria-live="polite" data-i18n="classroomSaveSaved">Saved</span>
                             <button type="button" id="classroomDebateScoresSaveBtn" class="btn btn-outline btn-compact" data-i18n="classroomSaveNow">Save now</button>
                         </div>
-                    </div>
-                    <div class="classroom-debate-scores-toolbar-row classroom-debate-scores-export-row">
-                        <button type="button" id="classroomDebateScoresWordBtn" class="btn btn-outline btn-compact" data-i18n="classroomDebateScoresDownloadWord">Download Word</button>
-                        <button type="button" id="classroomDebateScoresPdfBtn" class="btn btn-outline btn-compact" data-i18n="classroomDebateScoresDownloadPdf">Download PDF</button>
-                        <button type="button" id="classroomDebateScoresPrintBtn" class="btn btn-outline btn-compact" data-i18n="classroomDebateScoresPrint">Print</button>
                     </div>
                 </div>
                 <p id="classroomDebateScoresHint" class="section-hint" data-i18n="classroomDebateScoresSelectClassDate">Select a class and Day 4 date above to record debate scores.</p>
@@ -3105,6 +3126,7 @@
     <script defer src="js/ui-consolidate.js?v=20261104-float-menu"></script>
     <script defer src="js/content-expand.js?v=20261019-p8-content"></script>
     <script defer src="js/tools-month.js?v=20261111-tools-month"></script>
+    <script defer src="js/toolbar-menus.js?v=20261111-toolbar-menus"></script>
     <script defer src="js/classroom-zone-context.js?v=20261111-tools-month"></script>
     <script defer src="js/cohort-sidebar-filter.js?v=20260724-filter-contracts"></script>
     <script defer src="js/cohort-context-chip.js?v=20260619-ui-overhaul"></script>
