@@ -2,6 +2,12 @@
  * Collapsible classroom context header (class picker, stats, date/HW controls).
  */
 (function (global) {
+    /** Class/cohort name with its level in the UI language (display only). */
+    function displayName(name) {
+        const lp = global.CCPLevelProfile;
+        return lp && lp.localizeClassName ? lp.localizeClassName(name) : name == null ? '' : String(name);
+    }
+
     let hooks = null;
     let collapsed = false;
     let collapseOverridden = false;
@@ -136,7 +142,7 @@
         if (!classData) {
             return '';
         }
-        let label = classData.name || classData.id || '';
+        let label = displayName(classData.name || classData.id || '');
         if (mode === 'essays' && domain()) {
             const data =
                 hooks && hooks.getAppData

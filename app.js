@@ -1889,8 +1889,15 @@ function getNextSuggestedClassPeriod() {
     return Math.min(Math.max(...periods) + 1, getClassPeriodMax());
 }
 
+/** Class/cohort name with its level in the UI language (display only; see CCPLevelProfile.localizeClassName). */
+function displayClassName(name) {
+    return typeof CCPLevelProfile !== 'undefined' && CCPLevelProfile.localizeClassName
+        ? CCPLevelProfile.localizeClassName(name)
+        : name == null ? '' : String(name);
+}
+
 function formatClassLabelWithPeriod(classData) {
-    const name = classData && classData.name ? classData.name : '';
+    const name = classData && classData.name ? displayClassName(classData.name) : '';
     const summary = formatClassPeriodSummary(classData);
     if (!summary) {
         return name;
@@ -10443,7 +10450,7 @@ function resolveClassNotesClassFilterLabel(classIdOrData) {
             classData.name || classData.displayName || classData.title || ''
         ).trim();
         if (name && !looksLikeInternalClassId(name, cid)) {
-            return name;
+            return displayClassName(name);
         }
         const bits = [];
         const summary = formatClassPeriodSummary(classData);
@@ -17278,7 +17285,7 @@ function createModuleClassListButton(classData, { isSelected, onClick }) {
         const curTitle = flags.curriculumWarn === 'missing' ? t('classCurriculumWarningListMissing') : t('classCurriculumWarningList');
         badge += inlineWarnBadgeHtml(curTitle);
     }
-    btn.innerHTML = `<span>${escapeHtml(classData.name)}${badge}</span><span class="module-list-item-meta">${escapeHtml([formatClassLabelWithPeriod(classData), classData.grade].filter(Boolean).join(' · '))}</span>`;
+    btn.innerHTML = `<span>${escapeHtml(displayClassName(classData.name))}${badge}</span><span class="module-list-item-meta">${escapeHtml([formatClassLabelWithPeriod(classData), classData.grade].filter(Boolean).join(' · '))}</span>`;
     if (typeof CCPClassColorTile !== 'undefined') {
         CCPClassColorTile.apply(btn, classData, { selected: isSelected });
     }
@@ -18987,7 +18994,7 @@ function renderHomeworkEditor() {
     empty.hidden = true;
     content.hidden = false;
     if (titleEl) {
-        titleEl.textContent = classData.name;
+        titleEl.textContent = displayClassName(classData.name);
     }
     syncHomeworkSavedButtons(classData);
     if (classMetaEl) {
@@ -35023,7 +35030,7 @@ function updatePrintSummary() {
         const booksSummary = formatBooksByMonthSummary(classData);
         const periodText = formatClassPeriodSummary(classData) || null;
         row.innerHTML = `
-            <td>${escapeHtml(classData.name)}</td>
+            <td>${escapeHtml(displayClassName(classData.name))}</td>
             <td>${escapeHtml(periodText ? periodText : '—')}</td>
             <td>${escapeHtml(getClassLevelDisplay(classData))}</td>
             <td>${escapeHtml(classData.grade || '—')}</td>
@@ -41330,7 +41337,7 @@ function populateTermSummaryClassSelect() {
     const classes = getClassesInDisplayOrder().filter((c) => c && c.id);
     select.innerHTML = classes
         .map((c) => {
-            const label = escapeHtml(c.name || c.id);
+            const label = escapeHtml(displayClassName(c.name || c.id));
             return `<option value="${escapeAttr(c.id)}">${label}</option>`;
         })
         .join('');

@@ -608,6 +608,52 @@
         return sameLevel.length === 1 ? sameLevel[0] : null;
     }
 
+    function uiLang() {
+        const el = typeof document !== 'undefined' && document.documentElement ? document.documentElement : null;
+        return (el && el.lang) || 'en';
+    }
+
+    /**
+     * A class or cohort name with its level written in the UI language (display only;
+     * the stored name is unchanged): in Korean "Saemmul M" → "샘물 M", "Pre Leo T" → "Pre 레오 T";
+     * in English "가람 T" → "Garam T", "Pre 폴라" → "Pre Polar". Names with no known level,
+     * or already in that language, come back as they are.
+     * @param {string} name
+     * @param {string} [lang] 'ko' or 'en'; defaults to the page language
+     */
+    function localizeClassName(name, lang) {
+        const text = str(name);
+        if (!text) {
+            return text;
+        }
+        const parsed = parseClassName(text);
+        if (!parsed) {
+            return text;
+        }
+        const base = LEVEL_NAMES[parsed.baseId];
+        if (!base) {
+            return text;
+        }
+        const wantKo = String(lang || uiLang()).toLowerCase().startsWith('ko');
+        const target = wantKo ? base.ko : base.en;
+        if (!target) {
+            return text;
+        }
+        // Find the level word as written (after an optional branch tag and Pre/pre/프리).
+        const lead = /^(\[[^\]]*\]\s*)?((?:pre|프리)\s*)?/i.exec(text);
+        const prefixLen = parsed.pre ? lead[0].length : (lead[1] || '').length;
+        const rest = text.slice(prefixLen);
+        const spellings = [parsed.baseId, base.en, base.ko]
+            .concat(base.aliases || [])
+            .filter(Boolean)
+            .sort((x, y) => y.length - x.length);
+        const found = spellings.find((sp) => rest.toLowerCase().startsWith(sp.toLowerCase()));
+        if (!found) {
+            return text;
+        }
+        return text.slice(0, prefixLen) + target + rest.slice(found.length);
+    }
+
     /** Space-joined level names for a class, for search ("샘물" finds Saemmul M). */
     function searchNamesForClass(classData) {
         if (!classData) {
@@ -644,6 +690,7 @@
         parseClassName,
         matchByLevelName,
         searchNamesForClass,
+        localizeClassName,
         resolveLevelId,
         debateBandForLevel,
         debateDefaultsForBand,

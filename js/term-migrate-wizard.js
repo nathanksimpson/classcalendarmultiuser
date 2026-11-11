@@ -3,6 +3,12 @@
  * homeroom + per-cohort teaching decisions for the logged-in teacher).
  */
 (function (global) {
+    /** Class/cohort name with its level in the UI language (display only). */
+    function displayName(name) {
+        const lp = global.CCPLevelProfile;
+        return lp && lp.localizeClassName ? lp.localizeClassName(name) : name == null ? '' : String(name);
+    }
+
     let hooks = null;
     let modalEl = null;
     let step = 1;
@@ -818,7 +824,7 @@
                         .map((c) => {
                             const sel =
                                 row.matchedPreviousCohortId === c.id ? ' selected' : '';
-                            return `<option value="${escapeHtml(c.id)}"${sel}>${escapeHtml(c.name || c.id)}</option>`;
+                            return `<option value="${escapeHtml(c.id)}"${sel}>${escapeHtml(displayName(c.name || c.id))}</option>`;
                         })
                         .join('');
                     return `<tr>
@@ -1008,7 +1014,7 @@
                         .map((c) => {
                             const sel =
                                 manualUnmatchedMoves.get(u.studentId) === c.id ? ' selected' : '';
-                            return `<option value="${escapeHtml(c.id)}"${sel}>${escapeHtml(c.name)}</option>`;
+                            return `<option value="${escapeHtml(c.id)}"${sel}>${escapeHtml(displayName(c.name))}</option>`;
                         })
                         .join('');
                     const included = manualUnmatchedInclude.has(u.studentId);
@@ -1222,7 +1228,7 @@
                     let prevOpts = (row.previousClassOptions || [])
                         .map((c) => {
                             const sel = row.previousClassId === c.id ? ' selected' : '';
-                            return `<option value="${escapeHtml(c.id)}"${sel}>${escapeHtml(c.name)}</option>`;
+                            return `<option value="${escapeHtml(c.id)}"${sel}>${escapeHtml(displayName(c.name))}</option>`;
                         })
                         .join('');
                     if (!prevOpts) {

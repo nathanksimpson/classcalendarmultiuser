@@ -3,6 +3,12 @@
  * TMS sync: unclear-name review wizard + disambiguator marks (권익사◆).
  */
 (function (global) {
+    /** Class/cohort name with its level in the UI language (display only). */
+    function displayName(name) {
+        const lp = global.CCPLevelProfile;
+        return lp && lp.localizeClassName ? lp.localizeClassName(name) : name == null ? '' : String(name);
+    }
+
     let hooks = null;
     let selectedCohortId = null;
     let selectedStudentId = null;
@@ -356,7 +362,7 @@
                 return;
             }
             const editable = canEditCohort(c);
-            const label = `${c.name || c.id}${editable ? '' : ` (${t('classroomRosterReadOnly')})`}`;
+            const label = `${displayName(c.name || c.id)}${editable ? '' : ` (${t('classroomRosterReadOnly')})`}`;
             const sel = selected === c.id ? ' selected' : '';
             const dis = editable ? '' : ' disabled';
             parts.push(
@@ -378,7 +384,7 @@
         if (row.suggestedTargetId) {
             const c = cohorts.find((x) => x.id === row.suggestedTargetId);
             if (c) {
-                return c.name || c.id;
+                return displayName(c.name || c.id);
             }
         }
         return '—';
@@ -1120,7 +1126,7 @@
                     const opt = document.createElement('option');
                     opt.value = c.id;
                     const editable = canEditCohort(c);
-                    opt.textContent = `${c.name || c.id}${editable ? '' : ` (${t('classroomRosterReadOnly')})`}`;
+                    opt.textContent = `${displayName(c.name || c.id)}${editable ? '' : ` (${t('classroomRosterReadOnly')})`}`;
                     opt.disabled = !editable;
                     sel.appendChild(opt);
                 });
@@ -2793,7 +2799,7 @@
             cohorts.forEach((c) => {
                 const disabled = !canEditCohort(c) ? ' disabled' : '';
                 opts.push(
-                    `<option value="${escapeHtml(c.id)}"${selectedId === c.id ? ' selected' : ''}${disabled}>${escapeHtml(c.name || c.id)}</option>`
+                    `<option value="${escapeHtml(c.id)}"${selectedId === c.id ? ' selected' : ''}${disabled}>${escapeHtml(displayName(c.name || c.id))}</option>`
                 );
             });
             return opts.join('');
@@ -4696,7 +4702,7 @@
             .forEach((c) => {
                 const opt = document.createElement('option');
                 opt.value = c.id;
-                opt.textContent = c.name || c.id;
+                opt.textContent = displayName(c.name || c.id);
                 sel.appendChild(opt);
             });
         openRosterModal(document.getElementById('studentRestoreModal'));

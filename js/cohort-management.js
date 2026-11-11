@@ -2,6 +2,12 @@
  * Cohort Management Area — admin setup for student groups, schedules, and subject class generation.
  */
 (function (global) {
+    /** Class/cohort name with its level in the UI language (display only). */
+    function displayName(name) {
+        const lp = global.CCPLevelProfile;
+        return lp && lp.localizeClassName ? lp.localizeClassName(name) : name == null ? '' : String(name);
+    }
+
     let hooks = null;
     /** @type {string|null} */
     let selectedCohortId = null;
@@ -1635,7 +1641,7 @@
             btn.setAttribute('aria-selected', String(selected));
             const classCount = api ? api.getCohortClassIds(appData, cohort).length : (cohort.classIds || []).length;
             const pat = formatCohortPatternListMeta(cohort, appData);
-            btn.innerHTML = `<span>${escapeHtml(cohort.name || t('timetableAddCohort'))}<span class="cohort-status-chip cohort-status-chip--${statusClass(status)}">${escapeHtml(statusLabel(status))}</span></span><span class="cohort-list-item-meta">${escapeHtml([cohortLevelDisplay(cohort), cohort.grade, pat, formatCohortClassCountMeta(classCount)].filter(Boolean).join(' · '))}</span>`;
+            btn.innerHTML = `<span>${escapeHtml(cohort.name ? displayName(cohort.name) : t('timetableAddCohort'))}<span class="cohort-status-chip cohort-status-chip--${statusClass(status)}">${escapeHtml(statusLabel(status))}</span></span><span class="cohort-list-item-meta">${escapeHtml([cohortLevelDisplay(cohort), cohort.grade, pat, formatCohortClassCountMeta(classCount)].filter(Boolean).join(' · '))}</span>`;
             btn.addEventListener('click', () => {
                 selectCohort(cohort.id);
                 if (global.CCPSetupBoard && global.CCPSetupBoard.scrollToCohort) {
@@ -2319,7 +2325,7 @@
             }
             const opt = document.createElement('option');
             opt.value = c.id;
-            opt.textContent = c.name || c.id;
+            opt.textContent = displayName(c.name || c.id);
             withSel.appendChild(opt);
         });
         withLabel.appendChild(withSel);

@@ -93,4 +93,25 @@ assert(hay.includes('샘물') && hay.includes('Saemmul'), 'search has both langu
 assert(L.searchNamesForClass({ name: 'Polar M Debate', levelPreset: '폴라' }).includes('폴라'), 'Polar class searchable by 폴라');
 assert(L.searchNamesForClass({ name: 'Pre 폴라 M' }).includes('Pre Polar'), 'Pre class searchable in English');
 
+// Display: the level is shown in the UI language, the rest of the name kept
+const loc = (n, lang) => L.localizeClassName(n, lang);
+[
+    ['Saemmul M', 'ko', '샘물 M'],
+    ['Blue T', 'ko', '블루 T'],
+    ['Pre Leo T News', 'ko', 'Pre 레오 T News'],
+    ['가람 T', 'en', 'Garam T'],
+    ['Pre 폴라', 'en', 'Pre Polar'],
+    ['Pre 포라 M', 'ko', 'Pre 폴라 M'],
+    ['Byeomaru M', 'en', 'Byeolmaru M'],
+    ['바이컬 M', 'ko', '바이칼 M'],
+    ['Saemmul M', 'en', 'Saemmul M'],
+    ['가람 T', 'ko', '가람 T'],
+    ['Student archive', 'ko', 'Student archive'],
+    ['PrepM', 'ko', 'PrepM'],
+    ['', 'ko', '']
+].forEach(([name, lang, want]) => {
+    const got = loc(name, lang);
+    assert(got === want, `${name} (${lang}) → ${want} (got ${got})`);
+});
+
 console.log('level-names.test.mjs: all passed');

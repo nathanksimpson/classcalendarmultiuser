@@ -2,6 +2,12 @@
  * Cohorts panel — class detail on board card select (ported from Setup Hub).
  */
 (function (global) {
+    /** Class/cohort name with its level in the UI language (display only). */
+    function displayName(name) {
+        const lp = global.CCPLevelProfile;
+        return lp && lp.localizeClassName ? lp.localizeClassName(name) : name == null ? '' : String(name);
+    }
+
     let hooks = null;
     let unsubscribe = null;
     let selectedClassId = '';
@@ -67,7 +73,7 @@
         const readOnly = hooks.isReadOnly && hooks.isReadOnly();
         mount.innerHTML = `
             <div class="cohorts-class-detail">
-                <h3 class="cohorts-class-detail-title">${escapeHtml(classData.name || classData.id)}</h3>
+                <h3 class="cohorts-class-detail-title">${escapeHtml(displayName(classData.name || classData.id))}</h3>
                 <p class="section-hint cohorts-class-detail-teachers">${teacherLines}</p>
                 <label class="cohorts-period-field">
                     <span>${escapeHtml(t('cohortsPeriodLabel'))}</span>

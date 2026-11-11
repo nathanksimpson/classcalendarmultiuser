@@ -3,6 +3,12 @@
  * window.CCPClassListView
  */
 (function (global) {
+    /** Class/cohort name with its level in the UI language (display only). */
+    function displayName(name) {
+        const lp = global.CCPLevelProfile;
+        return lp && lp.localizeClassName ? lp.localizeClassName(name) : name == null ? '' : String(name);
+    }
+
     /** English + Korean level names ("샘물" finds Saemmul M). */
     function levelSearchNames(classData) {
         const lp = global.CCPLevelProfile;
@@ -38,7 +44,7 @@
         const meta = [hooks.formatClassLabelWithPeriod(classData), classData.grade]
             .filter(Boolean)
             .join(' · ');
-        return `<span>${escape(classData.name)}${badge}</span><span class="module-list-item-meta">${escape(meta)}</span>`;
+        return `<span>${escape(displayName(classData.name))}${badge}</span><span class="module-list-item-meta">${escape(meta)}</span>`;
     }
 
     function getWarningBadge(classData) {

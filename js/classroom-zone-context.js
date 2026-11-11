@@ -2,6 +2,12 @@
  * Shared Classroom zone class bar — searchable picker + quick toggles.
  */
 (function (global) {
+    /** Class/cohort name with its level in the UI language (display only). */
+    function displayName(name) {
+        const lp = global.CCPLevelProfile;
+        return lp && lp.localizeClassName ? lp.localizeClassName(name) : name == null ? '' : String(name);
+    }
+
     const CLASS_SCOPED_TABS = new Set([
         'briefing',
         'attendance',
@@ -605,7 +611,7 @@
         if (!classData) {
             return '';
         }
-        const name = classData.name || classData.id || '';
+        const name = displayName(classData.name || classData.id || '');
         if (classData.isEssayGroup) {
             return t('classroomEssayGroupLabel').replace('{name}', name);
         }

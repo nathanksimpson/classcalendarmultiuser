@@ -2,6 +2,12 @@
  * Command Center — syllabus progression, day note, and homework copy in one view.
  */
 (function (global) {
+    /** Class/cohort name with its level in the UI language (display only). */
+    function displayName(name) {
+        const lp = global.CCPLevelProfile;
+        return lp && lp.localizeClassName ? lp.localizeClassName(name) : name == null ? '' : String(name);
+    }
+
     let hooks = null;
     let unsubscribe = null;
     let mobileSegment = 'syllabus';
@@ -251,7 +257,7 @@
         if (empty) {
             empty.hidden = true;
         }
-        const classLabel = classData ? escapeHtml(classData.name || classData.id) : '';
+        const classLabel = classData ? escapeHtml(displayName(classData.name || classData.id)) : '';
         mount.innerHTML = `
             <p class="section-hint">${escapeHtml(t('commandCenterHwLinkHint'))}</p>
             <button type="button" class="btn btn-primary btn-compact" id="commandCenterOpenHomeworkCopy">${escapeHtml(t('commandCenterHwOpenCopy'))}</button>

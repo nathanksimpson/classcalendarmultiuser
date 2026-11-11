@@ -2,6 +2,12 @@
  * Essay submission tracking — status workflow per class + syllabus row.
  */
 (function (global) {
+    /** Class/cohort name with its level in the UI language (display only). */
+    function displayName(name) {
+        const lp = global.CCPLevelProfile;
+        return lp && lp.localizeClassName ? lp.localizeClassName(name) : name == null ? '' : String(name);
+    }
+
     let hooks = null;
     let classId = '';
     let syllabusRowId = '';
@@ -1894,7 +1900,7 @@
                         .join(' · ');
                     return `<label class="classroom-essay-resubmit-class-row checkbox-label">
                         <input type="checkbox" data-class-id="${escapeAttr(classData.id)}"${checked} />
-                        <span>${escapeHtml(classData.name || classData.id)}${meta ? ` <span class="section-hint">(${escapeHtml(meta)})</span>` : ''}</span>
+                        <span>${escapeHtml(displayName(classData.name || classData.id))}${meta ? ` <span class="section-hint">(${escapeHtml(meta)})</span>` : ''}</span>
                     </label>`;
                 })
                 .join('')
@@ -3252,7 +3258,7 @@
                 const checked = c.id === preselectedId ? ' checked' : '';
                 return `<label class="selection-chip checkbox-label">
                     <input type="checkbox" data-class-id="${escapeAttr(c.id)}"${checked} />
-                    <span>${escapeHtml(c.name || c.id)}</span>
+                    <span>${escapeHtml(displayName(c.name || c.id))}</span>
                 </label>`;
             })
             .join('');
@@ -3615,7 +3621,7 @@
         select.innerHTML = classes
             .map((c) => {
                 const sel = c.id === preferredId ? ' selected' : '';
-                return `<option value="${escapeAttr(c.id)}"${sel}>${escapeHtml(c.name || c.id)}</option>`;
+                return `<option value="${escapeAttr(c.id)}"${sel}>${escapeHtml(displayName(c.name || c.id))}</option>`;
             })
             .join('');
         if (!select.value && classes[0]) {
@@ -5506,7 +5512,7 @@
                     ? ` (${t('classroomEssayTmsSyncSuggested')})`
                     : '';
             opts.push(
-                `<option value="${escapeAttr(c.id)}"${selectedClassId === c.id ? ' selected' : ''}>${escapeHtml((c.name || c.id) + sug)}</option>`
+                `<option value="${escapeAttr(c.id)}"${selectedClassId === c.id ? ' selected' : ''}>${escapeHtml(displayName(c.name || c.id) + sug)}</option>`
             );
         });
         return opts.join('');
