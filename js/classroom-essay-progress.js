@@ -50,7 +50,11 @@
         if (access) {
             const cohorts = (appData && appData.cohorts) || [];
             classes = classes.filter(
-                (c) => c && (access.canEditClass(c, cohorts) || access.canBypass())
+                (c) =>
+                    c &&
+                    (typeof access.canViewClass === 'function'
+                        ? access.canViewClass(c)
+                        : access.canEditClass(c, cohorts) || access.canBypass())
             );
         }
         if (typeof opts.cohortFilter === 'function') {

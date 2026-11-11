@@ -248,4 +248,42 @@ function loadZone(options = {}) {
     assert(zoneSrc.includes('classroom-zone-override-hint'), 'override hint rendered');
 }
 
+// Non-admin: picker lists every class (view), editable ones first; nothing filtered out by edit rights
+{
+    const sandbox = loadZone();
+    sandbox.CCPClassroomAccess = {
+        canBypass() {
+            return false;
+        },
+        canViewClass(c) {
+            return Boolean(c);
+        },
+        canEditClass(c) {
+            return Boolean(c) && c.id === 'c-navy';
+        }
+    };
+    const visible = sandbox.CCPClassroomZoneContext.getVisibleClasses();
+    assert(visible.length === 3, 'teacher sees all three classes, not just the editable one');
+    assert(visible[0].id === 'c-navy', 'editable class listed first');
+    assert(
+        visible[1].id === 'c-purple' && visible[2].id === 'c-green',
+        'view-only classes keep their original order after editable ones'
+    );
+}
+
+// Older access module without canViewClass falls back to edit rule
+{
+    const sandbox = loadZone();
+    sandbox.CCPClassroomAccess = {
+        canBypass() {
+            return false;
+        },
+        canEditClass(c) {
+            return Boolean(c) && c.id === 'c-green';
+        }
+    };
+    const visible = sandbox.CCPClassroomZoneContext.getVisibleClasses();
+    assert(visible.length === 1 && visible[0].id === 'c-green', 'fallback keeps edit-only listing');
+}
+
 console.log('classroom-zone-context.test.mjs: all passed');

@@ -117,7 +117,7 @@ function assertCanEditClass(user, calendarData, classId) {
                 return null;
             }
         }
-        const editable = classesForUser(user, calendarData);
+        const editable = classesForUser(calendarData, user);
         if (editable && editable.length) {
             return null;
         }
@@ -261,7 +261,7 @@ function validateEssayGroupsChange(user, calendarData, prevList, nextList) {
     if (userCanBypass(user)) {
         return null;
     }
-    const editable = classesForUser(user, calendarData);
+    const editable = classesForUser(calendarData, user);
     if (editable && editable.length) {
         return null;
     }

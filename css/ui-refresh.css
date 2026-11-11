@@ -1085,6 +1085,26 @@ html[data-viewport="phone"] #appHeaderUnified #appZoneNav .app-zone-btn[data-zon
     flex: 1 1 100%;
 }
 
+/* Class the viewer can open but not edit */
+.classroom-zone-context-inner .classroom-zone-view-only-chip {
+    align-self: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color, #d0d5dd);
+    background: var(--bg-secondary, #f5f6f8);
+    color: var(--text-secondary, #555);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.classroom-zone-combobox-item .classroom-zone-view-only-tag {
+    font-size: 0.75rem;
+}
+
 .classroom-zone-context-inner .classroom-zone-toggles:not(:has(> :not([hidden]):not(label:has(> #classroomZoneMyClassesOnly)))) {
     display: none;
 }

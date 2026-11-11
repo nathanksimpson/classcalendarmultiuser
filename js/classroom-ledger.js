@@ -77,15 +77,22 @@
         return (getAppData().classes || []).find((c) => c && c.id === classId) || null;
     }
 
-    function getEditableClasses() {
+    function canViewClassRow(c) {
+        const a = access();
+        if (!a) {
+            return true;
+        }
+        return typeof a.canViewClass === 'function' ? a.canViewClass(c) : a.canEditClass(c) || a.canBypass();
+    }
+
+    function getViewableClasses() {
         const data = getAppData();
         const cohortId =
             typeof global.CCPCohortSidebarFilter !== 'undefined'
                 ? global.CCPCohortSidebarFilter.getActiveCohortId()
                 : '';
-        let classes = (data.classes || []).filter(
-            (c) => c && (!access() || access().canEditClass(c, data.cohorts || []) || access().canBypass())
-        );
+        // Every class the viewer may open; editing is checked per action.
+        let classes = (data.classes || []).filter((c) => c && canViewClassRow(c));
         if (cohortId && global.CCPCohortSidebarFilter) {
             classes = global.CCPCohortSidebarFilter.filterClassesByCohort(classes, cohortId);
         }
@@ -106,7 +113,7 @@
     }
 
     function ensureClassId() {
-        const classes = getEditableClasses();
+        const classes = getViewableClasses();
         if (classId && classes.some((c) => c.id === classId)) {
             return;
         }
@@ -420,7 +427,7 @@
         const data = getAppData();
         const visible = global.CCPClassroomZoneContext
             ? global.CCPClassroomZoneContext.getVisibleClasses()
-            : getEditableClasses();
+            : getViewableClasses();
         if (typeof global.CCPActiveContext !== 'undefined' && global.CCPActiveContext.resolveActiveClassId) {
             classId = global.CCPActiveContext.resolveActiveClassId(data, {
                 classId: options && options.classId,

@@ -88,4 +88,26 @@ assert(access.canEditClass(debateOnly), 'setCohortsProvider restores cohort-HR a
 assert(access.isHomeroomForClass(debateOnly, cohorts), 'isHomeroomForClass cohort link');
 assert(access.isHomeroomForClass(classLevelHr, []), 'isHomeroomForClass class-level');
 
+// View is wider than edit (Nov 2026 permission model)
+assert(access.canViewClass(unrelated), 'any signed-in member can view an unlinked class');
+assert(!access.canEditClass(unrelated, cohorts), '...but cannot edit it');
+assert(access.canViewClass(debateOnly), 'homeroom can view cohort class');
+assert(access.canEditClass(debateOnly, cohorts), 'homeroom can edit cohort class');
+assert(!access.canViewClass(null), 'no class, nothing to view');
+
+// Viewer / read-only calendar: view all, edit nothing (even assigned classes)
+sandbox.window.CalendarSync = { isReadOnly: () => true };
+assert(access.isCalendarReadOnly(), 'read-only calendar detected');
+assert(access.canViewClass(taught), 'read-only calendar still views');
+assert(!access.canEditClass(taught, cohorts), 'read-only calendar blocks edit of taught class');
+assert(!access.canEditClass(debateOnly, cohorts), 'read-only calendar blocks homeroom edit');
+sandbox.window.CalendarSync = { isReadOnly: () => false };
+assert(access.canEditClass(taught, cohorts), 'editable calendar restores edit');
+
+// Signed out: nothing viewable
+const signedIn = sandbox.TeamAuth.isSignedIn;
+sandbox.TeamAuth.isSignedIn = () => false;
+assert(!access.canViewClass(taught), 'signed-out user cannot view');
+sandbox.TeamAuth.isSignedIn = signedIn;
+
 console.log('classroom-access-client.test.mjs: all passed');

@@ -226,10 +226,24 @@
         return d ? d.resolveStudentsForClass(getClassData(), data.cohorts) : [];
     }
 
+    function canViewClassRow(c) {
+        const a = access();
+        if (!a) {
+            return true;
+        }
+        return typeof a.canViewClass === 'function' ? a.canViewClass(c) : a.canEditClass(c) || a.canBypass();
+    }
+
+    /** Every class the viewer may open (read-only when not editable). No active-cohort trap. */
     function getAccessibleClasses() {
         const data = getAppData();
+        return (data.classes || []).filter((c) => c && canViewClassRow(c));
+    }
+
+    /** Classes the viewer may change — for actions that write (add essay, group source). */
+    function getEditableClasses() {
+        const data = getAppData();
         const cohorts = data.cohorts || [];
-        // Classroom essays must list every editable class (no active-cohort trap).
         return (data.classes || []).filter(
             (c) => c && (!access() || access().canEditClass(c, cohorts) || access().canBypass())
         );
@@ -244,14 +258,7 @@
         }
         return (data.essayGroups || [])
             .map((g) => d.essayGroupAsClassView(g))
-            .filter(
-                (g) =>
-                    g &&
-                    (!access() ||
-                        (access().canEditEssayGroup && access().canEditEssayGroup(g, cohorts)) ||
-                        access().canEditClass(g, cohorts) ||
-                        access().canBypass())
-            );
+            .filter((g) => g && canViewClassRow(g));
     }
 
     function getEssayVisibleClasses(options) {
@@ -3208,7 +3215,7 @@
             classLabel.hidden = true;
             classLabel.textContent = '';
         }
-        const classes = getAccessibleClasses().slice().sort((a, b) =>
+        const classes = getEditableClasses().slice().sort((a, b) =>
             String(a.name || a.id).localeCompare(String(b.name || b.id))
         );
         list.innerHTML = classes
@@ -3573,7 +3580,7 @@
         if (!select) {
             return;
         }
-        const classes = getAccessibleClasses().slice().sort((a, b) =>
+        const classes = getEditableClasses().slice().sort((a, b) =>
             String(a.name || a.id).localeCompare(String(b.name || b.id))
         );
         select.innerHTML = classes
@@ -3615,7 +3622,7 @@
         const sourcePreferred =
             (existing && existing.sourceClassId) ||
             (!isCurrentEssayGroup() ? classId : '') ||
-            (getAccessibleClasses()[0] && getAccessibleClasses()[0].id) ||
+            (getEditableClasses()[0] && getEditableClasses()[0].id) ||
             '';
         fillEssayGroupSourceClassSelect(sourcePreferred);
         const sourceSelect = document.getElementById('essayGroupSourceClassSelect');

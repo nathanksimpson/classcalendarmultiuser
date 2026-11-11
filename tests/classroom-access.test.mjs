@@ -211,4 +211,19 @@ assert(
     'classesForUser includes class-level HR classes'
 );
 
+// Essay groups: a teacher who can edit any class may edit a group (args were swapped before)
+const groupData = {
+    classes: calendarData.classes,
+    cohorts: calendarData.cohorts,
+    essayGroups: [{ id: 'grp1', name: 'Mixed group' }]
+};
+assert(
+    !ClassroomAccess.assertCanEditClass({ id: 'teacher1', role: 'teacher' }, groupData, 'grp1'),
+    'teacher with an editable class may edit an essay group'
+);
+assert(
+    ClassroomAccess.assertCanEditClass({ id: 'nobody', role: 'teacher' }, groupData, 'grp1'),
+    'teacher with no editable class is blocked from essay groups'
+);
+
 console.log('classroom-access.test.mjs: all passed');

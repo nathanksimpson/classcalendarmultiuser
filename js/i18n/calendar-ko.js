@@ -1192,6 +1192,8 @@
         classroomEssayBatchSelectAll: '모든 학생 선택',
         classroomEssayClassComboboxEmpty: '검색과 일치하는 수업이 없습니다.',
         classroomZoneMyClassesOnly: '내 수업만',
+        classroomClassViewOnly: '보기 전용',
+        classroomClassViewOnlyHint: '이 반은 볼 수만 있습니다. 편집은 담당 교사와 담임 교사만 가능합니다.',
         classroomClassHiddenByFilter: '필터로 숨김',
         classroomZoneEssaysOnly: '에세이 과제 있는 수업',
         essayClassFilterBtnActive: '필터 ({visible}/{total})',

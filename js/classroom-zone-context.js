@@ -138,8 +138,10 @@
         const cohorts = data.cohorts || [];
         // Do not apply active-cohort filter here — Classroom must list every editable class.
         // Cohort filter is for Class Setup sidebars after an intentional Cohorts-board pick.
-        const classes = (data.classes || []).filter(
-            (c) => c && (!access() || access().canEditClass(c, cohorts) || access().canBypass())
+        // View is wider than edit: every class in the calendar is listed; editable ones first.
+        const classes = editableFirst(
+            (data.classes || []).filter((c) => c && canViewClassRow(c)),
+            cohorts
         );
         if (activeTabId !== 'essays') {
             return classes;
@@ -150,15 +152,37 @@
         }
         const groups = (data.essayGroups || [])
             .map((g) => d.essayGroupAsClassView(g))
-            .filter(
-                (g) =>
-                    g &&
-                    (!access() ||
-                        (access().canEditEssayGroup && access().canEditEssayGroup(g, cohorts)) ||
-                        access().canEditClass(g, cohorts) ||
-                        access().canBypass())
-            );
+            .filter((g) => g && canViewClassRow(g));
         return classes.concat(groups);
+    }
+
+    function canViewClassRow(classData) {
+        const a = access();
+        if (!a) {
+            return true;
+        }
+        if (typeof a.canViewClass === 'function') {
+            return a.canViewClass(classData);
+        }
+        return a.canEditClass(classData) || a.canBypass();
+    }
+
+    function canEditClassRow(classData, cohorts) {
+        const a = access();
+        if (!a || !classData) {
+            return true;
+        }
+        return Boolean(a.canEditClass(classData, cohorts) || a.canBypass());
+    }
+
+    /** Stable partition: classes the viewer can edit, then view-only ones (order kept within each). */
+    function editableFirst(classes, cohorts) {
+        const editable = [];
+        const viewOnly = [];
+        classes.forEach((c) => {
+            (canEditClassRow(c, cohorts) ? editable : viewOnly).push(c);
+        });
+        return editable.concat(viewOnly);
     }
 
     function getVisibleClasses() {
@@ -526,7 +550,10 @@
                 const hiddenHint = !getVisibleClasses().some((row) => row && row.id === c.id)
                     ? ` <span class="section-hint">${escapeHtml(t('classroomClassHiddenByFilter'))}</span>`
                     : '';
-                return `<button type="button" class="module-list-item classroom-zone-combobox-item${selected}${highlighted}" role="option" data-class-id="${escapeAttr(c.id)}" aria-selected="${c.id === s.classId ? 'true' : 'false'}">${getClassPickerItemHtml(c)}${hiddenHint}</button>`;
+                const viewOnlyHint = canEditClassRow(c)
+                    ? ''
+                    : ` <span class="classroom-zone-view-only-tag section-hint">${escapeHtml(t('classroomClassViewOnly'))}</span>`;
+                return `<button type="button" class="module-list-item classroom-zone-combobox-item${selected}${highlighted}" role="option" data-class-id="${escapeAttr(c.id)}" aria-selected="${c.id === s.classId ? 'true' : 'false'}">${getClassPickerItemHtml(c)}${viewOnlyHint}${hiddenHint}</button>`;
             })
             .join('');
     }
@@ -995,6 +1022,7 @@
                         <select id="classroomZoneEssayWarnMonth" class="field-select field-control--compact">${essayWarnMonthOptionsHtml}</select>
                     </label>` : ''}
                 </div>
+                ${classData && !canEditClassRow(classData) ? `<span class="classroom-zone-view-only-chip" role="status" title="${escapeAttr(t('classroomClassViewOnlyHint'))}">🔒 ${escapeHtml(t('classroomClassViewOnly'))}</span>` : ''}
                 ${teachers ? `<span class="classroom-zone-teachers section-hint">${escapeHtml(t('classroomTeachersLabel'))}: ${escapeHtml(teachers)}</span>` : ''}
             </div>`;
 

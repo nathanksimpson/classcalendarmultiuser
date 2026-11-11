@@ -1192,6 +1192,8 @@
         classroomEssayBatchSelectAll: 'Select all students',
         classroomEssayClassComboboxEmpty: 'No classes match your search.',
         classroomZoneMyClassesOnly: 'My classes only',
+        classroomClassViewOnly: 'View only',
+        classroomClassViewOnlyHint: 'You can view this class. Editing is for its class teachers and the cohort's homeroom teacher.',
         classroomClassHiddenByFilter: 'hidden by filter',
         classroomZoneEssaysOnly: 'Has essay assignments',
         essayClassFilterBtnActive: 'Filter ({visible}/{total})',

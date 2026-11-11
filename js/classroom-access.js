@@ -115,12 +115,37 @@
         return isHomeroomForCohort(cohort);
     }
 
+    /** Calendar opened as Viewer (or permission read-only): no class is editable. */
+    function isCalendarReadOnly() {
+        const sync = global.CalendarSync || (typeof CalendarSync !== 'undefined' ? CalendarSync : null);
+        return Boolean(sync && typeof sync.isReadOnly === 'function' && sync.isReadOnly());
+    }
+
+    /**
+     * View is wider than edit: anyone signed in to the calendar can open every class
+     * in it (read-only unless canEditClass). The server only sends calendars the user
+     * is a member of, so membership is already checked by the time data is here.
+     * @param {object} classData
+     */
+    function canViewClass(classData) {
+        if (!classData) {
+            return false;
+        }
+        if (typeof TeamAuth === 'undefined') {
+            return true; /* local / no team auth */
+        }
+        return canBypass() || canViewClassroom();
+    }
+
     /**
      * Assigned teacher OR homeroom of a linked cohort.
      * @param {object} classData
      * @param {Array} [cohorts] optional; otherwise uses setCohortsProvider / appData.cohorts
      */
     function canEditClass(classData, cohorts) {
+        if (isCalendarReadOnly()) {
+            return false;
+        }
         if (classData && classData.isEssayGroup) {
             return canEditEssayGroup(classData, cohorts);
         }
@@ -135,6 +160,9 @@
 
     /** Essay-only groups: any teacher who can edit at least one class (or bypass). */
     function canEditEssayGroup(group, cohorts) {
+        if (isCalendarReadOnly()) {
+            return false;
+        }
         if (canBypass()) {
             return true;
         }
@@ -195,7 +223,9 @@
         canEditCohortRoster,
         canEditClass,
         canEditEssayGroup,
+        canViewClass,
         canViewClassroom,
+        isCalendarReadOnly,
         canDeleteStudentPermanently,
         canArchiveStudent,
         currentUserId,

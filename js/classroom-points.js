@@ -41,12 +41,18 @@
         return hooks && hooks.getAppData ? hooks.getAppData() : {};
     }
 
-    function getEditableClasses() {
+    function canViewClassRow(c) {
+        const a = access();
+        if (!a) {
+            return true;
+        }
+        return typeof a.canViewClass === 'function' ? a.canViewClass(c) : a.canEditClass(c) || a.canBypass();
+    }
+
+    function getViewableClasses() {
         const data = getAppData();
-        const cohorts = data.cohorts || [];
-        let classes = (data.classes || []).filter(
-            (c) => c && (!access() || access().canEditClass(c, cohorts) || access().canBypass())
-        );
+        // Every class the viewer may open; editing is checked per action.
+        let classes = (data.classes || []).filter((c) => c && canViewClassRow(c));
         if (global.CCPCohortSidebarFilter) {
             classes = global.CCPCohortSidebarFilter.filterClassesByCohort(
                 classes,
@@ -68,7 +74,7 @@
     }
 
     function ensureClassId() {
-        const classes = getEditableClasses();
+        const classes = getViewableClasses();
         if (classId && classes.some((c) => c.id === classId)) {
             return;
         }
@@ -302,7 +308,7 @@
             return;
         }
         ensureClassId();
-        const classes = getEditableClasses();
+        const classes = getViewableClasses();
         const students = getStudents();
         pruneSelectedStudentIds(students);
         const d = domain();
@@ -509,7 +515,7 @@
         const rowApi = global.CCPClassroomStudentRow;
         const points = d ? d.listPointsForClass(data.studentPoints, classId) : [];
 
-        if (!getEditableClasses().length) {
+        if (!getViewableClasses().length) {
             rowsMount.innerHTML = '';
             if (ledgerMount) {
                 ledgerMount.innerHTML = '';
