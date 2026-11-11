@@ -1193,7 +1193,7 @@
         classroomEssayClassComboboxEmpty: 'No classes match your search.',
         classroomZoneMyClassesOnly: 'My classes only',
         classroomClassViewOnly: 'View only',
-        classroomClassViewOnlyHint: 'You can view this class. Editing is for its class teachers and the cohort's homeroom teacher.',
+        classroomClassViewOnlyHint: 'You can view this class. Editing is for its class teachers and the cohort\'s homeroom teacher.',
         toolsMonthLabel: 'Month',
         toolsMonthPrev: 'Previous month',
         toolsMonthNext: 'Next month',
