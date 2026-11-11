@@ -1201,6 +1201,8 @@
         toolsMonthNoEssayInClass: '이 반에는 {month} 에세이가 없습니다.',
         toolsMonthNoDebateDay: '{month} 토론일 없음',
         toolsMonthGoNearest: '{month}(으)로 이동',
+        toolsMonthNoBooksInClass: '이 반에는 {month} 교재 월이 없습니다.',
+        classroomDebateBooksBookLabel: '교재',
         classroomClassHiddenByFilter: '필터로 숨김',
         classroomZoneEssaysOnly: '에세이 과제 있는 수업',
         essayClassFilterBtnActive: '필터 ({visible}/{total})',

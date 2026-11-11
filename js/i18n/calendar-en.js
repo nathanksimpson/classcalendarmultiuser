@@ -1201,6 +1201,8 @@
         toolsMonthNoEssayInClass: 'No essay for {month} in this class.',
         toolsMonthNoDebateDay: 'No debate day in {month}',
         toolsMonthGoNearest: 'Go to {month}',
+        toolsMonthNoBooksInClass: 'No book month for {month} in this class.',
+        classroomDebateBooksBookLabel: 'Book',
         classroomClassHiddenByFilter: 'hidden by filter',
         classroomZoneEssaysOnly: 'Has essay assignments',
         essayClassFilterBtnActive: 'Filter ({visible}/{total})',

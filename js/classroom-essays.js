@@ -1383,12 +1383,21 @@
         }
     }
 
+    /** Reports open on the shared Tools month (still changeable inside the report). */
+    function openOnToolsMonth(filters) {
+        const api = global.CCPToolsMonth;
+        if (filters && api) {
+            filters.month = api.get(global.appData || (hooks && hooks.getAppData ? hooks.getAppData() : null));
+        }
+    }
+
     function openClassSummaryModal() {
         const modal = document.getElementById('essayClassSummaryModal');
         if (!modal) {
             return;
         }
         loadClassSummarySelection();
+        openOnToolsMonth(classSummaryFilters);
         renderClassSummaryModal();
         if (hooks && hooks.openModal) {
             hooks.openModal(modal);

@@ -1279,6 +1279,12 @@
         if (global.CCPAssignments && global.CCPAssignments.subscribe) {
             global.CCPAssignments.subscribe(onSharedAssignmentChanged);
         }
+        if (global.CCPToolsMonth && global.CCPToolsMonth.subscribe) {
+            // Shared Tools month changed: move to this class's debate day in that month.
+            global.CCPToolsMonth.subscribe(() => {
+                onSharedAssignmentChanged({ kind: 'debate', classId });
+            });
+        }
         global.CCPActiveContext.subscribe((detail) => {
             const panel = panelRef || document.getElementById('panel-debate-teams');
             if (!panel || panel.hidden) {

@@ -868,6 +868,14 @@
         });
     }
 
+    /** Reports open on the shared Tools month (still changeable inside the report). */
+    function openOnToolsMonth(filters) {
+        const api = global.CCPToolsMonth;
+        if (filters && api) {
+            filters.month = api.get(global.appData || (hooks && hooks.getAppData ? hooks.getAppData() : null));
+        }
+    }
+
     function openReportModal() {
         const modal = document.getElementById('debateRecReportModal');
         if (!modal) {
@@ -875,6 +883,7 @@
         }
         bindReportModal(modal);
         loadReportFilters();
+        openOnToolsMonth(reportFilters);
         renderReportModal();
         if (hooks && typeof hooks.openModal === 'function') {
             hooks.openModal(modal);

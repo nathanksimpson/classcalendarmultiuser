@@ -1010,6 +1010,14 @@
         previewEl.innerHTML = renderClassSummaryPreviewHtml(getSelectedClassSummaryEntries());
     }
 
+    /** Reports open on the shared Tools month (still changeable inside the report). */
+    function openOnToolsMonth(filters) {
+        const api = global.CCPToolsMonth;
+        if (filters && api) {
+            filters.month = api.get(global.appData || (hooks && hooks.getAppData ? hooks.getAppData() : null));
+        }
+    }
+
     function openClassSummaryModal() {
         const modal = document.getElementById('debateBookClassSummaryModal');
         if (!modal) {
@@ -1017,6 +1025,7 @@
         }
         classSummarySearchQuery = '';
         loadClassSummarySelection();
+        openOnToolsMonth(classSummaryFilters);
         renderClassSummaryModal();
         modal.hidden = false;
         modal.classList.add('active');
@@ -1243,6 +1252,20 @@
             ? `<p class="section-hint classroom-debate-books-missing-book">${escapeHtml(t('classroomDebateBooksNoBook'))}</p>`
             : '';
 
+        if (monthly && getToolsMonth()) {
+            // Month comes from the shared Tools month in the class bar; just show the book.
+            const bookText = periodKey ? meta.label || '' : '';
+            mount.innerHTML = bookText
+                ? `<div class="classroom-debate-books-context-inner">
+                    <div class="classroom-essay-context-field classroom-essay-context-field--grow">
+                        <span class="classroom-essay-context-label">${escapeHtml(t('classroomDebateBooksBookLabel'))}</span>
+                        <span class="classroom-debate-books-book-name">${escapeHtml(bookText)}</span>
+                    </div>
+                </div>${missingHint}`
+                : missingHint;
+            return;
+        }
+
         if (monthly) {
             const options = d.listDebateBookMonthOptions(classData);
             const optsHtml = options.length
@@ -1354,6 +1377,29 @@
         }
 
         if (!periodKey) {
+            const month = getToolsMonth();
+            const monthApi = global.CCPToolsMonth;
+            const dom = domain();
+            const options = dom && classData ? dom.listDebateBookMonthOptions(classData) : [];
+            if (month && monthApi && options.length) {
+                const lang = document.documentElement.lang;
+                const nearestMonth = monthApi.nearest(month, options.map((opt) => opt.periodKey));
+                const nearestCta = nearestMonth
+                    ? `<button type="button" class="btn btn-outline btn-compact" data-action="books-nearest-month" data-month="${escapeAttr(nearestMonth)}">${escapeHtml(
+                          t('toolsMonthGoNearest').replace('{month}', monthApi.label(nearestMonth, lang))
+                      )}</button>`
+                    : '';
+                rowsMount.innerHTML = `<tr><td colspan="5" class="classroom-sheet-empty"><div class="classroom-sheet-empty--essay-add"><p class="section-hint">${escapeHtml(
+                    t('toolsMonthNoBooksInClass').replace('{month}', monthApi.label(month, lang))
+                )}</p>${nearestCta}</div></td></tr>`;
+                rowsMount.querySelector('[data-action="books-nearest-month"]')?.addEventListener('click', (e) => {
+                    const target = e.currentTarget.getAttribute('data-month');
+                    if (target) {
+                        monthApi.set(target, { appData: getAppData(), source: 'books-empty' });
+                    }
+                });
+                return;
+            }
             rowsMount.innerHTML = `<tr><td colspan="5" class="classroom-sheet-empty"><p class="section-hint">${escapeHtml(t('classroomDebateBooksNoMonths'))}</p></td></tr>`;
             return;
         }
@@ -1434,11 +1480,24 @@
         render(panel);
     }
 
+    /** Shared Tools month: 'YYYY-MM', or '' for All months. */
+    function getToolsMonth() {
+        const api = global.CCPToolsMonth;
+        return api ? api.get(getAppData()) : '';
+    }
+
     function ensurePeriodForClass() {
         const d = domain();
         const classData = getClassData();
         if (!d || !classData) {
             periodKey = '';
+            return;
+        }
+        const month = getToolsMonth();
+        if (month && isMonthlyMode()) {
+            // Monthly (debate) classes follow the shared month; '' → this month has no books.
+            const options = d.listDebateBookMonthOptions(classData);
+            periodKey = options.some((opt) => opt.periodKey === month) ? month : '';
             return;
         }
         periodKey = d.resolveDebateBookPeriodKeyForClass
@@ -1603,6 +1662,19 @@
             return;
         }
         contextSubscribed = true;
+        if (global.CCPToolsMonth && global.CCPToolsMonth.subscribe) {
+            global.CCPToolsMonth.subscribe(async () => {
+                const panel = panelRef || document.getElementById('panel-debate-books');
+                if (!panel || panel.hidden) {
+                    return;
+                }
+                await flushBeforeLeave();
+                selectedStudentIds.clear();
+                ensurePeriodForClass();
+                loadDistribution();
+                render(panel);
+            });
+        }
         global.CCPActiveContext.subscribe(async (detail) => {
             const seq = (contextSeq = (contextSeq || 0) + 1);
             const panel = panelRef || document.getElementById('panel-debate-books');
