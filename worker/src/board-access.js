@@ -7,6 +7,7 @@ import { calendarDocForClient, CALENDAR_DOC_SELECT, parseDataObjectFromRow, seri
 import * as CalAccess from './calendar-access.js';
 import * as ActivityLog from './activity-log.js';
 import { CALENDAR_DELETE_STEPS, dispatch as dispatchBoard } from '../../shared/board-core.cjs';
+import { CREATE_STATEMENTS, SOURCE_COLUMN_SQL, SOURCE_INDEX_SQL } from '../../shared/board-schema.cjs';
 
 function database(env) {
     return {
@@ -93,11 +94,46 @@ function makeCtx(env) {
     };
 }
 
-export function dispatch(env, http) {
+const upgraded = new WeakSet();
+
+/**
+ * Add the Notes tables to a database that was created before this feature.
+ * Safe to run more than once. Does not change calendar rows.
+ */
+export async function ensureBoardSchema(env) {
+    if (!env || !env.DB || upgraded.has(env.DB)) {
+        return;
+    }
+    const table = await dbOne(env, "SELECT name FROM sqlite_master WHERE type='table' AND name='board_posts'");
+    const column = table
+        ? await dbOne(env, "SELECT name FROM pragma_table_info('board_posts') WHERE name='source_ref'")
+        : null;
+    const index = column
+        ? await dbOne(env, "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_board_posts_source'")
+        : null;
+    if (!table || !column || !index) {
+        for (const sql of CREATE_STATEMENTS) {
+            await dbRun(env, sql);
+        }
+        const columnNow = await dbOne(
+            env,
+            "SELECT name FROM pragma_table_info('board_posts') WHERE name='source_ref'"
+        );
+        if (!columnNow) {
+            await dbRun(env, SOURCE_COLUMN_SQL);
+        }
+        await dbRun(env, SOURCE_INDEX_SQL);
+    }
+    upgraded.add(env.DB);
+}
+
+export async function dispatch(env, http) {
+    await ensureBoardSchema(env);
     return dispatchBoard(makeCtx(env), http);
 }
 
 export async function deleteForCalendar(env, calendarId) {
+    await ensureBoardSchema(env);
     for (const step of CALENDAR_DELETE_STEPS) {
         await dbRun(env, step.sql, ...step.params(calendarId));
     }

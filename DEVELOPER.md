@@ -200,8 +200,8 @@ Production: https://classmanager.live (see `PUBLIC_URL` in `wrangler.toml`; work
   | `0004_calendar_access.sql` | Groups and calendar access |
   | `0005_app_settings.sql` | App settings (e.g. lock stale minutes) |
   | `0015_calendar_blob_encryption.sql` | `data_enc_version`, `data_key_wrapped` on calendars + suggestions |
-  | `0022_class_board.sql` | Class board posts, replies, reactions, revisions, read state. Not applied by the build — run `npm run db:migrate:remote` yourself before this is used in production. |
-  | `0023_class_board_source.sql` | `source_ref` on board posts so old day notes can be copied in once. |
+  | `0022_class_board.sql` | Class board posts, replies, reactions, revisions, read state. A database from before this feature gets these tables on the next Notes request (`ensureBoardSchema`). `npm run db:migrate:remote` still applies the same SQL ahead of time. |
+  | `0023_class_board_source.sql` | `source_ref` on board posts so old day notes can be copied in once. Added automatically when the column is missing. |
 
 - [ ] **Blob encryption** (if enabling application-level calendar encryption):
   1. Generate key: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
