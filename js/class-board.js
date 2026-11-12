@@ -184,6 +184,19 @@
             .replace(/\n/g, '<br>');
     }
 
+    /** Post/reply text with tagged students highlighted by their full label (e.g. "@5-Sky: Minseo"). */
+    function richTagged(text, studentRows) {
+        const api = global.CCPDayNoteMentions;
+        const ids = (studentRows || []).map((row) => row && row.studentId).filter(Boolean);
+        if (!api || typeof api.renderMentionHtml !== 'function' || !ids.length) {
+            return rich(text);
+        }
+        const html = api.renderMentionHtml(String(text || ''), ids, (id) => api.resolveStudentDisplay(id, data().cohorts || []));
+        return html
+            .replace(/(^|[\s>(])#([^\s#&<]+)/g, '$1<span class="class-board-tag">#$2</span>')
+            .replace(/\n/g, '<br>');
+    }
+
     function data() {
         return global.appData || {};
     }
@@ -352,15 +365,82 @@
         }
     }
 
+    function mentionsApi() {
+        const api = global.CCPDayNoteMentions;
+        return api && typeof api.attachMentionAutocomplete === 'function' ? api : null;
+    }
+
+    /** Class a compose target ("class:<id>") points at, for class-first student suggestions. */
+    function classOfTarget(target) {
+        return String(target || '').startsWith('class:') ? String(target).slice(6) : '';
+    }
+
+    function classOfPost(postId) {
+        const post = state.posts.find((row) => row.id === postId);
+        return post && post.boardKind === 'class' ? String(post.boardRef || '') : '';
+    }
+
+    /**
+     * @-autocomplete (shared with the old notes screen): the chosen class's students first,
+     * then everyone else; keyboard and touch friendly.
+     */
+    function attachMentions(root) {
+        const api = mentionsApi();
+        if (!api || !root) {
+            return;
+        }
+        const deps = {
+            getCohorts: () => data().cohorts || [],
+            getClasses: () => data().classes || [],
+            t: tr
+        };
+        root.querySelectorAll('textarea[data-compose]').forEach((el) => {
+            api.attachMentionAutocomplete(el, () => classOfTarget(composeTarget()), deps);
+        });
+        root.querySelectorAll('textarea[data-reply-text]').forEach((el) => {
+            api.attachMentionAutocomplete(el, () => classOfPost(el.dataset.replyText), deps);
+        });
+        root.querySelectorAll('textarea[data-editing]').forEach((el) => {
+            const id = el.dataset.editing;
+            const reply = Object.values(state.threads).flat().find((row) => row.id === id);
+            const postId = reply ? reply.postId : id;
+            api.attachMentionAutocomplete(el, () => classOfPost(postId), deps);
+        });
+    }
+
+    function studentById(id) {
+        let found = null;
+        cohorts().some((cohort) => {
+            found = (cohort.students || []).find((row) => row && String(row.id) === String(id)) || null;
+            return Boolean(found);
+        });
+        return found;
+    }
+
+    /** Students tagged in the text (via @ names, incl. disambiguated labels) plus any picked from the list. */
     function taggedFromText(text) {
         const found = state.tagged.slice();
         const seen = new Set(found.map((row) => row.studentId));
-        students().forEach((student) => {
-            if (seen.has(student.id)) {
+        const add = (student) => {
+            if (!student || !student.id || seen.has(String(student.id))) {
                 return;
             }
+            seen.add(String(student.id));
+            found.push({
+                studentId: String(student.id),
+                tmsMpidx: student.tmsMpidx ? String(student.tmsMpidx) : '',
+                name: String(student.name || student.id)
+            });
+        };
+        const api = mentionsApi();
+        if (api && typeof api.syncTaggedStudentIdsFromText === 'function') {
+            api.syncTaggedStudentIdsFromText(text, classOfTarget(composeTarget()), data().cohorts || [], data().classes || [])
+                .forEach((id) => add(studentById(id)));
+            return found;
+        }
+        students().forEach((student) => {
             if (text.indexOf('@' + student.name) >= 0) {
-                found.push({ studentId: student.id, tmsMpidx: student.tmsMpidx, name: student.name });
+                add(student);
             }
         });
         return found;
@@ -563,7 +643,7 @@
                 '<button type="button" class="btn btn-primary btn-small" data-save-edit="' + esc(post.id) + '" data-kind="post">' + esc(tr('boardSave')) + '</button>' +
                 '<button type="button" class="btn btn-outline btn-small" data-cancel-edit="1">' + esc(tr('boardCancel')) + '</button>' +
                 '</div>'
-            : '<div class="class-board-body">' + rich(post.body || '') + '</div>';
+            : '<div class="class-board-body">' + richTagged(post.body || '', post.students) + '</div>';
         const thread = state.threads[post.id];
         const replies = thread
             ? '<div class="class-board-thread">' + thread.map(replyHtml).join('') +
@@ -869,8 +949,14 @@
         const hint = state.special && taggedFromText(state.compose).length === 0
             ? '<p class="class-board-hint">' + esc(tr('boardSpecialHint')) + '</p>'
             : '';
-        const studentOptions = students().map((row) => '<option value="' + esc(row.id) + '">' + esc(row.name) + '</option>').join('');
         const target = composeTarget();
+        const api = mentionsApi();
+        const ranked = api && typeof api.getStudentsForMentions === 'function'
+            ? api.sortMentionCandidates(api.getStudentsForMentions(classOfTarget(target), data().cohorts || [], data().classes || []))
+            : null;
+        const studentOptions = ranked && ranked.length
+            ? ranked.map((row) => '<option value="' + esc(row.studentId) + '">' + esc(row.insertLabel || row.name) + '</option>').join('')
+            : students().map((row) => '<option value="' + esc(row.id) + '">' + esc(row.name) + '</option>').join('');
         const opt = (value, label) => '<option value="' + esc(value) + '"' + (value === target ? ' selected' : '') + '>' + esc(label) + '</option>';
         const targetOptions = opt('staff', tr('boardStaff')) +
             '<optgroup label="' + esc(tr('boardClass')) + '">' + classes().map((row) => opt('class:' + row.id, row.name || row.id)).join('') + '</optgroup>' +
@@ -922,6 +1008,7 @@
         list.innerHTML = state.posts.length
             ? state.posts.map(cardHtml).join('') + more
             : '<p class="class-board-empty">' + esc(tr('boardEmpty')) + '</p>';
+        attachMentions(list);
     }
 
     function paint() {
@@ -945,6 +1032,7 @@
         const focused = compose.contains(document.activeElement);
         if (!focused) {
             compose.innerHTML = composeHtml();
+            attachMentions(compose);
         }
         paintStatus();
         paintList();
@@ -1181,8 +1269,13 @@
                 const student = students().find((row) => row.id === target.value);
                 if (student && !state.tagged.some((row) => row.studentId === student.id)) {
                     state.tagged.push({ studentId: student.id, tmsMpidx: student.tmsMpidx, name: student.name });
-                    if (state.compose.indexOf('@' + student.name) < 0) {
-                        state.compose = (state.compose ? state.compose + ' ' : '') + '@' + student.name;
+                    const api = mentionsApi();
+                    const entry = api && typeof api.getStudentsForMentions === 'function'
+                        ? api.getStudentsForMentions(classOfTarget(composeTarget()), data().cohorts || [], data().classes || []).find((row) => row.studentId === student.id)
+                        : null;
+                    const label = '@' + String((entry && entry.insertLabel) || student.name).replace(/^@/, '');
+                    if (state.compose.indexOf(label) < 0) {
+                        state.compose = (state.compose ? state.compose + ' ' : '') + label;
                     }
                 }
                 target.value = '';

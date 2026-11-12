@@ -1194,6 +1194,9 @@ body {
 }
 
 .day-note-mention-dropdown .autocomplete-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
     width: 100%;
     text-align: left;
     background: transparent;
@@ -24106,8 +24109,13 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-boo
 }
 
 .class-board-tag,
-.class-board-mention {
+.class-board-mention,
+.class-board-body .day-note-mention {
     color: var(--primary-dark);
+}
+
+.class-board-body .day-note-mention {
+    font-weight: 600;
 }
 
 .class-board-star {
