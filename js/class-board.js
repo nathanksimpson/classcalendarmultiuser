@@ -31,8 +31,112 @@
         error: '',
         loading: false,
         ready: false,
-        order: readSavedOrder()
+        order: readSavedOrder(),
+        category: 'class-notes',
+        target: '',
+        filterTag: '',
+        exportOpen: false,
+        exp: null,
+        expPosts: null,
+        expLoading: false
     };
+
+    const SPECIAL_KIND = '__special';
+
+    /** Export choices; starts as today, my notes, every class, every kind. */
+    function exportOptions() {
+        if (!state.exp) {
+            const today = localIsoDate();
+            state.exp = {
+                from: today,
+                to: today,
+                mine: true,
+                classes: null,
+                kinds: null
+            };
+        }
+        return state.exp;
+    }
+
+    function exportKinds() {
+        return categories().map((row) => ({ id: row.id, name: row.name }))
+            .concat([{ id: SPECIAL_KIND, name: '\u2605 ' + tr('boardSpecial') }]);
+    }
+
+    /** Boards a teacher can export from: each class, plus one entry for staff and 반 boards. */
+    function exportBoards() {
+        return classes().map((row) => ({ id: 'class:' + row.id, name: row.name || row.id }))
+            .concat([{ id: 'other', name: tr('boardExportOtherBoards') }]);
+    }
+
+    function exportPostMatches(post, opts) {
+        if (post.deleted) {
+            return false;
+        }
+        const boardId = post.boardKind === 'class' ? 'class:' + post.boardRef : 'other';
+        if (opts.classes && !opts.classes.includes(boardId)) {
+            return false;
+        }
+        if (opts.kinds) {
+            const cat = postCategory(post) || DEFAULT_CATEGORY;
+            const byKind = opts.kinds.includes(cat);
+            const bySpecial = post.isSpecial && opts.kinds.includes(SPECIAL_KIND);
+            if (!byKind && !bySpecial) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    const NEXT_CLASS = 'next-class-notes';
+    const DEFAULT_CATEGORY = 'class-notes';
+
+    /** Note categories teachers can pick (built-in + custom), without system-managed ones. */
+    function categories() {
+        const api = global.CCPDayNoteCategories;
+        if (!api || typeof api.getAllCategories !== 'function') {
+            return [
+                { id: DEFAULT_CATEGORY, name: tr('dayNoteCategoryClassNotes') },
+                { id: NEXT_CLASS, name: tr('dayNoteCategoryNextClass') },
+                { id: 'parent-consult', name: tr('dayNoteCategoryParentConsult') }
+            ];
+        }
+        const isSystem = typeof api.isSystemManagedCategoryId === 'function' ? api.isSystemManagedCategoryId : () => false;
+        return api.getAllCategories(data().dayNoteCategories, tr).filter((cat) => !isSystem(cat.id));
+    }
+
+    function categoryLabel(id) {
+        const cat = categories().find((row) => row.id === id);
+        if (cat) {
+            return cat.name;
+        }
+        const api = global.CCPDayNoteCategories;
+        return api && typeof api.resolveCategoryLabel === 'function'
+            ? api.resolveCategoryLabel(id, data().dayNoteCategories, tr)
+            : '';
+    }
+
+    /** First tag on a post that is a known category (old notes carry their category as a tag). */
+    function postCategory(post) {
+        const ids = new Set(categories().map((row) => row.id));
+        return (post.tags || []).find((tag) => ids.has(tag)) || '';
+    }
+
+    function localIsoDate(d) {
+        const x = d || new Date();
+        return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0');
+    }
+
+    /** Where a new post goes: "staff", "class:<id>" or "cohort:<id>"; defaults to the board in view. */
+    function composeTarget() {
+        if (state.target) {
+            return state.target;
+        }
+        if ((state.scope === 'class' || state.scope === 'cohort') && state.ref) {
+            return state.scope + ':' + state.ref;
+        }
+        return 'staff';
+    }
 
     function readSavedOrder() {
         try {
@@ -57,7 +161,8 @@
         const base = state.scope === 'feed'
             ? '/calendars/' + encodeURIComponent(id) + '/board/feed?scope=mine'
             : '/calendars/' + encodeURIComponent(id) + '/board?kind=' + encodeURIComponent(state.scope) + '&ref=' + encodeURIComponent(state.ref || '');
-        return base + '&order=' + encodeURIComponent(state.order);
+        return base + '&order=' + encodeURIComponent(state.order) +
+            (state.filterTag ? '&tag=' + encodeURIComponent(state.filterTag) : '');
     }
 
     function tr(key) {
@@ -267,13 +372,21 @@
             return;
         }
         const id = calendarId();
-        const kind = state.scope === 'feed' ? 'staff' : state.scope;
-        const ref = kind === 'staff' ? '' : state.ref;
+        const target = composeTarget();
+        const sep = target.indexOf(':');
+        const kind = sep > 0 ? target.slice(0, sep) : 'staff';
+        const ref = sep > 0 ? target.slice(sep + 1) : '';
         if (kind !== 'staff' && !ref) {
             state.error = tr('boardPickBoard');
             paintStatus();
             return;
         }
+        if (state.category === NEXT_CLASS && kind !== 'class') {
+            state.error = tr('boardNextClassNeedsClass');
+            paintStatus();
+            return;
+        }
+        state.error = '';
         const tagged = taggedFromText(state.compose);
         try {
             await api('/calendars/' + encodeURIComponent(id) + '/board/posts', {
@@ -283,13 +396,15 @@
                     boardRef: ref,
                     body: state.compose,
                     isSpecial: state.special,
+                    tags: state.category && state.category !== DEFAULT_CATEGORY ? [state.category] : [],
                     students: tagged.map((row) => ({ studentId: row.studentId, tmsMpidx: row.tmsMpidx })),
-                    lessonDate: new Date().toISOString().slice(0, 10)
+                    lessonDate: localIsoDate()
                 }
             });
             state.compose = '';
             state.special = false;
             state.tagged = [];
+            state.category = DEFAULT_CATEGORY;
             state.status = '';
             await load();
         } catch (err) {
@@ -451,7 +566,8 @@
                 '</form></div>'
             : '';
         return '<article class="class-board-card">' +
-            '<p class="class-board-meta">' + star + esc(post.authorName || '') + ' \u00b7 ' + esc(where) + ' \u00b7 ' + esc(when) + '</p>' +
+            '<p class="class-board-meta">' + star + esc(post.authorName || '') + ' \u00b7 ' + esc(where) + ' \u00b7 ' + esc(when) +
+            categoryBadge(post) + '</p>' +
             body +
             (post.reactions && post.reactions.length ? '<div class="class-board-react">' + reactionSummary(post.reactions) + '</div>' : '') +
             '<div class="class-board-foot">' +
@@ -461,6 +577,15 @@
             '</div>' +
             replies +
             '</article>';
+    }
+
+    function categoryBadge(post) {
+        const cat = postCategory(post);
+        if (!cat) {
+            return '';
+        }
+        const cls = cat === NEXT_CLASS ? ' class-board-cat--next' : '';
+        return ' <span class="class-board-cat' + cls + '">' + esc(categoryLabel(cat)) + '</span>';
     }
 
     function replyHtml(reply) {
@@ -504,18 +629,17 @@
             '</label>' +
             '<button type="button" class="btn btn-outline btn-small class-board-scope-btn' + staffOn + '" data-scope="staff">' + dot('staff', '') + esc(tr('boardStaff')) + '</button>' +
             '<span class="class-board-scope-end">' +
+            '<label class="class-board-pick">' + esc(tr('boardShow')) +
+            '<select class="field-input" data-filter-tag="1">' +
+            '<option value="">' + esc(tr('boardShowAll')) + '</option>' +
+            categories().filter((row) => row.id !== DEFAULT_CATEGORY).map((row) => '<option value="' + esc(row.id) + '"' + (row.id === state.filterTag ? ' selected' : '') + '>' + esc(row.name) + '</option>').join('') +
+            '</select></label>' +
             '<label class="class-board-pick">' + esc(tr('boardSort')) +
             '<select class="field-input" data-sort="1">' +
             '<option value="newest"' + (state.order === 'newest' ? ' selected' : '') + '>' + esc(tr('boardSortNewest')) + '</option>' +
             '<option value="oldest"' + (state.order === 'oldest' ? ' selected' : '') + '>' + esc(tr('boardSortOldest')) + '</option>' +
             '</select></label>' +
-            '<details class="header-dropdown class-board-export">' +
-            '<summary class="btn btn-outline btn-small header-dropdown-trigger">' + esc(tr('boardExport')) + '</summary>' +
-            '<div class="header-dropdown-panel class-board-export-panel" role="menu">' +
-            '<button type="button" class="header-dropdown-item btn btn-outline btn-small" role="menuitem" data-export="copy">' + esc(tr('boardExportCopy')) + '</button>' +
-            '<button type="button" class="header-dropdown-item btn btn-outline btn-small" role="menuitem" data-export="download">' + esc(tr('boardExportDownload')) + '</button>' +
-            '<p class="class-board-export-hint">' + esc(tr('boardExportHint')) + '</p>' +
-            '</div></details>' +
+            '<button type="button" class="btn btn-outline btn-small class-board-scope-btn' + (state.exportOpen ? ' is-on' : '') + '" data-export-open="1" aria-expanded="' + (state.exportOpen ? 'true' : 'false') + '">' + esc(tr('boardExport')) + '</button>' +
             '</span>';
     }
 
@@ -531,15 +655,28 @@
         return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
     }
 
-    /** Every post in the current view (all pages, current sort), as plain text. */
-    async function buildExportText() {
+    /** Posts in the chosen date range (whole calendar, mine or everyone's), current sort. */
+    async function fetchExportPosts() {
+        const opts = exportOptions();
         const id = calendarId();
+        let base = '/calendars/' + encodeURIComponent(id) + '/board/feed?scope=all&order=' + encodeURIComponent(state.order) + '&limit=50';
+        if (opts.from) {
+            base += '&from=' + encodeURIComponent(opts.from);
+        }
+        if (opts.to) {
+            base += '&to=' + encodeURIComponent(opts.to);
+        }
+        if (opts.mine && me().id) {
+            base += '&author=' + encodeURIComponent(me().id);
+        }
         const all = [];
+        const seen = new Set();
         let cursor = '';
-        for (let page = 0; page < 40; page += 1) {
-            const body = await api(listPath(id) + '&limit=50' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : ''));
+        for (let page = 0; page < 60; page += 1) {
+            const body = await api(base + (cursor ? '&cursor=' + encodeURIComponent(cursor) : ''));
             (body.posts || []).forEach((post) => {
-                if (!all.some((row) => row.id === post.id)) {
+                if (!seen.has(post.id)) {
+                    seen.add(post.id);
                     all.push(post);
                 }
             });
@@ -548,28 +685,55 @@
                 break;
             }
         }
-        const view = boardLabel(state.scope, state.ref);
-        const sort = state.order === 'oldest' ? tr('boardSortOldest') : tr('boardSortNewest');
-        const lines = [tr('boardExportTitle') + ' \u2014 ' + view + ' \u00b7 ' + sort + ' \u00b7 ' + localStamp(new Date().toISOString()), ''];
-        all.filter((post) => !post.deleted).forEach((post) => {
-            const head = [localStamp(post.createdAt)];
-            if (post.lessonDate && post.lessonDate !== localStamp(post.createdAt).slice(0, 10)) {
-                head.push(tr('boardExportLesson') + ' ' + post.lessonDate);
+        return all;
+    }
+
+    function weekdayLabel(iso) {
+        const d = new Date(iso + 'T00:00:00');
+        if (Number.isNaN(d.getTime())) {
+            return iso;
+        }
+        const loc = (global.CCPCalendarI18n && global.currentLanguage === 'ko') || document.documentElement.lang === 'ko' ? 'ko-KR' : 'en-US';
+        return iso + ' (' + d.toLocaleDateString(loc, { weekday: 'short' }) + ')';
+    }
+
+    /** Plain-text export grouped by lesson day. */
+    function exportText(posts) {
+        const opts = exportOptions();
+        const range = opts.from === opts.to ? opts.from : opts.from + ' ~ ' + opts.to;
+        const lines = [
+            tr('boardExportTitle') + ' \u2014 ' + range + ' \u00b7 ' + (opts.mine ? tr('boardExportMine') : tr('boardExportEveryone')),
+            ''
+        ];
+        let day = '';
+        posts.forEach((post) => {
+            const postDay = post.lessonDate || localStamp(post.createdAt).slice(0, 10);
+            if (postDay !== day) {
+                if (day) {
+                    lines.push('');
+                }
+                day = postDay;
+                lines.push('\u25a0 ' + weekdayLabel(day));
+                lines.push('');
             }
-            head.push(boardLabel(post.boardKind, post.boardRef), post.authorName || '');
-            lines.push(head.filter(Boolean).join(' \u00b7 '));
-            const extra = [];
+            const cat = postCategory(post);
+            const head = [boardLabel(post.boardKind, post.boardRef)];
+            if (!opts.mine) {
+                head.push(post.authorName || '');
+            }
+            head.push(localStamp(post.createdAt).slice(11));
+            const marks = [];
             if (post.isSpecial) {
-                extra.push('\u2605 ' + tr('boardSpecial'));
+                marks.push('\u2605 ' + tr('boardSpecial'));
             }
-            (post.tags || []).forEach((tag) => extra.push('#' + tag));
-            if (extra.length) {
-                lines.push(extra.join(' '));
+            if (cat) {
+                marks.push('[' + categoryLabel(cat) + ']');
             }
+            lines.push(head.filter(Boolean).join(' \u00b7 ') + (marks.length ? '  ' + marks.join(' ') : ''));
             lines.push(String(post.body || ''));
             const tail = [];
             if (post.replyCount) {
-                tail.push(tr('boardExportReplies').replace('{n}', String(post.replyCount)));
+                tail.push(post.replyCount === 1 ? tr('boardExportReply1') : tr('boardExportReplies').replace('{n}', String(post.replyCount)));
             }
             if (post.reactions && post.reactions.length) {
                 tail.push(post.reactions.map((row) => row.emoji).join('') + ' ' + post.reactions.length);
@@ -579,29 +743,118 @@
             }
             lines.push('');
         });
-        return { text: lines.join('\n'), count: all.length };
+        return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
+    }
+
+    function matchingExportPosts() {
+        const opts = exportOptions();
+        return (state.expPosts || []).filter((post) => exportPostMatches(post, opts));
+    }
+
+    /** Re-fetch for the date range / whose; class and kind ticks filter what is already loaded. */
+    async function refreshExportPreview() {
+        state.expLoading = true;
+        paintExport();
+        try {
+            state.expPosts = await fetchExportPosts();
+        } catch (err) {
+            state.expPosts = [];
+            state.error = (err && err.message) || tr('boardError');
+            paintStatus();
+        }
+        state.expLoading = false;
+        paintExport();
     }
 
     async function runExport(kind) {
-        state.status = tr('boardExporting');
-        paintStatus();
-        const result = await buildExportText();
+        if (!state.expPosts) {
+            await refreshExportPreview();
+        }
+        const posts = matchingExportPosts();
+        const text = exportText(posts);
+        const opts = exportOptions();
         if (kind === 'download') {
-            const blob = new Blob([result.text], { type: 'text/plain;charset=utf-8' });
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            const today = localStamp(new Date().toISOString()).slice(0, 10);
             a.href = url;
-            a.download = 'notes-' + today + '.txt';
+            a.download = 'notes-' + opts.from + (opts.to !== opts.from ? '_' + opts.to : '') + '.txt';
             document.body.appendChild(a);
             a.click();
             a.remove();
             setTimeout(() => URL.revokeObjectURL(url), 1000);
         } else if (navigator.clipboard && navigator.clipboard.writeText) {
-            await navigator.clipboard.writeText(result.text);
+            await navigator.clipboard.writeText(text);
         }
-        state.status = (kind === 'download' ? tr('boardExportDownloaded') : tr('boardExportCopied')).replace('{n}', String(result.count));
+        state.status = (kind === 'download' ? tr('boardExportDownloaded') : tr('boardExportCopied')).replace('{n}', String(posts.length));
         paintStatus();
+    }
+
+    function exportChip(group, id, label, on) {
+        return '<label class="class-board-export-chip' + (on ? ' is-on' : '') + '">' +
+            '<input type="checkbox" data-exp-' + group + '="' + esc(id) + '"' + (on ? ' checked' : '') + '>' +
+            '<span>' + esc(label) + '</span></label>';
+    }
+
+    function exportHtml() {
+        const opts = exportOptions();
+        const boards = exportBoards();
+        const kinds = exportKinds();
+        const boardOn = (id) => !opts.classes || opts.classes.includes(id);
+        const kindOn = (id) => !opts.kinds || opts.kinds.includes(id);
+        const count = state.expLoading
+            ? tr('boardExportCounting')
+            : state.expPosts
+                ? tr('boardExportCount').replace('{n}', String(matchingExportPosts().length))
+                : '';
+        const has = !state.expLoading && state.expPosts && matchingExportPosts().length > 0;
+        return '<div class="class-board-export-panel-inner">' +
+            '<div class="class-board-export-head"><h3>' + esc(tr('boardExportHeading')) + '</h3>' +
+            '<button type="button" class="class-board-like-btn" data-export-open="1" aria-label="' + esc(tr('boardCancel')) + '">\u2715</button></div>' +
+            '<div class="class-board-export-section">' +
+            '<span class="class-board-export-label">' + esc(tr('boardExportDates')) + '</span>' +
+            '<div class="class-board-export-row">' +
+            '<input type="date" class="field-input" data-exp-from="1" value="' + esc(opts.from) + '">' +
+            '<span aria-hidden="true">~</span>' +
+            '<input type="date" class="field-input" data-exp-to="1" value="' + esc(opts.to) + '">' +
+            '<button type="button" class="class-board-like-btn" data-exp-range="today">' + esc(tr('boardExportToday')) + '</button>' +
+            '<button type="button" class="class-board-like-btn" data-exp-range="week">' + esc(tr('boardExportThisWeek')) + '</button>' +
+            '</div></div>' +
+            '<div class="class-board-export-section">' +
+            '<span class="class-board-export-label">' + esc(tr('boardExportWhose')) + '</span>' +
+            '<div class="class-board-export-row">' +
+            '<label class="checkbox-label"><input type="radio" name="boardExpWhose" data-exp-mine="1"' + (opts.mine ? ' checked' : '') + '> ' + esc(tr('boardExportMine')) + '</label>' +
+            '<label class="checkbox-label"><input type="radio" name="boardExpWhose" data-exp-mine="0"' + (opts.mine ? '' : ' checked') + '> ' + esc(tr('boardExportEveryone')) + '</label>' +
+            '</div></div>' +
+            '<div class="class-board-export-section">' +
+            '<span class="class-board-export-label">' + esc(tr('boardExportClasses')) +
+            ' <button type="button" class="class-board-inline-link" data-exp-all="classes">' + esc(opts.classes && opts.classes.length === 0 ? tr('boardExportSelectAll') : tr('boardExportSelectNone')) + '</button></span>' +
+            '<div class="class-board-export-chips">' + boards.map((row) => exportChip('class', row.id, row.name, boardOn(row.id))).join('') + '</div></div>' +
+            '<div class="class-board-export-section">' +
+            '<span class="class-board-export-label">' + esc(tr('boardExportKinds')) +
+            ' <button type="button" class="class-board-inline-link" data-exp-all="kinds">' + esc(opts.kinds && opts.kinds.length === 0 ? tr('boardExportSelectAll') : tr('boardExportSelectNone')) + '</button></span>' +
+            '<div class="class-board-export-chips">' + kinds.map((row) => exportChip('kind', row.id, row.name, kindOn(row.id))).join('') + '</div></div>' +
+            '<div class="class-board-export-foot">' +
+            '<span class="class-board-export-count" role="status" aria-live="polite">' + esc(count) + '</span>' +
+            '<button type="button" class="btn btn-outline btn-small" data-export="copy"' + (has ? '' : ' disabled') + '>' + esc(tr('boardExportCopy')) + '</button>' +
+            '<button type="button" class="btn btn-primary btn-small" data-export="download"' + (has ? '' : ' disabled') + '>' + esc(tr('boardExportDownload')) + '</button>' +
+            '</div></div>';
+    }
+
+    function paintExport() {
+        const mount = rootEl();
+        const el = mount && mount.querySelector('[data-region="export"]');
+        if (!el) {
+            return;
+        }
+        el.hidden = !state.exportOpen;
+        el.innerHTML = state.exportOpen ? exportHtml() : '';
+    }
+
+    function toggleListValue(list, all, id, on) {
+        const current = list ? list.slice() : all.slice();
+        const next = on ? Array.from(new Set(current.concat([id]))) : current.filter((x) => x !== id);
+        return next.length === all.length ? null : next;
     }
 
     function composeHtml() {
@@ -610,7 +863,19 @@
             ? '<p class="class-board-hint">' + esc(tr('boardSpecialHint')) + '</p>'
             : '';
         const studentOptions = students().map((row) => '<option value="' + esc(row.id) + '">' + esc(row.name) + '</option>').join('');
+        const target = composeTarget();
+        const opt = (value, label) => '<option value="' + esc(value) + '"' + (value === target ? ' selected' : '') + '>' + esc(label) + '</option>';
+        const targetOptions = opt('staff', tr('boardStaff')) +
+            '<optgroup label="' + esc(tr('boardClass')) + '">' + classes().map((row) => opt('class:' + row.id, row.name || row.id)).join('') + '</optgroup>' +
+            '<optgroup label="' + esc(tr('boardCohort')) + '">' + cohorts().map((row) => opt('cohort:' + row.id, row.name || row.id)).join('') + '</optgroup>';
+        const categoryOptions = categories().map((row) => '<option value="' + esc(row.id) + '"' + (row.id === state.category ? ' selected' : '') + '>' + esc(row.name) + '</option>').join('');
         return '<textarea class="field-input class-board-compose-text" data-compose="1" placeholder="' + esc(tr('boardComposePlaceholder')) + '">' + esc(state.compose) + '</textarea>' +
+            '<div class="class-board-compose-row">' +
+            '<label class="class-board-pick">' + esc(tr('dayNoteCategoryLabel')) +
+            '<select class="field-input" data-category="1">' + categoryOptions + '</select></label>' +
+            '<label class="class-board-pick">' + esc(tr('boardPostTo')) +
+            '<select class="field-input" data-target="1">' + targetOptions + '</select></label>' +
+            '</div>' +
             '<div class="class-board-compose-row">' +
             '<label class="checkbox-label"><input type="checkbox" data-special="1"' + (state.special ? ' checked' : '') + '> ' + esc(tr('boardSpecial')) + '</label>' +
             '<label class="class-board-pick">' + esc(tr('boardTagStudent')) +
@@ -660,6 +925,7 @@
         if (!mount.querySelector('[data-region="scope"]')) {
             mount.innerHTML = '<div class="class-board">' +
                 '<div class="class-board-scope" data-region="scope"></div>' +
+                '<section class="class-board-export-panel" data-region="export" hidden></section>' +
                 '<form class="class-board-compose" data-region="compose"></form>' +
                 '<p class="class-board-status" data-region="status"></p>' +
                 '<div data-region="list"></div>' +
@@ -667,6 +933,7 @@
             bind(mount);
         }
         mount.querySelector('[data-region="scope"]').innerHTML = scopeHtml();
+        paintExport();
         const compose = mount.querySelector('[data-region="compose"]');
         const focused = compose.contains(document.activeElement);
         if (!focused) {
@@ -685,6 +952,7 @@
             if (target.dataset.scope) {
                 state.scope = target.dataset.scope;
                 state.ref = '';
+                state.target = '';
                 state.threads = {};
                 load();
                 return;
@@ -750,11 +1018,37 @@
                 }
                 return;
             }
-            if (target.dataset.export) {
-                const menu = target.closest('details');
-                if (menu) {
-                    menu.open = false;
+            if (target.dataset.exportOpen) {
+                state.exportOpen = !state.exportOpen;
+                mount.querySelector('[data-region="scope"]').innerHTML = scopeHtml();
+                paintExport();
+                if (state.exportOpen) {
+                    refreshExportPreview();
                 }
+                return;
+            }
+            if (target.dataset.expRange) {
+                const opts = exportOptions();
+                const now = new Date();
+                if (target.dataset.expRange === 'week') {
+                    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
+                    opts.from = localIsoDate(monday);
+                } else {
+                    opts.from = localIsoDate(now);
+                }
+                opts.to = localIsoDate(now);
+                refreshExportPreview();
+                return;
+            }
+            if (target.dataset.expAll) {
+                const opts = exportOptions();
+                const key = target.dataset.expAll;
+                const isNone = opts[key] && opts[key].length === 0;
+                opts[key] = isNone ? null : [];
+                paintExport();
+                return;
+            }
+            if (target.dataset.export) {
                 runExport(target.dataset.export).catch((err) => {
                     state.error = (err && err.message) || tr('boardError');
                     paintStatus();
@@ -797,13 +1091,63 @@
             if (!event.target.closest('.class-board-like')) {
                 mount.querySelectorAll('.class-board-like.is-open').forEach((el) => el.classList.remove('is-open'));
             }
-            const menu = mount.querySelector('.class-board-export[open]');
-            if (menu && !menu.contains(event.target)) {
-                menu.open = false;
-            }
         });
         mount.addEventListener('change', (event) => {
             const target = event.target;
+            if (target.dataset.expFrom || target.dataset.expTo) {
+                const opts = exportOptions();
+                if (target.dataset.expFrom) {
+                    opts.from = target.value || localIsoDate();
+                } else {
+                    opts.to = target.value || opts.from;
+                }
+                if (opts.to < opts.from) {
+                    opts.to = opts.from;
+                }
+                refreshExportPreview();
+                return;
+            }
+            if (target.dataset.expMine != null) {
+                exportOptions().mine = target.dataset.expMine === '1';
+                refreshExportPreview();
+                return;
+            }
+            if (target.dataset.expClass != null) {
+                const opts = exportOptions();
+                opts.classes = toggleListValue(opts.classes, exportBoards().map((row) => row.id), target.dataset.expClass, target.checked);
+                paintExport();
+                return;
+            }
+            if (target.dataset.expKind != null) {
+                const opts = exportOptions();
+                opts.kinds = toggleListValue(opts.kinds, exportKinds().map((row) => row.id), target.dataset.expKind, target.checked);
+                paintExport();
+                return;
+            }
+            if (target.dataset.category) {
+                state.category = target.value || DEFAULT_CATEGORY;
+                if (state.category === NEXT_CLASS && !composeTarget().startsWith('class:')) {
+                    state.error = tr('boardNextClassNeedsClass');
+                } else {
+                    state.error = '';
+                }
+                paintStatus();
+                return;
+            }
+            if (target.dataset.target === '1' && target.tagName === 'SELECT') {
+                state.target = target.value;
+                if (state.error === tr('boardNextClassNeedsClass') && state.target.startsWith('class:')) {
+                    state.error = '';
+                    paintStatus();
+                }
+                return;
+            }
+            if (target.dataset.filterTag) {
+                state.filterTag = target.value;
+                state.threads = {};
+                load();
+                return;
+            }
             if (target.dataset.sort) {
                 state.order = target.value === 'oldest' ? 'oldest' : 'newest';
                 saveOrder(state.order);
@@ -814,6 +1158,7 @@
             if (target.dataset.pick) {
                 state.scope = target.dataset.pick;
                 state.ref = target.value;
+                state.target = '';
                 state.threads = {};
                 if (state.ref) {
                     load();
