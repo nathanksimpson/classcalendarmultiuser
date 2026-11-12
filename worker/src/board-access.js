@@ -96,6 +96,31 @@ function makeCtx(env) {
 
 const upgraded = new WeakSet();
 
+function isMissingTable(err) {
+    return /no such table/i.test(String((err && err.message) || ''));
+}
+
+/** Column names on board_posts. Empty when the table has not been created yet. */
+async function boardPostColumns(env) {
+    try {
+        const rows = await dbAll(env, 'PRAGMA table_info(board_posts)');
+        return (rows || []).map((row) => row.name);
+    } catch (err) {
+        if (isMissingTable(err)) {
+            return [];
+        }
+        throw err;
+    }
+}
+
+async function hasSourceIndex(env) {
+    const row = await dbOne(
+        env,
+        "SELECT 1 AS ok FROM sqlite_master WHERE type='index' AND name='idx_board_posts_source'"
+    );
+    return Boolean(row);
+}
+
 /**
  * Add the Notes tables to a database that was created before this feature.
  * Safe to run more than once. Does not change calendar rows.
@@ -104,22 +129,18 @@ export async function ensureBoardSchema(env) {
     if (!env || !env.DB || upgraded.has(env.DB)) {
         return;
     }
-    const table = await dbOne(env, "SELECT name FROM sqlite_master WHERE type='table' AND name='board_posts'");
-    const column = table
-        ? await dbOne(env, "SELECT name FROM pragma_table_info('board_posts') WHERE name='source_ref'")
-        : null;
-    const index = column
-        ? await dbOne(env, "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_board_posts_source'")
-        : null;
-    if (!table || !column || !index) {
-        for (const sql of CREATE_STATEMENTS) {
-            await dbRun(env, sql);
+    let names = await boardPostColumns(env);
+    const indexed = names.includes('source_ref') ? await hasSourceIndex(env) : false;
+    if (!names.length || !names.includes('source_ref') || !indexed) {
+        if (typeof env.DB.batch === 'function') {
+            await env.DB.batch(CREATE_STATEMENTS.map((sql) => env.DB.prepare(sql)));
+        } else {
+            for (const sql of CREATE_STATEMENTS) {
+                await dbRun(env, sql);
+            }
         }
-        const columnNow = await dbOne(
-            env,
-            "SELECT name FROM pragma_table_info('board_posts') WHERE name='source_ref'"
-        );
-        if (!columnNow) {
+        names = await boardPostColumns(env);
+        if (!names.includes('source_ref')) {
             await dbRun(env, SOURCE_COLUMN_SQL);
         }
         await dbRun(env, SOURCE_INDEX_SQL);
@@ -129,7 +150,14 @@ export async function ensureBoardSchema(env) {
 
 export async function dispatch(env, http) {
     await ensureBoardSchema(env);
-    return dispatchBoard(makeCtx(env), http);
+    const result = await dispatchBoard(makeCtx(env), http);
+    const message = result && result.body && result.body.error;
+    if (result && isMissingTable({ message }) && env && env.DB) {
+        upgraded.delete(env.DB);
+        await ensureBoardSchema(env);
+        return dispatchBoard(makeCtx(env), http);
+    }
+    return result;
 }
 
 export async function deleteForCalendar(env, calendarId) {

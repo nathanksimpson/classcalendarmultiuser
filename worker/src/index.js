@@ -1990,14 +1990,20 @@ export default {
             url.searchParams.forEach((value, key) => {
                 query[key] = value;
             });
-            const result = await BoardAccess.dispatch(env, {
-                method: request.method,
-                pathname: path,
-                query,
-                user,
-                viewAs: viewAsSession,
-                body
-            });
+            let result;
+            try {
+                result = await BoardAccess.dispatch(env, {
+                    method: request.method,
+                    pathname: path,
+                    query,
+                    user,
+                    viewAs: viewAsSession,
+                    body
+                });
+            } catch (err) {
+                const detail = (err && err.message) || 'Could not open notes';
+                return json({ error: detail, code: /no such table/i.test(detail) ? 'BOARD_SCHEMA' : 'BOARD_ERROR' }, 500);
+            }
             if (result) {
                 return json(result.body, result.status || 200);
             }
