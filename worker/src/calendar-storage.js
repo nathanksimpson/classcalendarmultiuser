@@ -42,6 +42,21 @@ export function calendarDocForClient(row, env) {
     };
 }
 
+/**
+ * The client document for a save that just succeeded, built from what was written instead of
+ * reading the whole row back from D1 (one less full read and parse per save).
+ */
+export function calendarDocFromSaved(calId, saved, revision) {
+    return {
+        id: calId,
+        name: saved.name,
+        revision,
+        updatedAt: saved.updatedAt,
+        updatedBy: saved.updatedBy,
+        data: withoutSyncMarks(saved.data)
+    };
+}
+
 /** Change marks (shared/sync-revs.cjs) are server bookkeeping; clients never need them. */
 function withoutSyncMarks(data) {
     if (data && typeof data === 'object' && Object.prototype.hasOwnProperty.call(data, '_syncRevs')) {
@@ -130,6 +145,44 @@ export async function encryptPlaintextBlobs(env) {
         }
     }
     return result;
+}
+
+/** Nightly snapshots are kept this long (D1 Time Travel covers 7 days on the free plan). */
+export const CALENDAR_SNAPSHOT_KEEP_DAYS = 14;
+
+/**
+ * Copy every calendar that changed since its last snapshot into calendar_history, and drop
+ * snapshots past the retention window. Runs from the daily cron as plain SQL, so the
+ * documents never pass through Worker memory. Saves are latest-wins on a single row; this is
+ * the way back from a bad save.
+ *
+ * A plaintext calendar is copied as-is. An encrypted one is wrapped with its key material,
+ * {"encVersion","keyWrapped","data"}, because the wrapped key lives in separate columns.
+ * To restore: put `data` (and the key columns, when wrapped) back on the calendars row and
+ * bump its revision.
+ */
+export async function snapshotChangedCalendars(env, nowMs = Date.now()) {
+    const savedAt = new Date(nowMs).toISOString();
+    const cutoff = new Date(nowMs - CALENDAR_SNAPSHOT_KEEP_DAYS * 86400 * 1000).toISOString();
+    const pruned = await env.DB.prepare('DELETE FROM calendar_history WHERE saved_at < ?').bind(cutoff).run();
+    const copied = await env.DB.prepare(
+        `INSERT INTO calendar_history (id, calendar_id, revision, data, saved_by_user_id, saved_by_name, saved_at)
+         SELECT lower(hex(randomblob(16))), c.id, c.revision,
+                CASE WHEN COALESCE(c.data_enc_version, 0) = 0 THEN c.data
+                     ELSE json_object('encVersion', c.data_enc_version, 'keyWrapped', c.data_key_wrapped, 'data', c.data)
+                END,
+                NULL, COALESCE(c.updated_by, 'Teacher'), ?
+         FROM calendars c
+         WHERE NOT EXISTS (
+             SELECT 1 FROM calendar_history h WHERE h.calendar_id = c.id AND h.revision = c.revision
+         )`
+    )
+        .bind(savedAt)
+        .run();
+    return {
+        copied: Number((copied && copied.meta && copied.meta.changes) || 0),
+        pruned: Number((pruned && pruned.meta && pruned.meta.changes) || 0)
+    };
 }
 
 export const CALENDAR_DOC_SELECT =

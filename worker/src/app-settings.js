@@ -41,7 +41,13 @@ let cachedIdleWarningMinutes = null;
 let cachedSessionMaxDays = null;
 let cachedNavNotificationActiveDays = null;
 let cachedNavNotificationDismissedDays = null;
-let cachedAt = 0;
+// One timestamp per cached value. A single shared timestamp let the first refresh make every
+// other value look fresh, so changed settings were never re-read by a warm isolate.
+let cachedAtStale = 0;
+let cachedAtIdle = 0;
+let cachedAtSession = 0;
+let cachedAtNavActive = 0;
+let cachedAtNavDismissed = 0;
 const CACHE_MS = 60 * 1000;
 
 export {
@@ -61,19 +67,19 @@ async function readSetting(env, key) {
 
 async function readLockStaleMinutes(env) {
     const now = Date.now();
-    if (cachedStaleMinutes != null && now - cachedAt < CACHE_MS) {
+    if (cachedStaleMinutes != null && now - cachedAtStale < CACHE_MS) {
         return cachedStaleMinutes;
     }
     const row = await readSetting(env, SETTING_LOCK_STALE_MINUTES);
     const minutes = clampLockStaleMinutes(row || DEFAULT_LOCK_STALE_MINUTES);
     cachedStaleMinutes = minutes;
-    cachedAt = now;
+    cachedAtStale = now;
     return minutes;
 }
 
 async function readIdlePair(env) {
     const now = Date.now();
-    if (cachedIdleLogoutMinutes != null && cachedIdleWarningMinutes != null && now - cachedAt < CACHE_MS) {
+    if (cachedIdleLogoutMinutes != null && cachedIdleWarningMinutes != null && now - cachedAtIdle < CACHE_MS) {
         return {
             idleLogoutMinutes: cachedIdleLogoutMinutes,
             idleWarningMinutes: cachedIdleWarningMinutes
@@ -84,7 +90,7 @@ async function readIdlePair(env) {
     const pair = normalizeIdlePair(logoutRaw || DEFAULT_IDLE_LOGOUT_MINUTES, warnRaw || DEFAULT_IDLE_WARNING_MINUTES);
     cachedIdleLogoutMinutes = pair.idleLogoutMinutes;
     cachedIdleWarningMinutes = pair.idleWarningMinutes;
-    cachedAt = now;
+    cachedAtIdle = now;
     return pair;
 }
 
@@ -109,37 +115,37 @@ export async function getIdleWarningMinutes(env) {
 
 async function readSessionMaxDays(env) {
     const now = Date.now();
-    if (cachedSessionMaxDays != null && now - cachedAt < CACHE_MS) {
+    if (cachedSessionMaxDays != null && now - cachedAtSession < CACHE_MS) {
         return cachedSessionMaxDays;
     }
     const row = await readSetting(env, SETTING_SESSION_MAX_DAYS);
     const days = clampSessionMaxDays(row || DEFAULT_SESSION_MAX_DAYS);
     cachedSessionMaxDays = days;
-    cachedAt = now;
+    cachedAtSession = now;
     return days;
 }
 
 async function readNavNotificationActiveDays(env) {
     const now = Date.now();
-    if (cachedNavNotificationActiveDays != null && now - cachedAt < CACHE_MS) {
+    if (cachedNavNotificationActiveDays != null && now - cachedAtNavActive < CACHE_MS) {
         return cachedNavNotificationActiveDays;
     }
     const row = await readSetting(env, SETTING_NAV_NOTIFICATION_ACTIVE_DAYS);
     const days = clampNavNotificationActiveDays(row || DEFAULT_NAV_NOTIFICATION_ACTIVE_DAYS);
     cachedNavNotificationActiveDays = days;
-    cachedAt = now;
+    cachedAtNavActive = now;
     return days;
 }
 
 async function readNavNotificationDismissedDays(env) {
     const now = Date.now();
-    if (cachedNavNotificationDismissedDays != null && now - cachedAt < CACHE_MS) {
+    if (cachedNavNotificationDismissedDays != null && now - cachedAtNavDismissed < CACHE_MS) {
         return cachedNavNotificationDismissedDays;
     }
     const row = await readSetting(env, SETTING_NAV_NOTIFICATION_DISMISSED_DAYS);
     const days = clampNavNotificationDismissedDays(row || DEFAULT_NAV_NOTIFICATION_DISMISSED_DAYS);
     cachedNavNotificationDismissedDays = days;
-    cachedAt = now;
+    cachedAtNavDismissed = now;
     return days;
 }
 
@@ -185,7 +191,7 @@ export async function setLockStaleMinutes(env, minutes) {
         .bind(SETTING_LOCK_STALE_MINUTES, String(clamped))
         .run();
     cachedStaleMinutes = clamped;
-    cachedAt = Date.now();
+    cachedAtStale = Date.now();
     return { lockStaleMinutes: clamped };
 }
 
@@ -205,7 +211,7 @@ async function setIdleSessionMinutes(env, logoutMinutes, warningMinutes) {
         .run();
     cachedIdleLogoutMinutes = pair.idleLogoutMinutes;
     cachedIdleWarningMinutes = pair.idleWarningMinutes;
-    cachedAt = Date.now();
+    cachedAtIdle = Date.now();
     return pair;
 }
 
@@ -233,7 +239,7 @@ export async function patchAdminSettings(env, body) {
             .bind(SETTING_SESSION_MAX_DAYS, String(days))
             .run();
         cachedSessionMaxDays = days;
-        cachedAt = Date.now();
+        cachedAtSession = Date.now();
     }
     if (body.navNotificationActiveDays !== undefined) {
         const days = clampNavNotificationActiveDays(body.navNotificationActiveDays);
@@ -244,7 +250,7 @@ export async function patchAdminSettings(env, body) {
             .bind(SETTING_NAV_NOTIFICATION_ACTIVE_DAYS, String(days))
             .run();
         cachedNavNotificationActiveDays = days;
-        cachedAt = Date.now();
+        cachedAtNavActive = Date.now();
     }
     if (body.navNotificationDismissedDays !== undefined) {
         const days = clampNavNotificationDismissedDays(body.navNotificationDismissedDays);
@@ -255,7 +261,7 @@ export async function patchAdminSettings(env, body) {
             .bind(SETTING_NAV_NOTIFICATION_DISMISSED_DAYS, String(days))
             .run();
         cachedNavNotificationDismissedDays = days;
-        cachedAt = Date.now();
+        cachedAtNavDismissed = Date.now();
     }
     return getAdminSettings(env);
 }

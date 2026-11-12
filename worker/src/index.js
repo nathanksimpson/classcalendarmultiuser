@@ -19,9 +19,11 @@ import { prepareClassroomForSave } from './classroom-access.js';
 import {
     CALENDAR_DOC_SELECT,
     calendarDocForClient,
+    calendarDocFromSaved,
     encryptPlaintextBlobs,
     parseDataObjectFromRow,
-    serializeCalendarData
+    serializeCalendarData,
+    snapshotChangedCalendars
 } from './calendar-storage.js';
 import {
     KAKAO_OAUTH_COOKIE,
@@ -60,6 +62,8 @@ const MIN_PASSWORD_LENGTH = 8;
 
 const MAX_TRANSLATE_BODY_BYTES = 30 * 1024;
 const RATE_TRANSLATE_WINDOW_MS = 5 * 60 * 1000;
+const RATE_TMS_RUN_MAX = 30;
+const RATE_TMS_RUN_WINDOW_MS = 15 * 60 * 1000;
 const MAX_OPENAI_PROXY_BODY_BYTES = 2 * 1024 * 1024;
 const RATE_OPENAI_PROXY_WINDOW_MS = 5 * 60 * 1000;
 // Same-origin only (Batch Essay Editor). Only the OpenAI endpoints the editor calls.
@@ -841,6 +845,18 @@ async function resolveRequestContext(env, request) {
     return getSessionContext(env, parseCookies(request)[SESSION_COOKIE] || '');
 }
 
+/** Signed in is not enough: self-registered (pending) accounts have no calendar yet. */
+async function userHasCalendarAccess(env, user) {
+    if (!user) {
+        return false;
+    }
+    if (CalAccess.canViewAllCalendars(user)) {
+        return true;
+    }
+    const calendars = await CalAccess.listCalendarsForUser(env, user);
+    return calendars.length > 0;
+}
+
 async function requireCookieUser(request, env) {
     const ctx = await getSessionContext(env, parseCookies(request)[SESSION_COOKIE] || '');
     if (!ctx || !ctx.effective || ctx.viewAsActive) {
@@ -1226,6 +1242,9 @@ export default {
             if (!user) {
                 return json({ error: 'Not signed in' }, 401);
             }
+            if (!(await userHasCalendarAccess(env, user))) {
+                return json({ error: 'No calendar access' }, 403);
+            }
             const limited = await rateLimitOr429(env, request, 'translate', 120, RATE_TRANSLATE_WINDOW_MS);
             if (limited) {
                 return limited;
@@ -1600,6 +1619,9 @@ export default {
         }
 
         if (path === '/api/soundboard' && request.method === 'GET') {
+            if (!(await userHasCalendarAccess(env, user))) {
+                return json({ error: 'No calendar access' }, 403);
+            }
             return json(await Soundboard.getBoard(env));
         }
 
@@ -1607,6 +1629,9 @@ export default {
             const blocked = rejectViewAsJson();
             if (blocked) {
                 return blocked;
+            }
+            if (!(await userHasCalendarAccess(env, user))) {
+                return json({ error: 'No calendar access' }, 403);
             }
             try {
                 const body = await readJson(request, 1000000);
@@ -1629,6 +1654,9 @@ export default {
             const blocked = rejectViewAsJson();
             if (blocked) {
                 return blocked;
+            }
+            if (!(await userHasCalendarAccess(env, user))) {
+                return json({ error: 'No calendar access' }, 403);
             }
             const kind = tmsRunMatch ? decodeURIComponent(tmsRunMatch[1]) : tmsAliasKind;
             if (kind === 'essays' || kind === 'essayContent' || kind === 'homework' || kind === 'counsel' || kind === 'attendance') {
@@ -1661,6 +1689,17 @@ export default {
                         },
                         503
                     );
+                }
+                // The Worker logs in to TMS with whatever credentials are posted; cap attempts
+                // per user so it cannot be used to guess TMS passwords.
+                const tmsLimited = await rateLimitByKeyOr429(
+                    env,
+                    `tms_run:user:${user.id}`,
+                    RATE_TMS_RUN_MAX,
+                    RATE_TMS_RUN_WINDOW_MS
+                );
+                if (tmsLimited) {
+                    return tmsLimited;
                 }
                 return json(await runTmsJob('roster', body));
             } catch (err) {
@@ -1922,6 +1961,9 @@ export default {
                 });
                 if (applied.missing) {
                     return json({ error: 'Calendar not found' }, 404);
+                }
+                if (applied.tooLarge) {
+                    return json({ error: applied.error, code: 'CALENDAR_TOO_LARGE' }, 507);
                 }
                 if (!applied.ok) {
                     const doc = await dbOne(env, `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`, calId);
@@ -2438,6 +2480,9 @@ export default {
                 if (putSaved.missing) {
                     return json({ error: 'Calendar not found' }, 404);
                 }
+                if (putSaved.tooLarge) {
+                    return json({ error: putSaved.error, code: 'CALENDAR_TOO_LARGE' }, 507);
+                }
                 if (!putSaved.ok) {
                     const doc = await dbOne(
                         env,
@@ -2454,12 +2499,7 @@ export default {
                     summary: `Saved calendar (revision ${nextRev})`,
                     detail: { revision: nextRev }
                 });
-                const doc = await dbOne(
-                    env,
-                    `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
-                    calId
-                );
-                return json(calendarDocForClient(doc, env));
+                return json(calendarDocFromSaved(calId, putSaved.saved, nextRev));
             }
 
             if (!sub && request.method === 'PATCH') {
@@ -2480,11 +2520,8 @@ export default {
                 if (!validated.ok) {
                     return json({ error: validated.error }, 400);
                 }
-                const existingRow = await dbOne(
-                    env,
-                    `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
-                    calId
-                );
+                // Existence and name only: the full document is read once, inside saveWithRetry.
+                const existingRow = await dbOne(env, 'SELECT id, name FROM calendars WHERE id = ?', calId);
                 if (!existingRow) {
                     return json({ error: 'Calendar not found' }, 404);
                 }
@@ -2504,7 +2541,15 @@ export default {
                 const denied = areaSplit.deniedFields;
                 body.mutations = areaSplit.allowed;
                 if (!body.mutations.length) {
-                    const current = calendarDocForClient(existingRow, env);
+                    const currentRow = await dbOne(
+                        env,
+                        `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
+                        calId
+                    );
+                    if (!currentRow) {
+                        return json({ error: 'Calendar not found' }, 404);
+                    }
+                    const current = calendarDocForClient(currentRow, env);
                     const payload = await CalendarMeta.calendarMetaExtras(env, user, calId, current);
                     payload.overwritten = [];
                     payload.denied = denied;
@@ -2554,6 +2599,9 @@ export default {
                 if (patched.missing) {
                     return json({ error: 'Calendar not found' }, 404);
                 }
+                if (patched.tooLarge) {
+                    return json({ error: patched.error, code: 'CALENDAR_TOO_LARGE' }, 507);
+                }
                 if (accessError) {
                     return json({ error: accessError }, 403);
                 }
@@ -2577,12 +2625,8 @@ export default {
                         }
                     }
                 });
-                const saved = await dbOne(
-                    env,
-                    `SELECT ${CALENDAR_DOC_SELECT} FROM calendars WHERE id = ?`,
-                    calId
-                );
-                const doc = calendarDocForClient(saved, env);
+                // Built from what was just written; no second full read of the row.
+                const doc = calendarDocFromSaved(calId, patched.saved, nextRev);
                 const payload = await CalendarMeta.calendarMetaExtras(env, user, calId, doc);
                 payload.overwritten = overwritten;
                 payload.denied = denied;
@@ -3058,6 +3102,15 @@ export default {
                         .catch((err) => console.error(`scheduled cleanup ${label} failed:`, err && err.message))
                 )
             )
+        );
+        ctx.waitUntil(
+            snapshotChangedCalendars(env, now)
+                .then((r) => {
+                    if (r.copied || r.pruned) {
+                        console.log('scheduled calendar snapshots:', JSON.stringify(r));
+                    }
+                })
+                .catch((err) => console.error('scheduled calendar snapshots failed:', err && err.message))
         );
         ctx.waitUntil(
             encryptPlaintextBlobs(env)

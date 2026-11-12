@@ -443,7 +443,9 @@
                 CCPSessionRestore.captureBeforeLogout();
             }
             if (typeof CCPStoragePrune !== 'undefined' && CCPStoragePrune.pruneOnLogout) {
-                CCPStoragePrune.pruneOnLogout();
+                CCPStoragePrune.pruneOnLogout({
+                    sharedDevice: Boolean(currentUser && currentUser.loginContext === 'shared')
+                });
             }
             try {
                 await fetch('/api/auth/logout-all', {
@@ -475,7 +477,9 @@
                 CCPSessionRestore.captureBeforeLogout();
             }
             if (typeof CCPStoragePrune !== 'undefined' && CCPStoragePrune.pruneOnLogout) {
-                CCPStoragePrune.pruneOnLogout();
+                CCPStoragePrune.pruneOnLogout({
+                    sharedDevice: Boolean(currentUser && currentUser.loginContext === 'shared')
+                });
             }
             try {
                 await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });

@@ -145,13 +145,24 @@
         });
     }
 
-    /** Domain cache only — per-user UI prefs (classCalendarUi:{userId}:…) and session keys are kept. */
-    function pruneOnLogout() {
+    /** Essay grader keys (tools/essay-batch-editor.html): OpenAI API key, pasted essays, prompts. */
+    const ESSAY_TOOL_PREFIX = 'bg_';
+
+    /**
+     * Domain cache only — per-user UI prefs (classCalendarUi:{userId}:…) and session keys are kept.
+     * On a shared-device sign-in, also remove the essay grader's keys so the next person at that
+     * PC cannot read the previous teacher's OpenAI API key or student essays.
+     */
+    function pruneOnLogout(options) {
+        const sharedDevice = Boolean(options && options.sharedDevice);
         removeDomainStorageKeys();
         try {
             for (let i = localStorage.length - 1; i >= 0; i--) {
                 const k = localStorage.key(i);
-                if (k && isLegacyUiKey(k)) {
+                if (!k) {
+                    continue;
+                }
+                if (isLegacyUiKey(k) || (sharedDevice && k.startsWith(ESSAY_TOOL_PREFIX))) {
                     localStorage.removeItem(k);
                 }
             }

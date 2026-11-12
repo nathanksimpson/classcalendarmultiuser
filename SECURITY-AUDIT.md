@@ -132,6 +132,32 @@ Env: `OAUTH_STATE_SECRET` (required when Kakao enabled on local server; falls ba
 
 ---
 
+## Review follow-up (2026-11-12)
+
+Fixed in code (tests: `tests/worker-hardening.test.mjs`):
+
+| Finding | Fix |
+| --- | --- |
+| Open redirect: `/signed-in?return=/\\evil.example` and the login pages left the site (browsers read `/\\` as `//`) | `sanitizeReturnTo` (Worker, local server) and the three login pages reject backslashes and control characters |
+| Accounts with no calendar (e.g. a fresh Kakao sign-up) could read/overwrite the shared soundboard, use `/api/translate`, and run the TMS roster job | These routes now require calendar access, like `/api/teachers` |
+| TMS roster run had no rate limit (password guessing through the Worker) | 30 runs per user per 15 minutes |
+| Essay grader keys (`bg_*`: OpenAI API key, pasted essays) stayed in the browser after sign-out | Removed on sign-out when the session is a shared-device login. Personal-device logins keep them so an idle logout does not lose work |
+| No way back from a bad save (single row, latest save wins) | Nightly cron copies each changed calendar into `calendar_history`, kept 14 days (`snapshotChangedCalendars`) |
+| A calendar over D1's 2,000,000-byte value limit failed with an opaque error | Save answers 507 `CALENDAR_TOO_LARGE`; the Worker logs a warning from 1,500,000 bytes |
+
+Still open (need a decision, a browser test, or a migration):
+
+- **Repo visibility** — the repo was publicly readable on 2026-11-12; re-check GitHub settings.
+- **Open Kakao sign-up** — first Kakao login still creates a pending account.
+- **`tools/essay-batch-editor.html`** loads `lucide@latest` and `cdn.tailwindcss.com` unpinned, and no CDN script has an `integrity` hash.
+- **CSP** is still report-only with `'unsafe-inline'`, and has no `report-uri`.
+- **`DATA_ENCRYPTION_MASTER_KEY`** is not set in production (calendar rows are plain JSON). Turning it on grows each row by about a third; mind the 2 MB limit.
+- **Calendar size** — the live calendar was 1.10 MB on 2026-11-12. Splitting `essaySubmissions` and `debateTeamSessions` out of the calendar document is the real fix.
+- Session tokens are stored unhashed; `/api/health` is public and detailed; the Sync Helper accepts any localhost port.
+- Note: this app does use LLMs (`/api/translate` via Workers AI, the OpenAI proxy), so the earlier "Prompt injection — N/A (no LLM)" line no longer holds.
+
+---
+
 ## References
 
 - [DEVELOPER.md](DEVELOPER.md) — env vars, dual backend  

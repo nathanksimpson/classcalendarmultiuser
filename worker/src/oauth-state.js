@@ -15,7 +15,9 @@ export function oauthStateSecret(env) {
 
 export function sanitizeReturnTo(returnTo) {
     const raw = typeof returnTo === 'string' ? returnTo : '/';
-    if (raw.startsWith('/') && !raw.startsWith('//')) {
+    // Same-site paths only. Browsers treat "\\" like "/" and strip tabs/newlines,
+    // so "/\\evil.com" or "/\t/evil.com" would otherwise leave the site.
+    if (raw.startsWith('/') && !raw.startsWith('//') && !/[\\\u0000-\u001f\u007f]/.test(raw)) {
         return raw;
     }
     return '/';

@@ -174,7 +174,7 @@
             const params = new URLSearchParams(location.search);
             const safeReturn = (function () {
                 const r = params.get('return') || '/';
-                return r.startsWith('/') && !r.startsWith('//') ? r : '/';
+                return r.startsWith('/') && !r.startsWith('//') && !/[\\\u0000-\u001f\u007f]/.test(r) ? r : '/';
             })();
             function pageQuery() {
                 const q = new URLSearchParams();

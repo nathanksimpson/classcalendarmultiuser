@@ -322,6 +322,19 @@ function requireAdminUser(req, res, next) {
     });
 }
 
+/** Signed in is not enough: self-registered (pending) accounts have no calendar yet. */
+function requireCalendarAccess(req, res, next) {
+    const user = req.user;
+    const ok =
+        user &&
+        (CalAccess.canViewAllCalendars(user) || CalAccess.listCalendarsForUser(user).length > 0);
+    if (!ok) {
+        res.status(403).json({ error: 'No calendar access' });
+        return;
+    }
+    next();
+}
+
 function rejectViewAsWrites(req, res, next) {
     if (req.viewAsSession) {
         res.status(403).json({ error: 'Changes are not saved in View As mode', code: 'VIEW_AS_MODE' });
@@ -472,7 +485,7 @@ app.post('/api/auth/logout-all', requireUser, (req, res) => {
     res.json({ ok: true });
 });
 
-app.post('/api/translate', requireCookieUser, async (req, res) => {
+app.post('/api/translate', requireCookieUser, requireCalendarAccess, async (req, res) => {
     const text = String(req.body && req.body.text ? req.body.text : '').trim();
     if (!text) {
         res.status(400).json({ error: 'Missing text' });
@@ -1240,7 +1253,7 @@ app.post('/api/backup', requireUser, rejectViewAsWrites, (_req, res) => {
 
 /** Same-origin TMS jobs — signed-in users. Legacy paths stay as thin aliases. */
 function registerTmsSessionJob(routePath, kind) {
-    app.post(routePath, requireUser, rejectViewAsWrites, async (req, res) => {
+    app.post(routePath, requireUser, rejectViewAsWrites, requireCalendarAccess, async (req, res) => {
         return respondTmsJob(res, kind, req.body);
     });
 }
@@ -1365,7 +1378,7 @@ app.get('/api/calendars', requireUser, (req, res) => {
     res.json(CalAccess.listCalendarsForUser(req.user));
 });
 
-app.get('/api/soundboard', requireUser, (req, res) => {
+app.get('/api/soundboard', requireUser, requireCalendarAccess, (req, res) => {
     try {
         res.json(soundboardStore.getBoard());
     } catch (err) {
@@ -1374,7 +1387,7 @@ app.get('/api/soundboard', requireUser, (req, res) => {
     }
 });
 
-app.put('/api/soundboard', requireUser, rejectViewAsWrites, (req, res) => {
+app.put('/api/soundboard', requireUser, rejectViewAsWrites, requireCalendarAccess, (req, res) => {
     try {
         const board = req.body && req.body.board;
         res.json(soundboardStore.saveBoard(board, req.user && req.user.id));

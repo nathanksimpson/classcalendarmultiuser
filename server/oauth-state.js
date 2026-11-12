@@ -17,7 +17,8 @@ function oauthStateSecret(envOrProcessEnv) {
 
 function sanitizeReturnTo(returnTo) {
     const raw = typeof returnTo === 'string' ? returnTo : '/';
-    if (raw.startsWith('/') && !raw.startsWith('//')) {
+    // Same-site paths only: browsers treat "\\" like "/" and strip tabs/newlines.
+    if (raw.startsWith('/') && !raw.startsWith('//') && !/[\\\u0000-\u001f\u007f]/.test(raw)) {
         return raw;
     }
     return '/';
