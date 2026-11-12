@@ -953,6 +953,54 @@
         return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
     }
 
+    /**
+     * Title line for a copied note: class · 담임 · lesson day and time · author, then ★/category.
+     * e.g. "5-Sky Debate · 담임: Jisoo · 2026-11-11 (Wed) 15:40 · Nathan"
+     */
+    function copyTitle(post) {
+        const hr = homeroomOf(post);
+        const day = post.lessonDate || localStamp(post.createdAt).slice(0, 10);
+        const time = localStamp(post.createdAt).slice(11);
+        const parts = [boardLabel(post.boardKind, post.boardRef)];
+        if (hr.key !== NO_HOMEROOM) {
+            parts.push(tr('boardExportHomeroom').replace('{name}', hr.label));
+        }
+        parts.push(weekdayLabel(day) + (time ? ' ' + time : ''));
+        if (post.authorName) {
+            parts.push(post.authorName);
+        }
+        return parts.join(' \u00b7 ');
+    }
+
+    function copyTextForPost(post) {
+        const lines = [copyTitle(post)];
+        const marks = [];
+        if (post.isSpecial) {
+            marks.push('\u2605 ' + tr('boardSpecial'));
+        }
+        const cat = postCategory(post);
+        if (cat) {
+            marks.push('[' + categoryLabel(cat) + ']');
+        }
+        if (marks.length) {
+            lines.push(marks.join(' '));
+        }
+        lines.push(String(post.body || ''));
+        return lines.join('\n');
+    }
+
+    function copyTextForReply(reply) {
+        const post = state.posts.find((row) => row.id === reply.postId);
+        const when = localStamp(reply.createdAt);
+        const head = [tr('boardCopyReplyBy').replace('{name}', reply.authorName || ''), when].filter(Boolean).join(' \u00b7 ');
+        const lines = [head];
+        if (post) {
+            lines.push(tr('boardCopyReplyOn').replace('{title}', copyTitle(post)));
+        }
+        lines.push(String(reply.body || ''));
+        return lines.join('\n');
+    }
+
     function matchingExportPosts() {
         const opts = exportOptions();
         return (state.expPosts || []).filter((post) => exportPostMatches(post, opts));
@@ -1235,10 +1283,14 @@
             }
             if (target.dataset.copy) {
                 const post = state.posts.find((row) => row.id === target.dataset.copy);
-                const reply = Object.values(state.threads).flat().find((row) => row.id === target.dataset.copy);
-                const text = (post && post.body) || (reply && reply.body) || '';
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(text).catch(() => {});
+                const reply = post ? null : Object.values(state.threads).flat().find((row) => row.id === target.dataset.copy);
+                const text = post ? copyTextForPost(post) : (reply ? copyTextForReply(reply) : '');
+                if (text && navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(() => {
+                        state.status = tr('boardCopiedOne');
+                        state.error = '';
+                        paintStatus();
+                    }).catch(() => {});
                 }
                 return;
             }
