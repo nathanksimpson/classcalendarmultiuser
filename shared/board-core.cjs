@@ -7,7 +7,8 @@ const Auth = require('./auth-permissions.cjs');
 const BOARD_KINDS = ['class', 'cohort', 'staff'];
 const KIND_SET = new Set(BOARD_KINDS);
 /** Fixed reaction set. One of each per person per post or reply. */
-const REACTIONS = ['\u{1F44D}', '\u2705', '\u{1F440}', '\u2764\uFE0F'];
+/** Facebook-style reactions (Like, Love, Care, Haha, Wow, Sad); one per person per post/reply. */
+const REACTIONS = ['\u{1F44D}', '\u2764\uFE0F', '\u{1F970}', '\u{1F606}', '\u{1F62E}', '\u{1F622}'];
 const REACTION_SET = new Set(REACTIONS);
 
 const BODY_MAX = 8000;
@@ -746,18 +747,35 @@ function appendCommonFilters(where, params, query) {
     }
 }
 
-function appendCursor(where, params, cursor) {
+/** 'desc' (newest first, default) or 'asc' (oldest first), by when a note was written. */
+function readOrder(query) {
+    const raw = qstr(query, 'order').trim().toLowerCase();
+    if (!raw || raw === 'desc' || raw === 'newest') {
+        return 'desc';
+    }
+    if (raw === 'asc' || raw === 'oldest') {
+        return 'asc';
+    }
+    throw boardError('order must be newest or oldest', 400, 'BOARD_ORDER');
+}
+
+function appendCursor(where, params, cursor, order) {
     if (!cursor) {
         return;
     }
-    where.push('(created_at < ? OR (created_at = ? AND id < ?))');
+    if (order === 'asc') {
+        where.push('(created_at > ? OR (created_at = ? AND id > ?))');
+    } else {
+        where.push('(created_at < ? OR (created_at = ? AND id < ?))');
+    }
     params.push(cursor.t, cursor.t, cursor.id);
 }
 
-async function selectPosts(ctx, where, params, limit) {
+async function selectPosts(ctx, where, params, limit, order) {
+    const dir = order === 'asc' ? 'ASC' : 'DESC';
     const sql = `SELECT ${POST_SELECT} FROM board_posts
         WHERE ${where.join(' AND ')}
-        ORDER BY created_at DESC, id DESC
+        ORDER BY created_at ${dir}, id ${dir}
         LIMIT ?`;
     return ctx.db.all(sql, params.concat([limit]));
 }
@@ -771,6 +789,7 @@ async function listBoard(ctx, user, calendarId, query) {
     );
     const limit = pageLimit(query);
     const cursor = readCursor(query);
+    const order = readOrder(query);
     const where = ['calendar_id = ?', 'board_kind = ?', 'board_ref = ?'];
     const params = [calendarId, kindRef.kind, kindRef.ref];
     appendCommonFilters(where, params, query);
@@ -785,8 +804,8 @@ async function listBoard(ctx, user, calendarId, query) {
         const pinWhere = where.concat(['is_special = 1', 'deleted_at IS NULL']);
         pinned = await selectPosts(ctx, pinWhere, params.slice(), PIN_MAX);
     }
-    appendCursor(pageWhere, pageParams, cursor);
-    const page = await selectPosts(ctx, pageWhere, pageParams, limit + 1);
+    appendCursor(pageWhere, pageParams, cursor, order);
+    const page = await selectPosts(ctx, pageWhere, pageParams, limit + 1, order);
     const hasMore = page.length > limit;
     const slice = hasMore ? page.slice(0, limit) : page;
     const posts = await presentPosts(ctx, pinned.concat(slice));
@@ -825,6 +844,7 @@ async function listFeed(ctx, user, calendarId, query) {
     }
     const limit = pageLimit(query);
     const cursor = readCursor(query);
+    const order = readOrder(query);
     const where = ['calendar_id = ?'];
     const params = [calendarId];
     const data = await ctx.loadCalendar(calendarId);
@@ -840,8 +860,8 @@ async function listFeed(ctx, user, calendarId, query) {
         });
     }
     appendCommonFilters(where, params, query);
-    appendCursor(where, params, cursor);
-    const page = await selectPosts(ctx, where, params, limit + 1);
+    appendCursor(where, params, cursor, order);
+    const page = await selectPosts(ctx, where, params, limit + 1, order);
     const hasMore = page.length > limit;
     const slice = hasMore ? page.slice(0, limit) : page;
     const last = slice[slice.length - 1];
@@ -891,6 +911,19 @@ async function unreadBoardList(ctx, user, calendarId, keys) {
 
 const IMPORT_SKIP_CATEGORIES = new Set(['class-points', 'essay-resubmit']);
 
+/** When an old day note was written (ISO), else midday of its lesson date, else ''. */
+function noteWrittenAt(note) {
+    const raw = String((note && note.createdAt) || '').trim();
+    if (raw) {
+        const t = Date.parse(raw);
+        if (Number.isFinite(t)) {
+            return new Date(t).toISOString();
+        }
+    }
+    const date = String((note && note.date) || '').trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(date) ? `${date}T03:00:00.000Z` : '';
+}
+
 /** Max notes copied per import call, so one request never runs long. */
 const IMPORT_CHUNK = 40;
 
@@ -912,10 +945,11 @@ async function importDayNotes(ctx, user, calendarId, body) {
         });
     });
     const doneRows = await ctx.db.all(
-        "SELECT source_ref FROM board_posts WHERE calendar_id = ? AND source_ref LIKE 'daynote:%'",
+        "SELECT source_ref, created_at FROM board_posts WHERE calendar_id = ? AND source_ref LIKE 'daynote:%'",
         [calendarId]
     );
-    const done = new Set((doneRows || []).map((row) => String(row.source_ref || '')));
+    const done = new Map((doneRows || []).map((row) => [String(row.source_ref || ''), String(row.created_at || '')]));
+    const repairs = [];
     const notes = Array.isArray(data.dayNotes) ? data.dayNotes : [];
     const pending = [];
     let skipped = 0;
@@ -933,6 +967,14 @@ async function importDayNotes(ctx, user, calendarId, body) {
         }
         const sourceRef = `daynote:${noteId}`.slice(0, 200);
         if (done.has(sourceRef)) {
+            // Posts copied before the original time was kept: put them back in order.
+            const written = noteWrittenAt(note);
+            if (written && done.get(sourceRef) !== written && repairs.length < 200) {
+                repairs.push({
+                    sql: 'UPDATE board_posts SET created_at = ? WHERE calendar_id = ? AND source_ref = ?',
+                    params: [written, calendarId, sourceRef]
+                });
+            }
             skipped += 1;
             continue;
         }
@@ -964,6 +1006,7 @@ async function importDayNotes(ctx, user, calendarId, body) {
         const author = String(item.note.authorUserId || user.id || '').trim() || String(user.id);
         const id = ctx.newId();
         const now = ctx.now();
+        const written = noteWrittenAt(item.note) || now;
         const blob = ctx.encrypt(id, item.body);
         const writes = [
             {
@@ -982,7 +1025,7 @@ async function importDayNotes(ctx, user, calendarId, body) {
                     blob.bodyEncVersion,
                     blob.bodyKeyWrapped,
                     JSON.stringify(tags),
-                    now,
+                    written,
                     now,
                     item.sourceRef
                 ]
@@ -999,6 +1042,9 @@ async function importDayNotes(ctx, user, calendarId, body) {
         await runWrites(ctx, writes);
         imported += 1;
     }
+    for (let k = 0; k < repairs.length; k += 50) {
+        await runWrites(ctx, repairs.slice(k, k + 50));
+    }
     const remaining = Math.max(0, pending.length - imported);
     if (imported) {
         await logWrite(ctx, user, calendarId, 'board_post_create', 'Brought old day notes onto the class board', {
@@ -1006,7 +1052,7 @@ async function importDayNotes(ctx, user, calendarId, body) {
             remaining
         });
     }
-    return { status: 200, body: { imported, skipped, remaining } };
+    return { status: 200, body: { imported, skipped, remaining, repaired: repairs.length } };
 }
 
 async function searchBoard(ctx, user, calendarId, query) {
@@ -1415,7 +1461,7 @@ async function toggleReaction(ctx, user, calendarId, input) {
         throw boardError('targetId is required', 400, 'BOARD_TARGET');
     }
     if (!REACTION_SET.has(emoji)) {
-        throw boardError('Reaction must be one of the four board reactions', 400, 'BOARD_EMOJI');
+        throw boardError('Reaction must be one of the board reactions', 400, 'BOARD_EMOJI');
     }
     const target = await findReactionTarget(ctx, calendarId, targetId);
     if (!target) {
@@ -1430,16 +1476,24 @@ async function toggleReaction(ctx, user, calendarId, input) {
     );
     let on = false;
     if (existing) {
+        // Same reaction again: take it back.
         await ctx.db.run(
-            'DELETE FROM board_reactions WHERE target_id = ? AND user_id = ? AND emoji = ?',
-            [targetId, String(user.id), emoji]
+            'DELETE FROM board_reactions WHERE target_id = ? AND user_id = ?',
+            [targetId, String(user.id)]
         );
     } else {
+        // New or different reaction: replace whatever this person had (one per person).
         on = true;
-        await ctx.db.run(
-            `INSERT INTO board_reactions (target_id, user_id, emoji, created_at) VALUES (?, ?, ?, ?)`,
-            [targetId, String(user.id), emoji, ctx.now()]
-        );
+        await runWrites(ctx, [
+            {
+                sql: 'DELETE FROM board_reactions WHERE target_id = ? AND user_id = ?',
+                params: [targetId, String(user.id)]
+            },
+            {
+                sql: `INSERT INTO board_reactions (target_id, user_id, emoji, created_at) VALUES (?, ?, ?, ?)`,
+                params: [targetId, String(user.id), emoji, ctx.now()]
+            }
+        ]);
     }
     await logWrite(ctx, user, calendarId, 'board_reaction', on ? 'Reacted on a class board note' : 'Removed a class board reaction', {
         targetId,

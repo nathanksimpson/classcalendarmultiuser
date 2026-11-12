@@ -143,6 +143,17 @@ const checkMark = core.REACTIONS[1];
     check('concurrent reactions both saved', a1.status === 200 && a2.status === 200 && emojis.length === 2, emojis.join('|'));
     check('both reaction emojis kept', emojis.includes(thumb) && emojis.includes(checkMark), emojis.join('|'));
 
+    // Facebook-style: one reaction per person; picking another replaces it, same again removes it.
+    await V('POST', `/api/calendars/${id}/board/reactions`, { targetId: freshId, emoji: checkMark });
+    const switched = await A('GET', `/api/calendars/${id}/board/posts/${freshId}`);
+    const mineAfterSwitch = (switched.body.post.reactions || []).filter((row) => row.userId === 'uv').map((row) => row.emoji);
+    check('switching reaction replaces it', mineAfterSwitch.length === 1 && mineAfterSwitch[0] === checkMark, mineAfterSwitch.join('|'));
+    await V('POST', `/api/calendars/${id}/board/reactions`, { targetId: freshId, emoji: checkMark });
+    const unreacted = await A('GET', `/api/calendars/${id}/board/posts/${freshId}`);
+    check('same reaction again removes it', !(unreacted.body.post.reactions || []).some((row) => row.userId === 'uv'));
+    const oldEmoji = await V('POST', `/api/calendars/${id}/board/reactions`, { targetId: freshId, emoji: '\u2705' });
+    check('old checkmark reaction is no longer offered', oldEmoji.status === 400, String(oldEmoji.status));
+
     const logged = env.DB.raw
         .prepare("SELECT COUNT(*) AS n FROM activity_log WHERE action = 'board_post_create' AND calendar_id = ?")
         .get(id).n;
@@ -182,6 +193,7 @@ const checkMark = core.REACTIONS[1];
                 classId: 'c1',
                 date: '2026-11-02',
                 text: 'Old note about class',
+                createdAt: '2026-11-02T06:15:00.000Z',
                 authorUserId: 'uv',
                 categoryId: 'parent-consult',
                 taggedStudentIds: ['stu_old']
@@ -208,6 +220,8 @@ const checkMark = core.REACTIONS[1];
         JSON.stringify(posts.map((post) => post.body))
     );
     check('points notes are not imported', !posts.some((post) => String(post.body || '').includes('Point noise')));
+    const oldPost = posts.find((post) => post.body === 'Old note about class');
+    check('imported note keeps when it was written', oldPost && oldPost.createdAt === '2026-11-02T06:15:00.000Z', oldPost && oldPost.createdAt);
     const byTms = await V('GET', '/api/board/students/history?tmsMpidx=mp-100');
     check(
         'imported tag keeps tms id',
@@ -241,6 +255,50 @@ const checkMark = core.REACTIONS[1];
     check('bulk import made no duplicates', count === 45, String(count));
     const links = env.DB.raw.prepare('SELECT count(*) AS n FROM board_post_students WHERE calendar_id = ?').get(id).n;
     check('bulk import linked tagged students', links === 22, String(links));
+}
+
+{
+    // Newest / oldest sort, with paging in both directions, and repair of old copy times.
+    const { env, A, V } = setup();
+    const notes = [];
+    for (let i = 0; i < 5; i += 1) {
+        notes.push({
+            id: `dn-ord-${i}`,
+            classId: 'c1',
+            date: `2026-11-0${i + 1}`,
+            text: `Order note ${i}`,
+            createdAt: `2026-11-0${i + 1}T05:00:00.000Z`,
+            authorUserId: 'uv'
+        });
+    }
+    const id = await makeCalendar(A, env, 'Order term', { dayNotes: notes });
+    grant(env, id, 'uv', 'viewer');
+    await V('POST', `/api/calendars/${id}/board/import-day-notes`, {});
+    // Simulate posts copied by the first release, which stamped the copy time.
+    env.DB.raw.prepare("UPDATE board_posts SET created_at = '2026-11-12T04:27:40.000Z' WHERE calendar_id = ?").run(id);
+    const fix = await V('POST', `/api/calendars/${id}/board/import-day-notes`, {});
+    check('re-running import repairs copy times', fix.body.repaired === 5, JSON.stringify(fix.body));
+    const order = async (o) => {
+        const all = [];
+        let cursor = '';
+        for (let k = 0; k < 5; k += 1) {
+            const res = await V('GET', `/api/calendars/${id}/board?kind=class&ref=c1&limit=2&order=${o}${cursor ? `&cursor=${cursor}` : ''}`);
+            (res.body.posts || []).forEach((post) => all.push(post.body));
+            if (!res.body.nextCursor) {
+                break;
+            }
+            cursor = res.body.nextCursor;
+        }
+        return all;
+    };
+    const newest = await order('newest');
+    const oldest = await order('oldest');
+    check('newest first, paged', newest.join('|') === 'Order note 4|Order note 3|Order note 2|Order note 1|Order note 0', newest.join('|'));
+    check('oldest first, paged', oldest.join('|') === 'Order note 0|Order note 1|Order note 2|Order note 3|Order note 4', oldest.join('|'));
+    const feedOld = await V('GET', `/api/calendars/${id}/board/feed?scope=all&order=oldest`);
+    check('feed sorts oldest first too', (feedOld.body.posts || [])[0] && feedOld.body.posts[0].body === 'Order note 0', JSON.stringify((feedOld.body.posts || []).map((p) => p.body)));
+    const bad = await V('GET', `/api/calendars/${id}/board?kind=class&ref=c1&order=sideways`);
+    check('bad sort order is refused', bad.status === 400, String(bad.status));
 }
 
 if (failures) {

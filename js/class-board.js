@@ -2,7 +2,17 @@
  * Notes tab: class-board feed, replies, and reactions.
  */
 (function (global) {
-    const REACTIONS = ['\u{1F44D}', '\u2705', '\u{1F440}', '\u2764\uFE0F'];
+    /** Facebook-style reactions: one per person. Order matches shared/board-core.cjs REACTIONS. */
+    const REACTION_INFO = [
+        { emoji: '\u{1F44D}', key: 'boardReactLike' },
+        { emoji: '\u2764\uFE0F', key: 'boardReactLove' },
+        { emoji: '\u{1F970}', key: 'boardReactCare' },
+        { emoji: '\u{1F606}', key: 'boardReactHaha' },
+        { emoji: '\u{1F62E}', key: 'boardReactWow' },
+        { emoji: '\u{1F622}', key: 'boardReactSad' }
+    ];
+    const REACTIONS = REACTION_INFO.map((row) => row.emoji);
+    const ORDER_KEY = 'ccp.board.order';
 
     const state = {
         scope: 'feed',
@@ -20,8 +30,35 @@
         status: '',
         error: '',
         loading: false,
-        ready: false
+        ready: false,
+        order: readSavedOrder()
     };
+
+    function readSavedOrder() {
+        try {
+            return global.localStorage && global.localStorage.getItem(ORDER_KEY) === 'oldest' ? 'oldest' : 'newest';
+        } catch (_) {
+            return 'newest';
+        }
+    }
+
+    function saveOrder(order) {
+        try {
+            if (global.localStorage) {
+                global.localStorage.setItem(ORDER_KEY, order);
+            }
+        } catch (_) {
+            /* per-browser convenience only */
+        }
+    }
+
+    /** API path for the board or feed being viewed, with the current sort. */
+    function listPath(id) {
+        const base = state.scope === 'feed'
+            ? '/calendars/' + encodeURIComponent(id) + '/board/feed?scope=mine'
+            : '/calendars/' + encodeURIComponent(id) + '/board?kind=' + encodeURIComponent(state.scope) + '&ref=' + encodeURIComponent(state.ref || '');
+        return base + '&order=' + encodeURIComponent(state.order);
+    }
 
     function tr(key) {
         return typeof global.t === 'function' ? global.t(key) : key;
@@ -144,10 +181,7 @@
         state.error = '';
         paintStatus();
         try {
-            const path = state.scope === 'feed'
-                ? '/calendars/' + encodeURIComponent(id) + '/board/feed?scope=mine'
-                : '/calendars/' + encodeURIComponent(id) + '/board?kind=' + encodeURIComponent(state.scope) + '&ref=' + encodeURIComponent(state.ref || '');
-            const body = await api(path);
+            const body = await api(listPath(id));
             state.posts = body.posts || [];
             state.nextCursor = body.nextCursor || null;
             if (body.unreadBoards) {
@@ -182,6 +216,7 @@
         }
         importRuns[id] = true;
         let total = 0;
+        let repaired = 0;
         try {
             for (let round = 0; round < 50; round += 1) {
                 const result = await api('/calendars/' + encodeURIComponent(id) + '/board/import-day-notes', {
@@ -190,6 +225,7 @@
                 });
                 const n = (result && result.imported) || 0;
                 total += n;
+                repaired += (result && result.repaired) || 0;
                 if (total > 0 && result && result.remaining > 0) {
                     state.status = tr('boardImporting').replace('{n}', String(total)).replace('{left}', String(result.remaining));
                     paintStatus();
@@ -202,10 +238,12 @@
             // Non-fatal: the feed already shows; the next visit picks up where this stopped.
             importRuns[id] = false;
         }
-        if (total > 0 && calendarId() === id) {
+        if ((total > 0 || repaired > 0) && calendarId() === id) {
             await load();
-            state.status = tr('boardImported').replace('{n}', String(total));
-            paintStatus();
+            if (total > 0) {
+                state.status = tr('boardImported').replace('{n}', String(total));
+                paintStatus();
+            }
         }
     }
 
@@ -339,14 +377,41 @@
         }
     }
 
-    function reactionButtons(targetId, reactions) {
+    function reactionLabel(emoji) {
+        const info = REACTION_INFO.find((row) => row.emoji === emoji);
+        return info ? tr(info.key) : '';
+    }
+
+    /** "👍❤️ 3" — top kinds by count, total, and who reacted in the tooltip. */
+    function reactionSummary(reactions) {
+        const rows = reactions || [];
+        if (!rows.length) {
+            return '';
+        }
+        const counts = new Map();
+        rows.forEach((row) => counts.set(row.emoji, (counts.get(row.emoji) || 0) + 1));
+        const top = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3).map((pair) => pair[0]);
+        const who = REACTIONS.filter((emoji) => counts.has(emoji)).map((emoji) => {
+            const names = rows.filter((row) => row.emoji === emoji).map((row) => row.userName || '').filter(Boolean);
+            return emoji + ' ' + names.join(', ');
+        }).join('\n');
+        return '<span class="class-board-react-summary" title="' + esc(who) + '">' +
+            '<span class="class-board-react-icons" aria-hidden="true">' + top.join('') + '</span>' +
+            '<span>' + esc(String(rows.length)) + '</span></span>';
+    }
+
+    /** Like button; hover (mouse) or press-and-hold (touch) opens the reaction picker. */
+    function reactionControl(targetId, reactions) {
         const mine = String(me().id || '');
-        return REACTIONS.map((emoji) => {
-            const rows = (reactions || []).filter((row) => row.emoji === emoji);
-            const on = rows.some((row) => String(row.userId) === mine);
-            const count = rows.length ? ' ' + rows.length : '';
-            return '<button type="button" class="class-board-react-btn' + (on ? ' is-on' : '') + '" data-react="' + esc(emoji) + '" data-target="' + esc(targetId) + '">' + emoji + count + '</button>';
-        }).join('');
+        const myRow = (reactions || []).find((row) => String(row.userId) === mine);
+        const current = myRow ? myRow.emoji : '';
+        const label = current ? reactionLabel(current) : tr('boardReactLike');
+        const main = '<button type="button" class="class-board-like-btn' + (current ? ' is-on' : '') + '" data-react="' + esc(current || REACTIONS[0]) + '" data-target="' + esc(targetId) + '" aria-haspopup="true">' +
+            '<span aria-hidden="true">' + (current || REACTIONS[0]) + '</span> ' + esc(label) + '</button>';
+        const picker = '<div class="class-board-react-picker" role="group" aria-label="' + esc(tr('boardReactPick')) + '">' +
+            REACTION_INFO.map((row) => '<button type="button" class="class-board-react-choice' + (row.emoji === current ? ' is-on' : '') + '" data-react="' + esc(row.emoji) + '" data-target="' + esc(targetId) + '" title="' + esc(tr(row.key)) + '" aria-label="' + esc(tr(row.key)) + '">' + row.emoji + '</button>').join('') +
+            '</div>';
+        return '<div class="class-board-like" data-like="' + esc(targetId) + '">' + main + picker + '</div>';
     }
 
     function quietActions(kind, id, authorId, bodyText, postId) {
@@ -388,9 +453,10 @@
         return '<article class="class-board-card">' +
             '<p class="class-board-meta">' + star + esc(post.authorName || '') + ' \u00b7 ' + esc(where) + ' \u00b7 ' + esc(when) + '</p>' +
             body +
-            '<div class="class-board-react">' + reactionButtons(post.id, post.reactions) + '</div>' +
+            (post.reactions && post.reactions.length ? '<div class="class-board-react">' + reactionSummary(post.reactions) + '</div>' : '') +
             '<div class="class-board-foot">' +
-            '<button type="button" class="btn btn-outline btn-small" data-replies="' + esc(post.id) + '">\u{1F4AC} ' + esc(String(post.replyCount || 0)) + '</button>' +
+            reactionControl(post.id, post.reactions) +
+            '<button type="button" class="class-board-like-btn" data-replies="' + esc(post.id) + '">\u{1F4AC} ' + esc(tr('boardReply')) + (post.replyCount ? ' \u00b7 ' + esc(String(post.replyCount)) : '') + '</button>' +
             (editing ? '' : quietActions('post', post.id, post.authorUserId, post.body, post.id)) +
             '</div>' +
             replies +
@@ -409,8 +475,9 @@
         return '<div class="class-board-reply">' +
             '<p class="class-board-meta">' + esc(reply.authorName || '') + '</p>' +
             body +
-            '<div class="class-board-react">' + reactionButtons(reply.id, reply.reactions) + '</div>' +
-            (editing ? '' : quietActions('reply', reply.id, reply.authorUserId, reply.body, reply.postId)) +
+            '<div class="class-board-foot">' + reactionControl(reply.id, reply.reactions) +
+            reactionSummary(reply.reactions) +
+            (editing ? '' : quietActions('reply', reply.id, reply.authorUserId, reply.body, reply.postId)) + '</div>' +
             '</div>';
     }
 
@@ -435,7 +502,106 @@
             '<label class="class-board-pick">' + esc(tr('boardCohort')) +
             '<select class="field-input" data-pick="cohort"><option value="">' + esc(tr('boardChoose')) + '</option>' + cohortOptions + '</select>' +
             '</label>' +
-            '<button type="button" class="btn btn-outline btn-small class-board-scope-btn' + staffOn + '" data-scope="staff">' + dot('staff', '') + esc(tr('boardStaff')) + '</button>';
+            '<button type="button" class="btn btn-outline btn-small class-board-scope-btn' + staffOn + '" data-scope="staff">' + dot('staff', '') + esc(tr('boardStaff')) + '</button>' +
+            '<span class="class-board-scope-end">' +
+            '<label class="class-board-pick">' + esc(tr('boardSort')) +
+            '<select class="field-input" data-sort="1">' +
+            '<option value="newest"' + (state.order === 'newest' ? ' selected' : '') + '>' + esc(tr('boardSortNewest')) + '</option>' +
+            '<option value="oldest"' + (state.order === 'oldest' ? ' selected' : '') + '>' + esc(tr('boardSortOldest')) + '</option>' +
+            '</select></label>' +
+            '<details class="header-dropdown class-board-export">' +
+            '<summary class="btn btn-outline btn-small header-dropdown-trigger">' + esc(tr('boardExport')) + '</summary>' +
+            '<div class="header-dropdown-panel class-board-export-panel" role="menu">' +
+            '<button type="button" class="header-dropdown-item btn btn-outline btn-small" role="menuitem" data-export="copy">' + esc(tr('boardExportCopy')) + '</button>' +
+            '<button type="button" class="header-dropdown-item btn btn-outline btn-small" role="menuitem" data-export="download">' + esc(tr('boardExportDownload')) + '</button>' +
+            '<p class="class-board-export-hint">' + esc(tr('boardExportHint')) + '</p>' +
+            '</div></details>' +
+            '</span>';
+    }
+
+    function pad2(n) {
+        return String(n).padStart(2, '0');
+    }
+
+    function localStamp(iso) {
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) {
+            return String(iso || '');
+        }
+        return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    }
+
+    /** Every post in the current view (all pages, current sort), as plain text. */
+    async function buildExportText() {
+        const id = calendarId();
+        const all = [];
+        let cursor = '';
+        for (let page = 0; page < 40; page += 1) {
+            const body = await api(listPath(id) + '&limit=50' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : ''));
+            (body.posts || []).forEach((post) => {
+                if (!all.some((row) => row.id === post.id)) {
+                    all.push(post);
+                }
+            });
+            cursor = body.nextCursor || '';
+            if (!cursor) {
+                break;
+            }
+        }
+        const view = boardLabel(state.scope, state.ref);
+        const sort = state.order === 'oldest' ? tr('boardSortOldest') : tr('boardSortNewest');
+        const lines = [tr('boardExportTitle') + ' \u2014 ' + view + ' \u00b7 ' + sort + ' \u00b7 ' + localStamp(new Date().toISOString()), ''];
+        all.filter((post) => !post.deleted).forEach((post) => {
+            const head = [localStamp(post.createdAt)];
+            if (post.lessonDate && post.lessonDate !== localStamp(post.createdAt).slice(0, 10)) {
+                head.push(tr('boardExportLesson') + ' ' + post.lessonDate);
+            }
+            head.push(boardLabel(post.boardKind, post.boardRef), post.authorName || '');
+            lines.push(head.filter(Boolean).join(' \u00b7 '));
+            const extra = [];
+            if (post.isSpecial) {
+                extra.push('\u2605 ' + tr('boardSpecial'));
+            }
+            (post.tags || []).forEach((tag) => extra.push('#' + tag));
+            if (extra.length) {
+                lines.push(extra.join(' '));
+            }
+            lines.push(String(post.body || ''));
+            const tail = [];
+            if (post.replyCount) {
+                tail.push(tr('boardExportReplies').replace('{n}', String(post.replyCount)));
+            }
+            if (post.reactions && post.reactions.length) {
+                tail.push(post.reactions.map((row) => row.emoji).join('') + ' ' + post.reactions.length);
+            }
+            if (tail.length) {
+                lines.push('(' + tail.join(' \u00b7 ') + ')');
+            }
+            lines.push('');
+        });
+        return { text: lines.join('\n'), count: all.length };
+    }
+
+    async function runExport(kind) {
+        state.status = tr('boardExporting');
+        paintStatus();
+        const result = await buildExportText();
+        if (kind === 'download') {
+            const blob = new Blob([result.text], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const today = localStamp(new Date().toISOString()).slice(0, 10);
+            a.href = url;
+            a.download = 'notes-' + today + '.txt';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } else if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(result.text);
+        }
+        state.status = (kind === 'download' ? tr('boardExportDownloaded') : tr('boardExportCopied')).replace('{n}', String(result.count));
+        paintStatus();
     }
 
     function composeHtml() {
@@ -531,6 +697,14 @@
                 return;
             }
             if (target.dataset.react) {
+                if (suppressNextReactClick) {
+                    suppressNextReactClick = false;
+                    return;
+                }
+                const openLike = mount.querySelector('.class-board-like.is-open');
+                if (openLike) {
+                    openLike.classList.remove('is-open');
+                }
                 react(target.dataset.target, target.dataset.react).catch((err) => {
                     state.error = err.message || tr('boardError');
                     paintStatus();
@@ -576,6 +750,17 @@
                 }
                 return;
             }
+            if (target.dataset.export) {
+                const menu = target.closest('details');
+                if (menu) {
+                    menu.open = false;
+                }
+                runExport(target.dataset.export).catch((err) => {
+                    state.error = (err && err.message) || tr('boardError');
+                    paintStatus();
+                });
+                return;
+            }
             if (target.dataset.more) {
                 loadMore().catch((err) => {
                     state.error = err.message || tr('boardError');
@@ -583,8 +768,49 @@
                 });
             }
         });
+        // Touch: press and hold the Like button to open the picker (like Facebook).
+        let holdTimer = null;
+        mount.addEventListener('pointerdown', (event) => {
+            const btn = event.target.closest('.class-board-like-btn[data-react]');
+            if (!btn || event.pointerType === 'mouse') {
+                return;
+            }
+            clearTimeout(holdTimer);
+            holdTimer = setTimeout(() => {
+                const wrap = btn.closest('.class-board-like');
+                if (wrap) {
+                    mount.querySelectorAll('.class-board-like.is-open').forEach((el) => el.classList.remove('is-open'));
+                    wrap.classList.add('is-open');
+                    suppressNextReactClick = true;
+                }
+            }, 450);
+        });
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach((type) => {
+            mount.addEventListener(type, () => clearTimeout(holdTimer));
+        });
+        mount.addEventListener('contextmenu', (event) => {
+            if (event.target.closest('.class-board-like')) {
+                event.preventDefault();
+            }
+        });
+        document.addEventListener('pointerdown', (event) => {
+            if (!event.target.closest('.class-board-like')) {
+                mount.querySelectorAll('.class-board-like.is-open').forEach((el) => el.classList.remove('is-open'));
+            }
+            const menu = mount.querySelector('.class-board-export[open]');
+            if (menu && !menu.contains(event.target)) {
+                menu.open = false;
+            }
+        });
         mount.addEventListener('change', (event) => {
             const target = event.target;
+            if (target.dataset.sort) {
+                state.order = target.value === 'oldest' ? 'oldest' : 'newest';
+                saveOrder(state.order);
+                state.threads = {};
+                load();
+                return;
+            }
             if (target.dataset.pick) {
                 state.scope = target.dataset.pick;
                 state.ref = target.value;
@@ -652,10 +878,7 @@
             return;
         }
         const id = calendarId();
-        const base = state.scope === 'feed'
-            ? '/calendars/' + encodeURIComponent(id) + '/board/feed?scope=mine'
-            : '/calendars/' + encodeURIComponent(id) + '/board?kind=' + encodeURIComponent(state.scope) + '&ref=' + encodeURIComponent(state.ref || '');
-        const body = await api(base + '&cursor=' + encodeURIComponent(state.nextCursor));
+        const body = await api(listPath(id) + '&cursor=' + encodeURIComponent(state.nextCursor));
         const seen = new Set(state.posts.map((post) => post.id));
         (body.posts || []).forEach((post) => {
             if (!seen.has(post.id)) {
@@ -667,6 +890,7 @@
     }
 
     let shownAt = 0;
+    let suppressNextReactClick = false;
 
     function show() {
         const oldMount = document.getElementById('panelNotesMount');
