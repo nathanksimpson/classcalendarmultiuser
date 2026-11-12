@@ -7,8 +7,8 @@ const Auth = require('./auth-permissions.cjs');
 const BOARD_KINDS = ['class', 'cohort', 'staff'];
 const KIND_SET = new Set(BOARD_KINDS);
 /** Fixed reaction set. One of each per person per post or reply. */
-/** Facebook-style reactions (Like, Love, Care, Haha, Wow, Sad); one per person per post/reply. */
-const REACTIONS = ['\u{1F44D}', '\u2764\uFE0F', '\u{1F970}', '\u{1F606}', '\u{1F62E}', '\u{1F622}'];
+/** KakaoTalk-style 공감 (heart, like, check, laugh, surprise, sad); one per person per post/reply. */
+const REACTIONS = ['\u2764\uFE0F', '\u{1F44D}', '\u2705', '\u{1F606}', '\u{1F62E}', '\u{1F622}'];
 const REACTION_SET = new Set(REACTIONS);
 
 const BODY_MAX = 8000;

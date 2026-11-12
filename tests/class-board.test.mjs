@@ -151,8 +151,8 @@ const checkMark = core.REACTIONS[1];
     await V('POST', `/api/calendars/${id}/board/reactions`, { targetId: freshId, emoji: checkMark });
     const unreacted = await A('GET', `/api/calendars/${id}/board/posts/${freshId}`);
     check('same reaction again removes it', !(unreacted.body.post.reactions || []).some((row) => row.userId === 'uv'));
-    const oldEmoji = await V('POST', `/api/calendars/${id}/board/reactions`, { targetId: freshId, emoji: '\u2705' });
-    check('old checkmark reaction is no longer offered', oldEmoji.status === 400, String(oldEmoji.status));
+    const oldEmoji = await V('POST', `/api/calendars/${id}/board/reactions`, { targetId: freshId, emoji: '\u{1F970}' });
+    check('reactions outside the Kakao set are refused', oldEmoji.status === 400, String(oldEmoji.status));
 
     const logged = env.DB.raw
         .prepare("SELECT COUNT(*) AS n FROM activity_log WHERE action = 'board_post_create' AND calendar_id = ?")

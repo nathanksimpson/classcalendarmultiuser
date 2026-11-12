@@ -24265,23 +24265,13 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-boo
     font-size: var(--text-body-sm);
 }
 
-/* Facebook-style reactions: summary line, Like button, hover/hold picker. */
+/* KakaoTalk-style 공감: small add button, emoji bar, pill under the message. */
 .class-board-react {
-    gap: var(--space-2);
-}
-
-.class-board-react-summary {
-    display: inline-flex;
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: var(--space-1);
-    color: var(--text-muted);
-    font-size: var(--text-body-sm);
-    cursor: default;
-}
-
-.class-board-react-icons {
-    letter-spacing: -0.15em;
-    font-size: 1rem;
+    gap: var(--space-2);
 }
 
 .class-board-foot {
@@ -24295,12 +24285,7 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-boo
     padding-top: 0;
 }
 
-.class-board-like {
-    position: relative;
-    display: inline-flex;
-}
-
-.class-board-like-btn {
+.class-board-foot-btn {
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
@@ -24314,116 +24299,72 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-boo
     font-size: var(--text-body-sm);
     font-weight: 600;
     cursor: pointer;
-    user-select: none;
-    -webkit-user-select: none;
-    -webkit-touch-callout: none;
 }
 
-.class-board-like-btn:hover,
-.class-board-like-btn:focus-visible {
+.class-board-foot-btn:hover,
+.class-board-foot-btn:focus-visible {
     background: var(--bg-hover);
     color: var(--text-primary);
 }
 
-.class-board-like-btn.is-on {
-    background: color-mix(in srgb, var(--reaction-tone, var(--primary)) 14%, transparent);
-    color: var(--reaction-tone, var(--primary-dark));
+.class-board-kadd-wrap {
+    position: relative;
+    display: inline-flex;
 }
 
-.class-board-like-btn.is-on:hover,
-.class-board-like-btn.is-on:focus-visible {
-    background: color-mix(in srgb, var(--reaction-tone, var(--primary)) 24%, transparent);
-    color: var(--reaction-tone, var(--primary-dark));
-}
-
-.class-board-like-btn.is-like {
-    --reaction-tone: #2563eb;
-}
-
-.class-board-like-btn.is-love {
-    --reaction-tone: #e11d48;
-}
-
-.class-board-like-btn.is-care,
-.class-board-like-btn.is-haha,
-.class-board-like-btn.is-wow,
-.class-board-like-btn.is-sad {
-    --reaction-tone: #b45309;
-}
-
-:root[data-theme="dark"] .class-board-like-btn.is-like {
-    --reaction-tone: #60a5fa;
-}
-
-:root[data-theme="dark"] .class-board-like-btn.is-love {
-    --reaction-tone: #fb7185;
-}
-
-:root[data-theme="dark"] .class-board-like-btn.is-care,
-:root[data-theme="dark"] .class-board-like-btn.is-haha,
-:root[data-theme="dark"] .class-board-like-btn.is-wow,
-:root[data-theme="dark"] .class-board-like-btn.is-sad {
-    --reaction-tone: #fbbf24;
-}
-
-.class-board-react-remove {
-    align-self: center;
-    margin-left: var(--space-1);
-    padding: var(--space-1) var(--space-2);
+.class-board-kadd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 32px;
     border: none;
-    border-left: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
     background: transparent;
-    color: var(--text-secondary);
-    font: inherit;
-    font-size: var(--text-body-sm);
-    font-weight: 600;
-    white-space: nowrap;
+    color: var(--text-muted);
+    font-size: 1.05rem;
+    line-height: 1;
     cursor: pointer;
 }
 
-.class-board-react-remove:hover,
-.class-board-react-remove:focus-visible {
-    color: var(--danger);
+.class-board-kadd:hover,
+.class-board-kadd:focus-visible,
+.class-board-kadd[aria-expanded="true"] {
+    background: var(--bg-hover);
+    color: var(--text-primary);
 }
 
-.class-board-react-picker {
+.class-board-kadd.is-on {
+    background: color-mix(in srgb, #fee500 30%, transparent);
+}
+
+.class-board-kbar {
     position: absolute;
     bottom: calc(100% + var(--space-1));
     left: 0;
     z-index: var(--z-sticky-header);
     display: flex;
     gap: 2px;
-    padding: var(--space-1);
+    padding: var(--space-1) var(--space-2);
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-full);
     box-shadow: var(--shadow-md);
-    opacity: 0;
-    visibility: hidden;
-    transform: translateY(4px) scale(0.96);
-    transform-origin: bottom left;
-    transition: opacity 0.12s ease, transform 0.12s ease, visibility 0s linear 0.12s;
+    animation: class-board-kbar-in 0.14s ease-out;
 }
 
-/* Mouse: picker appears after a short hover; keyboard: when focus is inside; touch: press and hold. */
-@media (hover: hover) and (pointer: fine) {
-    .class-board-like:hover .class-board-react-picker {
+@keyframes class-board-kbar-in {
+    from {
+        opacity: 0;
+        transform: translateY(4px) scale(0.95);
+    }
+    to {
         opacity: 1;
-        visibility: visible;
         transform: none;
-        transition-delay: 0.45s, 0.45s, 0s;
     }
 }
 
-.class-board-like:focus-within .class-board-react-picker,
-.class-board-like.is-open .class-board-react-picker {
-    opacity: 1;
-    visibility: visible;
-    transform: none;
-    transition-delay: 0s;
-}
-
-.class-board-react-choice {
+.class-board-kbar-choice {
     width: 40px;
     height: 40px;
     border: none;
@@ -24432,21 +24373,118 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-boo
     font-size: 1.5rem;
     line-height: 1;
     cursor: pointer;
-    transition: transform 0.12s ease;
+    transition: transform 0.12s ease, background 0.12s ease;
 }
 
-.class-board-react-choice:hover,
-.class-board-react-choice:focus-visible {
-    transform: scale(1.3) translateY(-3px);
+.class-board-kbar-choice:hover,
+.class-board-kbar-choice:focus-visible {
+    transform: scale(1.2);
 }
 
-.class-board-react-choice.is-on {
-    background: var(--accent-muted);
+.class-board-kbar-choice.is-on {
+    background: color-mix(in srgb, #fee500 45%, transparent);
+}
+
+/* Pill under the message: kinds used + total; tinted yellow when you reacted (Kakao yellow). */
+.class-board-kpill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: 28px;
+    padding: 2px var(--space-2) 2px 6px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    background: var(--bg-card);
+    box-shadow: 0 1px 2px rgba(12, 12, 13, 0.06);
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: var(--text-body-sm);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.class-board-kpill:hover,
+.class-board-kpill:focus-visible {
+    border-color: var(--text-muted);
+}
+
+.class-board-kpill.is-mine {
+    border-color: #e6cf00;
+    background: color-mix(in srgb, #fee500 22%, var(--bg-card));
+    color: var(--text-primary);
+}
+
+.class-board-kpill-icons {
+    font-size: 0.95rem;
+    letter-spacing: 1px;
+}
+
+.class-board-kwho {
+    position: absolute;
+    top: calc(100% + var(--space-1));
+    left: 0;
+    z-index: var(--z-sticky-header);
+    min-width: 14rem;
+    max-width: min(20rem, calc(100vw - 2 * var(--space-4)));
+    padding: var(--space-2);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-md);
+}
+
+.class-board-kwho ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.class-board-kwho li {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    align-items: baseline;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-1);
+    font-size: var(--text-body-sm);
+}
+
+.class-board-kwho-emoji {
+    font-size: 1rem;
+}
+
+.class-board-kwho-label {
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.class-board-kwho-names {
+    color: var(--text-primary);
+}
+
+.class-board-kwho-undo {
+    display: block;
+    width: 100%;
+    margin-top: var(--space-1);
+    padding: var(--space-2);
+    border: none;
+    border-top: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--danger);
+    font: inherit;
+    font-size: var(--text-body-sm);
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+}
+
+[data-press-react] {
+    -webkit-touch-callout: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .class-board-react-picker,
-    .class-board-react-choice {
+    .class-board-kbar,
+    .class-board-kbar-choice {
+        animation: none;
         transition: none;
     }
 }

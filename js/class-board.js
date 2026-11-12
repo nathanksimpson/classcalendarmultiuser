@@ -2,13 +2,13 @@
  * Notes tab: class-board feed, replies, and reactions.
  */
 (function (global) {
-    /** Facebook-style reactions: one per person. Order matches shared/board-core.cjs REACTIONS. */
+    /** KakaoTalk-style 공감: one per person. Order matches shared/board-core.cjs REACTIONS. */
     const REACTION_INFO = [
+        { emoji: '\u2764\uFE0F', key: 'boardReactHeart' },
         { emoji: '\u{1F44D}', key: 'boardReactLike' },
-        { emoji: '\u2764\uFE0F', key: 'boardReactLove' },
-        { emoji: '\u{1F970}', key: 'boardReactCare' },
-        { emoji: '\u{1F606}', key: 'boardReactHaha' },
-        { emoji: '\u{1F62E}', key: 'boardReactWow' },
+        { emoji: '\u2705', key: 'boardReactCheck' },
+        { emoji: '\u{1F606}', key: 'boardReactLaugh' },
+        { emoji: '\u{1F62E}', key: 'boardReactSurprise' },
         { emoji: '\u{1F622}', key: 'boardReactSad' }
     ];
     const REACTIONS = REACTION_INFO.map((row) => row.emoji);
@@ -35,6 +35,8 @@
         category: 'class-notes',
         target: '',
         filterTag: '',
+        pickOpen: '',
+        whoOpen: '',
         exportOpen: false,
         exp: null,
         expPosts: null,
@@ -527,6 +529,10 @@
     }
 
     async function react(targetId, emoji) {
+        state.pickOpen = '';
+        if (state.whoOpen === targetId) {
+            state.whoOpen = '';
+        }
         const body = await api('/calendars/' + encodeURIComponent(calendarId()) + '/board/reactions', {
             method: 'POST',
             body: { targetId, emoji }
@@ -577,43 +583,51 @@
         return info ? tr(info.key) : '';
     }
 
-    /** "👍❤️ 3" — top kinds by count, total, and who reacted in the tooltip. */
-    function reactionSummary(reactions) {
+    function myReaction(reactions) {
+        const mine = String(me().id || '');
+        const row = (reactions || []).find((r) => String(r.userId) === mine);
+        return row ? row.emoji : '';
+    }
+
+    /** Kakao-style pill under the message: the kinds used + total; tap for who reacted. */
+    function reactionPill(targetId, reactions) {
         const rows = reactions || [];
         if (!rows.length) {
             return '';
         }
-        const counts = new Map();
-        rows.forEach((row) => counts.set(row.emoji, (counts.get(row.emoji) || 0) + 1));
-        const top = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3).map((pair) => pair[0]);
-        const who = REACTIONS.filter((emoji) => counts.has(emoji)).map((emoji) => {
-            const names = rows.filter((row) => row.emoji === emoji).map((row) => row.userName || '').filter(Boolean);
-            return emoji + ' ' + names.join(', ');
-        }).join('\n');
-        return '<span class="class-board-react-summary" title="' + esc(who) + '">' +
-            '<span class="class-board-react-icons" aria-hidden="true">' + top.join('') + '</span>' +
-            '<span>' + esc(String(rows.length)) + '</span></span>';
+        const kinds = REACTIONS.filter((emoji) => rows.some((row) => row.emoji === emoji));
+        const current = myReaction(rows);
+        const open = state.whoOpen === targetId;
+        const pill = '<button type="button" class="class-board-kpill' + (current ? ' is-mine' : '') + '" data-who="' + esc(targetId) + '" aria-expanded="' + (open ? 'true' : 'false') + '" title="' + esc(tr('boardReactWho')) + '">' +
+            '<span class="class-board-kpill-icons" aria-hidden="true">' + kinds.join('') + '</span>' +
+            '<span class="class-board-kpill-count">' + esc(String(rows.length)) + '</span></button>';
+        if (!open) {
+            return pill;
+        }
+        const list = kinds.map((emoji) => {
+            const names = rows.filter((row) => row.emoji === emoji).map((row) => String(row.userId) === String(me().id || '') ? tr('boardReactMe') : (row.userName || ''));
+            return '<li><span class="class-board-kwho-emoji" aria-hidden="true">' + emoji + '</span><span class="class-board-kwho-label">' + esc(reactionLabel(emoji)) + '</span><span class="class-board-kwho-names">' + esc(names.join(', ')) + '</span></li>';
+        }).join('');
+        const undo = current
+            ? '<button type="button" class="class-board-kwho-undo" data-react="' + esc(current) + '" data-target="' + esc(targetId) + '">' + esc(tr('boardReactUndo')) + '</button>'
+            : '';
+        return pill + '<div class="class-board-kwho" role="dialog" aria-label="' + esc(tr('boardReactWho')) + '"><ul>' + list + '</ul>' + undo + '</div>';
     }
 
-    /** Like button; hover (mouse) or press-and-hold (touch) opens the reaction picker. */
-    function reactionControl(targetId, reactions) {
-        const mine = String(me().id || '');
-        const myRow = (reactions || []).find((row) => String(row.userId) === mine);
-        const current = myRow ? myRow.emoji : '';
-        const label = current ? reactionLabel(current) : tr('boardReactLike');
-        const info = REACTION_INFO.find((row) => row.emoji === current);
-        const tone = info ? ' is-' + info.key.replace('boardReact', '').toLowerCase() : '';
-        const title = current ? tr('boardReactRemoveHint').replace('{r}', label) : tr('boardReactAddHint');
-        const main = '<button type="button" class="class-board-like-btn' + (current ? ' is-on' + tone : '') + '" data-react="' + esc(current || REACTIONS[0]) + '" data-target="' + esc(targetId) + '" aria-haspopup="true" aria-pressed="' + (current ? 'true' : 'false') + '" title="' + esc(title) + '">' +
-            '<span aria-hidden="true">' + (current || REACTIONS[0]) + '</span> ' + esc(label) + '</button>';
-        const remove = current
-            ? '<button type="button" class="class-board-react-remove" data-react="' + esc(current) + '" data-target="' + esc(targetId) + '" title="' + esc(tr('boardReactRemove')) + '">\u2715 ' + esc(tr('boardReactRemove')) + '</button>'
-            : '';
-        const picker = '<div class="class-board-react-picker" role="group" aria-label="' + esc(tr('boardReactPick')) + '">' +
-            REACTION_INFO.map((row) => '<button type="button" class="class-board-react-choice' + (row.emoji === current ? ' is-on' : '') + '" data-react="' + esc(row.emoji) + '" data-target="' + esc(targetId) + '" title="' + esc(tr(row.key)) + '" aria-label="' + esc(tr(row.key)) + '" aria-pressed="' + (row.emoji === current ? 'true' : 'false') + '">' + row.emoji + '</button>').join('') +
-            remove +
+    /** Small add-reaction button; opens the 6-emoji bar (tap your current one again to take it back). */
+    function reactionAdd(targetId, reactions) {
+        const current = myReaction(reactions);
+        const open = state.pickOpen === targetId;
+        const icon = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.5" cy="12.5" r="7.5"/><path d="M7.8 14.6c.7 1 1.6 1.5 2.7 1.5s2-.5 2.7-1.5"/><circle cx="8.2" cy="10.6" r=".6" fill="currentColor" stroke="none"/><circle cx="12.8" cy="10.6" r=".6" fill="currentColor" stroke="none"/><path d="M19.5 2.5v5M17 5h5"/></svg>';
+        const btn = '<button type="button" class="class-board-kadd' + (current ? ' is-on' : '') + '" data-kpick="' + esc(targetId) + '" aria-expanded="' + (open ? 'true' : 'false') + '" title="' + esc(tr('boardReactAdd')) + '" aria-label="' + esc(tr('boardReactAdd')) + '">' +
+            (current ? '<span aria-hidden="true">' + current + '</span>' : icon) + '</button>';
+        if (!open) {
+            return '<span class="class-board-kadd-wrap">' + btn + '</span>';
+        }
+        const bar = '<div class="class-board-kbar" role="group" aria-label="' + esc(tr('boardReactPick')) + '">' +
+            REACTION_INFO.map((row) => '<button type="button" class="class-board-kbar-choice' + (row.emoji === current ? ' is-on' : '') + '" data-react="' + esc(row.emoji) + '" data-target="' + esc(targetId) + '" title="' + esc(row.emoji === current ? tr('boardReactUndo') : tr(row.key)) + '" aria-label="' + esc(tr(row.key)) + '" aria-pressed="' + (row.emoji === current ? 'true' : 'false') + '">' + row.emoji + '</button>').join('') +
             '</div>';
-        return '<div class="class-board-like" data-like="' + esc(targetId) + '">' + main + picker + '</div>';
+        return '<span class="class-board-kadd-wrap">' + btn + bar + '</span>';
     }
 
     function quietActions(kind, id, authorId, bodyText, postId) {
@@ -643,7 +657,7 @@
                 '<button type="button" class="btn btn-primary btn-small" data-save-edit="' + esc(post.id) + '" data-kind="post">' + esc(tr('boardSave')) + '</button>' +
                 '<button type="button" class="btn btn-outline btn-small" data-cancel-edit="1">' + esc(tr('boardCancel')) + '</button>' +
                 '</div>'
-            : '<div class="class-board-body">' + richTagged(post.body || '', post.students) + '</div>';
+            : '<div class="class-board-body" data-press-react="' + esc(post.id) + '">' + richTagged(post.body || '', post.students) + '</div>';
         const thread = state.threads[post.id];
         const replies = thread
             ? '<div class="class-board-thread">' + thread.map(replyHtml).join('') +
@@ -656,10 +670,10 @@
             '<p class="class-board-meta">' + star + esc(post.authorName || '') + ' \u00b7 ' + esc(where) + ' \u00b7 ' + esc(when) +
             categoryBadge(post) + '</p>' +
             body +
-            (post.reactions && post.reactions.length ? '<div class="class-board-react">' + reactionSummary(post.reactions) + '</div>' : '') +
+            (post.reactions && post.reactions.length ? '<div class="class-board-react">' + reactionPill(post.id, post.reactions) + '</div>' : '') +
             '<div class="class-board-foot">' +
-            reactionControl(post.id, post.reactions) +
-            '<button type="button" class="class-board-like-btn" data-replies="' + esc(post.id) + '">\u{1F4AC} ' + esc(tr('boardReply')) + (post.replyCount ? ' \u00b7 ' + esc(String(post.replyCount)) : '') + '</button>' +
+            reactionAdd(post.id, post.reactions) +
+            '<button type="button" class="class-board-foot-btn" data-replies="' + esc(post.id) + '">\u{1F4AC} ' + esc(tr('boardReply')) + (post.replyCount ? ' \u00b7 ' + esc(String(post.replyCount)) : '') + '</button>' +
             (editing ? '' : quietActions('post', post.id, post.authorUserId, post.body, post.id)) +
             '</div>' +
             replies +
@@ -683,12 +697,12 @@
         const body = editing
             ? '<textarea class="field-input class-board-edit" data-editing="' + esc(reply.id) + '">' + esc(state.editingText) + '</textarea>' +
                 '<button type="button" class="btn btn-primary btn-small" data-save-edit="' + esc(reply.id) + '" data-kind="reply">' + esc(tr('boardSave')) + '</button>'
-            : '<div class="class-board-body">' + rich(reply.body || '') + '</div>';
+            : '<div class="class-board-body" data-press-react="' + esc(reply.id) + '">' + rich(reply.body || '') + '</div>';
         return '<div class="class-board-reply">' +
             '<p class="class-board-meta">' + esc(reply.authorName || '') + '</p>' +
             body +
-            '<div class="class-board-foot">' + reactionControl(reply.id, reply.reactions) +
-            reactionSummary(reply.reactions) +
+            (reply.reactions && reply.reactions.length ? '<div class="class-board-react">' + reactionPill(reply.id, reply.reactions) + '</div>' : '') +
+            '<div class="class-board-foot">' + reactionAdd(reply.id, reply.reactions) +
             (editing ? '' : quietActions('reply', reply.id, reply.authorUserId, reply.body, reply.postId)) + '</div>' +
             '</div>';
     }
@@ -897,15 +911,15 @@
         const has = !state.expLoading && state.expPosts && matchingExportPosts().length > 0;
         return '<div class="class-board-export-panel-inner">' +
             '<div class="class-board-export-head"><h3>' + esc(tr('boardExportHeading')) + '</h3>' +
-            '<button type="button" class="class-board-like-btn" data-export-open="1" aria-label="' + esc(tr('boardCancel')) + '">\u2715</button></div>' +
+            '<button type="button" class="class-board-foot-btn" data-export-open="1" aria-label="' + esc(tr('boardCancel')) + '">\u2715</button></div>' +
             '<div class="class-board-export-section">' +
             '<span class="class-board-export-label">' + esc(tr('boardExportDates')) + '</span>' +
             '<div class="class-board-export-row">' +
             '<input type="date" class="field-input" data-exp-from="1" value="' + esc(opts.from) + '">' +
             '<span aria-hidden="true">~</span>' +
             '<input type="date" class="field-input" data-exp-to="1" value="' + esc(opts.to) + '">' +
-            '<button type="button" class="class-board-like-btn" data-exp-range="today">' + esc(tr('boardExportToday')) + '</button>' +
-            '<button type="button" class="class-board-like-btn" data-exp-range="week">' + esc(tr('boardExportThisWeek')) + '</button>' +
+            '<button type="button" class="class-board-foot-btn" data-exp-range="today">' + esc(tr('boardExportToday')) + '</button>' +
+            '<button type="button" class="class-board-foot-btn" data-exp-range="week">' + esc(tr('boardExportThisWeek')) + '</button>' +
             '</div></div>' +
             '<div class="class-board-export-section">' +
             '<span class="class-board-export-label">' + esc(tr('boardExportWhose')) + '</span>' +
@@ -1059,14 +1073,22 @@
                 });
                 return;
             }
+            if (target.dataset.kpick) {
+                state.pickOpen = state.pickOpen === target.dataset.kpick ? '' : target.dataset.kpick;
+                state.whoOpen = '';
+                paintList();
+                return;
+            }
+            if (target.dataset.who) {
+                state.whoOpen = state.whoOpen === target.dataset.who ? '' : target.dataset.who;
+                state.pickOpen = '';
+                paintList();
+                return;
+            }
             if (target.dataset.react) {
-                if (suppressNextReactClick) {
-                    suppressNextReactClick = false;
+                // Lifting the finger after press-and-hold can "click" the bar that just opened under it.
+                if (Date.now() - holdOpenedAt < 700 && target.classList.contains('class-board-kbar-choice')) {
                     return;
-                }
-                const openLike = mount.querySelector('.class-board-like.is-open');
-                if (openLike) {
-                    openLike.classList.remove('is-open');
                 }
                 react(target.dataset.target, target.dataset.react).catch((err) => {
                     state.error = err.message || tr('boardError');
@@ -1157,34 +1179,62 @@
                 });
             }
         });
-        // Touch: press and hold the Like button to open the picker (like Facebook).
+        // Touch: press and hold a message to open the 공감 bar (like KakaoTalk).
         let holdTimer = null;
+        let holdOpenedAt = 0;
+        let holdX = 0;
+        let holdY = 0;
         mount.addEventListener('pointerdown', (event) => {
-            const btn = event.target.closest('.class-board-like-btn[data-react]');
-            if (!btn || event.pointerType === 'mouse') {
+            const body = event.target.closest('[data-press-react]');
+            if (!body || event.pointerType === 'mouse' || state.editingId) {
                 return;
             }
+            holdX = event.clientX;
+            holdY = event.clientY;
             clearTimeout(holdTimer);
             holdTimer = setTimeout(() => {
-                const wrap = btn.closest('.class-board-like');
-                if (wrap) {
-                    mount.querySelectorAll('.class-board-like.is-open').forEach((el) => el.classList.remove('is-open'));
-                    wrap.classList.add('is-open');
-                    suppressNextReactClick = true;
+                holdOpenedAt = Date.now();
+                state.pickOpen = body.dataset.pressReact;
+                state.whoOpen = '';
+                paintList();
+                if (navigator.vibrate) {
+                    try { navigator.vibrate(10); } catch (_) { /* optional */ }
                 }
-            }, 450);
+            }, 500);
         });
-        ['pointerup', 'pointercancel', 'pointerleave'].forEach((type) => {
-            mount.addEventListener(type, () => clearTimeout(holdTimer));
+        mount.addEventListener('pointermove', (event) => {
+            if (holdTimer && (Math.abs(event.clientX - holdX) > 8 || Math.abs(event.clientY - holdY) > 8)) {
+                clearTimeout(holdTimer);
+                holdTimer = null;
+            }
+        });
+        ['pointerup', 'pointercancel'].forEach((type) => {
+            mount.addEventListener(type, () => {
+                clearTimeout(holdTimer);
+                holdTimer = null;
+            });
         });
         mount.addEventListener('contextmenu', (event) => {
-            if (event.target.closest('.class-board-like')) {
+            if (event.target.closest('[data-press-react]') && state.pickOpen) {
                 event.preventDefault();
             }
         });
         document.addEventListener('pointerdown', (event) => {
-            if (!event.target.closest('.class-board-like')) {
-                mount.querySelectorAll('.class-board-like.is-open').forEach((el) => el.classList.remove('is-open'));
+            if (!state.pickOpen && !state.whoOpen) {
+                return;
+            }
+            if (event.target.closest('.class-board-kadd-wrap, .class-board-kwho, .class-board-kpill, [data-press-react]')) {
+                return;
+            }
+            state.pickOpen = '';
+            state.whoOpen = '';
+            paintList();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && (state.pickOpen || state.whoOpen)) {
+                state.pickOpen = '';
+                state.whoOpen = '';
+                paintList();
             }
         });
         mount.addEventListener('change', (event) => {
@@ -1335,7 +1385,6 @@
     }
 
     let shownAt = 0;
-    let suppressNextReactClick = false;
 
     function show() {
         const oldMount = document.getElementById('panelNotesMount');
