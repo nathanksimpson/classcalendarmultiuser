@@ -304,6 +304,8 @@
         boardLoading: 'Loading notes…',
         boardImported: 'Brought in {n} older notes.',
         boardImporting: 'Bringing in older notes… {n} done, {left} to go.',
+        boardExportGroupedHint: 'Grouped by homeroom teacher, then by lesson day.',
+        boardExportHomeroom: 'Homeroom: {name}',
         boardReactHeart: 'Heart',
         boardReactCheck: 'Check',
         boardReactLaugh: 'Laugh',

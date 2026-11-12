@@ -798,7 +798,51 @@
         return iso + ' (' + d.toLocaleDateString(loc, { weekday: 'short' }) + ')';
     }
 
-    /** Plain-text export grouped by lesson day. */
+    const NO_HOMEROOM = '__none';
+
+    function homeroomName(uid, fallback) {
+        if (uid && typeof global.resolveHomeroomTeacherDisplayName === 'function') {
+            const name = global.resolveHomeroomTeacherDisplayName(uid);
+            if (name) {
+                return name;
+            }
+        }
+        return String(fallback || '').trim() || uid;
+    }
+
+    /** 담임 for a post: the class's (class override, else its 반), the 반's for 반 boards, none for Staff. */
+    function homeroomOf(post) {
+        if (post.boardKind === 'class') {
+            const cls = classes().find((row) => String(row.id) === String(post.boardRef));
+            if (cls && typeof global.resolveHomeroomMetaForClass === 'function') {
+                const meta = global.resolveHomeroomMetaForClass(cls);
+                if (meta && meta.key && meta.key !== '__no_homeroom__' && meta.key !== NO_HOMEROOM && meta.label) {
+                    return { key: meta.key, label: meta.label };
+                }
+            }
+            if (cls) {
+                const own = String(cls.homeroomTeacherUserId || '').trim();
+                if (own) {
+                    return { key: own, label: homeroomName(own, cls.homeroomTeacherName) };
+                }
+                const cohort = cohorts().find((row) => String(row.id) === String(cls.cohortId || ''));
+                if (cohort && (cohort.homeroomTeacherUserId || cohort.homeroomTeacherName)) {
+                    const uid = String(cohort.homeroomTeacherUserId || '').trim();
+                    return { key: uid || 'name:' + cohort.homeroomTeacherName, label: homeroomName(uid, cohort.homeroomTeacherName) };
+                }
+            }
+        }
+        if (post.boardKind === 'cohort') {
+            const cohort = cohorts().find((row) => String(row.id) === String(post.boardRef));
+            if (cohort && (cohort.homeroomTeacherUserId || cohort.homeroomTeacherName)) {
+                const uid = String(cohort.homeroomTeacherUserId || '').trim();
+                return { key: uid || 'name:' + cohort.homeroomTeacherName, label: homeroomName(uid, cohort.homeroomTeacherName) };
+            }
+        }
+        return { key: NO_HOMEROOM, label: tr('cohortsNoHomeroom') };
+    }
+
+    /** Plain-text export: grouped by homeroom teacher (A–Z, none last), then by lesson day. */
     function exportText(posts) {
         const opts = exportOptions();
         const range = opts.from === opts.to ? opts.from : opts.from + ' ~ ' + opts.to;
@@ -806,43 +850,67 @@
             tr('boardExportTitle') + ' \u2014 ' + range + ' \u00b7 ' + (opts.mine ? tr('boardExportMine') : tr('boardExportEveryone')),
             ''
         ];
-        let day = '';
+        const groups = new Map();
         posts.forEach((post) => {
-            const postDay = post.lessonDate || localStamp(post.createdAt).slice(0, 10);
-            if (postDay !== day) {
-                if (day) {
+            const hr = homeroomOf(post);
+            if (!groups.has(hr.key)) {
+                groups.set(hr.key, { label: hr.label, posts: [] });
+            }
+            groups.get(hr.key).posts.push(post);
+        });
+        const order = Array.from(groups.keys()).sort((a, b) => {
+            if (a === NO_HOMEROOM) {
+                return 1;
+            }
+            if (b === NO_HOMEROOM) {
+                return -1;
+            }
+            return groups.get(a).label.localeCompare(groups.get(b).label, undefined, { sensitivity: 'base' });
+        });
+        order.forEach((key) => {
+            const group = groups.get(key);
+            const title = key === NO_HOMEROOM ? group.label : tr('boardExportHomeroom').replace('{name}', group.label);
+            lines.push('');
+            lines.push('\u2501\u2501 ' + title + ' (' + group.posts.length + ') \u2501\u2501');
+            lines.push('');
+            let day = '';
+            group.posts.forEach((post) => {
+                const postDay = post.lessonDate || localStamp(post.createdAt).slice(0, 10);
+                if (postDay !== day) {
+                    if (day) {
+                        lines.push('');
+                    }
+                    day = postDay;
+                    lines.push('\u25a0 ' + weekdayLabel(day));
                     lines.push('');
                 }
-                day = postDay;
-                lines.push('\u25a0 ' + weekdayLabel(day));
+                const cat = postCategory(post);
+                const head = [boardLabel(post.boardKind, post.boardRef)];
+                if (!opts.mine) {
+                    head.push(post.authorName || '');
+                }
+                head.push(localStamp(post.createdAt).slice(11));
+                const marks = [];
+                if (post.isSpecial) {
+                    marks.push('\u2605 ' + tr('boardSpecial'));
+                }
+                if (cat) {
+                    marks.push('[' + categoryLabel(cat) + ']');
+                }
+                lines.push(head.filter(Boolean).join(' \u00b7 ') + (marks.length ? '  ' + marks.join(' ') : ''));
+                lines.push(String(post.body || ''));
+                const tail = [];
+                if (post.replyCount) {
+                    tail.push(post.replyCount === 1 ? tr('boardExportReply1') : tr('boardExportReplies').replace('{n}', String(post.replyCount)));
+                }
+                if (post.reactions && post.reactions.length) {
+                    tail.push(post.reactions.map((row) => row.emoji).join('') + ' ' + post.reactions.length);
+                }
+                if (tail.length) {
+                    lines.push('(' + tail.join(' \u00b7 ') + ')');
+                }
                 lines.push('');
-            }
-            const cat = postCategory(post);
-            const head = [boardLabel(post.boardKind, post.boardRef)];
-            if (!opts.mine) {
-                head.push(post.authorName || '');
-            }
-            head.push(localStamp(post.createdAt).slice(11));
-            const marks = [];
-            if (post.isSpecial) {
-                marks.push('\u2605 ' + tr('boardSpecial'));
-            }
-            if (cat) {
-                marks.push('[' + categoryLabel(cat) + ']');
-            }
-            lines.push(head.filter(Boolean).join(' \u00b7 ') + (marks.length ? '  ' + marks.join(' ') : ''));
-            lines.push(String(post.body || ''));
-            const tail = [];
-            if (post.replyCount) {
-                tail.push(post.replyCount === 1 ? tr('boardExportReply1') : tr('boardExportReplies').replace('{n}', String(post.replyCount)));
-            }
-            if (post.reactions && post.reactions.length) {
-                tail.push(post.reactions.map((row) => row.emoji).join('') + ' ' + post.reactions.length);
-            }
-            if (tail.length) {
-                lines.push('(' + tail.join(' \u00b7 ') + ')');
-            }
-            lines.push('');
+            });
         });
         return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
     }
@@ -912,6 +980,7 @@
         return '<div class="class-board-export-panel-inner">' +
             '<div class="class-board-export-head"><h3>' + esc(tr('boardExportHeading')) + '</h3>' +
             '<button type="button" class="class-board-foot-btn" data-export-open="1" aria-label="' + esc(tr('boardCancel')) + '">\u2715</button></div>' +
+            '<p class="class-board-export-hint">' + esc(tr('boardExportGroupedHint')) + '</p>' +
             '<div class="class-board-export-section">' +
             '<span class="class-board-export-label">' + esc(tr('boardExportDates')) + '</span>' +
             '<div class="class-board-export-row">' +

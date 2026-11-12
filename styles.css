@@ -24149,6 +24149,12 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-boo
 }
 
 /* Export panel: opens under the pinned bar. */
+.class-board-export-hint {
+    margin: calc(-1 * var(--space-2)) 0 0;
+    color: var(--text-muted);
+    font-size: var(--text-body-sm);
+}
+
 .class-board-export-panel[hidden] {
     display: none;
 }

@@ -304,6 +304,8 @@
         boardLoading: '노트를 불러오는 중…',
         boardImported: '예전 노트 {n}개를 가져왔습니다.',
         boardImporting: '예전 노트 가져오는 중… {n}개 완료, {left}개 남음.',
+        boardExportGroupedHint: '담임별로 묶고, 그 안에서 수업 날짜순으로 정리합니다.',
+        boardExportHomeroom: '담임: {name}',
         boardReactHeart: '하트',
         boardReactCheck: '체크',
         boardReactLaugh: '웃음',
