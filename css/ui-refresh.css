@@ -2,15 +2,17 @@
    UI refresh — November 2026
    Compact, unified navigation for phone, tablet and desktop.
 
-   Desktop (> 1024px)
-     Row 1: brand · section tabs · TMS sync · bell · actions · ⋮
-     Row 2: page tabs (underline) ············· lock / save status
+   Desktop
+     Row 1: logo · Calendar ▾ · section tabs · All/Mine · status
+            (save + TMS Sync + Helper) · bell · Print · + New · avatar ▾
+     Row 2: page tabs (underline)
+     Narrow windows keep every control in the same place; labels
+     shrink to icons with tooltips. Nothing moves into a menu.
    Phone + tablet (<= 1024px, touch devices)
-     Row 1: brand · lock / save status · bell · actions · ⋮
-     Row 2: page tabs (swipe sideways)
+     Row 1: Calendar ▾ · status · bell · + · avatar ▾
+     Row 2: page tabs (swipe sideways) · All/Mine
      Bottom: section tab bar with icons (thumb reach)
-   A desktop browser in a narrow window keeps the desktop layout
-   (section tabs on top), so the menus stay where coworkers expect.
+     Phones: Print is in the avatar menu.
 
    Loaded after styles.css. Selectors start from #appTopBar /
    #appHeaderUnified so they win over the older tier rules without
@@ -63,11 +65,11 @@ html[data-nav-tabs-collapsed="1"] {
     align-items: center;
     column-gap: var(--space-2, 8px);
     row-gap: 0;
-    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+    grid-template-columns: auto auto minmax(0, 1fr) auto auto auto auto;
     grid-template-rows: var(--ui-row-h) auto;
     grid-template-areas:
-        "brand zones sync bell tools"
-        "seg   seg   seg  seg  lock";
+        "brand cal zones scope status bell tools"
+        "seg   seg seg   seg   seg    seg  seg";
     padding: 0 var(--ui-gutter);
     min-width: 0;
 }
@@ -89,16 +91,137 @@ html[data-nav-tabs-collapsed="1"] {
     min-width: 0;
 }
 
-#appHeaderUnified #teamLockSyncBar,
-#appHeaderUnified #teamSyncStatus {
-    grid-area: lock;
-    justify-self: end;
-    margin: 0;
+/* ---------- Calendar ▾ (shows which calendar you are in) ---------- */
+
+#appHeaderUnified #teamCalendarMenuBtn {
+    grid-area: cal;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2, 8px);
     min-width: 0;
+    max-width: 16rem;
+    padding: 0 var(--space-2, 8px) 0 var(--space-3, 12px);
+    text-align: left;
 }
 
-#appHeaderUnified #tmsSyncCenterBtn {
-    grid-area: sync;
+#appHeaderUnified #teamCalendarMenuBtn[hidden] {
+    display: none;
+}
+
+#appHeaderUnified .header-calendar-trigger__text {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+    line-height: 1.1;
+}
+
+#appHeaderUnified .header-calendar-trigger__kicker {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+#appHeaderUnified .header-calendar-trigger__name {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* No calendar name yet: the kicker becomes the button label. */
+#appHeaderUnified #teamCalendarMenuBtn:has(.header-calendar-trigger__name[hidden]) .header-calendar-trigger__kicker {
+    font-size: var(--text-body-md, 0.875rem);
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--text-primary);
+}
+
+#appHeaderUnified .header-chevron {
+    flex: 0 0 auto;
+    color: var(--text-secondary);
+}
+
+/* ---------- One status place: save / lock + TMS sync + helper ---------- */
+
+#appHeaderUnified #headerStatusGroup {
+    grid-area: status;
+    display: flex;
+    align-items: center;
+    gap: var(--space-1, 4px);
+    min-width: 0;
+    height: var(--ui-ctl-h);
+    padding: 0 var(--space-1, 4px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full, 9999px);
+    background: var(--bg-card);
+}
+
+#appHeaderUnified #teamLockSyncBar,
+#appHeaderUnified #teamSyncStatus {
+    margin: 0;
+    min-width: 0;
+    align-self: center;
+}
+
+#appHeaderUnified #teamSyncStatus {
+    padding: 0 var(--space-2, 8px);
+    font-size: var(--text-body-sm, 0.8125rem);
+    white-space: nowrap;
+}
+
+/* Inside the capsule the lock pill drops its own border. */
+#appHeaderUnified #headerStatusGroup .team-lock-sync-bar--inline {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 0 var(--space-1, 4px);
+}
+
+#appHeaderUnified #headerStatusGroup #tmsSyncCenterBtn,
+#appHeaderUnified #headerStatusGroup #tmsHelperToggle {
+    height: calc(var(--ui-ctl-h) - 8px);
+    min-height: 0;
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    border-radius: var(--radius-full, 9999px);
+    padding: 0 var(--space-2, 8px);
+    gap: var(--space-1, 4px);
+    font-size: var(--text-body-sm, 0.8125rem);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+#appHeaderUnified #headerStatusGroup .header-pinned-icon {
+    display: inline-flex;
+}
+
+#appHeaderUnified #headerStatusGroup #tmsSyncCenterBtn:hover,
+#appHeaderUnified #headerStatusGroup #tmsHelperToggle:hover {
+    background: var(--bg-hover);
+}
+
+/* Thin dividers between the parts of the capsule. */
+#appHeaderUnified #headerStatusGroup > :not([hidden]) ~ #tmsSyncCenterBtn,
+#appHeaderUnified #headerStatusGroup > #tmsHelperToggle {
+    position: relative;
+    margin-left: var(--space-1, 4px);
+}
+
+#appHeaderUnified #headerStatusGroup > :not([hidden]) ~ #tmsSyncCenterBtn::before,
+#appHeaderUnified #headerStatusGroup > #tmsHelperToggle::before {
+    content: "";
+    position: absolute;
+    left: calc(-1 * var(--space-1, 4px) / 2 - 1px);
+    top: 25%;
+    bottom: 25%;
+    width: 1px;
+    background: var(--border-color);
 }
 
 #appHeaderUnified #appWarningsNotify {
@@ -130,7 +253,7 @@ html[data-nav-tabs-collapsed="1"] {
     grid-column: 1 / -1;
 }
 
-/* Term name strip duplicated "Term settings" (now in the ⋮ menu). */
+/* Term name strip duplicated "Term settings" (now in Calendar ▾). */
 #appHeaderUnified #termSummaryStrip {
     display: none;
 }
@@ -138,7 +261,7 @@ html[data-nav-tabs-collapsed="1"] {
 /* ---------- Header buttons: one size, one shape ---------- */
 
 #appHeaderUnified #headerToolsRow .btn,
-#appHeaderUnified #tmsSyncCenterBtn,
+#appHeaderUnified #teamCalendarMenuBtn,
 #appHeaderUnified #headerClassScope .syllabus-segment-btn {
     min-height: var(--ui-ctl-h);
     height: var(--ui-ctl-h);
@@ -151,28 +274,29 @@ html[data-nav-tabs-collapsed="1"] {
     white-space: nowrap;
 }
 
-#appHeaderUnified .header-tools-primary {
-    display: flex;
+/* Print / + New: icon + label; the label drops on narrow windows. */
+#appHeaderUnified .header-icon-label-btn {
+    display: inline-flex;
     align-items: center;
-    gap: var(--space-2, 8px);
+    justify-content: center;
+    gap: var(--space-1, 6px);
+    padding-left: var(--space-3, 12px);
+    padding-right: var(--space-3, 12px);
 }
 
-#appHeaderUnified .header-tools-primary:empty {
-    display: none;
+#appHeaderUnified .header-icon-label-btn .header-pinned-icon {
+    display: inline-flex;
 }
 
-#appHeaderUnified .app-header-unified__tools-pinned {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2, 8px);
-    margin: 0;
-}
-
-#appHeaderUnified .app-header-unified__tools-pinned:empty {
-    display: none;
+#appHeaderUnified .header-new-plus {
+    font-size: 1.125rem;
+    font-weight: 600;
+    line-height: 1;
 }
 
 #appHeaderUnified #headerClassScope {
+    grid-area: scope;
+    display: inline-flex;
     height: var(--ui-ctl-h);
     border-radius: var(--ui-radius);
     overflow: hidden;
@@ -197,102 +321,66 @@ html[data-nav-tabs-collapsed="1"] {
     border-radius: var(--radius-full, 9999px);
 }
 
-/* ⋮ is available at every size now. */
-#appHeaderUnified #headerToolsOverflowBtn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    order: 100;
-    width: var(--ui-ctl-h);
-    min-width: var(--ui-ctl-h);
-    padding: 0;
-    margin: 0;
-    font-size: 1.125rem;
-}
-
-/* ---------- ⋮ menu (dropdown at every size) ---------- */
-
-#appHeaderUnified #headerToolsCollapsible {
-    display: none;
-    position: fixed;
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-1, 4px);
-    min-width: 14rem;
-    max-width: min(20rem, calc(100vw - 2 * var(--space-3, 12px)));
-    padding: var(--space-2, 8px);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-card, 10px);
-    background: var(--bg-card);
-    box-shadow: var(--shadow-dialog, var(--shadow-lg));
-    z-index: var(--z-header-popover, 1200);
-    overflow-y: auto;
-}
-
-#appHeaderUnified #headerToolsRow.is-overflow-open #headerToolsCollapsible {
-    display: flex;
-}
-
-#appHeaderUnified #headerToolsCollapsible > .btn,
-#appHeaderUnified #headerToolsCollapsible > a.btn {
-    width: 100%;
-    justify-content: flex-start;
-    gap: var(--space-2, 8px);
-    border-color: transparent;
-    background: transparent;
-    color: var(--text-primary);
-    box-shadow: none;
+#teamAccountPopover a.header-dropdown-item,
+#teamAccountPopover a.header-dropdown-item:hover {
     text-decoration: none;
 }
 
-#appHeaderUnified #headerToolsCollapsible > .btn:hover,
-#appHeaderUnified #headerToolsCollapsible > a.btn:hover {
-    background: var(--bg-hover);
-}
-
-/* "+ New" keeps its primary colour inside the menu so it is easy to spot. */
-#appHeaderUnified #headerToolsCollapsible > #headerNewMenuBtn {
-    background: var(--primary);
-    color: #fff;
-}
-
-#appHeaderUnified #headerToolsCollapsible .header-pinned-label,
-#appHeaderUnified #headerToolsCollapsible .header-class-scope__full {
-    display: inline;
-    position: static;
-    width: auto;
-    height: auto;
-    margin: 0;
-    overflow: visible;
-    clip: auto;
-    white-space: nowrap;
-}
-
-/* Icon + label rows in the menu line up with the text-only rows. */
-#appHeaderUnified #headerToolsCollapsible > .btn {
-    min-width: 0;
-    padding-left: var(--space-3, 12px);
-    padding-right: var(--space-3, 12px);
-}
-
-#appHeaderUnified #headerToolsCollapsible .header-class-scope__short {
+/* Print sits in the bar; the avatar-menu copy is for phones only. */
+#teamAccountPopover .account-print-item {
     display: none;
 }
 
-#appHeaderUnified #headerToolsCollapsible #headerClassScope {
-    display: flex;
-    width: 100%;
-    order: -1;
-    margin-bottom: var(--space-1, 4px);
+/* ---------- Narrow desktop windows: same places, smaller ---------- */
+
+/* Status capsule: icons + dots only (each part keeps its tooltip). */
+@media (max-width: 1720px) {
+    #appHeaderUnified #headerStatusGroup .header-pinned-label,
+    #appHeaderUnified #teamSyncSavedDot > span:not(.team-sync-saved-indicator__dot) {
+        display: none;
+    }
 }
 
-#appHeaderUnified #headerToolsCollapsible #headerClassScope .syllabus-segment-btn {
-    flex: 1 1 0;
+/* Print, + New and All / Mine go compact. */
+@media (max-width: 1440px) {
+    #appHeaderUnified .header-icon-label-btn .header-pinned-label {
+        display: none;
+    }
+    #appHeaderUnified .header-icon-label-btn {
+        width: var(--ui-ctl-h);
+        min-width: var(--ui-ctl-h);
+        padding: 0;
+    }
+    #appHeaderUnified #headerClassScope .header-class-scope__full {
+        display: none;
+    }
+    #appHeaderUnified #headerClassScope .header-class-scope__short {
+        display: inline;
+    }
+    #appHeaderUnified #teamCalendarMenuBtn {
+        max-width: 11rem;
+    }
 }
 
-#appHeaderUnified #headerToolsCollapsible > .header-tool-theme::after {
-    content: attr(title);
-    font-weight: 500;
+/* Smaller still: the calendar name alone tells you what the button is. */
+@media (max-width: 1100px) {
+    #appHeaderUnified #teamCalendarMenuBtn:has(.header-calendar-trigger__name:not([hidden])) .header-calendar-trigger__kicker {
+        display: none;
+    }
+    #appHeaderUnified #teamCalendarMenuBtn {
+        max-width: 8.5rem;
+    }
+}
+
+/* Section tabs scroll sideways with a fade instead of being cut off. */
+#appHeaderUnified #appZoneNav {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+}
+
+html[data-nav-dock="bottom"] #appHeaderUnified #appZoneNav {
+    -webkit-mask-image: none;
+    mask-image: none;
 }
 
 /* ---------- Section tabs (desktop: row 1) ---------- */
@@ -463,12 +551,7 @@ html[data-nav-tabs-collapsed="1"] {
     background: transparent;
 }
 
-/* Lock / save status sits at the right end of row 2 on desktop. */
-#appHeaderUnified #teamLockSyncBar {
-    align-self: center;
-}
-
-/* Hide tabs (⋮ → Hide tabs) still hides both nav rows. */
+/* Hide tabs (avatar menu → Hide tabs) still hides both nav rows. */
 html[data-nav-tabs-collapsed="1"] #appHeaderUnified #appZoneNavCluster,
 html[data-nav-tabs-collapsed="1"] #appHeaderUnified #appZoneSegmentNavRow {
     display: none;
@@ -496,27 +579,62 @@ html[data-nav-dock="bottom"] #appTopBar {
     padding-top: var(--safe-top, 0px);
 }
 
+/* Row 1: Calendar ▾ · status · bell · + · avatar.  Row 2: page tabs · All / Mine. */
 html[data-nav-dock="bottom"] #appHeaderUnified {
-    grid-template-columns: auto auto auto minmax(0, 1fr) auto auto;
+    grid-template-columns: auto minmax(0, auto) minmax(0, 1fr) auto auto auto;
     grid-template-areas:
-        "brand lock sync . bell tools"
-        "seg   seg  seg  seg seg  seg";
+        "brand cal . status bell tools"
+        "seg   seg seg seg  seg  scope";
     column-gap: var(--space-1, 4px);
 }
 
+/* Page tabs span the full row; All / Mine sits over its right end. */
 html[data-nav-dock="bottom"] #appHeaderUnified #appZoneSegmentNavRow {
     grid-column: 1 / -1;
+    grid-row: 2;
     justify-self: stretch;
     width: auto;
     max-width: none;
     border-top: 1px solid var(--border-color);
     margin: 0 calc(-1 * var(--ui-gutter));
-    padding: 0 var(--ui-gutter);
+    padding: 0 calc(var(--ui-gutter) + 7.5rem) 0 var(--ui-gutter);
 }
 
-html[data-nav-dock="bottom"] #appHeaderUnified #teamLockSyncBar,
-html[data-nav-dock="bottom"] #appHeaderUnified #teamSyncStatus {
-    justify-self: start;
+html[data-nav-dock="bottom"] #appHeaderUnified #headerClassScope {
+    grid-column: -2 / -1;
+    grid-row: 2;
+    justify-self: end;
+    align-self: center;
+    position: relative;
+    z-index: 1;
+    height: auto;
+    border-radius: 0;
+    overflow: visible;
+    align-items: center;
+}
+
+html[data-nav-dock="bottom"] #appHeaderUnified #headerClassScope .syllabus-segment-btn {
+    height: 36px;
+    min-height: 36px;
+    padding: 0 var(--space-2, 8px);
+    border: 1px solid var(--border-color);
+}
+
+html[data-nav-dock="bottom"] #appHeaderUnified #headerClassScope .syllabus-segment-btn:first-child {
+    border-radius: var(--ui-radius) 0 0 var(--ui-radius);
+}
+
+html[data-nav-dock="bottom"] #appHeaderUnified #headerClassScope .syllabus-segment-btn:last-child {
+    border-radius: 0 var(--ui-radius) var(--ui-radius) 0;
+    border-left: 0;
+}
+
+html[data-nav-dock="bottom"] #appHeaderUnified #headerClassScope .header-class-scope__full {
+    display: none;
+}
+
+html[data-nav-dock="bottom"] #appHeaderUnified #headerClassScope .header-class-scope__short {
+    display: inline;
 }
 
 html[data-nav-dock="bottom"] #appHeaderUnified #navTabsCollapsedChip {
@@ -527,18 +645,50 @@ html[data-nav-dock="bottom"] #appHeaderUnified .app-brand-name {
     display: none;
 }
 
+/* Touch: labels off, icons and dots only (tooltips / aria-labels stay). */
+html[data-nav-dock="bottom"] #appHeaderUnified .header-icon-label-btn .header-pinned-label,
+html[data-nav-dock="bottom"] #appHeaderUnified #headerStatusGroup .header-pinned-label,
+html[data-nav-dock="bottom"] #appHeaderUnified #teamSyncSavedDot > span:not(.team-sync-saved-indicator__dot) {
+    display: none;
+}
+
+html[data-nav-dock="bottom"] #appHeaderUnified .header-icon-label-btn {
+    width: var(--ui-ctl-h);
+    min-width: var(--ui-ctl-h);
+    padding: 0;
+}
+
+html[data-nav-dock="bottom"] #appHeaderUnified #teamCalendarMenuBtn:has(.header-calendar-trigger__name:not([hidden])) .header-calendar-trigger__kicker {
+    display: none;
+}
+
+html[data-nav-dock="bottom"] #appHeaderUnified #teamCalendarMenuBtn {
+    max-width: 10rem;
+}
+
+/* Phones: no logo, no PC-only Sync Helper, Print moves to the avatar menu. */
+html[data-viewport="phone"] #appHeaderUnified .app-brand,
+html[data-viewport="phone"] #appHeaderUnified #headerStatusGroup #tmsHelperToggle,
+html[data-viewport="phone"] #appHeaderUnified #openPrintBtn {
+    display: none;
+}
+
+html[data-viewport="phone"] #teamAccountPopover .account-print-item {
+    display: flex;
+}
+
+html[data-viewport="phone"] #appHeaderUnified #teamCalendarMenuBtn {
+    max-width: 9rem;
+}
+
 /* Lock control: icons only, touch-sized. */
 html[data-viewport="phone"] #appHeaderUnified .team-lock-status-btn,
 html[data-viewport="phone"] #appHeaderUnified .team-lock-action-btn,
 html[data-viewport="phone"] #appHeaderUnified .team-lock-drawer-toggle {
-    min-width: 40px;
+    min-width: 36px;
     width: auto;
-    height: 40px;
-    min-height: 40px;
-}
-
-html[data-viewport="phone"] #appHeaderUnified #teamSyncSavedDot > span:not(.team-sync-saved-indicator__dot) {
-    display: none;
+    height: 36px;
+    min-height: 36px;
 }
 
 /* ---------- Bottom section bar ---------- */

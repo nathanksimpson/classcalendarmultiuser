@@ -154,25 +154,23 @@ Modal backdrop dark: `rgba(2, 6, 23, 0.72)`
 
 ## App shell layout
 
-**Three-row chrome** inside a **unified header card** (`#ffffff`, rounded, subtle shadow):
+**Two-row header** (`#appHeaderUnified`, css/ui-refresh.css). Every control has one fixed home; narrow windows shrink labels to icons with tooltips instead of moving controls into a menu.
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│ ROW 1 — 🔔 · [+ New ▾ · Day notes · Calendar ▾ · Print · Help · ◐] │
-│         [All | Mine] · Term settings · Helper · Account ▾       │
-├─────────────────────────────────────────────────────────────┤
-│ ROW 2 — Zone tabs: Calendar | Classes | Events | Syllabus | …  │
-│         (horizontal scroll on narrow screens + edge fade)      │
-├─────────────────────────────────────────────────────────────┤
-│ ROW 3 — Segment pills: Month | Week | Agenda  +  term summary  │
-└─────────────────────────────────────────────────────────────┘
-│ Sticky lock/sync bar (team editing status)                     │
-├─────────────────────────────────────────────────────────────┤
-│ Main content (calendar grid, lists, editors)                   │
-└─────────────────────────────────────────────────────────────┘
+Desktop
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ROW 1 — logo · Calendar ▾ (name) · Schedule Class Setup Classroom Tools Notes Data │
+│         · [All | Mine] · (● saved · ⟳ Sync · Helper) · 🔔 · Print · + New ▾ · (N) ▾ │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ ROW 2 — page tabs (underline): Calendar | Events | Homework | …              │
+└──────────────────────────────────────────────────────────────────────────────┘
+Touch phone / tablet
+│ ROW 1 — Calendar ▾ · (status) · 🔔 · + · (N) ▾                     │
+│ ROW 2 — page tabs (swipe) ················ [All | Mine]           │
+│ BOTTOM — section bar with icons                                   │
 ```
 
-**Row 1 hierarchy (Phase 6):** create things from **+ New** (teal primary button, header popover); print anything from **Print** → Print Center modal; admin/file actions (backup, remove calendar, clear data, import/export index) live in **Data**; preferences (theme, language, popup, hide tabs, reset tab layout) live in **Account**. The **All | Mine** segmented switch is pinned and sets which classes every tab shows. On phones ⋮ folds + New · Day notes · Calendar · Print · Help · theme.
+**Where things live (Nov 2026):** **Calendar ▾** = switch calendar, New calendar, Term settings. **Status capsule** = save/lock, TMS **Sync**, **Helper**. **+ New** = Class, Event, Cohort, Note, Custom essay assignment. **Avatar ▾** = Preferences (theme, language, popup, reset tab layout), My timetable, Mobile day notes, Schedule planner, Help & tutorial, Hide tabs, Reload app, account and Sign out (phones also get Print here). No ⋮ menu; no Day notes button.
 
 **Zone tabs:** Track background `#eef1f5`. Active tab has **3px teal top rail** `#14b98f`.
 

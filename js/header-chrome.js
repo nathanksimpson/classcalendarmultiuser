@@ -208,103 +208,28 @@
     }
 
     /**
-     * Header actions that sit inline when the window is wide enough and move into the
-     * ⋮ menu otherwise. Elements keep their listeners when moved. minWidth is the
-     * smallest viewport (px) at which the control stays inline.
+     * Every header control has one fixed home now (Calendar ▾, All / Mine, status,
+     * bell, Print, + New, avatar). Narrow windows shrink labels to icons in CSS
+     * instead of moving buttons into a ⋮ menu, so there is nothing to place.
+     * Kept as no-ops for callers that still invoke them.
      */
-    const HEADER_INLINE_ACTIONS = [
-        { id: 'headerNewMenuBtn', minWidth: 641, slot: 'primary' },
-        { id: 'openPrintBtn', minWidth: 900, slot: 'primary' },
-        { id: 'headerDayNotesBtn', minWidth: 1200, slot: 'primary' },
-        { id: 'headerClassScope', minWidth: 641, slot: 'home' },
-        { id: 'tmsSyncCenterBtn', minWidth: 641, slot: 'home' }
-    ];
-    const headerActionHomes = new Map();
-    let headerActionsMqlBound = false;
+    function placeHeaderInlineActions() {}
 
-    function rememberHeaderActionHome(el) {
-        if (headerActionHomes.has(el.id) || !el.parentNode) {
-            return;
-        }
-        const marker = document.createComment(`home:${el.id}`);
-        el.parentNode.insertBefore(marker, el);
-        headerActionHomes.set(el.id, marker);
-    }
-
-    function placeHeaderInlineActions() {
-        const primary = document.getElementById('headerToolsPrimary');
-        const menu = document.getElementById('headerToolsCollapsible');
-        if (!primary || !menu) {
-            return;
-        }
-        const width = window.innerWidth || document.documentElement.clientWidth || 0;
-        let menuInsertAt = menu.firstChild;
-        HEADER_INLINE_ACTIONS.forEach((action) => {
-            const el = document.getElementById(action.id);
-            if (!el) {
-                return;
-            }
-            rememberHeaderActionHome(el);
-            const inline = width >= action.minWidth;
-            el.classList.toggle('is-in-overflow-menu', !inline);
-            if (!inline) {
-                if (el.parentNode !== menu) {
-                    menu.insertBefore(el, menuInsertAt);
-                }
-                menuInsertAt = el.nextSibling;
-                return;
-            }
-            if (action.slot === 'primary') {
-                if (el.parentNode !== primary) {
-                    primary.appendChild(el);
-                }
-                return;
-            }
-            const marker = headerActionHomes.get(el.id);
-            if (marker && marker.parentNode && marker.nextSibling !== el) {
-                marker.parentNode.insertBefore(el, marker.nextSibling);
-            }
-        });
-        // Keep primary slot order stable (New, Print, Day notes) regardless of move history.
-        HEADER_INLINE_ACTIONS.filter((a) => a.slot === 'primary').forEach((a) => {
-            const el = document.getElementById(a.id);
-            if (el && el.parentNode === primary) {
-                primary.appendChild(el);
-            }
-        });
-    }
-
-    function setupHeaderInlineActions() {
-        placeHeaderInlineActions();
-        if (headerActionsMqlBound || !window.matchMedia) {
-            return;
-        }
-        headerActionsMqlBound = true;
-        const widths = Array.from(new Set(HEADER_INLINE_ACTIONS.map((a) => a.minWidth)));
-        widths.forEach((w) => {
-            const mql = window.matchMedia(`(min-width: ${w}px)`);
-            const onChange = () => {
-                setHeaderToolsOverflowOpen(false);
-                placeHeaderInlineActions();
-            };
-            if (typeof mql.addEventListener === 'function') {
-                mql.addEventListener('change', onChange);
-            } else if (typeof mql.addListener === 'function') {
-                mql.addListener(onChange);
-            }
-        });
-    }
+    function setupHeaderInlineActions() {}
 
     function setupHeaderToolsOverflow() {
         const row = document.getElementById('headerToolsRow');
+        if (row && row.dataset.panelsBound !== '1') {
+            row.dataset.panelsBound = '1';
+            document.getElementById('headerStatusGroup')?.addEventListener('scroll', scheduleHeaderRowPanelsPosition, { passive: true });
+            window.addEventListener('resize', scheduleHeaderRowPanelsPosition, { passive: true });
+            window.addEventListener('scroll', scheduleHeaderRowPanelsPosition, { passive: true });
+        }
         const btn = document.getElementById('headerToolsOverflowBtn');
         if (!row || !btn || btn.dataset.bound === '1') {
             return;
         }
         btn.dataset.bound = '1';
-        document.getElementById('appTopBarPrimaryRow')?.addEventListener('scroll', scheduleHeaderRowPanelsPosition, { passive: true });
-        window.addEventListener('resize', scheduleHeaderRowPanelsPosition, { passive: true });
-        window.addEventListener('scroll', scheduleHeaderRowPanelsPosition, { passive: true });
         btn.addEventListener('click', (event) => {
             event.stopPropagation();
             setHeaderToolsOverflowOpen(!row.classList.contains('is-overflow-open'));

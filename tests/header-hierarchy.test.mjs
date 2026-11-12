@@ -69,7 +69,11 @@ function block(id) {
     ['accountMyTimetableBtn', 'accountResetNavLayoutBtn', 'openPlannerAppHeaderBtn'].forEach((id) => {
         assert(account.includes(`id="${id}"`), `Account menu has #${id}`);
     });
-    assert(!account.includes('id="accountHideTabsBtn"'), 'Hide tabs is not in Account Preferences');
+    ['helpLink', 'accountHideTabsBtn', 'headerReloadBtn', 'accountPrintItem'].forEach((id) => {
+        assert(account.includes(`id="${id}"`), `Avatar menu has #${id}`);
+    });
+    const prefsEnd = account.indexOf('id="accountResetNavLayoutBtn"');
+    assert(account.indexOf('id="accountHideTabsBtn"') > prefsEnd, 'Hide tabs sits below Preferences, with Help and Reload');
     const prefsAt = account.indexOf('data-i18n="accountPreferencesHeading"');
     assert(prefsAt >= 0, 'Preferences heading present');
     assert(prefsAt < account.indexOf('id="themeToggleBtn"'), 'Preferences heading above Theme');
@@ -77,35 +81,31 @@ function block(id) {
 }
 
 {
-    const tools = block('headerToolsCollapsible');
-    const newAt = tools.indexOf('id="headerNewMenuBtn"');
-    const notesAt = tools.indexOf('id="headerDayNotesBtn"');
-    const calAt = tools.indexOf('id="teamCalendarMenuBtn"');
-    assert(newAt >= 0 && notesAt > newAt && calAt > notesAt, '+ New, Day notes, then Calendar inside the collapsible tools');
-    assert(tools.indexOf('id="openPrintBtn"') > calAt, 'Print after Calendar');
-    assert(tools.includes('id="headerThemeToggleBtn"'), 'theme icon stays in header');
-    assert(tools.includes('id="accountHideTabsBtn"'), 'Hide tabs lives in tools / ⋮ overflow');
-    assert(tools.includes('header-tool-hide-tabs'), 'Hide tabs uses compact tool class');
-    const pinnedAt = html.indexOf('app-header-unified__tools-pinned');
-    assert(html.indexOf('id="headerClassScope"') > pinnedAt, 'scope switch is pinned');
+    // Top bar reorganization (Nov 2026): one fixed home per control, no ⋮ menu.
+    ['headerToolsCollapsible', 'headerToolsOverflowBtn', 'headerDayNotesBtn', 'headerThemeToggleBtn'].forEach((id) => {
+        assert(!html.includes(`id="${id}"`), `#${id} removed from the top bar`);
+    });
+    const row = block('appTopBarPrimaryRow');
+    const order = ['teamCalendarMenuBtn', 'headerClassScope', 'headerStatusGroup', 'appWarningsNotify', 'openPrintBtn', 'headerNewMenuBtn', 'teamAccountGroup'];
+    order.forEach((id, i) => {
+        const at = row.indexOf(`id="${id}"`);
+        assert(at >= 0, `#${id} in the top bar`);
+        if (i > 0) {
+            assert(at > row.indexOf(`id="${order[i - 1]}"`), `#${id} comes after #${order[i - 1]}`);
+        }
+    });
+    assert(block('teamCalendarMenuBtn').includes('id="topBarCalendarLabel"'), 'Calendar button shows the calendar name');
+    const status = block('headerStatusGroup');
+    ['teamLockSyncBar', 'teamSyncSavedDot', 'tmsSyncCenterBtn', 'tmsHelperToggle'].forEach((id) => {
+        assert(status.includes(`id="${id}"`), `status group has #${id}`);
+    });
+    assert(block('teamCalendarPopover').includes('id="termSummaryToggle"'), 'Term settings lives in Calendar ▾');
     assert(/id="headerClassScope"[^>]*role="radiogroup"/.test(html), 'scope switch is a radiogroup');
     const newMenu = block('headerNewPopover');
     ['headerNewClassItem', 'headerNewEventItem', 'headerNewCohortItem', 'headerNewDayNoteItem', 'headerNewEssayAssignmentItem'].forEach((id) => {
         assert(newMenu.includes(`id="${id}"`), `+ New has #${id}`);
     });
-}
-
-{
-    assert(
-        /\.header-tool-hide-tabs\s*\{[^}]*font-size:\s*0/.test(styles),
-        'Hide tabs is icon-only in the inline tools row'
-    );
-    assert(
-        /\.app-header-unified__tools-collapsible\s+\.header-tool-hide-tabs\s*\{[^}]*font-size:\s*var\(--text-body-md/.test(
-            styles
-        ),
-        'Hide tabs shows full label inside ⋮ overflow'
-    );
+    assert(newMenu.includes('data-i18n="headerNewNote"'), '+ New → Note');
 }
 
 {

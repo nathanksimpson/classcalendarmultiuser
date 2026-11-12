@@ -93,7 +93,22 @@
                         <span class="app-brand-name" data-i18n="appTitle">ClassManager</span>
                     </div>
                     <h1 class="visually-hidden" data-i18n="appTitle">ClassManager</h1>
-                    <span id="topBarCalendarLabel" class="top-bar-calendar-label visually-hidden" hidden></span>
+                    <button type="button" id="teamCalendarMenuBtn" class="btn btn-outline btn-small header-dropdown-trigger team-calendar-menu-trigger header-calendar-trigger" aria-expanded="false" aria-haspopup="menu" aria-controls="teamCalendarPopover" data-i18n-title="teamCalendarMenuTitle" title="Switch calendar, term settings">
+                        <span class="header-calendar-trigger__text">
+                            <span class="header-calendar-trigger__kicker" data-i18n="teamCalendarMenu">Calendar</span>
+                            <span id="topBarCalendarLabel" class="header-calendar-trigger__name" hidden></span>
+                        </span>
+                        <svg class="header-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+                    </button>
+                    <div class="app-top-bar-row__spacer" aria-hidden="true"></div>
+                    <button type="button" id="navTabsCollapsedChip" class="nav-tabs-collapsed-chip" hidden aria-hidden="true">
+                        <span id="navTabsCollapsedChipLabel" class="nav-tabs-collapsed-chip__label"></span>
+                    </button>
+                    <div id="headerClassScope" class="calendar-view-switch header-class-scope" role="radiogroup" aria-label="Which classes to show" data-i18n-aria-label="classScopeAria">
+                            <button type="button" class="syllabus-segment-btn is-active" role="radio" aria-checked="true" data-class-scope="all" aria-label="All classes" data-i18n-aria-label="classScopeAll"><span class="header-class-scope__full" data-i18n="classScopeAll">All classes</span><span class="header-class-scope__short" data-i18n="classScopeAllShort">All</span></button>
+                            <button type="button" class="syllabus-segment-btn" role="radio" aria-checked="false" data-class-scope="mine" aria-label="My classes" data-i18n-aria-label="classScopeMine"><span class="header-class-scope__full" data-i18n="classScopeMine">My classes</span><span class="header-class-scope__short" data-i18n="classScopeMineShort">Mine</span></button>
+                        </div>
+                    <div id="headerStatusGroup" class="header-status-group" role="group" aria-label="Save and sync status" data-i18n-aria-label="headerStatusAria">
                     <span id="teamSyncStatus" class="team-sync-status status-connecting" role="status" hidden>Connecting&hellip;</span>
                     <div id="teamLockSyncBar" class="team-lock-sync-bar team-lock-sync-bar--inline" hidden>
                     <div id="teamLockStatus" class="team-lock-status team-lock-status--compact team-lock-status--sync-bar">
@@ -133,7 +148,7 @@
                         </div>
                         <button type="button" id="teamLockDebugToggle" class="btn btn-outline btn-small team-lock-debug-toggle" hidden data-i18n="lockDebugToggle" data-i18n-title="lockDebugTitle" title="Lock sync debug" aria-expanded="false" aria-controls="teamLockDebugPanel">Debug</button>
                     </div>
-                    <span id="teamSyncSavedDot" class="team-sync-saved-indicator" hidden>
+                    <span id="teamSyncSavedDot" class="team-sync-saved-indicator" title="All changes saved" data-i18n-title="syncAllSaved" hidden>
                         <span class="team-sync-saved-indicator__dot" aria-hidden="true"></span>
                         <span data-i18n="syncAllSaved">All changes saved</span>
                     </span>
@@ -149,10 +164,19 @@
                         </span>
                         <span class="header-pinned-label" data-i18n="tmsSyncCenterBtn">Sync</span>
                     </button>
-                    <div class="app-top-bar-row__spacer" aria-hidden="true"></div>
-                    <button type="button" id="navTabsCollapsedChip" class="nav-tabs-collapsed-chip" hidden aria-hidden="true">
-                        <span id="navTabsCollapsedChipLabel" class="nav-tabs-collapsed-chip__label"></span>
-                    </button>
+                    <button type="button" id="tmsHelperToggle" class="btn btn-outline btn-small" aria-live="polite" aria-label="Helper · Off" title="Helper · Off">
+                            <span id="tmsHelperToggleDot" class="tms-sync-status-dot tms-sync-status-dot--missing" aria-hidden="true"></span>
+                            <span class="header-pinned-icon" aria-hidden="true">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 22v-5"></path>
+                                    <path d="M9 8V2"></path>
+                                    <path d="M15 8V2"></path>
+                                    <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"></path>
+                                </svg>
+                            </span>
+                            <span id="tmsHelperToggleText" class="header-pinned-label">Helper · Off</span>
+                        </button>
+                    </div>
                     <div id="appWarningsNotify" class="app-warnings-notify" hidden>
                 <button type="button" id="appWarningsBtn" class="btn btn-outline btn-small app-notify-bell-btn" aria-haspopup="dialog" aria-controls="tabWarningsPopover" aria-label="Notifications" data-i18n-aria-label="appNotificationsBtnTitle" data-i18n-title="appNotificationsBtnTitle" title="Notifications">
                     <span class="app-notify-bell-icon" aria-hidden="true">
@@ -165,57 +189,23 @@
                 </button>
                     </div>
                     <div class="app-header-unified__tools app-top-bar-actions header-tools-row" id="headerToolsRow" role="group" aria-label="Quick actions" data-i18n-aria-label="headerQuickActionsAria">
-                    <button type="button" id="headerToolsOverflowBtn" class="btn btn-outline btn-small header-tools-overflow-btn" aria-expanded="false" aria-controls="headerToolsCollapsible" data-i18n-aria-label="headerToolsMoreAria" data-i18n-title="headerToolsMoreAria" title="More actions" aria-label="More actions">&#8942;</button>
-                    <div class="header-tools-primary" id="headerToolsPrimary" role="presentation"></div>
-                    <div class="app-header-unified__tools-collapsible" id="headerToolsCollapsible">
-                    <button type="button" id="headerNewMenuBtn" class="btn btn-primary btn-small header-dropdown-trigger" aria-expanded="false" aria-haspopup="menu" aria-controls="headerNewPopover" data-i18n="headerNewMenu" data-i18n-title="headerNewMenuAria" data-i18n-aria-label="headerNewMenuAria" title="Create something new" aria-label="Create something new">+ New</button>
-                    <button type="button" id="headerDayNotesBtn" class="btn btn-outline btn-small" data-i18n="headerDayNotes" data-i18n-title="headerDayNotesTitle" title="Open notes for the current class">Day notes</button>
-                    <span id="contextCohortChip" class="context-cohort-chip-host" hidden></span>
-                    <button type="button" id="teamCalendarMenuBtn" class="btn btn-outline btn-small header-dropdown-trigger team-calendar-menu-trigger" aria-expanded="false" aria-haspopup="menu" aria-controls="teamCalendarPopover" data-i18n="teamCalendarMenu">Calendar</button>
-                    <button type="button" id="openPrintBtn" class="btn btn-header-print btn-small" data-i18n="printBtn">Print</button>
-                    <a href="help.html" id="helpLink" class="btn btn-outline btn-small btn-help header-tool-help" data-i18n="howToBtn" data-i18n-title="howToBtnTitle">Help</a>
-                    <button type="button" id="headerThemeToggleBtn" class="btn btn-header-theme btn-small header-tool-theme" data-theme-icon-only="1" aria-pressed="false" data-i18n-title="themeToggleTitle" data-i18n-aria-label="themeToggleTitle" title="Switch light/dark theme" aria-label="Switch light/dark theme">◐</button>
-                    <button type="button" id="accountHideTabsBtn" class="btn btn-outline btn-small header-tool-hide-tabs" aria-pressed="false" aria-controls="appZoneNavCluster appZoneSegmentNavRow" data-i18n="accountHideTabs" data-i18n-title="navTabsHideTitle" data-i18n-aria-label="navTabsHideTitle" title="Hide navigation tabs" aria-label="Hide navigation tabs">Hide tabs</button>
-                    <button type="button" id="headerReloadBtn" class="btn btn-outline btn-small header-tool-reload" data-i18n="uiReloadApp" data-i18n-title="uiReloadAppTitle" title="Reload the page to get the latest data and app version">Reload</button>
-                    <button type="button" id="termSummaryToggle" class="btn btn-outline btn-small header-dropdown-trigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="termSettingsModal" data-i18n-title="toolbarTermSettings" title="Term settings">
-                            <span class="header-pinned-icon" aria-hidden="true">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                                    <line x1="16" y1="2" x2="16" y2="6"></line>
-                                    <line x1="8" y1="2" x2="8" y2="6"></line>
-                                    <line x1="3" y1="10" x2="21" y2="10"></line>
-                                </svg>
-                            </span>
-                            <span class="header-pinned-label" data-i18n="toolbarTermSettings">Term settings</span>
+                        <button type="button" id="openPrintBtn" class="btn btn-header-print btn-small header-icon-label-btn" data-i18n-title="printBtn" data-i18n-aria-label="printBtn" title="Print" aria-label="Print">
+                            <span class="header-pinned-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"></path><rect x="4" y="9" width="16" height="8" rx="2"></rect><path d="M7 14h10v7H7z"></path></svg></span>
+                            <span class="header-pinned-label" data-i18n="printBtn">Print</span>
                         </button>
-                        <button type="button" id="tmsHelperToggle" class="btn btn-outline btn-small" aria-live="polite" aria-label="Helper · Off" title="Helper · Off">
-                            <span id="tmsHelperToggleDot" class="tms-sync-status-dot tms-sync-status-dot--missing" aria-hidden="true"></span>
-                            <span class="header-pinned-icon" aria-hidden="true">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M12 22v-5"></path>
-                                    <path d="M9 8V2"></path>
-                                    <path d="M15 8V2"></path>
-                                    <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"></path>
-                                </svg>
-                            </span>
-                            <span id="tmsHelperToggleText" class="header-pinned-label">Helper · Off</span>
+                        <button type="button" id="headerNewMenuBtn" class="btn btn-primary btn-small header-dropdown-trigger header-icon-label-btn" aria-expanded="false" aria-haspopup="menu" aria-controls="headerNewPopover" data-i18n-title="headerNewMenuAria" data-i18n-aria-label="headerNewMenuAria" title="Create something new" aria-label="Create something new">
+                            <span class="header-new-plus" aria-hidden="true">+</span>
+                            <span class="header-pinned-label" data-i18n="headerNewMenuLabel">New</span>
                         </button>
-                        <button type="button" id="tmsHelperUninstall" class="btn btn-outline btn-small" hidden data-i18n="tmsHelperUninstall">Uninstall</button>
-                    <input type="file" id="importFile" accept=".json" hidden>
-                    </div>
-                    <div class="app-header-unified__tools-pinned">
-                        <div id="headerClassScope" class="calendar-view-switch header-class-scope" role="radiogroup" aria-label="Which classes to show" data-i18n-aria-label="classScopeAria">
-                            <button type="button" class="syllabus-segment-btn is-active" role="radio" aria-checked="true" data-class-scope="all" aria-label="All classes" data-i18n-aria-label="classScopeAll"><span class="header-class-scope__full" data-i18n="classScopeAll">All classes</span><span class="header-class-scope__short" data-i18n="classScopeAllShort">All</span></button>
-                            <button type="button" class="syllabus-segment-btn" role="radio" aria-checked="false" data-class-scope="mine" aria-label="My classes" data-i18n-aria-label="classScopeMine"><span class="header-class-scope__full" data-i18n="classScopeMine">My classes</span><span class="header-class-scope__short" data-i18n="classScopeMineShort">Mine</span></button>
-                        </div>
-                    </div>
-                    <div class="team-account-menu team-account-menu--header" id="teamAccountGroup" hidden>
+                        <span id="contextCohortChip" class="context-cohort-chip-host" hidden></span>
+                        <div class="team-account-menu team-account-menu--header" id="teamAccountGroup" hidden>
                         <button type="button" class="btn btn-outline btn-small team-account-menu-trigger team-account-menu-trigger--avatar" id="teamAccountMenuBtn" aria-expanded="false" aria-haspopup="menu" aria-controls="teamAccountPopover">
                             <span id="teamAccountMenuLabel" class="team-account-menu-label" data-i18n="teamAccountMenu">Account</span>
                             <span id="teamAccountAvatar" class="team-account-avatar" aria-hidden="true"></span>
                         </button>
                     </div>
-                </div>
+                        <input type="file" id="importFile" accept=".json" hidden>
+                    </div>
                 </div>
                 <div class="app-top-bar-row app-top-bar-row--zones" id="appZoneNavCluster">
                     <div class="app-zone-nav" id="appZoneNav" role="tablist" aria-label="Main sections" data-i18n-aria-label="zoneNavAria">
@@ -3200,6 +3190,12 @@
         <button type="button" id="openNotesAppHeaderBtn" class="btn btn-outline btn-small btn-notes-app header-dropdown-item" data-i18n="notesOpenMobile" data-i18n-title="notesOpenMobileTitle">Mobile day notes</button>
         <a href="/planner.html" id="openPlannerAppHeaderBtn" class="btn btn-outline btn-small header-dropdown-item" data-i18n="plannerOpenLink" data-i18n-title="plannerOpenLinkTitle">Schedule planner</a>
         <hr class="header-dropdown-divider" aria-hidden="true">
+        <button type="button" id="accountPrintItem" class="btn btn-outline btn-small header-dropdown-item account-print-item" role="menuitem" data-i18n="printBtn">Print</button>
+        <a href="help.html" id="helpLink" class="btn btn-outline btn-small btn-help header-dropdown-item" role="menuitem" data-i18n="accountHelpTutorial" data-i18n-title="howToBtnTitle">Help &amp; tutorial</a>
+        <button type="button" id="accountHideTabsBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" aria-pressed="false" aria-controls="appZoneNavCluster appZoneSegmentNavRow" data-i18n="accountHideTabs" data-i18n-title="navTabsHideTitle" data-i18n-aria-label="navTabsHideTitle" title="Hide navigation tabs" aria-label="Hide navigation tabs">Hide tabs</button>
+        <button type="button" id="headerReloadBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="accountReloadApp" data-i18n-title="uiReloadAppTitle" title="Reload the page to get the latest data and app version">Reload app</button>
+        <button type="button" id="tmsHelperUninstall" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" hidden data-i18n="tmsHelperUninstall">Uninstall</button>
+        <hr class="header-dropdown-divider" aria-hidden="true">
         <a href="/admin" id="teamAdminLink" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamAdminLink">Admin</a>
         <button type="button" id="teamEditDisplayNameBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="editDisplayName">Edit name</button>
         <button type="button" id="teamChangePasswordBtn" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="changePassword">Change password</button>
@@ -3228,7 +3224,7 @@
         <button type="button" id="headerNewEventItem" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="headerNewEvent">Event</button>
         <button type="button" id="headerNewCohortItem" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="headerNewCohort">Cohort</button>
         <hr class="header-dropdown-divider" aria-hidden="true">
-        <button type="button" id="headerNewDayNoteItem" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="headerNewDayNote">Day note</button>
+        <button type="button" id="headerNewDayNoteItem" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="headerNewNote">Note</button>
         <button type="button" id="headerNewEssayAssignmentItem" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="headerNewEssayAssignment">Custom essay assignment</button>
     </div>
     <div id="teamCalendarPopover" class="header-fixed-popover header-dropdown-panel team-calendar-menu-panel" role="menu" hidden>
@@ -3239,6 +3235,7 @@
             </label>
             <div class="team-calendar-popover-menu">
                 <button type="button" id="teamNewCalendarBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="teamNewCalendarItem">New calendar</button>
+                <button type="button" id="termSummaryToggle" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" aria-haspopup="dialog" aria-expanded="false" aria-controls="termSettingsModal" data-i18n="toolbarTermSettings" data-i18n-title="toolbarTermSettings" title="Term settings">Term settings</button>
             </div>
             <p class="section-hint team-calendar-hint" data-i18n="teamCalendarHint">Pick a calendar from the list, or click New calendar. Edit Calendar Name below to rename the saved calendar.</p>
         </div>

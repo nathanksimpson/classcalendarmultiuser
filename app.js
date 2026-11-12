@@ -26402,6 +26402,29 @@ function getSharedActiveClassId() {
 }
 
 /** Open the Notes tab with the shared active class pre-selected (phones open /notes.html). */
+function waitForElement(selector, timeoutMs = 1000) {
+    const found = () => {
+        const el = document.querySelector(selector);
+        return el && el.getClientRects().length > 0 ? el : null;
+    };
+    const now = found();
+    if (now) {
+        return Promise.resolve(now);
+    }
+    return new Promise((resolve) => {
+        const started = Date.now();
+        const tick = () => {
+            const el = found();
+            if (el || Date.now() - started >= timeoutMs) {
+                resolve(el);
+                return;
+            }
+            requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+    });
+}
+
 async function openNotesForActiveClass(options = {}) {
     await navigateToZone(APP_ZONE_NOTES, '');
     if (getActiveTab() !== 'notes') {
@@ -26419,7 +26442,9 @@ async function openNotesForActiveClass(options = {}) {
         saveClassNotesFiltersToUi();
     }
     if (options.focusAdd) {
-        const text = document.getElementById('classNotesAddText');
+        // The shared Notes board renders its composer a moment after the tab opens.
+        const boardText = await waitForElement('.class-board-compose-text', 1200);
+        const text = boardText || document.getElementById('classNotesAddText');
         if (text) {
             text.scrollIntoView({ block: 'center' });
             text.focus();
@@ -26703,6 +26728,10 @@ function setupHeaderNewMenu() {
     bind('headerNewCohortItem', runHeaderNewCohort);
     bind('headerNewDayNoteItem', () => openNotesForActiveClass({ focusAdd: true }));
     bind('headerNewEssayAssignmentItem', runHeaderNewEssayAssignment);
+    // Phones have no room for Print in the bar; the avatar menu carries it there.
+    bind('accountPrintItem', () => {
+        document.getElementById('openPrintBtn')?.click();
+    });
 }
 
 function setupEventListeners() {
