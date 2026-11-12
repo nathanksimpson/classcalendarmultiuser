@@ -1859,4 +1859,40 @@ assert(scheduledFallback[0].date === '2026-05-26', 'fallback first debate date')
     );
 }
 
+{
+    // Essay assignment info edited on the Essays tab.
+    const syllabusRow = { id: 'row-syl', kind: 'lesson', lessonNumber: 7, date: '2026-11-16', planTitle: 'Debate essay', trackEssay: true };
+    const cls = { id: 'cls-edit', syllabusRows: [syllabusRow] };
+    const created = d.createCustomEssayAssignment(cls, { title: 'News essay', date: '2026-11-20' });
+    assert(!created.error, 'custom essay created');
+    const customId = created.syllabusRowId;
+    const base = created.classData;
+
+    const renamed = d.updateEssayAssignmentInfo(base, 'row-syl', { title: 'Debate essay: uniforms' });
+    assert(!renamed.error && renamed.row.essayTitle === 'Debate essay: uniforms', 'syllabus essay gets an essay-only title');
+    assert(renamed.row.planTitle === 'Debate essay', 'syllabus lesson title is untouched');
+    assert(d.essayAssignmentTitle(renamed.row) === 'Debate essay: uniforms', 'essay title wins for display');
+    assert(d.getEssayAssignmentLabel(renamed.row).endsWith('Debate essay: uniforms'), 'label uses the essay title');
+    const reset = d.updateEssayAssignmentInfo(renamed.classData, 'row-syl', { title: 'Debate essay' });
+    assert(!reset.row.essayTitle, 'same-as-syllabus title clears the override');
+    const blank = d.updateEssayAssignmentInfo(renamed.classData, 'row-syl', { title: '' });
+    assert(!blank.error && !blank.row.essayTitle, 'blank title clears the override');
+    const sylDate = d.updateEssayAssignmentInfo(base, 'row-syl', { date: '2026-11-30' });
+    assert(sylDate.error === 'syllabus_date', 'syllabus essay date is not changed from the Essays tab');
+    const sameDate = d.updateEssayAssignmentInfo(base, 'row-syl', { date: '2026-11-16' });
+    assert(!sameDate.error, 'resending the same syllabus date is fine');
+
+    const customRenamed = d.updateEssayAssignmentInfo(base, customId, { title: 'News essay: AI', date: '2026-10-28' });
+    assert(!customRenamed.error, 'custom essay title and date edit');
+    assert(customRenamed.row.planTitle === 'News essay: AI' && customRenamed.row.date === '2026-10-28', 'custom row updated in place');
+    assert(customRenamed.classData.syllabusRows[0].id === customId, 'rows re-sorted by date after a custom date change');
+    assert(d.essayAssignmentListMonth(customRenamed.row) === '2026-10', 'auto month follows the new date');
+    assert(d.updateEssayAssignmentInfo(base, customId, { title: '  ' }).error === 'missing_title', 'custom essay needs a title');
+    assert(d.updateEssayAssignmentInfo(base, customId, { date: '2026-13-01x' }).error === 'invalid_date', 'bad date refused');
+    assert(d.updateEssayAssignmentInfo(base, 'nope', { title: 'x' }).error === 'missing_row', 'unknown row refused');
+    assert(created.row.customEssay === true, 'new custom essays are flagged');
+    assert(d.isHandAddedEssayRow(created.row) && !d.isHandAddedEssayRow(syllabusRow), 'hand-added vs syllabus');
+    assert(d.isHandAddedEssayRow({ trackEssay: true, planTitle: 'Old custom essay' }), 'older custom rows (no flag, no lesson number) still count');
+}
+
 console.log('classroom-domain.test.mjs: all passed');

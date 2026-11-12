@@ -470,7 +470,7 @@
         if (!row) {
             return '';
         }
-        return `${row.date || ''} — ${row.planTitle || row.planDetail || ''}`.trim();
+        return `${row.date || ''} — ${d.essayAssignmentTitle ? d.essayAssignmentTitle(row) : (row.planTitle || row.planDetail || '')}`.trim();
     }
 
     /** Which parent reminder (if any) fits this student right now: 'overdue', 'resubmit' or ''. */
@@ -2740,8 +2740,9 @@
     }
 
     function formatEssayRowLabel(row) {
-        const base = `${(row && row.date) || ''} — ${(row && (row.planTitle || row.planDetail)) || ''}`.trim();
         const d = domain();
+        const title = d && d.essayAssignmentTitle ? d.essayAssignmentTitle(row) : ((row && (row.planTitle || row.planDetail)) || '');
+        const base = `${(row && row.date) || ''} — ${title}`.trim();
         const subject = d && d.displayEssaySubject ? d.displayEssaySubject(row) : '';
         const label = essaySubjectLabel(subject);
         return label ? `${base} · ${label}` : base;
@@ -2867,6 +2868,151 @@
             render(panel);
         }
         refreshZoneContextBar();
+    }
+
+    function essayShortDate(iso) {
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+        return m ? `${Number(m[2])}/${Number(m[3])}` : String(iso || '');
+    }
+
+    function essayMonthLabel(ym) {
+        const m = /^(\d{4})-(\d{2})$/.exec(String(ym || ''));
+        if (!m) {
+            return '';
+        }
+        const d = new Date(Number(m[1]), Number(m[2]) - 1, 1);
+        const lang = (global.document && global.document.documentElement && global.document.documentElement.lang) || 'en';
+        return d.toLocaleDateString(lang === 'ko' ? 'ko-KR' : 'en-US', { year: 'numeric', month: 'short' });
+    }
+
+    function essayTodayISO() {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    /** Save a changed class/essay-group copy produced by a domain setter. */
+    async function saveEssayRowResult(classData, result) {
+        const d = domain();
+        const data = getAppData();
+        if (classData.isEssayGroup) {
+            const existing = d.findEssayGroup(data, classData.id);
+            if (!existing) {
+                return false;
+            }
+            const nextGroup = Object.assign({}, existing, {
+                assignments: result.classData.syllabusRows,
+                updatedAt: new Date().toISOString()
+            });
+            const authorUserId = hooks && hooks.getCurrentUserId ? hooks.getCurrentUserId() : '';
+            const upserted = d.upsertEssayGroup(data, nextGroup, { authorUserId });
+            if (upserted.error) {
+                return false;
+            }
+            if (hooks && hooks.saveClassroom) {
+                await hooks.saveClassroom({ essayGroups: data.essayGroups });
+            }
+            return true;
+        }
+        const idx = (data.classes || []).findIndex((c) => c && c.id === result.classData.id);
+        if (idx >= 0) {
+            data.classes[idx] = result.classData;
+        }
+        if (typeof global.saveData === 'function') {
+            await Promise.resolve(global.saveData());
+        }
+        return true;
+    }
+
+    /** Title (and, for custom assignments, date) edited on the Essays tab. */
+    async function persistEssayInfo(changes) {
+        const d = domain();
+        const classData = getClassData();
+        const panel = panelRef || document.getElementById('panel-essays');
+        if (!d || !classData || !syllabusRowId || !d.updateEssayAssignmentInfo) {
+            return;
+        }
+        if (access() && !access().canEditClass(classData) && !access().canBypass()) {
+            if (hooks && hooks.showToast) {
+                hooks.showToast(t('classroomEssayAddAssignmentNoPermission'), true);
+            }
+            return;
+        }
+        const result = d.updateEssayAssignmentInfo(classData, syllabusRowId, changes);
+        if (result.error || !result.classData) {
+            const key = result.error === 'missing_title'
+                ? 'classroomEssayAddAssignmentNeedTitle'
+                : result.error === 'invalid_date'
+                    ? 'classroomEssayAddAssignmentNeedDate'
+                    : 'classroomEssayAddAssignmentFailed';
+            if (hooks && hooks.showToast) {
+                hooks.showToast(t(key), true);
+            }
+            if (panel) {
+                render(panel);
+            }
+            return;
+        }
+        if (changes && changes.date && result.row) {
+            lessonDate = result.row.date || lessonDate;
+        }
+        await saveEssayRowResult(classData, result);
+        if (panel) {
+            render(panel);
+        }
+        refreshZoneContextBar();
+    }
+
+    /** Chip row of essay assignments (like Debate recording's Day 4 dates), with status badges. */
+    function renderEssayAssignmentChips(panel) {
+        const mount = panel.querySelector('#classroomEssaysAssignmentChips');
+        if (!mount) {
+            return;
+        }
+        const classData = getClassData();
+        const api = global.CCPAssignments;
+        if (!classData || !api) {
+            mount.innerHTML = '';
+            return;
+        }
+        const month = getToolsMonth();
+        const items = api.list('essay', classData, getAppData(), { month });
+        const editable = !access() || access().canEditClass(classData) || (access().canBypass && access().canBypass());
+        const today = essayTodayISO();
+        const chips = items.map((item) => {
+            const active = item.id === syllabusRowId;
+            const future = item.date && item.date > today;
+            let badge = '';
+            let cls = '';
+            if (future) {
+                cls = ' essay-assign-chip--future';
+            } else {
+                if (item.od) {
+                    badge += ` <span class="essay-assign-badge essay-assign-badge--high" title="${escapeAttr(t('classroomEssayChipOverdue').replace('{n}', item.od))}">${item.od}</span>`;
+                }
+                if (item.rs) {
+                    badge += ` <span class="essay-assign-badge essay-assign-badge--medium" title="${escapeAttr(t('classroomEssayChipResubmit').replace('{n}', item.rs))}">${item.rs}</span>`;
+                }
+                if (item.od) {
+                    cls = ' essay-assign-chip--open';
+                } else if (item.rs) {
+                    cls = ' essay-assign-chip--confirm';
+                } else if (item.totalStudents > 0 && item.percentComplete >= 100) {
+                    badge = ` <span class="essay-assign-badge essay-assign-badge--ok" title="${escapeAttr(t('classroomEssayChipDone'))}">\u2713</span>`;
+                }
+            }
+            const title = item.planTitle || '';
+            const tip = [item.label || '', future ? t('classroomEssayChipFuture') : ''].filter(Boolean).join(' \u00b7 ');
+            return `<button type="button" class="btn btn-small selection-chip essay-assign-chip${active ? ' is-active' : ''}${cls}" data-essay-chip="${escapeAttr(item.id)}" aria-pressed="${active ? 'true' : 'false'}" title="${escapeAttr(tip)}">` +
+                `<span class="essay-assign-chip-date">${escapeHtml(essayShortDate(item.date))}</span>` +
+                `<span class="essay-assign-chip-title">${escapeHtml(title)}</span>${badge}</button>`;
+        }).join('');
+        const empty = items.length
+            ? ''
+            : `<span class="section-hint">${escapeHtml(month ? t('toolsMonthNoEssay').replace('{month}', essayMonthLabel(month)) : t('classroomEssayNoAssignment'))}</span>`;
+        const add = editable
+            ? `<button type="button" class="btn btn-small btn-outline essay-assign-chip essay-assign-chip--new" data-essay-new="1">+ ${escapeHtml(t('classroomEssayChipNew'))}</button>`
+            : '';
+        mount.innerHTML = chips + empty + add;
     }
 
     async function persistEssayListMonth(value) {
@@ -3034,6 +3180,12 @@
             if (target.id === 'classroomEssaysListMonth') {
                 void persistEssayListMonth(target.value || '');
             }
+            if (target.id === 'classroomEssaysTitleInput') {
+                void persistEssayInfo({ title: target.value || '' });
+            }
+            if (target.id === 'classroomEssaysDateInput' && target.tagName === 'INPUT') {
+                void persistEssayInfo({ date: target.value || '' });
+            }
             if (target.id === 'classroomEssaysSubjectSelect') {
                 const wrap = mount.querySelector('#classroomEssaysSubjectOtherWrap');
                 setSubjectOtherVisible(target, wrap);
@@ -3042,8 +3194,32 @@
                 }
             }
         });
+        mount.addEventListener('click', (e) => {
+            const chip = e.target.closest('[data-essay-chip]');
+            if (chip && mount.contains(chip)) {
+                const id = chip.getAttribute('data-essay-chip');
+                if (id && id !== syllabusRowId && classId && global.CCPAssignments) {
+                    global.CCPAssignments.select('essay', classId, id, { source: 'essay-chips', appData: getAppData() });
+                }
+                return;
+            }
+            if (e.target.closest('[data-essay-new]')) {
+                if (typeof global.dispatchEvent === 'function' && typeof global.CustomEvent === 'function') {
+                    global.dispatchEvent(new global.CustomEvent('ccp:essayNewCustomAssignment', { detail: { classId } }));
+                }
+                return;
+            }
+            if (e.target.closest('[data-essay-month-reset]')) {
+                void persistEssayListMonth('');
+            }
+        });
         mount.addEventListener('keydown', (e) => {
             const input = e.target;
+            if (input && input.id === 'classroomEssaysTitleInput' && e.key === 'Enter') {
+                e.preventDefault();
+                input.blur();
+                return;
+            }
             if (!input || input.id !== 'classroomEssaysSubjectOtherInput' || e.key !== 'Enter') {
                 return;
             }
@@ -3091,6 +3267,8 @@
             !!mount.querySelector('#classroomEssaysAssignmentSelect') ||
             !mount.querySelector('#classroomEssaysSubjectSelect') ||
             !mount.querySelector('#classroomEssaysListMonth') ||
+            !mount.querySelector('#classroomEssaysAssignmentChips') ||
+            !mount.querySelector('#classroomEssaysTitleInput') ||
             !!mount.querySelector('.classroom-essay-class-picker');
         const savedSubject = domain() && domain().savedEssaySubject
             ? domain().savedEssaySubject(currentEssayRow())
@@ -3101,9 +3279,35 @@
             ? domain().essayAssignmentListMonth(currentEssayRow())
             : '';
         const listMonthDisabled = editable && classData && syllabusRowId ? '' : ' disabled';
+        const essayRow = currentEssayRow();
+        const isCustomRow = Boolean(essayRow && d && d.isHandAddedEssayRow && d.isHandAddedEssayRow(essayRow));
+        const essayTitle = essayRow && d && d.essayAssignmentTitle ? d.essayAssignmentTitle(essayRow) : '';
+        const autoMonth = essayRow && d && d.essayAssignmentListMonth
+            ? d.essayAssignmentListMonth(Object.assign({}, essayRow, { essayListMonth: '' }))
+            : '';
+        const monthOverridden = Boolean(essayRow && /^\d{4}-\d{2}$/.test(String(essayRow.essayListMonth || '')) && essayRow.essayListMonth !== autoMonth);
+        const monthNoteHtml = monthOverridden
+            ? `<button type="button" class="classroom-essay-inline-link" data-essay-month-reset="1">${escapeHtml(t('classroomEssayListMonthReset').replace('{month}', essayMonthLabel(autoMonth)))}</button>`
+            : `<span class="classroom-essay-field-note">${escapeHtml(autoMonth ? t('classroomEssayListMonthAuto') : '')}</span>`;
+        const infoDisabled = editable && classData && syllabusRowId ? '' : ' disabled';
+        const dateFieldHtml = isCustomRow
+            ? `<input type="date" id="classroomEssaysDateInput" class="field-input field-control classroom-essay-datefield" value="${escapeHtml((essayRow && essayRow.date) || '')}"${infoDisabled} />`
+            : `<span class="classroom-essay-readonly" id="classroomEssaysDateInput" title="${escapeAttr(t('classroomEssayDateSyllabusHint'))}">${escapeHtml(essayRow && essayRow.date ? t('classroomEssayDateFromSyllabus').replace('{date}', essayShortDate(essayRow.date)) : '—')}</span>`;
         if (needsShell) {
             mount.innerHTML = `
+                <div class="classroom-essay-assign-picker">
+                    <span class="classroom-essay-context-label">${escapeHtml(t('classroomEssayAssignmentsLabel'))}</span>
+                    <div class="essay-assign-chips" id="classroomEssaysAssignmentChips" role="group" aria-label="${escapeAttr(t('classroomEssayAssignmentsLabel'))}"></div>
+                </div>
                 <div class="classroom-essays-context-bar-inner">
+                    <label class="classroom-essay-context-field classroom-essay-context-field--title" title="${escapeAttr(isCustomRow ? '' : t('classroomEssayTitleSyllabusHint'))}">
+                        <span class="classroom-essay-context-label">${escapeHtml(t('classroomEssayTitleLabel'))}</span>
+                        <input type="text" id="classroomEssaysTitleInput" class="field-input field-control" maxlength="120" value="${escapeAttr(essayTitle)}"${infoDisabled} />
+                    </label>
+                    <div class="classroom-essay-context-field" id="classroomEssaysDateWrap">
+                        <span class="classroom-essay-context-label">${escapeHtml(t('classroomEssayDateLabel'))}</span>
+                        ${dateFieldHtml}
+                    </div>
                     <label class="classroom-essay-context-field classroom-essay-context-field--subject">
                         <span class="classroom-essay-context-label">${escapeHtml(t('classroomEssaySubjectLabel'))}</span>
                         <select id="classroomEssaysSubjectSelect" class="field-select field-control classroom-essay-datefield" aria-label="${escapeAttr(t('classroomEssaySubjectLabel'))}"${subjectDisabled}>${subjectOpts}</select>
@@ -3120,12 +3324,33 @@
                         <span class="classroom-essay-context-label">${escapeHtml(t('classroomEssayTeacherEvalDueShort'))}</span>
                         <input type="date" id="classroomEssaysTeacherEvalDue" class="field-input field-control classroom-essay-datefield" value="${escapeHtml(te)}"${deadlineDisabled} />
                     </label>
-                    <label class="classroom-essay-context-field classroom-essay-context-field--secondary" title="${escapeAttr(t('classroomEssayListMonthHint'))}">
-                        <span class="classroom-essay-context-label">${escapeHtml(t('classroomEssayListMonthLabel'))}</span>
-                        <input type="month" id="classroomEssaysListMonth" class="field-input field-control classroom-essay-datefield" value="${escapeHtml(listMonth)}" aria-label="${escapeAttr(t('classroomEssayListMonthLabel'))}"${listMonthDisabled} />
-                    </label>
+                    <div class="classroom-essay-context-field" title="${escapeAttr(t('classroomEssayListMonthHint'))}">
+                        <label class="classroom-essay-context-label" for="classroomEssaysListMonth">${escapeHtml(t('classroomEssayListMonthLabel'))}</label>
+                        <span class="classroom-essay-month-row">
+                            <input type="month" id="classroomEssaysListMonth" class="field-input field-control classroom-essay-datefield" value="${escapeHtml(listMonth)}" aria-label="${escapeAttr(t('classroomEssayListMonthLabel'))}"${listMonthDisabled} />
+                            <span id="classroomEssaysListMonthNote" class="classroom-essay-month-note">${monthNoteHtml}</span>
+                        </span>
+                    </div>
                 </div>`;
         } else {
+            const titleInput = mount.querySelector('#classroomEssaysTitleInput');
+            if (titleInput && document.activeElement !== titleInput) {
+                titleInput.value = essayTitle;
+                titleInput.disabled = Boolean(infoDisabled);
+                titleInput.closest('label').title = isCustomRow ? '' : t('classroomEssayTitleSyllabusHint');
+            }
+            const dateWrap = mount.querySelector('#classroomEssaysDateWrap');
+            const dateEl = mount.querySelector('#classroomEssaysDateInput');
+            if (dateWrap && document.activeElement !== dateEl) {
+                if (dateEl) {
+                    dateEl.remove();
+                }
+                dateWrap.insertAdjacentHTML('beforeend', dateFieldHtml);
+            }
+            const monthNote = mount.querySelector('#classroomEssaysListMonthNote');
+            if (monthNote) {
+                monthNote.innerHTML = monthNoteHtml;
+            }
             const ssInput = mount.querySelector('#classroomEssaysSsDue');
             if (ssInput) {
                 if (ssInput.value !== ss) {
@@ -3159,6 +3384,7 @@
             }
         }
 
+        renderEssayAssignmentChips(panel);
         renderClassPickerPopover();
     }
 

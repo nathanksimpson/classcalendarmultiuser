@@ -960,8 +960,8 @@
         }
     }
 
+    // Essays picks its assignment from the chip row on the tab itself (like Debate recording).
     const ASSIGNMENT_TAB_KINDS = {
-        essays: 'essay',
         'debate-teams': 'debate',
         'debate-scores': 'debate'
     };

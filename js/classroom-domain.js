@@ -3579,6 +3579,21 @@
         return Boolean(row && row.trackEssay === true && !isEssaySyllabusRow(row));
     }
 
+    /**
+     * Added by hand on the Essays tab (not a syllabus lesson): flagged customEssay, or a tracked
+     * essay row with no syllabus session/lesson number (same rule as the assignment picker's Custom group).
+     * Only these can have their date edited from the Essays tab.
+     */
+    function isHandAddedEssayRow(row) {
+        if (!row) {
+            return false;
+        }
+        if (row.customEssay === true) {
+            return true;
+        }
+        return row.trackEssay === true && !row.sessionNumber && !row.lessonNumber;
+    }
+
     function getEssayRowsForTerm(syllabusRows, termStart, termEnd) {
         const rows = getEssayRowsFromSyllabus(syllabusRows);
         const ts = normalizeStr(termStart);
@@ -3671,7 +3686,8 @@
             planDetail: '',
             homework: '',
             note: '',
-            trackEssay: true
+            trackEssay: true,
+            customEssay: true
         };
         if (subject) {
             row.essaySubject = subject;
@@ -4630,11 +4646,19 @@
         return parts.length ? ` ${parts.join(' ')}` : '';
     }
 
+    /** Essay title: a teacher-set essayTitle wins, else the syllabus lesson title. */
+    function essayAssignmentTitle(row) {
+        if (!row) {
+            return '';
+        }
+        return normalizeStr(row.essayTitle) || normalizeStr(row.planTitle) || normalizeStr(row.planDetail);
+    }
+
     function getEssayAssignmentLabel(row) {
         if (!row) {
             return '';
         }
-        return `${row.date || ''} — ${row.planTitle || row.planDetail || ''}`.trim();
+        return `${row.date || ''} — ${essayAssignmentTitle(row)}`.trim();
     }
 
     function resolveClassTypeLabel(classData, appData) {
@@ -4745,7 +4769,8 @@
                 assignmentLabel: getEssayAssignmentLabel(row),
                 essaySubject: savedEssaySubject(row),
                 displaySubject: displayEssaySubject(row),
-                planTitle: normalizeStr(row.planTitle || row.planDetail || ''),
+                planTitle: essayAssignmentTitle(row),
+                customAssignment: isHandAddedEssayRow(row),
                 totalStudents,
                 counts: alerts.counts,
                 rs: alerts.rs,
@@ -7731,6 +7756,66 @@
         }
         const nextRow = Object.assign({}, rows[idx], { essaySubject: name });
         rows[idx] = nextRow;
+        return {
+            error: null,
+            classData: Object.assign({}, classData, { syllabusRows: rows }),
+            row: nextRow
+        };
+    }
+
+    /**
+     * Edit an essay assignment's title and (custom assignments only) date.
+     * Syllabus lessons keep their syllabus title and date: a different title is saved as
+     * essayTitle (shown on the Essays tab only); an empty or same-as-syllabus title clears it.
+     * @param {{ title?: string, date?: string }} changes
+     */
+    function updateEssayAssignmentInfo(classData, syllabusRowId, changes) {
+        const ch = changes || {};
+        if (!classData || !normalizeStr(classData.id)) {
+            return { error: 'missing_class', classData: classData || null, row: null };
+        }
+        const rid = normalizeStr(syllabusRowId);
+        const rows = Array.isArray(classData.syllabusRows) ? classData.syllabusRows.slice() : [];
+        const idx = rows.findIndex((r) => r && getSyllabusRowKey(r) === rid);
+        if (idx < 0) {
+            return { error: 'missing_row', classData, row: null };
+        }
+        const current = rows[idx];
+        const custom = isHandAddedEssayRow(current);
+        const nextRow = Object.assign({}, current);
+        if (ch.title !== undefined) {
+            const title = normalizeStr(ch.title);
+            if (custom) {
+                if (!title) {
+                    return { error: 'missing_title', classData, row: null };
+                }
+                nextRow.planTitle = title;
+            } else if (!title || title === normalizeStr(current.planTitle || current.planDetail)) {
+                delete nextRow.essayTitle;
+            } else {
+                nextRow.essayTitle = title;
+            }
+        }
+        if (ch.date !== undefined && normalizeStr(ch.date) !== normalizeStr(current.date)) {
+            if (!custom) {
+                return { error: 'syllabus_date', classData, row: null };
+            }
+            const date = normalizeStr(ch.date);
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+                return { error: 'invalid_date', classData, row: null };
+            }
+            nextRow.date = date;
+        }
+        rows[idx] = nextRow;
+        if (custom) {
+            rows.sort((a, b) => {
+                const byDate = compareDateStr(a && a.date, b && b.date);
+                if (byDate !== 0) {
+                    return byDate;
+                }
+                return normalizeStr(a && a.planTitle).localeCompare(normalizeStr(b && b.planTitle));
+            });
+        }
         return {
             error: null,
             classData: Object.assign({}, classData, { syllabusRows: rows }),
@@ -10879,6 +10964,9 @@
         setEssayAssignmentSubject,
         essayAssignmentListMonth,
         setEssayAssignmentListMonth,
+        updateEssayAssignmentInfo,
+        essayAssignmentTitle,
+        isHandAddedEssayRow,
         clearTmsEssayLinksForAssignment,
         retconEssayCompletions,
         normalizeEssayTitleKey,

@@ -19,7 +19,9 @@
         if (!row) {
             return '';
         }
-        return `${row.date || ''} — ${row.planTitle || row.planDetail || ''}`.trim();
+        const d = global.CCPClassroomDomain;
+        const title = d && d.essayAssignmentTitle ? d.essayAssignmentTitle(row) : (row.planTitle || row.planDetail || '');
+        return `${row.date || ''} — ${title}`.trim();
     }
 
     function isOverdueISO(isoDate) {

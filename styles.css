@@ -22998,6 +22998,150 @@ th[data-cohort-col] {
 }
 
 #panel-debate-rec .debate-rec-stats,
+/* Essays: assignment chip row (same pattern as Debate recording's Day 4 dates). */
+#panel-essays .classroom-essay-assign-picker {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1, 4px);
+    margin-bottom: var(--space-2, 8px);
+}
+
+#panel-essays .essay-assign-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2, 8px);
+}
+
+#panel-essays .essay-assign-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1, 4px);
+    max-width: 22rem;
+}
+
+#panel-essays .essay-assign-chip-date {
+    flex: 0 0 auto;
+    font-weight: 700;
+}
+
+#panel-essays .essay-assign-chip-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+#panel-essays .essay-assign-chip.is-active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--text-on-primary);
+}
+
+#panel-essays .essay-assign-chip--open:not(.is-active) {
+    border-color: color-mix(in srgb, var(--danger) 45%, var(--border-color));
+}
+
+#panel-essays .essay-assign-chip--confirm:not(.is-active) {
+    border-color: color-mix(in srgb, var(--warn-badge-bg) 45%, var(--border-color));
+}
+
+#panel-essays .essay-assign-chip--future:not(.is-active) {
+    color: var(--text-muted);
+}
+
+#panel-essays .essay-assign-chip--new {
+    border-style: dashed;
+    color: var(--text-secondary);
+}
+
+#panel-essays .essay-assign-badge {
+    display: inline-block;
+    min-width: 1.25em;
+    padding: 0 4px;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+#panel-essays .essay-assign-badge--high {
+    background: var(--danger);
+    color: var(--text-on-primary);
+}
+
+#panel-essays .essay-assign-badge--medium {
+    background: color-mix(in srgb, var(--warn-badge-bg) 18%, transparent);
+    color: var(--warn-badge-bg);
+    border: 1px solid color-mix(in srgb, var(--warn-badge-bg) 45%, transparent);
+}
+
+#panel-essays .essay-assign-badge--ok {
+    background: color-mix(in srgb, var(--success) 18%, transparent);
+    color: var(--success);
+}
+
+#panel-essays .essay-assign-chip.is-active .essay-assign-badge--medium {
+    background: rgba(255, 255, 255, 0.92);
+    border-color: transparent;
+}
+
+#panel-essays .essay-assign-chip.is-active .essay-assign-badge--ok {
+    background: rgba(255, 255, 255, 0.25);
+    color: inherit;
+}
+
+#panel-essays .classroom-essay-context-field--title {
+    flex: 1 1 14rem;
+    min-width: 12rem;
+}
+
+#panel-essays .classroom-essay-context-field--title .field-input {
+    width: 100%;
+}
+
+#panel-essays .classroom-essay-readonly {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--control-height, 36px);
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    cursor: help;
+}
+
+#panel-essays .classroom-essay-month-row {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2, 8px);
+}
+
+#panel-essays .classroom-essay-month-note {
+    max-width: 7.5rem;
+    line-height: 1.25;
+}
+
+#panel-essays .classroom-essay-field-note {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+#panel-essays .classroom-essay-inline-link {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--primary-dark);
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+#panel-essays .classroom-essay-inline-link:hover,
+#panel-essays .classroom-essay-inline-link:focus-visible {
+    text-decoration: underline;
+}
+
 #panel-debate-rec .debate-rec-day-chips {
     display: flex;
     flex-wrap: wrap;

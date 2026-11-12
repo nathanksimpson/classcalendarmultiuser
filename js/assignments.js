@@ -71,6 +71,10 @@
 
     /** Custom essay assignments are trackEssay rows added by hand (no syllabus session number). */
     function isCustomEssayRow(row) {
+        const d = domain();
+        if (d && d.isHandAddedEssayRow) {
+            return d.isHandAddedEssayRow(row);
+        }
         return !!(row && row.trackEssay === true && !row.sessionNumber && !row.lessonNumber);
     }
 
