@@ -215,6 +215,34 @@ const checkMark = core.REACTIONS[1];
     );
 }
 
+{
+    // Large imports run in chunks so one request never runs long, and resume safely.
+    const { env, A, V } = setup();
+    const many = [];
+    for (let i = 0; i < 45; i += 1) {
+        many.push({
+            id: `dn-bulk-${i}`,
+            classId: 'c1',
+            date: '2026-11-04',
+            text: `Bulk note ${i}`,
+            authorUserId: 'uv',
+            taggedStudentIds: i % 2 ? ['stu_old'] : []
+        });
+    }
+    const id = await makeCalendar(A, env, 'Bulk import', { dayNotes: many });
+    grant(env, id, 'uv', 'viewer');
+    const r1 = await V('POST', `/api/calendars/${id}/board/import-day-notes`, {});
+    check('bulk import first chunk', r1.status === 200 && r1.body.imported === 40 && r1.body.remaining === 5, JSON.stringify(r1.body));
+    const r2 = await V('POST', `/api/calendars/${id}/board/import-day-notes`, {});
+    check('bulk import second chunk', r2.status === 200 && r2.body.imported === 5 && r2.body.remaining === 0, JSON.stringify(r2.body));
+    const r3 = await V('POST', `/api/calendars/${id}/board/import-day-notes`, {});
+    check('bulk import done is a no-op', r3.status === 200 && r3.body.imported === 0 && r3.body.remaining === 0, JSON.stringify(r3.body));
+    const count = env.DB.raw.prepare('SELECT count(*) AS n FROM board_posts WHERE calendar_id = ?').get(id).n;
+    check('bulk import made no duplicates', count === 45, String(count));
+    const links = env.DB.raw.prepare('SELECT count(*) AS n FROM board_post_students WHERE calendar_id = ?').get(id).n;
+    check('bulk import linked tagged students', links === 22, String(links));
+}
+
 if (failures) {
     console.error(`\n${failures} class-board check(s) failed`);
     process.exit(1);

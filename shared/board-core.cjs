@@ -657,6 +657,20 @@ function assertTargetExists(data, kind, ref) {
     }
 }
 
+/** Run writes together when the storage supports it (D1 batch / SQLite transaction). */
+async function runWrites(ctx, writes) {
+    if (!writes.length) {
+        return;
+    }
+    if (typeof ctx.db.batch === 'function') {
+        await ctx.db.batch(writes);
+        return;
+    }
+    for (const write of writes) {
+        await ctx.db.run(write.sql, write.params);
+    }
+}
+
 async function replaceStudents(ctx, postId, calendarId, students) {
     await ctx.db.run('DELETE FROM board_post_students WHERE post_id = ?', [postId]);
     for (const student of students) {
@@ -877,12 +891,17 @@ async function unreadBoardList(ctx, user, calendarId, keys) {
 
 const IMPORT_SKIP_CATEGORIES = new Set(['class-points', 'essay-resubmit']);
 
-async function importDayNotes(ctx, user, calendarId) {
+/** Max notes copied per import call, so one request never runs long. */
+const IMPORT_CHUNK = 40;
+
+async function importDayNotes(ctx, user, calendarId, body) {
     await requireCalendar(ctx, user, calendarId);
     const data = await ctx.loadCalendar(calendarId);
     if (!data) {
         throw boardError('Calendar not found', 404, 'BOARD_NOT_FOUND');
     }
+    const limitRaw = Number(body && body.limit);
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), IMPORT_CHUNK) : IMPORT_CHUNK;
     const classIds = new Set((data.classes || []).filter((row) => row && row.id).map((row) => String(row.id)));
     const studentsById = new Map();
     (data.cohorts || []).forEach((cohort) => {
@@ -892,8 +911,13 @@ async function importDayNotes(ctx, user, calendarId) {
             }
         });
     });
+    const doneRows = await ctx.db.all(
+        "SELECT source_ref FROM board_posts WHERE calendar_id = ? AND source_ref LIKE 'daynote:%'",
+        [calendarId]
+    );
+    const done = new Set((doneRows || []).map((row) => String(row.source_ref || '')));
     const notes = Array.isArray(data.dayNotes) ? data.dayNotes : [];
-    let imported = 0;
+    const pending = [];
     let skipped = 0;
     for (const note of notes) {
         if (!note || typeof note !== 'object') {
@@ -907,22 +931,22 @@ async function importDayNotes(ctx, user, calendarId) {
             skipped += 1;
             continue;
         }
+        const sourceRef = `daynote:${noteId}`.slice(0, 200);
+        if (done.has(sourceRef)) {
+            skipped += 1;
+            continue;
+        }
         const bodyCheck = validateBody(String(note.text || '').slice(0, BODY_MAX));
         const dateCheck = validateLessonDate(note.date);
         if (bodyCheck.error || dateCheck.error) {
             skipped += 1;
             continue;
         }
-        const sourceRef = `daynote:${noteId}`.slice(0, 200);
-        const existing = await ctx.db.one(
-            'SELECT id FROM board_posts WHERE calendar_id = ? AND source_ref = ?',
-            [calendarId, sourceRef]
-        );
-        if (existing) {
-            skipped += 1;
-            continue;
-        }
-        const tagged = Array.isArray(note.taggedStudentIds) ? note.taggedStudentIds : [];
+        pending.push({ note, classId, category, sourceRef, body: bodyCheck.body, date: dateCheck.date });
+    }
+    let imported = 0;
+    for (const item of pending.slice(0, limit)) {
+        const tagged = Array.isArray(item.note.taggedStudentIds) ? item.note.taggedStudentIds : [];
         const students = takeChecked(
             validateStudents(
                 tagged.map((studentId) => {
@@ -936,23 +960,23 @@ async function importDayNotes(ctx, user, calendarId) {
             400,
             'BOARD_STUDENTS'
         ).students;
-        const tags = category === 'class-notes' ? [] : takeChecked(validateTags([category]), 400, 'BOARD_TAGS').tags;
-        const author = String(note.authorUserId || user.id || '').trim() || String(user.id);
+        const tags = item.category === 'class-notes' ? [] : takeChecked(validateTags([item.category]), 400, 'BOARD_TAGS').tags;
+        const author = String(item.note.authorUserId || user.id || '').trim() || String(user.id);
         const id = ctx.newId();
         const now = ctx.now();
-        const blob = ctx.encrypt(id, bodyCheck.body);
-        try {
-            await ctx.db.run(
-                `INSERT INTO board_posts (
+        const blob = ctx.encrypt(id, item.body);
+        const writes = [
+            {
+                sql: `INSERT OR IGNORE INTO board_posts (
                     id, calendar_id, board_kind, board_ref, lesson_date, author_user_id,
                     body, body_enc_version, body_key_wrapped, tags_json, is_special,
                     created_at, updated_at, source_ref
                 ) VALUES (?, ?, 'class', ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
-                [
+                params: [
                     id,
                     calendarId,
-                    classId,
-                    dateCheck.date,
+                    item.classId,
+                    item.date,
                     author,
                     blob.body,
                     blob.bodyEncVersion,
@@ -960,25 +984,29 @@ async function importDayNotes(ctx, user, calendarId) {
                     JSON.stringify(tags),
                     now,
                     now,
-                    sourceRef
+                    item.sourceRef
                 ]
-            );
-        } catch (err) {
-            if (err && /unique/i.test(String(err.message || ''))) {
-                skipped += 1;
-                continue;
             }
-            throw err;
-        }
-        await replaceStudents(ctx, id, calendarId, students);
+        ];
+        students.forEach((student) => {
+            // Only link students when this post row was actually inserted (a parallel import may have won).
+            writes.push({
+                sql: `INSERT OR IGNORE INTO board_post_students (post_id, calendar_id, student_id, tms_mpidx)
+                      SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM board_posts WHERE id = ?)`,
+                params: [id, calendarId, student.studentId, student.tmsMpidx, id]
+            });
+        });
+        await runWrites(ctx, writes);
         imported += 1;
     }
+    const remaining = Math.max(0, pending.length - imported);
     if (imported) {
         await logWrite(ctx, user, calendarId, 'board_post_create', 'Brought old day notes onto the class board', {
-            imported
+            imported,
+            remaining
         });
     }
-    return { status: 200, body: { imported, skipped } };
+    return { status: 200, body: { imported, skipped, remaining } };
 }
 
 async function searchBoard(ctx, user, calendarId, query) {
@@ -1657,7 +1685,7 @@ async function route(ctx, http) {
         return createPost(ctx, http.user, found.calendarId, body);
     }
     if (found.name === 'import-day-notes' && method === 'POST') {
-        return importDayNotes(ctx, http.user, found.calendarId);
+        return importDayNotes(ctx, http.user, found.calendarId, body);
     }
     if (found.name === 'posts' && method === 'GET') {
         return listBoard(ctx, http.user, found.calendarId, query);

@@ -303,6 +303,7 @@
         boardDeleted: 'This note was deleted.',
         boardLoading: 'Loading notes…',
         boardImported: 'Brought in {n} older notes.',
+        boardImporting: 'Bringing in older notes… {n} done, {left} to go.',
         boardSchemaMissing: 'The notes feed is not ready on this server yet.',
         boardError: 'Could not load notes.',
         boardNoCalendar: 'Open a calendar first.',

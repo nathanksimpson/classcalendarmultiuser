@@ -144,22 +144,6 @@
         state.error = '';
         paintStatus();
         try {
-            if (!state.ready) {
-                try {
-                    const imported = await api('/calendars/' + encodeURIComponent(id) + '/board/import-day-notes', {
-                        method: 'POST',
-                        body: {}
-                    });
-                    if (imported && imported.imported) {
-                        state.status = tr('boardImported').replace('{n}', String(imported.imported));
-                    }
-                } catch (err) {
-                    if (schemaMissing(err)) {
-                        throw err;
-                    }
-                }
-                state.ready = true;
-            }
             const path = state.scope === 'feed'
                 ? '/calendars/' + encodeURIComponent(id) + '/board/feed?scope=mine'
                 : '/calendars/' + encodeURIComponent(id) + '/board?kind=' + encodeURIComponent(state.scope) + '&ref=' + encodeURIComponent(state.ref || '');
@@ -181,6 +165,47 @@
         } finally {
             state.loading = false;
             paint();
+        }
+        if (!state.error) {
+            importOldNotesInBackground(id);
+        }
+    }
+
+    /**
+     * Copy old day notes onto the board after the feed is showing, a chunk per request,
+     * so a slow import never blocks the page and an interrupted one resumes next time.
+     */
+    const importRuns = {};
+    async function importOldNotesInBackground(id) {
+        if (importRuns[id]) {
+            return;
+        }
+        importRuns[id] = true;
+        let total = 0;
+        try {
+            for (let round = 0; round < 50; round += 1) {
+                const result = await api('/calendars/' + encodeURIComponent(id) + '/board/import-day-notes', {
+                    method: 'POST',
+                    body: {}
+                });
+                const n = (result && result.imported) || 0;
+                total += n;
+                if (total > 0 && result && result.remaining > 0) {
+                    state.status = tr('boardImporting').replace('{n}', String(total)).replace('{left}', String(result.remaining));
+                    paintStatus();
+                }
+                if (!n || !result || !(result.remaining > 0)) {
+                    break;
+                }
+            }
+        } catch (err) {
+            // Non-fatal: the feed already shows; the next visit picks up where this stopped.
+            importRuns[id] = false;
+        }
+        if (total > 0 && calendarId() === id) {
+            await load();
+            state.status = tr('boardImported').replace('{n}', String(total));
+            paintStatus();
         }
     }
 

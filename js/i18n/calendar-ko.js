@@ -303,6 +303,7 @@
         boardDeleted: '삭제된 글입니다.',
         boardLoading: '노트를 불러오는 중…',
         boardImported: '예전 노트 {n}개를 가져왔습니다.',
+        boardImporting: '예전 노트 가져오는 중… {n}개 완료, {left}개 남음.',
         boardSchemaMissing: '이 서버에는 노트 게시판이 아직 준비되지 않았습니다.',
         boardError: '노트를 불러오지 못했습니다.',
         boardNoCalendar: '먼저 캘린더를 여세요.',

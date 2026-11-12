@@ -19,6 +19,11 @@ function database() {
         },
         run(sql, params) {
             return db.prepare(sql).run(...(params || []));
+        },
+        batch(writes) {
+            db.transaction(() => {
+                writes.forEach((w) => db.prepare(w.sql).run(...(w.params || [])));
+            })();
         }
     };
 }

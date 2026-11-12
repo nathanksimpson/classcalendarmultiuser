@@ -18,6 +18,12 @@ function database(env) {
         },
         run(sql, params) {
             return dbRun(env, sql, ...(params || []));
+        },
+        /** One round trip for several writes (D1 runs a batch as one transaction). */
+        batch(writes) {
+            return env.DB.batch(
+                writes.map((w) => env.DB.prepare(w.sql).bind(...(w.params || [])))
+            );
         }
     };
 }
