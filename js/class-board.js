@@ -521,10 +521,17 @@
         const myRow = (reactions || []).find((row) => String(row.userId) === mine);
         const current = myRow ? myRow.emoji : '';
         const label = current ? reactionLabel(current) : tr('boardReactLike');
-        const main = '<button type="button" class="class-board-like-btn' + (current ? ' is-on' : '') + '" data-react="' + esc(current || REACTIONS[0]) + '" data-target="' + esc(targetId) + '" aria-haspopup="true">' +
+        const info = REACTION_INFO.find((row) => row.emoji === current);
+        const tone = info ? ' is-' + info.key.replace('boardReact', '').toLowerCase() : '';
+        const title = current ? tr('boardReactRemoveHint').replace('{r}', label) : tr('boardReactAddHint');
+        const main = '<button type="button" class="class-board-like-btn' + (current ? ' is-on' + tone : '') + '" data-react="' + esc(current || REACTIONS[0]) + '" data-target="' + esc(targetId) + '" aria-haspopup="true" aria-pressed="' + (current ? 'true' : 'false') + '" title="' + esc(title) + '">' +
             '<span aria-hidden="true">' + (current || REACTIONS[0]) + '</span> ' + esc(label) + '</button>';
+        const remove = current
+            ? '<button type="button" class="class-board-react-remove" data-react="' + esc(current) + '" data-target="' + esc(targetId) + '" title="' + esc(tr('boardReactRemove')) + '">\u2715 ' + esc(tr('boardReactRemove')) + '</button>'
+            : '';
         const picker = '<div class="class-board-react-picker" role="group" aria-label="' + esc(tr('boardReactPick')) + '">' +
-            REACTION_INFO.map((row) => '<button type="button" class="class-board-react-choice' + (row.emoji === current ? ' is-on' : '') + '" data-react="' + esc(row.emoji) + '" data-target="' + esc(targetId) + '" title="' + esc(tr(row.key)) + '" aria-label="' + esc(tr(row.key)) + '">' + row.emoji + '</button>').join('') +
+            REACTION_INFO.map((row) => '<button type="button" class="class-board-react-choice' + (row.emoji === current ? ' is-on' : '') + '" data-react="' + esc(row.emoji) + '" data-target="' + esc(targetId) + '" title="' + esc(tr(row.key)) + '" aria-label="' + esc(tr(row.key)) + '" aria-pressed="' + (row.emoji === current ? 'true' : 'false') + '">' + row.emoji + '</button>').join('') +
+            remove +
             '</div>';
         return '<div class="class-board-like" data-like="' + esc(targetId) + '">' + main + picker + '</div>';
     }

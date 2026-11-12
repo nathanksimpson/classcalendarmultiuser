@@ -24318,7 +24318,64 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-boo
 }
 
 .class-board-like-btn.is-on {
-    color: var(--primary-dark);
+    background: color-mix(in srgb, var(--reaction-tone, var(--primary)) 14%, transparent);
+    color: var(--reaction-tone, var(--primary-dark));
+}
+
+.class-board-like-btn.is-on:hover,
+.class-board-like-btn.is-on:focus-visible {
+    background: color-mix(in srgb, var(--reaction-tone, var(--primary)) 24%, transparent);
+    color: var(--reaction-tone, var(--primary-dark));
+}
+
+.class-board-like-btn.is-like {
+    --reaction-tone: #2563eb;
+}
+
+.class-board-like-btn.is-love {
+    --reaction-tone: #e11d48;
+}
+
+.class-board-like-btn.is-care,
+.class-board-like-btn.is-haha,
+.class-board-like-btn.is-wow,
+.class-board-like-btn.is-sad {
+    --reaction-tone: #b45309;
+}
+
+:root[data-theme="dark"] .class-board-like-btn.is-like {
+    --reaction-tone: #60a5fa;
+}
+
+:root[data-theme="dark"] .class-board-like-btn.is-love {
+    --reaction-tone: #fb7185;
+}
+
+:root[data-theme="dark"] .class-board-like-btn.is-care,
+:root[data-theme="dark"] .class-board-like-btn.is-haha,
+:root[data-theme="dark"] .class-board-like-btn.is-wow,
+:root[data-theme="dark"] .class-board-like-btn.is-sad {
+    --reaction-tone: #fbbf24;
+}
+
+.class-board-react-remove {
+    align-self: center;
+    margin-left: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    border: none;
+    border-left: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: var(--text-body-sm);
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.class-board-react-remove:hover,
+.class-board-react-remove:focus-visible {
+    color: var(--danger);
 }
 
 .class-board-react-picker {
