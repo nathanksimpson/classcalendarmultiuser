@@ -24040,8 +24040,92 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-boo
     position: sticky;
     top: 0;
     z-index: var(--z-sticky-header);
-    padding: var(--space-2) 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: var(--space-2);
+    padding: var(--space-3) 0 var(--space-2);
     background: var(--bg-main);
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Row 1: which board you're reading. */
+.class-board-bar-main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+}
+
+.class-board-viewing {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.class-board-bar-label {
+    flex: 0 0 auto;
+    color: var(--text-muted);
+    font-size: var(--text-body-sm);
+    font-weight: 600;
+}
+
+.class-board-viewing-select.field-input {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
+    max-width: 100%;
+    font-size: var(--text-body-md);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.class-board-viewing-desc {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--text-body-sm);
+}
+
+/* Row 2: kind, order, export. */
+.class-board-bar-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.class-board-bar-tools .btn {
+    min-height: 32px;
+    padding: 2px var(--space-3);
+    margin-left: auto;
+}
+
+.class-board-bar-tools .field-input {
+    width: auto;
+    min-height: 32px;
+    padding-block: 2px;
+    font-size: var(--text-body-sm);
+}
+
+@media (max-width: 640px) {
+    .class-board-scope {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .class-board-viewing {
+        align-items: stretch;
+    }
+
+    .class-board-viewing-select.field-input {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .class-board-bar-tools .field-input {
+        flex: 1 1 0;
+        min-width: 0;
+    }
 }
 
 .class-board-scope-btn.is-on {
@@ -24140,13 +24224,6 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-boo
     color: var(--primary-dark);
 }
 
-/* Scope bar: sort + export sit at the end of the pinned bar. */
-.class-board-scope-end {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    margin-left: auto;
-}
 
 /* Export panel: opens under the pinned bar. */
 .class-board-export-hint {

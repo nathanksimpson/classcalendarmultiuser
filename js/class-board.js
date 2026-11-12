@@ -707,41 +707,79 @@
             '</div>';
     }
 
+    function teachesClassClient(cls) {
+        const uid = String(me().id || '');
+        if (!uid || !cls) {
+            return false;
+        }
+        const rows = Array.isArray(cls.classTeachers) ? cls.classTeachers : [];
+        return rows.some((row) => row && String(row.userId || '') === uid) ||
+            String(cls.teacherUserId || '') === uid;
+    }
+
+    function isMyCohort(cohort) {
+        const uid = String(me().id || '');
+        return Boolean(uid && cohort && String(cohort.homeroomTeacherUserId || '') === uid);
+    }
+
+    /** One line under the picker saying what this board is. */
+    function boardDescription() {
+        let text;
+        if (state.scope === 'feed') {
+            text = tr('boardDescFeed');
+        } else if (state.scope === 'staff') {
+            text = tr('boardDescStaff');
+        } else if (state.scope === 'class') {
+            text = tr('boardDescClass').replace('{name}', className(state.ref));
+        } else {
+            text = tr('boardDescCohort').replace('{name}', cohortName(state.ref));
+        }
+        if (state.filterTag) {
+            text += ' ' + tr('boardDescOnly').replace('{kind}', categoryLabel(state.filterTag));
+        }
+        return text;
+    }
+
+    /**
+     * Top bar, two rows:
+     *  1. "Viewing" — which board you're reading (feed, staff room, a class, a 반) + what it is.
+     *  2. How the list is shown — kind of note, order — and Export.
+     */
     function scopeHtml() {
-        const dot = (kind, ref) => (isUnread(kind, ref) ? '<span class="class-board-unread" aria-hidden="true"></span>' : '');
-        const feedOn = state.scope === 'feed' ? ' is-on' : '';
-        const staffOn = state.scope === 'staff' ? ' is-on' : '';
-        const classOptions = classes().map((row) => {
-            const selected = state.scope === 'class' && state.ref === row.id ? ' selected' : '';
-            return '<option value="' + esc(row.id) + '"' + selected + '>' + esc(row.name || row.id) + '</option>';
-        }).join('');
-        const cohortOptions = cohorts().map((row) => {
-            const selected = state.scope === 'cohort' && state.ref === row.id ? ' selected' : '';
-            return '<option value="' + esc(row.id) + '"' + selected + '>' + esc(row.name || row.id) + '</option>';
-        }).join('');
-        const feedDot = state.unread.length ? '<span class="class-board-unread" aria-hidden="true"></span>' : '';
-        return '<button type="button" class="btn btn-outline btn-small class-board-scope-btn' + feedOn + '" data-scope="feed">' + feedDot + esc(tr('boardFeed')) + '</button>' +
-            '<label class="class-board-pick">' + esc(tr('boardClass')) +
-            '<select class="field-input" data-pick="class"><option value="">' + esc(tr('boardChoose')) + '</option>' + classOptions + '</select>' +
-            (state.scope === 'class' && isUnread('class', state.ref) ? '<span class="class-board-unread" aria-hidden="true"></span>' : '') +
-            '</label>' +
-            '<label class="class-board-pick">' + esc(tr('boardCohort')) +
-            '<select class="field-input" data-pick="cohort"><option value="">' + esc(tr('boardChoose')) + '</option>' + cohortOptions + '</select>' +
-            '</label>' +
-            '<button type="button" class="btn btn-outline btn-small class-board-scope-btn' + staffOn + '" data-scope="staff">' + dot('staff', '') + esc(tr('boardStaff')) + '</button>' +
-            '<span class="class-board-scope-end">' +
-            '<label class="class-board-pick">' + esc(tr('boardShow')) +
-            '<select class="field-input" data-filter-tag="1">' +
+        const current = state.scope === 'feed' || state.scope === 'staff' ? state.scope : state.scope + ':' + state.ref;
+        const unreadMark = (kind, ref) => (isUnread(kind, ref) ? '\u25cf ' : '');
+        const opt = (value, label) => '<option value="' + esc(value) + '"' + (value === current ? ' selected' : '') + '>' + esc(label) + '</option>';
+        const mineClasses = classes().filter(teachesClassClient);
+        const otherClasses = classes().filter((row) => !teachesClassClient(row));
+        const mineCohorts = cohorts().filter((row) => !row.isArchiveCohort && isMyCohort(row));
+        const otherCohorts = cohorts().filter((row) => !row.isArchiveCohort && !isMyCohort(row));
+        const group = (label, rows, kind) => rows.length
+            ? '<optgroup label="' + esc(label) + '">' + rows.map((row) => opt(kind + ':' + row.id, unreadMark(kind, row.id) + (row.name || row.id))).join('') + '</optgroup>'
+            : '';
+        const boardSelect = '<select class="field-input class-board-viewing-select" data-board="1" aria-describedby="classBoardViewingDesc">' +
+            opt('feed', (state.unread.length ? '\u25cf ' : '') + tr('boardFeedOption')) +
+            opt('staff', unreadMark('staff', '') + tr('boardStaffOption')) +
+            group(tr('boardMyClasses'), mineClasses, 'class') +
+            group(tr('boardMyCohorts'), mineCohorts, 'cohort') +
+            group(mineClasses.length ? tr('boardOtherClasses') : tr('boardAllClasses'), otherClasses, 'class') +
+            group(mineCohorts.length ? tr('boardOtherCohorts') : tr('boardAllCohorts'), otherCohorts, 'cohort') +
+            '</select>';
+        const kindSelect = '<select class="field-input" data-filter-tag="1" aria-label="' + esc(tr('boardShow')) + '" title="' + esc(tr('boardShow')) + '">' +
             '<option value="">' + esc(tr('boardShowAll')) + '</option>' +
-            categories().filter((row) => row.id !== DEFAULT_CATEGORY).map((row) => '<option value="' + esc(row.id) + '"' + (row.id === state.filterTag ? ' selected' : '') + '>' + esc(row.name) + '</option>').join('') +
-            '</select></label>' +
-            '<label class="class-board-pick">' + esc(tr('boardSort')) +
-            '<select class="field-input" data-sort="1">' +
+            categories().filter((row) => row.id !== DEFAULT_CATEGORY).map((row) => '<option value="' + esc(row.id) + '"' + (row.id === state.filterTag ? ' selected' : '') + '>' + esc(tr('boardShowOnly').replace('{kind}', row.name)) + '</option>').join('') +
+            '</select>';
+        const sortSelect = '<select class="field-input" data-sort="1" aria-label="' + esc(tr('boardSort')) + '" title="' + esc(tr('boardSort')) + '">' +
             '<option value="newest"' + (state.order === 'newest' ? ' selected' : '') + '>' + esc(tr('boardSortNewest')) + '</option>' +
             '<option value="oldest"' + (state.order === 'oldest' ? ' selected' : '') + '>' + esc(tr('boardSortOldest')) + '</option>' +
-            '</select></label>' +
-            '<button type="button" class="btn btn-outline btn-small class-board-scope-btn' + (state.exportOpen ? ' is-on' : '') + '" data-export-open="1" aria-expanded="' + (state.exportOpen ? 'true' : 'false') + '">' + esc(tr('boardExport')) + '</button>' +
-            '</span>';
+            '</select>';
+        return '<div class="class-board-bar-main">' +
+            '<label class="class-board-viewing"><span class="class-board-bar-label">' + esc(tr('boardViewing')) + '</span>' + boardSelect + '</label>' +
+            '<p class="class-board-viewing-desc" id="classBoardViewingDesc">' + esc(boardDescription()) + '</p>' +
+            '</div>' +
+            '<div class="class-board-bar-tools">' + kindSelect + sortSelect +
+            '<button type="button" class="btn btn-outline btn-small class-board-scope-btn' + (state.exportOpen ? ' is-on' : '') + '" data-export-open="1" aria-expanded="' + (state.exportOpen ? 'true' : 'false') + '">' +
+            '<span aria-hidden="true">\u2913</span> ' + esc(tr('boardExport')) + '</button>' +
+            '</div>';
     }
 
     function pad2(n) {
@@ -1366,6 +1404,18 @@
                 state.order = target.value === 'oldest' ? 'oldest' : 'newest';
                 saveOrder(state.order);
                 state.threads = {};
+                load();
+                return;
+            }
+            if (target.dataset.board) {
+                const value = target.value || 'feed';
+                const sep = value.indexOf(':');
+                state.scope = sep > 0 ? value.slice(0, sep) : value;
+                state.ref = sep > 0 ? value.slice(sep + 1) : '';
+                state.target = '';
+                state.threads = {};
+                state.pickOpen = '';
+                state.whoOpen = '';
                 load();
                 return;
             }
