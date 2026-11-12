@@ -316,7 +316,32 @@
             tier = 'tablet';
         }
         document.documentElement.dataset.viewport = tier;
+        syncNavDock(tier);
         return tier;
+    }
+
+    /**
+     * Bottom section bar only on touch devices (phone/tablet width AND finger as the main
+     * pointer). Desktop browsers in a narrow window keep the top menus.
+     */
+    let navDockMediaBound = false;
+    function isTouchPrimaryDevice() {
+        return Boolean(window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches);
+    }
+
+    function syncNavDock(tier) {
+        const t = tier || document.documentElement.dataset.viewport || 'desktop';
+        document.documentElement.dataset.navDock = t !== 'desktop' && isTouchPrimaryDevice() ? 'bottom' : 'top';
+        if (!navDockMediaBound && window.matchMedia) {
+            navDockMediaBound = true;
+            const mq = window.matchMedia('(hover: none) and (pointer: coarse)');
+            const onChange = () => syncNavDock();
+            if (typeof mq.addEventListener === 'function') {
+                mq.addEventListener('change', onChange);
+            } else if (typeof mq.addListener === 'function') {
+                mq.addListener(onChange);
+            }
+        }
     }
 
     function unbindViewportTierResize() {

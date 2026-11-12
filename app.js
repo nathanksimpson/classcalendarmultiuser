@@ -5808,6 +5808,9 @@ function setViewportTierAttr(tier) {
         return;
     }
     document.documentElement.dataset.viewport = tier;
+    // Bottom section bar only on touch devices; desktop browsers keep the top menus at any width.
+    const touchPrimary = Boolean(window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches);
+    document.documentElement.dataset.navDock = tier !== 'desktop' && touchPrimary ? 'bottom' : 'top';
 }
 
 /**

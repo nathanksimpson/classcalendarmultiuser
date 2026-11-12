@@ -5,10 +5,12 @@
    Desktop (> 1024px)
      Row 1: brand · section tabs · TMS sync · bell · actions · ⋮
      Row 2: page tabs (underline) ············· lock / save status
-   Phone + tablet (<= 1024px)
+   Phone + tablet (<= 1024px, touch devices)
      Row 1: brand · lock / save status · bell · actions · ⋮
      Row 2: page tabs (swipe sideways)
      Bottom: section tab bar with icons (thumb reach)
+   A desktop browser in a narrow window keeps the desktop layout
+   (section tabs on top), so the menus stay where coworkers expect.
 
    Loaded after styles.css. Selectors start from #appTopBar /
    #appHeaderUnified so they win over the older tier rules without
@@ -30,6 +32,10 @@ html[data-viewport="tablet"] {
     --ui-row-h: 60px;
     --ui-seg-h: 44px;
     --ui-ctl-h: var(--touch-min, 44px);
+}
+
+/* Bottom section bar only on touch devices (see "Phone + tablet" below). */
+html[data-nav-dock="bottom"] {
     --ui-bottom-nav-h: 60px;
 }
 
@@ -476,12 +482,13 @@ html[data-nav-tabs-collapsed="1"] #appHeaderUnified #appZoneSegmentNavRow {
 }
 
 /* ============================================================
-   Phone + tablet
+   Phone + tablet (touch devices only)
+   html[data-nav-dock="bottom"] is set by js/page-chrome.js / app.js only when the
+   window is <= 1024px AND the main pointer is a finger (no hover). Desktop browsers,
+   even in a narrow window, keep the desktop header with the section tabs on top.
    ============================================================ */
 
-html[data-viewport="phone"] #appTopBar,
-html[data-viewport="tablet-sm"] #appTopBar,
-html[data-viewport="tablet"] #appTopBar {
+html[data-nav-dock="bottom"] #appTopBar {
     /* backdrop-filter would make the fixed bottom bar position against the header */
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
@@ -489,9 +496,7 @@ html[data-viewport="tablet"] #appTopBar {
     padding-top: var(--safe-top, 0px);
 }
 
-html[data-viewport="phone"] #appHeaderUnified,
-html[data-viewport="tablet-sm"] #appHeaderUnified,
-html[data-viewport="tablet"] #appHeaderUnified {
+html[data-nav-dock="bottom"] #appHeaderUnified {
     grid-template-columns: auto auto auto minmax(0, 1fr) auto auto;
     grid-template-areas:
         "brand lock sync . bell tools"
@@ -499,9 +504,7 @@ html[data-viewport="tablet"] #appHeaderUnified {
     column-gap: var(--space-1, 4px);
 }
 
-html[data-viewport="phone"] #appHeaderUnified #appZoneSegmentNavRow,
-html[data-viewport="tablet-sm"] #appHeaderUnified #appZoneSegmentNavRow,
-html[data-viewport="tablet"] #appHeaderUnified #appZoneSegmentNavRow {
+html[data-nav-dock="bottom"] #appHeaderUnified #appZoneSegmentNavRow {
     grid-column: 1 / -1;
     justify-self: stretch;
     width: auto;
@@ -511,24 +514,16 @@ html[data-viewport="tablet"] #appHeaderUnified #appZoneSegmentNavRow {
     padding: 0 var(--ui-gutter);
 }
 
-html[data-viewport="phone"] #appHeaderUnified #teamLockSyncBar,
-html[data-viewport="tablet-sm"] #appHeaderUnified #teamLockSyncBar,
-html[data-viewport="tablet"] #appHeaderUnified #teamLockSyncBar,
-html[data-viewport="phone"] #appHeaderUnified #teamSyncStatus,
-html[data-viewport="tablet-sm"] #appHeaderUnified #teamSyncStatus,
-html[data-viewport="tablet"] #appHeaderUnified #teamSyncStatus {
+html[data-nav-dock="bottom"] #appHeaderUnified #teamLockSyncBar,
+html[data-nav-dock="bottom"] #appHeaderUnified #teamSyncStatus {
     justify-self: start;
 }
 
-html[data-viewport="phone"] #appHeaderUnified #navTabsCollapsedChip,
-html[data-viewport="tablet-sm"] #appHeaderUnified #navTabsCollapsedChip,
-html[data-viewport="tablet"] #appHeaderUnified #navTabsCollapsedChip {
+html[data-nav-dock="bottom"] #appHeaderUnified #navTabsCollapsedChip {
     grid-area: seg;
 }
 
-html[data-viewport="phone"] #appHeaderUnified .app-brand-name,
-html[data-viewport="tablet-sm"] #appHeaderUnified .app-brand-name,
-html[data-viewport="tablet"] #appHeaderUnified .app-brand-name {
+html[data-nav-dock="bottom"] #appHeaderUnified .app-brand-name {
     display: none;
 }
 
@@ -548,9 +543,7 @@ html[data-viewport="phone"] #appHeaderUnified #teamSyncSavedDot > span:not(.team
 
 /* ---------- Bottom section bar ---------- */
 
-html[data-viewport="phone"] #appHeaderUnified #appZoneNavCluster,
-html[data-viewport="tablet-sm"] #appHeaderUnified #appZoneNavCluster,
-html[data-viewport="tablet"] #appHeaderUnified #appZoneNavCluster {
+html[data-nav-dock="bottom"] #appHeaderUnified #appZoneNavCluster {
     position: fixed;
     left: 0;
     right: 0;
@@ -566,9 +559,7 @@ html[data-viewport="tablet"] #appHeaderUnified #appZoneNavCluster {
     overflow: visible;
 }
 
-html[data-viewport="phone"] #appHeaderUnified #appZoneNav,
-html[data-viewport="tablet-sm"] #appHeaderUnified #appZoneNav,
-html[data-viewport="tablet"] #appHeaderUnified #appZoneNav {
+html[data-nav-dock="bottom"] #appHeaderUnified #appZoneNav {
     width: 100%;
     max-width: 640px;
     margin: 0 auto;
@@ -578,9 +569,7 @@ html[data-viewport="tablet"] #appHeaderUnified #appZoneNav {
     overflow: visible;
 }
 
-html[data-viewport="phone"] #appHeaderUnified #appZoneNav .app-zone-btn,
-html[data-viewport="tablet-sm"] #appHeaderUnified #appZoneNav .app-zone-btn,
-html[data-viewport="tablet"] #appHeaderUnified #appZoneNav .app-zone-btn {
+html[data-nav-dock="bottom"] #appHeaderUnified #appZoneNav .app-zone-btn {
     flex: 1 1 0;
     flex-direction: column;
     gap: 3px;
@@ -595,9 +584,7 @@ html[data-viewport="tablet"] #appHeaderUnified #appZoneNav .app-zone-btn {
     text-align: center;
 }
 
-html[data-viewport="phone"] #appHeaderUnified #appZoneNav .app-zone-btn::before,
-html[data-viewport="tablet-sm"] #appHeaderUnified #appZoneNav .app-zone-btn::before,
-html[data-viewport="tablet"] #appHeaderUnified #appZoneNav .app-zone-btn::before {
+html[data-nav-dock="bottom"] #appHeaderUnified #appZoneNav .app-zone-btn::before {
     content: "";
     display: block;
     flex: 0 0 auto;
@@ -624,23 +611,21 @@ html[data-viewport="tablet"] #appHeaderUnified #appZoneNav .app-zone-btn::before
     --ui-zone-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z'/%3E%3C/svg%3E");
 }
 
+#appZoneNav .app-zone-btn[data-zone="notes"] {
+    --ui-zone-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'/%3E%3Cpath d='M8 9h8M8 13h5'/%3E%3C/svg%3E");
+}
+
 #appZoneNav .app-zone-btn[data-zone="more"] {
     --ui-zone-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cellipse cx='12' cy='5' rx='9' ry='3'/%3E%3Cpath d='M21 12c0 1.66-4 3-9 3s-9-1.34-9-3'/%3E%3Cpath d='M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5'/%3E%3C/svg%3E");
 }
 
 /* Room for the bottom bar so the last rows of a page are not hidden. */
-html[data-viewport="phone"] body,
-html[data-viewport="tablet-sm"] body,
-html[data-viewport="tablet"] body {
+html[data-nav-dock="bottom"] body {
     padding-bottom: calc(var(--ui-bottom-nav-h) + var(--safe-bottom, 0px));
 }
 
-html[data-viewport="phone"] .sync-toast,
-html[data-viewport="tablet-sm"] .sync-toast,
-html[data-viewport="tablet"] .sync-toast,
-html[data-viewport="phone"] .now-class-popup-root,
-html[data-viewport="tablet-sm"] .now-class-popup-root,
-html[data-viewport="tablet"] .now-class-popup-root {
+html[data-nav-dock="bottom"] .sync-toast,
+html[data-nav-dock="bottom"] .now-class-popup-root {
     bottom: calc(var(--ui-bottom-nav-h) + var(--safe-bottom, 0px) + var(--space-3, 12px));
 }
 
