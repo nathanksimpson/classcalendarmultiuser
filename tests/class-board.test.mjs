@@ -301,6 +301,47 @@ const checkMark = core.REACTIONS[1];
     check('bad sort order is refused', bad.status === 400, String(bad.status));
 }
 
+{
+    const { env, A, V, B, O } = setup();
+    const id = await makeCalendar(A, env, 'Search term');
+    grant(env, id, 'uv', 'viewer');
+    grant(env, id, 'ub', 'editor');
+    const classNote = await B('POST', `/api/calendars/${id}/board/posts`, {
+        boardKind: 'class',
+        boardRef: 'c1',
+        lessonDate: '2026-11-04',
+        body: 'The debate round ran long because the rebuttal needed a second look',
+        tags: ['parent-consult']
+    });
+    const staffNote = await V('POST', `/api/calendars/${id}/board/posts`, {
+        boardKind: 'staff',
+        body: 'Staff only: bring the spare markers tomorrow'
+    });
+    check('search fixtures saved', classNote.status === 201 && staffNote.status === 201, `class=${classNote.status} staff=${staffNote.status}`);
+    const found = await V('GET', `/api/calendars/${id}/board/search?q=${encodeURIComponent('Rebuttal')}`);
+    const posts = (found.body && found.body.posts) || [];
+    check('search matches note text ignoring case', found.status === 200 && posts.length === 1 && posts[0].id === classNote.body.post.id, `status=${found.status} n=${posts.length}`);
+    check('search returns a snippet around the match', Boolean(posts[0] && /rebuttal/i.test(posts[0].snippet || '')), posts[0] && posts[0].snippet);
+    const mine = await V('GET', `/api/calendars/${id}/board/search?q=${encodeURIComponent('rebuttal')}&scope=mine`);
+    check('feed search stays on the boards in My feed', mine.status === 200 && ((mine.body && mine.body.posts) || []).length === 0, `n=${mine.body && mine.body.posts && mine.body.posts.length}`);
+    const teacher = await B('GET', `/api/calendars/${id}/board/search?q=${encodeURIComponent('rebuttal')}&scope=mine`);
+    check('a class teacher finds that note from My feed', teacher.status === 200 && ((teacher.body && teacher.body.posts) || []).some((post) => post.id === classNote.body.post.id));
+    const staff = await V('GET', `/api/calendars/${id}/board/search?q=${encodeURIComponent('markers')}&scope=mine`);
+    check('feed search still finds the staff room', staff.status === 200 && ((staff.body && staff.body.posts) || []).some((post) => post.id === staffNote.body.post.id));
+    const scoped = await V('GET', `/api/calendars/${id}/board/search?q=${encodeURIComponent('markers')}&kind=class&ref=c1`);
+    check('search stays on the selected board', scoped.status === 200 && ((scoped.body && scoped.body.posts) || []).length === 0);
+    const tagged = await V('GET', `/api/calendars/${id}/board/search?q=${encodeURIComponent('rebuttal')}&tag=parent-consult`);
+    const otherKind = await V('GET', `/api/calendars/${id}/board/search?q=${encodeURIComponent('rebuttal')}&tag=next-class-notes`);
+    check('search keeps the kind filter', tagged.status === 200 && ((tagged.body && tagged.body.posts) || []).length === 1 && otherKind.status === 200 && ((otherKind.body && otherKind.body.posts) || []).length === 0);
+    const removed = await B('DELETE', `/api/calendars/${id}/board/posts/${classNote.body.post.id}`);
+    const afterDelete = await V('GET', `/api/calendars/${id}/board/search?q=${encodeURIComponent('rebuttal')}`);
+    check('deleted notes stay out of search', removed.status === 200 && afterDelete.status === 200 && ((afterDelete.body && afterDelete.body.posts) || []).length === 0);
+    const empty = await V('GET', `/api/calendars/${id}/board/search?q=`);
+    check('empty search is rejected', empty.status === 400 && empty.body && empty.body.code === 'BOARD_QUERY', `status=${empty.status}`);
+    const outsider = await O('GET', `/api/calendars/${id}/board/search?q=markers`);
+    check('search hides calendars the person cannot open', outsider.status === 404, `status=${outsider.status}`);
+}
+
 if (failures) {
     console.error(`\n${failures} class-board check(s) failed`);
     process.exit(1);
