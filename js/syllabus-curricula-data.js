@@ -18,7 +18,7 @@
 3) 본 수업 (30~35분)
 - 원어수업
 과제
-1) 음원듣고 따라읽기
+1) 음원 듣고 따라읽기
 2) 해석숙제
 3) 워크북 (복습 숙제)
 4) 단어시험준비
@@ -38,7 +38,7 @@
 - RC Chart & Summary
 - Grammar
 과제
-1) 음원 듣고 멘트 싸인받기
+1) 음원 듣고 멘트 사인받기
 2) 배운 내용 해석(Subnote)
 3) 매 유닛 학습 후, 워크북
 4) 필수보카 / 해석 시험준비
@@ -50,7 +50,7 @@
 3) 본 수업 (30~35분)
 - RC Reading
 과제
-1) 음원듣고 따라읽기
+1) 음원 듣고 따라읽기
 2) 해석숙제
 3) 워크북
 4) 단어시험준비
@@ -63,7 +63,7 @@
 4) 본 수업(35-40분)
 과제
 1회차: 음원듣기, 문장해석, 단어정리, RC 문제풀기
-2회차: 음원듣기, 문장해석, Fix&Arrange, Essay Builder, 온라인보카, 다음유닛 보카+셀프리딩`;
+2회차: 음원듣기, 문장해석, Fix&Arrange, Essay Builder, 온라인보카, 다음 유닛 보카+셀프리딩`;
 
     const PHONICS_RED_DETAIL = `수업
 1) 파닉스 본 수업
@@ -77,38 +77,38 @@
     const HAND_IN_HAND_LISTENING_PATH =
         '[음원경로] : 통합자료실 → [반이름] → [교재이름] 교재파일 다운';
     const HAND_IN_HAND_PARENT_SIGN =
-        'Parents can sign on the homework checklist when completed';
+        'Parents can sign the homework checklist when completed.';
     const HAND_IN_HAND_INCOMPLETE_HW = 'If not completed in class, it is homework.';
 
     const HAND_IN_HAND_LESSONS = [
         { sb: 'Unit 1 – Pages 4-7', worksheet: 1, tracks: [2, 4], homeworkHeading: false },
         { sb: 'Unit 1 – Pages 8-11', tracks: [5, 9] },
         { sb: 'Unit 2 – Pages 12-15', worksheet: 2, tracks: [10, 16] },
-        { sb: 'Unit 2 – Pages 16-19', pb: 'p 1', tracks: [17, 19] },
+        { sb: 'Unit 2 – Pages 16-19', pb: 'p. 1', tracks: [17, 19] },
         { sb: 'Unit 3 – Pages 20-23', worksheet: 3, tracks: [20, 25] },
         { sb: 'Units 3 & 4 – Pages 24-27', tracks: [26, 30] },
         { sb: 'Unit 4 – Pages 28-31', worksheet: 4, tracks: [31, 36] },
-        { sb: 'Units 4 & 5 – Pages 32-35', pb: 'p 3', tracks: [37, 40] },
+        { sb: 'Units 4 & 5 – Pages 32-35', pb: 'p. 3', tracks: [37, 40] },
         { sb: 'Unit 5 – Pages 36-39', worksheet: 5, tracks: [41, 46] },
         { sb: 'Unit 6 – Pages 40-43', worksheet: 6, tracks: [47, 52] },
-        { sb: 'Unit 6 – Pages 44-47', pb: 'p 5', tracks: [53, 55] },
+        { sb: 'Unit 6 – Pages 44-47', pb: 'p. 5', tracks: [53, 55] },
         { sb: 'Unit 7 – Pages 48-51', worksheet: 7, tracks: [56, 61] },
         { sb: 'Units 7 & 8 – Pages 52-55', tracks: [62, 65] },
         { sb: 'Unit 8 – Pages 56-59', worksheet: 8, tracks: [66, 71] },
         {
             sb: 'Units 8 & 9 – Pages 60-63',
-            pb: 'p 7-8',
+            pb: 'p. 7-8',
             tracks: [72, 75],
             incompleteInClass: false,
             homeworkHeading: false
         },
         { sb: 'Unit 9 – Pages 64-67', worksheet: 9, tracks: [76, 80] },
         { sb: 'Unit 10 – Pages 68-71', worksheet: 10, tracks: [81, 87] },
-        { sb: 'Unit 10 – Pages 72-75', pb: 'p 9', tracks: [88, 90] },
+        { sb: 'Unit 10 – Pages 72-75', pb: 'p. 9', tracks: [88, 90] },
         { sb: 'Unit 11 – Pages 76-79', worksheet: 11, tracks: [91, 97] },
         { sb: 'Units 11 & 12 – Pages 80-83', tracks: [98, 102] },
         { sb: 'Unit 12 – Pages 84-87', worksheet: 12, tracks: [103, 107] },
-        { sb: 'Unit 12, Review Pages 88-93', pb: 'p 11', tracks: [108, 118] }
+        { sb: 'Unit 12, Review Pages 88-93', pb: 'p. 11', tracks: [108, 118] }
     ];
 
     function handInHandLessonTitle(lesson) {
@@ -193,7 +193,7 @@
 
     const WRITE_RIGHT_SESSION_COUNT = WRITE_RIGHT_LESSONS.length * 2 + WRITE_RIGHT_PROJECT_BLOCKS.length;
 
-    const WRITE_RIGHT_INCOMPLETE_HW = 'If students could not complete in class it is homework.';
+    const WRITE_RIGHT_INCOMPLETE_HW = 'If students could not complete it in class, it is homework.';
 
     function formatWriteRightSbWbDetail(sb, wb) {
         const sbPart = `SB ${formatPageRangeDetail(sb)}`;
@@ -301,7 +301,7 @@ ${WRITE_RIGHT_INCOMPLETE_HW}`;
 
     const EARLY_WRITERS_WR_SESSION_COUNT = 21;
 
-    const EARLY_WRITERS_INCOMPLETE_HW = 'If students could not complete in class it is homework.';
+    const EARLY_WRITERS_INCOMPLETE_HW = 'If students could not complete it in class, it is homework.';
 
     function earlyWritersBookLabel(bookNum) {
         if (bookNum == null || bookNum === '') {
@@ -501,10 +501,10 @@ Homework: ${homework}`;
     const WRITE_NOW_LISTENING_PATH_KO =
         '[음원경로] : 통합자료실 → [반이름] → [교재이름] 교재파일 다운';
     const WRITE_NOW_LISTENING_SIGN =
-        'Listen 5x, Parents please sign on model writing page when completed.';
+        'Listen 5x. Parents, please sign the model writing page when completed.';
     const WRITE_NOW_LISTENING_VIDEO_NOTE = 'See the video file for more details.';
-    const WRITE_NOW_PROJECT_READ_HW = 'Students can read project 3x for practice.';
-    const WRITE_NOW_PROJECT_PARENT_SIGN = '[ ] [ ] [ ] __________(parent\'s signature.';
+    const WRITE_NOW_PROJECT_READ_HW = 'Students can read the project 3x for practice.';
+    const WRITE_NOW_PROJECT_PARENT_SIGN = '[ ] [ ] [ ] __________ (parent\'s signature)';
 
     function formatWriteNowPageRange(range) {
         if (!range || range.length < 2) {
@@ -570,8 +570,8 @@ Homework: ${homework}`;
         if (spec.kind === 'project') {
             const sbEnd = spec.sbRange[1];
             const parentLine = spec.project >= 2
-                ? `Parents can sign on the project page. SB ${sbEnd}`
-                : 'Parents can sign on the project page.';
+                ? `Parents can sign the project page. SB p. ${sbEnd}`
+                : 'Parents can sign the project page.';
             return [
                 `Project ${spec.project}`,
                 'Covered in Class:',
@@ -750,8 +750,8 @@ Homework: ${homework}`;
     const DEBATE_DAY1_DETAIL = `Vocabulary, p. 7 (Write example sentences)
 Reading Comprehension, p. 11 (if not finished during class)
 (If not done as preview:
-Vocabulary, p.7
-Listen 5x, Parents please sign on page 10 when completed.
+Vocabulary, p. 7
+Listen 5x. Parents, please sign page 10 when completed.
 [음원경로] : 통합자료실 → [반이름] → [교재이름] 교재파일 다운)
 And…
 Find the argument, warrant, and evidence for each pro and con for each perspective.
@@ -760,13 +760,13 @@ See the attached file for hints. Sometimes, not every part will be there, but tr
     const DEBATE_DAY1_NOTE = 'NOTE: Month 2 outlines are blank. Provide explicit modeling and guidance.';
 
     const DEBATE_PREVIEW_BLOCK = `Preview next month's material (if possible):
-1. Vocabulary, p.7
-2. Reading, p.8-10
-Listen 5x, Parents please sign on page 10 when completed.
+1. Vocabulary, p. 7
+2. Reading, p. 8-10
+Listen 5x. Parents, please sign page 10 when completed.
 [음원경로] : 통합자료실 → [반이름] → [교재이름] 교재파일 다운`;
 
-    const DEBATE_ESSAY_INTRO = `Write an essay with the opposite opinion of your debate speech. TRY NOT TO COPY EXACTLY FROM THE BOOK PLEASE!
-(You can use the ideas but try to use your own words.)`;
+    const DEBATE_ESSAY_INTRO = `Write an essay with the opposite opinion of your debate speech. TRY NOT TO COPY EXACTLY FROM THE BOOK, PLEASE!
+(You can use the ideas, but try to use your own words.)`;
 
     function buildDebateRowTemplates(band) {
         const isPurple = band === 'purple';
@@ -774,11 +774,11 @@ Listen 5x, Parents please sign on page 10 when completed.
         const day2Pages = isPurple ? '20-21' : '20-25';
         const day2Title = isPurple ? 'Complete Speeches' : 'Complete Speech(es)';
         const day3Memorize = isPurple
-            ? 'Memorize the completed speech for your role (ex. read out templates loud 5-10 times)'
-            : 'Memorize the completed speeches (ex. read out templates loud 5-10 times)';
+            ? 'Memorize the completed speech for your role (e.g., read the templates out loud 5-10 times).'
+            : 'Memorize the completed speeches (e.g., read the templates out loud 5-10 times).';
         const altDay3Memorize = isPurple || band === 'senior'
-            ? 'Memorize the completed speech for your role (ex. read out templates loud 5-10 times)'
-            : 'Memorize the completed speeches (ex. read out templates loud 5-10 times)';
+            ? 'Memorize the completed speech for your role (e.g., read the templates out loud 5-10 times).'
+            : 'Memorize the completed speeches (e.g., read the templates out loud 5-10 times).';
         const essayPages = isPurple ? '30-31' : '34-35';
 
         let combinedDetail;
@@ -786,11 +786,11 @@ Listen 5x, Parents please sign on page 10 when completed.
             combinedDetail = `Complete Templates, p. 20-25
 Complete Templates, p. 20-21
 Practice each template.
-Memorize the completed template for your role (ex. read out templates loud 5-10 times)`;
+Memorize the completed template for your role (e.g., read the templates out loud 5-10 times).`;
         } else {
             combinedDetail = `Complete Templates, p. 20-25
 Practice each template.
-Memorize the completed template for your role (ex. read out templates loud 5-10 times)
+Memorize the completed template for your role (e.g., read the templates out loud 5-10 times).
 
 Submit your completed essay for feedback 2 days before your next class.`;
         }
@@ -806,7 +806,7 @@ Submit your completed essay for feedback 2 days before your next class.`;
                 sessionNumber: 2,
                 planTitle: 'Day 2',
                 planDetail: `${day2Title}, p. ${day2Pages}
-Complete the rebuttals section if not completed in class
+Complete the rebuttals section if not completed in class.
 Practice your assigned speech(es).`,
                 note: 'NOTE: Provide sentence frames and modeling.'
             },
@@ -829,7 +829,7 @@ Practice your assigned speech(es).`,
                 sessionNumber: 4,
                 planTitle: 'Day 4 / Preview',
                 planDetail: `${DEBATE_ESSAY_INTRO}
-See P. ${essayPages} for a good example essay.
+See p. ${essayPages} for a good example essay.
 
 ${DEBATE_PREVIEW_BLOCK}`,
                 note: 'NOTE: Provide brainstorming + structure support.',

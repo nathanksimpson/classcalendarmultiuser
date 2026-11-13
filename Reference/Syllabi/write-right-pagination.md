@@ -25,7 +25,7 @@ Early Writers presets are **not** this schedule (they remain 20 sessions with se
 | 8 | A | 64–67 | 31–32 |
 | 8 | B | 68–71 | 33 |
 
-Each row includes: *If students could not complete in class it is homework.*
+Each row includes: *If students could not complete it in class, it is homework.*
 
 ## Project sessions (combined)
 

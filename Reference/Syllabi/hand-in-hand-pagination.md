@@ -29,7 +29,7 @@ Presets: `preset-hand-in-hand-red` (book 1), `-orange` (book 2), `-yellow` (book
 | 21 | Unit 12 – Pages 84-87 | 12 | — | 103-107 |
 | 22 | Unit 12, Review Pages 88-93 | — | p 11 | 108-118 |
 
-Each lesson row in the app includes *If not completed in class, it is homework.* (except session 15 in the table above) and *Parents can sign on the homework checklist when completed.*
+Each lesson row in the app includes *If not completed in class, it is homework.* (except session 15 in the table above) and *Parents can sign the homework checklist when completed.*
 
 **Red only:** `[음원경로] : 통합자료실 → [반이름] → [교재이름] 교재파일 다운` and `Tracks: …` on homework rows.
 

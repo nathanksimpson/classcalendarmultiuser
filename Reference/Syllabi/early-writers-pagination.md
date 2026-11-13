@@ -23,7 +23,7 @@ Shared across **Early Writers 1 / 2 / 3** (Green / Blue / Navy). Presets: `prese
 | 8 | [1/2] | 64–67 | 16 |
 | 8 | [2/2] | 68–71 | 17 |
 
-Each unit row includes: *If students could not complete in class it is homework.*
+Each unit row includes: *If students could not complete it in class, it is homework.*
 
 ## Special sessions (order in preset)
 

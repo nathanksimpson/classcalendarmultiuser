@@ -55,7 +55,7 @@ P.x-y
 Homework:
 Workbook: P.a-b
 Listening Track N
-Listen 5x, Parents please sign on model writing page when completed.
+Listen 5x. Parents, please sign the model writing page when completed.
 [음원경로] : 통합자료실 → [반이름] → [교재이름] 교재파일 다운
 ```
 
@@ -68,9 +68,9 @@ Project N
 Covered in Class:
 P. x-y
 Homework:
-Students can read project 3x for practice.
-Parents can sign on the project page. SB <end page>   (projects 2–4)
-[ ] [ ] [ ] __________(parent's signature.
+Students can read the project 3x for practice.
+Parents can sign the project page. SB p. <end page>   (projects 2–4)
+[ ] [ ] [ ] __________ (parent's signature)
 ```
 
 Project 4 covered line: `Project 4 SB P. 78-79`.
