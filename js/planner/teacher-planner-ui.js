@@ -1,93 +1,153 @@
 /**
- * Teacher planner UI — used by planner.html satellite page.
+ * Schedule planner screen (planner.html) — rebuilt Nov 2026.
+ *
+ * One workspace instead of wizard steps:
+ *   top bar   – what you are looking at (sheet, day, level), then actions
+ *   left      – class tray: every class, with how many periods are placed
+ *   middle    – the board. Three sheets over the same draft:
+ *                 Teachers (a column per teacher), Cohorts (a column per cohort),
+ *                 Rooms (a column per room). Pick one day, or "Week" for one
+ *                 teacher / cohort / room across Mon–Fri.
+ *   right     – things to fix, each one jumps to its place on the board
+ *
+ * Everything is assigned by dragging: tray → board, tile → another cell,
+ * tile → tile (swap), tile → tray (take off the board). Dragging uses pointer
+ * events so the held tile floats under the pointer and it works with touch.
+ *
+ * Rules live in teacher-planner-core.js (CCPTeacherPlanner). This file is DOM only.
  */
 (function (global) {
+    const NONE = '__none__';
+    const DAYS = [1, 2, 3, 4, 5];
+    const VIEWS = ['teachers', 'cohorts', 'rooms'];
+    const PREF_KEY = 'ccpPlannerView2';
+    const UNDO_LIMIT = 50;
+
+    const state = {
+        view: 'teachers',
+        day: 1, // 0 = week
+        focus: { teachers: null, cohorts: null, rooms: null },
+        band: 'all',
+        query: '',
+        selected: null, // demandId
+        issuesOpen: true,
+        doneOpen: false,
+        setupTab: 'teachers',
+        setupOpen: false,
+        openBlockGrid: null, // teacher profile id or 'everyone'
+        menu: null
+    };
+    let undoStack = [];
+    let redoStack = [];
+    let M = null; // model of the current render
     let bound = false;
-    let activeStep = 'teachers';
-    let boardView = 'teachers'; // teachers | rooms
-    let dragAssignmentId = null;
-    let dragKind = 'teacher'; // teacher | room | bin | period
-    let dragDemandId = null;
-    let dragFromDow = null;
-    let dragFromPeriod = null;
-    let selectedDemandId = null;
-    let binSearchQuery = '';
-    let focusedTeacherId = null;
-    let roomDay = 1; // Mon–Fri (1–5), Rooms board day sheet
-    let roomCadence = 'mwf'; // mwf | tth — Rooms board cadence
-    let highlightCohortId = null;
-    let highlightCohortTimer = null;
+    let drag = null;
+    let pending = null;
+    let sort = null;
+    let flash = null;
+    let renderQueued = false;
+
+    /* ---------------------------------------------------------------- helpers */
 
     function $(id) {
         return document.getElementById(id);
     }
 
-    function t(key, fallback) {
-        if (typeof getCalendarTranslation === 'function') {
-            const v = getCalendarTranslation(key);
-            if (v) return v;
-        }
-        if (typeof global.t === 'function') {
+    function t(key, fallback, vars) {
+        let s = '';
+        if (typeof global.getCalendarTranslation === 'function') s = global.getCalendarTranslation(key) || '';
+        if ((!s || s === key) && typeof global.t === 'function') {
             const v = global.t(key);
-            if (v && v !== key) return v;
+            if (v && v !== key) s = v;
         }
-        return fallback || key;
+        if (!s || s === key) s = fallback || key;
+        if (vars) {
+            Object.keys(vars).forEach((name) => {
+                s = s.split(`{${name}}`).join(String(vars[name] == null ? '' : vars[name]));
+            });
+        }
+        return s;
     }
 
-    function getAppData() {
-        return global.appData || (typeof appData !== 'undefined' ? appData : null);
+    function esc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
     function api() {
         return global.CCPTeacherPlanner;
     }
 
-    function markDirty() {
-        if (typeof saveData === 'function') {
-            saveData();
-            return;
-        }
-        if (typeof global.saveData === 'function') {
-            global.saveData();
-        }
+    function getAppData() {
+        return global.appData || (typeof appData !== 'undefined' ? appData : null); // eslint-disable-line no-undef
     }
+
+    function notice(msg, kind) {
+        if (!msg) return;
+        if (typeof global.showAppNotice === 'function') global.showAppNotice(msg, kind || 'info');
+        else if (typeof showAppNotice === 'function') showAppNotice(msg, kind || 'info'); // eslint-disable-line no-undef
+        else if (global.CCPNotice && global.CCPNotice.show) global.CCPNotice.show(msg);
+    }
+
+    function readOnly() {
+        return typeof CalendarSync !== 'undefined' // eslint-disable-line no-undef
+            && CalendarSync.isReadOnly && CalendarSync.isReadOnly(); // eslint-disable-line no-undef
+    }
+
+    function markDirty() {
+        if (typeof saveData === 'function') saveData(); // eslint-disable-line no-undef
+        else if (typeof global.saveData === 'function') global.saveData();
+    }
+
+    function dayNames() {
+        const short = t('dayNamesShort', '');
+        if (Array.isArray(short) && short.length === 7) return short;
+        const lang = document.documentElement.lang === 'ko' ? 'ko' : 'en';
+        return lang === 'ko'
+            ? ['일', '월', '화', '수', '목', '금', '토']
+            : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    }
+
+    function dayLabel(dow) {
+        return dayNames()[Number(dow)] || String(dow);
+    }
+
+    function loadPrefs() {
+        try {
+            const raw = JSON.parse(localStorage.getItem(PREF_KEY) || 'null');
+            if (!raw) return;
+            if (VIEWS.includes(raw.view)) state.view = raw.view;
+            if ([0, 1, 2, 3, 4, 5].includes(raw.day)) state.day = raw.day;
+            if (['all', 'junior', 'middle', 'senior'].includes(raw.band)) state.band = raw.band;
+            if (typeof raw.issuesOpen === 'boolean') state.issuesOpen = raw.issuesOpen;
+        } catch (_) { /* ignore */ }
+    }
+
+    function savePrefs() {
+        try {
+            localStorage.setItem(PREF_KEY, JSON.stringify({
+                view: state.view, day: state.day, band: state.band, issuesOpen: state.issuesOpen
+            }));
+        } catch (_) { /* ignore */ }
+    }
+
+    /* ------------------------------------------------------------------ data */
 
     function ensureData() {
         const data = getAppData();
-        const planner = api();
-        if (!data || !planner) return null;
-        planner.ensurePlannerFields(data);
-        planner.seedTeacherProfilesFromAppData(data);
+        if (!data || !api()) return null;
+        api().ensurePlannerFields(data);
+        api().seedTeacherProfilesFromAppData(data);
         return data;
-    }
-
-    function setStep(step) {
-        activeStep = step;
-        ['teachers', 'demand', 'rooms', 'draft'].forEach((s) => {
-            const panel = $(`plannerStep-${s}`);
-            const tab = $(`plannerStepTab-${s}`);
-            if (panel) panel.hidden = s !== step;
-            if (tab) tab.classList.toggle('is-active', s === step);
-        });
-        render();
-    }
-
-    function mountPage() {
-        const root = $('plannerPageRoot') || $('timetablePlannerRoot');
-        if (root) root.hidden = false;
-        ensureData();
-        setStep(activeStep || 'teachers');
     }
 
     function getActiveDraft(data) {
         const id = data.plannerState && data.plannerState.activeDraftId;
-        if (!id) return null;
-        return (data.plannerDrafts || []).find((d) => d.id === id) || null;
-    }
-
-    function draftHasManualEdits(draft) {
-        if (!draft || !Array.isArray(draft.assignments)) return false;
-        return draft.assignments.some((a) => a.source === 'manual' || (a.manualKeep && a.source !== 'imported'));
+        return id ? (data.plannerDrafts || []).find((d) => d.id === id) || null : null;
     }
 
     function installDraft(data, draft) {
@@ -96,1687 +156,1862 @@
         data.plannerState.updatedAt = draft.updatedAt;
     }
 
-    function ensureDraftFromCalendar(data, options) {
-        if (!data || !api()) return null;
-        const opts = options || {};
-        const existing = getActiveDraft(data);
-        if (existing && (existing.assignments || []).length && !opts.force) {
-            return existing;
+    function ensureDraft(data) {
+        let draft = getActiveDraft(data);
+        if (!draft) {
+            draft = api().seedDraftFromCalendar(data, { label: 'From calendar' });
+            installDraft(data, draft);
         }
-        const draft = api().seedDraftFromCalendar(data, { label: t('plannerLoadedFromCalendar', 'From calendar') });
-        installDraft(data, draft);
+        if (!Array.isArray(draft.assignments)) draft.assignments = [];
         return draft;
     }
 
-    function loadCalendarAction() {
-        const data = ensureData();
-        if (!data || !api()) return;
-        readTeacherCardsIntoData(data);
-        const prior = getActiveDraft(data);
-        if (prior && draftHasManualEdits(prior)) {
-            const ok = typeof window.confirm === 'function'
-                ? window.confirm(t('plannerLoadCalendarConfirm', 'Replace the current draft with what’s on the calendar?'))
-                : true;
-            if (!ok) return;
-        }
-        const draft = api().seedDraftFromCalendar(data, { label: t('plannerLoadedFromCalendar', 'From calendar') });
-        installDraft(data, draft);
-        markDirty();
-        setStep('draft');
-        if (typeof showAppNotice === 'function') {
-            showAppNotice(t('plannerLoadedFromCalendar', 'Draft loaded from calendar.'), 'success');
-        }
-    }
-
-    function clearDropHints() {
-        document.querySelectorAll('.planner-cell.drop-valid, .planner-cell.drop-valid-warn, .planner-cell.drop-invalid, .planner-cell.drop-swap-preview')
-            .forEach((el) => {
-                el.classList.remove('drop-valid', 'drop-valid-warn', 'drop-invalid', 'drop-swap-preview');
-                el.removeAttribute('data-drop-hint');
-                const hint = el.querySelector('.planner-drop-hint');
-                if (hint) hint.remove();
-            });
-    }
-
-    function setDropHint(cell, text, warn) {
-        cell.classList.add(warn ? 'drop-valid-warn' : 'drop-valid');
-        if (text && text.indexOf('↔') >= 0) cell.classList.add('drop-swap-preview');
-        cell.setAttribute('data-drop-hint', text || '');
-        let hint = cell.querySelector('.planner-drop-hint');
-        if (!hint) {
-            hint = document.createElement('div');
-            hint.className = 'planner-drop-hint';
-            cell.appendChild(hint);
-        }
-        hint.textContent = text || '';
-    }
-
-    function escapeHtml(s) {
-        return String(s == null ? '' : s)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
-
-    function escapeAttr(s) {
-        return escapeHtml(s).replace(/'/g, '&#39;');
-    }
-
-    function weekdayLabel(dow) {
-        return ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'][Number(dow)] || String(dow);
-    }
-
-    function periodTimeLabel(period, data) {
-        const p = Number(period);
-        const fallback = {
-            1: '14:30–15:20',
-            2: '15:20–16:10',
-            3: '16:10–17:00',
-            4: '17:00–18:00',
-            5: '18:00–19:00',
-            6: '19:00–20:00',
-            7: '20:00–21:00',
-            8: '21:00–21:55'
-        };
-        let slots = [];
-        if (global.CCPTimetablePeriods && typeof global.CCPTimetablePeriods.getSortedTimeSlots === 'function') {
-            slots = global.CCPTimetablePeriods.getSortedTimeSlots(data || getAppData()) || [];
-        }
-        const slot = slots[p - 1];
-        if (slot && slot.start && slot.end) {
-            const lang = (typeof getCalendarLanguage === 'function' && getCalendarLanguage())
-                || (global.appData && global.appData.language)
-                || 'en';
-            const sep = String(lang).toLowerCase().startsWith('ko') ? '~' : '–';
-            return `${slot.start}${sep}${slot.end}`;
-        }
-        return fallback[p] || `P${p}`;
-    }
-
-    function placementsShortText(asg) {
-        const meetings = (asg && asg.meetings) || [];
-        if (!meetings.length) return '';
-        return meetings.map((m) => `${weekdayLabel(m.dow)} P${m.period}`).join(', ');
-    }
-
-    function cohortBand(cohort) {
-        if (api() && api().resolvePlannerBandForCohort) {
-            return api().resolvePlannerBandForCohort(cohort);
-        }
-        return 'middle';
-    }
-
-    function cohortMeetingDaysList(cohort) {
-        const days = Array.isArray(cohort && cohort.meetingDays) ? cohort.meetingDays : [];
-        return days.map(Number).filter((d) => d >= 1 && d <= 5);
-    }
-
-    function cohortDisplayName(cohort) {
-        return (cohort && (cohort.name || cohort.label || cohort.id)) || '';
-    }
-
-    function cohortEnrollmentCount(cohort) {
-        if (!cohort) return null;
-        if (typeof cohort.studentCount === 'number' && cohort.studentCount >= 0) return cohort.studentCount;
-        if (typeof cohort.count === 'number' && cohort.count >= 0) return cohort.count;
-        if (Array.isArray(cohort.students)) {
-            return cohort.students.filter((s) => s && s.active !== false).length;
-        }
-        return null;
-    }
-
-    function contrastTextForBg(hex) {
-        const raw = String(hex || '').replace('#', '');
-        if (!/^[0-9a-fA-F]{6}$/.test(raw)) return 'var(--text-primary, #1c2430)';
-        const r = parseInt(raw.slice(0, 2), 16);
-        const g = parseInt(raw.slice(2, 4), 16);
-        const b = parseInt(raw.slice(4, 6), 16);
-        const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-        return lum > 0.62 ? '#1c2430' : '#ffffff';
-    }
-
-    function cohortCadence(cohort) {
-        const pat = String((cohort && cohort.schedulePattern) || '').toLowerCase();
-        if (pat === 'tth' || pat === 'tt' || pat === 'tuesthurs') return 'tth';
-        if (pat === 'mwf' || pat === 'mw' || pat === 'wf' || pat === 'mf') return 'mwf';
-        const days = cohortMeetingDaysList(cohort);
-        if (days.length) {
-            const isTth = days.every((d) => d === 2 || d === 4);
-            const isMwf = days.every((d) => d === 1 || d === 3 || d === 5);
-            if (isTth && !isMwf) return 'tth';
-            if (isMwf && !isTth) return 'mwf';
-            // Mixed / custom: prefer whichever days dominate
-            const tthHits = days.filter((d) => d === 2 || d === 4).length;
-            const mwfHits = days.filter((d) => d === 1 || d === 3 || d === 5).length;
-            if (tthHits > mwfHits) return 'tth';
-        }
-        return 'mwf';
-    }
-
-    function cadenceDays(cadence) {
-        return cadence === 'tth' ? [2, 4] : [1, 3, 5];
+    function periodRows(data) {
+        const tp = global.CCPTimetablePeriods;
+        const slots = tp && tp.getSortedTimeSlots ? tp.getSortedTimeSlots(data) : [];
+        const map = (data.periodSlotMap && Object.keys(data.periodSlotMap).length)
+            ? data.periodSlotMap
+            : (tp && tp.getDefaultMap ? tp.getDefaultMap() : {});
+        let nums = tp && tp.getPeriodNumbers ? tp.getPeriodNumbers(map) : [];
+        if (!nums.length) nums = [1, 2, 3, 4, 5, 6, 7];
+        const byId = {};
+        slots.forEach((s) => { byId[s.id] = s; });
+        return nums.map((n) => {
+            const slot = byId[map[String(n)]] || null;
+            return {
+                period: String(n),
+                start: slot ? slot.start : '',
+                end: slot ? slot.end : '',
+                band: api().periodBand(n)
+            };
+        });
     }
 
     function bandRank(band) {
-        // Room sheet column order: Junior → Senior → Middle
-        if (band === 'junior') return 0;
-        if (band === 'senior') return 1;
-        if (band === 'middle') return 2;
-        return 3;
+        return band === 'junior' ? 0 : band === 'middle' ? 1 : 2;
     }
 
-    function cohortHasScheduleOnDay(assignments, demandById, cohortId, dow) {
-        return (assignments || []).some((asg) => {
-            const demand = demandById.get(asg.demandId);
-            if (!demand) return false;
-            if (!(demand.cohortIds || []).includes(cohortId)) return false;
-            return (asg.meetings || []).some((m) => Number(m.dow) === Number(dow));
-        });
-    }
-
-    function sortedCohortsForRoomSheet(data, options) {
-        const opts = options || {};
-        const dow = opts.dow != null ? Number(opts.dow) : null;
-        const cadence = opts.cadence || null;
-        const assignments = opts.assignments || null;
-        const demandById = opts.demandById || null;
-        const cohorts = Array.isArray(data.cohorts) ? data.cohorts.slice() : [];
-        return cohorts
-            .filter((c) => {
-                if (!c) return false;
-                if (cadence && cohortCadence(c) !== cadence) return false;
-                if (dow != null) {
-                    const days = cohortMeetingDaysList(c);
-                    if (days.length && !days.includes(dow)) return false;
-                }
-                // Only columns with at least one scheduled class that day
-                if (dow != null && assignments && demandById) {
-                    if (!cohortHasScheduleOnDay(assignments, demandById, c.id, dow)) return false;
-                }
-                return true;
-            })
-            .sort((a, b) => {
-                const bandA = cohortBand(a);
-                const bandB = cohortBand(b);
-                const br = bandRank(bandA) - bandRank(bandB);
-                if (br !== 0) return br;
-                if (api() && api().levelSortIndex) {
-                    const li = api().levelSortIndex(bandA, a) - api().levelSortIndex(bandB, b);
-                    if (li !== 0) return li;
-                }
-                return String(cohortDisplayName(a)).localeCompare(String(cohortDisplayName(b)), 'ko');
-            });
-    }
-
-    function syncRoomDayToCadence() {
-        const days = cadenceDays(roomCadence);
-        if (!days.includes(Number(roomDay))) roomDay = days[0];
-    }
-
-    function findAssignmentForCohortSlot(assignments, demandById, cohortId, dow, period) {
-        return (assignments || []).find((asg) => {
-            const demand = demandById.get(asg.demandId);
-            if (!demand) return false;
-            if (!(demand.cohortIds || []).includes(cohortId)) return false;
-            return (asg.meetings || []).some((m) => Number(m.dow) === Number(dow) && String(m.period) === String(period));
-        });
-    }
-
-    function focusRoomColumn(data, cohortId, scrollTo) {
-        const cohort = (data.cohorts || []).find((c) => c && c.id === cohortId);
-        if (cohort) {
-            roomCadence = cohortCadence(cohort);
-            const days = cohortMeetingDaysList(cohort);
-            if (days.length && !days.includes(Number(roomDay))) {
-                roomDay = days[0];
-            } else {
-                syncRoomDayToCadence();
-            }
-        }
-        highlightCohortId = cohortId || null;
-        if (highlightCohortTimer) clearTimeout(highlightCohortTimer);
-        highlightCohortTimer = setTimeout(() => {
-            highlightCohortId = null;
-            const latest = ensureData();
-            if (latest && boardView === 'rooms') renderDraft(latest);
-        }, 1800);
-        renderDraft(data);
-        if (scrollTo && cohortId) {
-            const col = document.querySelector(`[data-cohort-col="${CSS.escape ? CSS.escape(cohortId) : cohortId}"]`);
-            if (col && col.scrollIntoView) col.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-        }
-    }
-
-    function renderTeachers(data) {
-        const mount = $('plannerTeachersMount');
-        if (!mount) return;
-        const profiles = data.teacherProfiles || [];
-        if (!profiles.length) {
-            mount.innerHTML = `<div class="planner-empty-card">
-              <p class="module-empty-hint">${t('plannerNoTeachers', 'No teachers found yet. Assign teachers on classes in the calendar, then reopen this page.')}</p>
-            </div>`;
-            return;
-        }
-        mount.innerHTML = profiles.map((p) => {
-            const limits = p.limits || {};
-            const prefs = p.preferences || {};
-            const blockouts = (p.availability.unavailableSlots || []).map((s) => `${s.dow}:${s.period}`).join(', ');
-            return `
-<article class="planner-teacher-card" data-profile-id="${escapeAttr(p.id)}">
-  <header class="planner-teacher-card-header">
-    <div>
-      <strong class="planner-card-title">${escapeHtml(p.name)}</strong>
-      <p class="planner-card-sub section-hint">${escapeHtml(p.userId || t('plannerNoAccountId', 'No account id'))}</p>
-    </div>
-    <label class="form-group planner-inline-field">
-      <span class="planner-field-label">${t('plannerRole', 'Role')}</span>
-      <select class="field-select planner-teacher-role" data-field="role" aria-label="Role">
-        <option value="korean" ${p.role === 'korean' ? 'selected' : ''}>${t('plannerRoleKorean', 'Korean')}</option>
-        <option value="native" ${p.role === 'native' ? 'selected' : ''}>${t('plannerRoleNative', 'Native')}</option>
-      </select>
-    </label>
-  </header>
-  <div class="planner-card-section">
-    <h3 class="planner-card-section-title">${t('plannerLimits', 'Teaching limits')}</h3>
-    <div class="planner-teacher-card-grid">
-      <label class="form-group"><span class="planner-field-label">${t('plannerMaxWeek', 'Max / week')}</span>
-        <input type="number" class="field-input" data-field="maxPeriodsPerWeek" value="${limits.maxPeriodsPerWeek || 22}" min="0" max="40">
-      </label>
-      <label class="form-group"><span class="planner-field-label">${t('plannerMaxDay', 'Max / day')}</span>
-        <input type="number" class="field-input" data-field="maxPeriodsPerDay" value="${limits.maxPeriodsPerDay || 5}" min="0" max="12">
-      </label>
-      <label class="form-group"><span class="planner-field-label">${t('plannerMinWeek', 'Min / week')}</span>
-        <input type="number" class="field-input" data-field="minPeriodsPerWeek" value="${limits.minPeriodsPerWeek || 0}" min="0" max="40">
-      </label>
-    </div>
-  </div>
-  <div class="planner-card-section">
-    <h3 class="planner-card-section-title">${t('plannerBandsPrefs', 'Bands & preferences')}</h3>
-    <div class="planner-teacher-flags">
-      <label class="planner-chip-toggle"><input type="checkbox" data-field="juniorAllowed" ${limits.juniorAllowed !== false ? 'checked' : ''}> ${t('plannerJunior', 'Junior')}</label>
-      <label class="planner-chip-toggle"><input type="checkbox" data-field="middleAllowed" ${limits.middleAllowed !== false ? 'checked' : ''}> ${t('plannerMiddle', 'Middle')}</label>
-      <label class="planner-chip-toggle"><input type="checkbox" data-field="seniorAllowed" ${limits.seniorAllowed !== false ? 'checked' : ''}> ${t('plannerSenior', 'Senior')}</label>
-      <label class="planner-chip-toggle"><input type="checkbox" data-field="avoidFirstPeriod" ${prefs.avoidFirstPeriod ? 'checked' : ''}> ${t('plannerAvoidP1', 'Avoid P1')}</label>
-      <label class="planner-chip-toggle"><input type="checkbox" data-field="avoidLastPeriod" ${prefs.avoidLastPeriod ? 'checked' : ''}> ${t('plannerAvoidLast', 'Avoid last')}</label>
-      <label class="planner-chip-toggle"><input type="checkbox" data-pref-cadence="mwf" ${(prefs.preferCadence || []).includes('mwf') ? 'checked' : ''}> ${t('plannerPreferMwf', 'Prefer MWF')}</label>
-      <label class="planner-chip-toggle"><input type="checkbox" data-pref-cadence="tth" ${(prefs.preferCadence || []).includes('tth') ? 'checked' : ''}> ${t('plannerPreferTth', 'Prefer T/T')}</label>
-    </div>
-  </div>
-  <div class="planner-card-section">
-    <h3 class="planner-card-section-title">${t('plannerBlockouts', 'Block-outs')}</h3>
-    <p class="section-hint">${t('plannerBlockoutsHelp', 'Unavailable weekday:period cells. Example: 5:7 blocks Friday period 7.')}</p>
-    <input type="text" class="field-input planner-blockout-input" data-field="blockoutText"
-      value="${escapeAttr(blockouts)}"
-      placeholder="5:7, 1:1">
-  </div>
-</article>`;
-        }).join('');
-    }
-
-    function renderRooms(data) {
-        const mount = $('plannerRoomsMount');
-        if (!mount) return;
-        const rooms = Array.isArray(data.rooms) ? data.rooms : [];
-        mount.innerHTML = `
-<div class="planner-rooms-toolbar">
-  <button type="button" class="btn btn-primary btn-small" id="plannerAddRoomBtn" data-i18n="plannerAddRoom">${t('plannerAddRoom', '+ Add room')}</button>
-  <span class="section-hint">${t('plannerRoomsSoftNote', 'Rooms are soft: missing/overlapping rooms warn, but do not block teacher placement.')}</span>
-</div>
-<div class="planner-rooms-list">
-${rooms.length ? rooms.map((r, idx) => `
-  <article class="planner-room-card" data-room-id="${escapeAttr(r.id)}">
-    <label class="form-group"><span class="planner-field-label">${t('plannerRoomName', 'Room name')}</span>
-      <input type="text" class="field-input" data-room-field="name" value="${escapeAttr(r.name || '')}">
-    </label>
-    <label class="form-group"><span class="planner-field-label">${t('plannerRoomCapacity', 'Capacity')}</span>
-      <input type="number" class="field-input" data-room-field="capacity" value="${r.capacity != null ? r.capacity : ''}" min="0">
-    </label>
-    <button type="button" class="btn btn-outline btn-small planner-room-remove" data-i18n="plannerRemoveRoom">${t('plannerRemoveRoom', 'Remove')}</button>
-  </article>`).join('') : `<div class="planner-empty-card"><p class="module-empty-hint">${t('plannerNoRooms', 'No rooms yet. Add Room A / Room B style names, then generate a draft.')}</p></div>`}
-</div>`;
-    }
-
-    function renderDemand(data) {
-        const mount = $('plannerDemandMount');
-        const summary = $('plannerDemandSummary');
-        if (!mount) return;
-        const planner = api();
-        const demands = planner.buildDemandsFromAppData(data, {
-            filters: data.plannerState && data.plannerState.filters
-        });
-        const junior = demands.filter((d) => d.band === 'junior').reduce((n, d) => n + d.meetings.length, 0);
-        const senior = demands.filter((d) => d.band === 'senior').reduce((n, d) => n + d.meetings.length, 0);
-        const mwf = demands.filter((d) => d.cadence === 'mwf').length;
-        const tth = demands.filter((d) => d.cadence === 'tth').length;
-        const combined = demands.filter((d) => d.cohortIds.length > 1).length;
-        if (summary) {
-            summary.innerHTML = `
-<span class="planner-stat">${demands.length} <small>${t('plannerStatClasses', 'classes')}</small></span>
-<span class="planner-stat">${junior} <small>${t('plannerStatJunior', 'junior p')}</small></span>
-<span class="planner-stat">${senior} <small>${t('plannerStatSenior', 'senior p')}</small></span>
-<span class="planner-stat">MWF ${mwf}</span>
-<span class="planner-stat">T/T ${tth}</span>
-<span class="planner-stat">${combined} <small>${t('plannerStatCombined', 'combined')}</small></span>`;
-        }
-        mount.innerHTML = `
-<div class="planner-demand-filters">
-  <select id="plannerFilterBand" class="field-select">
-    <option value="all">All bands</option>
-    <option value="junior">Junior</option>
-    <option value="middle">Middle</option>
-    <option value="senior">Senior</option>
-  </select>
-  <select id="plannerFilterCadence" class="field-select">
-    <option value="all">All cadence</option>
-    <option value="mwf">MWF</option>
-    <option value="tth">T/T</option>
-  </select>
-  <label><input type="checkbox" id="plannerFilterCombined"> Combined only</label>
-</div>
-<div class="planner-demand-table-wrap">
-<table class="classroom-sheet planner-demand-table">
-  <thead><tr>
-    <th>Include</th><th>Class</th><th>Band</th><th>Cadence</th><th>Meetings</th><th>Teacher type</th><th>Status</th>
-  </tr></thead>
-  <tbody>
-  ${demands.map((d) => `
-    <tr data-demand-id="${escapeAttr(d.demandId)}" data-class-id="${escapeAttr(d.classId)}">
-      <td><input type="checkbox" class="planner-demand-include" ${d.includedInDraft !== false ? 'checked' : ''}></td>
-      <td>${escapeHtml(d.name)}${d.cohortIds.length > 1 ? ' <span class="lesson-filter-chip">combined</span>' : ''}</td>
-      <td>${escapeHtml(d.band)}</td>
-      <td>${escapeHtml(d.cadence)}</td>
-      <td>${d.meetings.map((m) => `D${m.dow}P${m.period}`).join(', ') || '—'}</td>
-      <td>
-        <select class="field-select planner-demand-type">
-          <option value="either" ${d.teacherRequirementType === 'either' ? 'selected' : ''}>Either</option>
-          <option value="korean" ${d.teacherRequirementType === 'korean' ? 'selected' : ''}>Korean</option>
-          <option value="native" ${d.teacherRequirementType === 'native' ? 'selected' : ''}>Native</option>
-        </select>
-      </td>
-      <td>${escapeHtml(d.readiness)}</td>
-    </tr>`).join('')}
-  </tbody>
-</table>
-</div>`;
-        const f = data.plannerState.filters || {};
-        const bandEl = $('plannerFilterBand');
-        const cadEl = $('plannerFilterCadence');
-        const combEl = $('plannerFilterCombined');
-        if (bandEl) bandEl.value = f.band || 'all';
-        if (cadEl) cadEl.value = f.cadence || 'all';
-        if (combEl) combEl.checked = !!f.combinedOnly;
-    }
-
-    function classColor(data, demand) {
-        const cls = (data.classes || []).find((c) => c.id === demand.classId);
-        if (cls && cls.color) return cls.color;
-        const cohortId = (demand.cohortIds || [])[0];
-        const cohort = (data.cohorts || []).find((c) => c.id === cohortId);
-        return (cohort && cohort.color) || 'var(--primary)';
-    }
-
-    function renderSuggestPanel(data, draft, demand) {
-        const planner = api();
-        const asg = ((draft && draft.assignments) || []).find((a) => a.demandId === demand.demandId);
-        const meetingsLen = asg ? (asg.meetings || []).length : 0;
-        if (asg && asg.teacherProfileId && meetingsLen > 0) {
-            const te = (data.teacherProfiles || []).find((p) => p.id === asg.teacherProfileId);
-            return `<div class="planner-suggest-panel">
-  <p class="section-hint">${t('plannerTeacherLocked', 'Teacher locked while periods are placed.')}</p>
-  <div class="planner-suggest-row is-active">${escapeHtml((te && te.name) || asg.teacherProfileId)}</div>
-</div>`;
-        }
-        const rows = (data.teacherProfiles || []).map((te) => {
-            const check = planner.isValidPlacement(data, te, demand, 1, 1, (draft && draft.assignments) || [], {
-                demandById: new Map([[demand.demandId, demand]]),
-                lockToCohortDays: false
-            });
-            // Eligibility without a real slot: role/band only
-            let eligible = true;
-            let reason = '';
-            if (demand.teacherRequirementType === 'korean' && te.role !== 'korean') {
-                eligible = false;
-                reason = t('plannerWrongRole', 'Wrong role');
-            } else if (demand.teacherRequirementType === 'native' && te.role !== 'native') {
-                eligible = false;
-                reason = t('plannerWrongRole', 'Wrong role');
-            } else if (demand.band === 'junior' && te.limits.juniorAllowed === false) {
-                eligible = false;
-                reason = t('plannerWrongBand', 'Band not allowed');
-            } else if (demand.band === 'middle' && te.limits.middleAllowed === false) {
-                eligible = false;
-                reason = t('plannerWrongBand', 'Band not allowed');
-            } else if (demand.band === 'senior' && te.limits.seniorAllowed === false) {
-                eligible = false;
-                reason = t('plannerWrongBand', 'Band not allowed');
-            }
-            const load = draft && draft.metrics && draft.metrics.teacherLoads
-                ? draft.metrics.teacherLoads[te.id]
-                : null;
-            const loadTxt = load ? `${load.assigned}/${load.max}` : '';
-            return `<button type="button" class="planner-suggest-row ${eligible ? '' : 'is-ineligible'}"
-              data-suggest-teacher="${escapeAttr(te.id)}" data-suggest-demand="${escapeAttr(demand.demandId)}"
-              ${eligible ? '' : 'disabled'}>
-              <span>${escapeHtml(te.name)}</span>
-              <span class="section-hint">${eligible ? loadTxt : reason}</span>
-            </button>`;
-        }).join('');
-        return `<div class="planner-suggest-panel">
-  <p class="planner-bin-heading">${t('plannerAvailableTeachers', 'Available teachers')}</p>
-  ${rows || `<p class="section-hint">${t('plannerNoEligibleTeachers', 'No eligible teachers')}</p>`}
-</div>`;
-    }
-
-    function renderClassBin(data, draft) {
-        const list = $('plannerClassBinList');
-        if (!list) return;
-        const planner = api();
-        const demands = planner.buildDemandsFromAppData(data, {
-            filters: data.plannerState && data.plannerState.filters
-        }).filter((d) => d.includedInDraft !== false);
-        const q = String(binSearchQuery || '').trim().toLowerCase();
-        const filtered = demands.filter((d) => !q || String(d.name || '').toLowerCase().includes(q));
-        const assignments = (draft && draft.assignments) || [];
-
-        const open = [];
-        const complete = [];
-        filtered.forEach((d) => {
-            const asg = assignments.find((a) => a.demandId === d.demandId);
-            const need = planner.weeklyNeed(d);
-            const have = asg ? (asg.meetings || []).length : 0;
-            const done = have >= need && asg && asg.teacherProfileId;
-            (done ? complete : open).push({ demand: d, asg, need, have });
-        });
-
-        function openRow(item) {
-            const d = item.demand;
-            const asg = item.asg;
-            const te = asg && asg.teacherProfileId
-                ? (data.teacherProfiles || []).find((p) => p.id === asg.teacherProfileId)
-                : null;
-            const selected = selectedDemandId === d.demandId ? ' is-selected' : '';
-            const color = classColor(data, d);
-            const meta = te
-                ? te.name
-                : t('plannerNoTeacherYet', 'No teacher yet — drag to any eligible teacher');
-            const suggest = (boardView === 'teachers' && selectedDemandId === d.demandId)
-                ? renderSuggestPanel(data, draft, d)
-                : '';
-            const canDrag = boardView === 'teachers';
-            return `<div class="planner-bin-row planner-bin-row--unassigned${selected}"
-              style="--row-color:${escapeAttr(color)}"
-              data-demand-id="${escapeAttr(d.demandId)}"
-              data-bin-select="${escapeAttr(d.demandId)}"
-              draggable="${canDrag ? 'true' : 'false'}" data-drag-kind="bin">
-  <span class="planner-bin-drag-handle" aria-hidden="true" style="${canDrag ? '' : 'visibility:hidden'}">⠿</span>
-  <div class="planner-bin-row-main">
-    <div class="planner-bin-row-name">${escapeHtml(d.name)}</div>
-    <div class="planner-bin-row-meta">${escapeHtml(meta)}</div>
-  </div>
-  <span class="planner-bin-row-progress">${item.have}/${item.need}</span>
-</div>${suggest}`;
-        }
-
-        function completeRow(item) {
-            const d = item.demand;
-            const asg = item.asg;
-            const te = asg && asg.teacherProfileId
-                ? (data.teacherProfiles || []).find((p) => p.id === asg.teacherProfileId)
-                : null;
-            const color = classColor(data, d);
-            const canDrag = boardView === 'teachers' && asg && asg.assignmentId;
-            return `<div class="planner-bin-row planner-bin-row--assigned"
-              style="--row-color:${escapeAttr(color)}"
-              data-demand-id="${escapeAttr(d.demandId)}"
-              data-assignment-id="${escapeAttr((asg && asg.assignmentId) || '')}"
-              data-bin-select="${escapeAttr(d.demandId)}"
-              draggable="${canDrag ? 'true' : 'false'}" data-drag-kind="bin-assigned"
-              title="${canDrag ? escapeAttr(t('plannerBinDragSwapHint', 'Drag onto a class to swap schedules')) : ''}">
-  <span class="planner-bin-drag-handle" aria-hidden="true" style="${canDrag ? '' : 'visibility:hidden'}">⠿</span>
-  <div class="planner-bin-row-main">
-    <div class="planner-bin-row-name">${escapeHtml(d.name)}</div>
-    <div class="planner-bin-row-meta">${escapeHtml(placementsShortText(asg))}</div>
-  </div>
-  <span class="planner-bin-row-arrow">→ ${escapeHtml((te && te.name) || '—')}</span>
-</div>`;
-        }
-
-        if (!filtered.length) {
-            list.innerHTML = `<p class="planner-bin-empty-note">${t('plannerBinEmpty', 'No classes in draft filters.')}</p>`;
-            return;
-        }
-
-        list.innerHTML = `
-<div class="planner-bin-section-label">${t('plannerNeedsPeriods', 'Needs periods')} (${open.length})</div>
-${open.length
-        ? open.map(openRow).join('')
-        : `<div class="planner-bin-empty-note">${t('plannerEverythingPlaced', 'Everything is placed.')}</div>`}
-<div class="planner-bin-section-label planner-bin-section-label--spaced">${t('plannerBinComplete', 'Complete')} (${complete.length})</div>
-${complete.length
-        ? complete.map(completeRow).join('')
-        : `<div class="planner-bin-empty-note">${t('plannerNoneYet', 'None yet.')}</div>`}`;
-    }
-
-    function renderDraft(data) {
-        const mount = $('plannerDraftMount');
-        const issuesMount = $('plannerIssuesMount');
-        const metricsMount = $('plannerMetricsMount');
-        if (!mount) return;
-        let draft = getActiveDraft(data);
-        const lockEl = $('plannerLockCohortDays');
-        if (lockEl) {
-            lockEl.checked = data.plannerState.lockToCohortDays === true;
-        }
-
-        // Auto-seed from calendar when Draft has no usable assignments
-        if (!draft || !(draft.assignments || []).length) {
-            draft = ensureDraftFromCalendar(data, { force: !draft });
-            markDirty();
-        }
-
-        const order = (data.plannerState.teacherBoard && data.plannerState.teacherBoard.panelOrder
-            && data.plannerState.teacherBoard.panelOrder.length)
-            ? data.plannerState.teacherBoard.panelOrder
-            : data.teacherProfiles.map((p) => p.id);
-        const visible = (data.plannerState.teacherBoard && data.plannerState.teacherBoard.visibleIds
-            && data.plannerState.teacherBoard.visibleIds.length)
-            ? data.plannerState.teacherBoard.visibleIds
-            : order;
-
-        if (metricsMount) {
-            if (!draft) {
-                metricsMount.textContent = t('plannerNoDraftYet', 'No draft yet. Generate one to arrange teachers.');
-            } else {
-                const m = draft.metrics || {};
-                metricsMount.innerHTML = `
-<span class="planner-stat">${m.assignedCount || 0} <small>${t('plannerStatAssigned', 'assigned')}</small></span>
-<span class="planner-stat">${m.unassignedCount || 0} <small>${t('plannerStatUnassigned', 'unassigned')}</small></span>
-<span class="planner-stat">${m.hardIssueCount || 0} <small>${t('plannerStatHard', 'hard')}</small></span>
-<span class="planner-stat">${m.softIssueCount || 0} <small>${t('plannerStatSoft', 'soft')}</small></span>
-<span class="planner-stat">${m.roomUnresolvedCount || 0} <small>${t('plannerStatNoRoom', 'no room')}</small></span>`;
-            }
-        }
-
-        const teachersBtn = $('plannerBoardTeachersBtn');
-        const roomsBtn = $('plannerBoardRoomsBtn');
-        if (teachersBtn) teachersBtn.classList.toggle('is-active', boardView === 'teachers');
-        if (roomsBtn) roomsBtn.classList.toggle('is-active', boardView === 'rooms');
-        updatePrintBtnLabel();
-
-        renderClassBin(data, draft);
-
-        if (issuesMount) {
-            const issues = (draft && draft.issues) || [];
-            issuesMount.innerHTML = issues.length
-                ? `<ul class="planner-issue-list">${issues.map((i) => `<li class="planner-issue planner-issue--${i.severity}"><strong>${escapeHtml(i.code)}</strong> ${escapeHtml(i.message)}</li>`).join('')}</ul>`
-                : `<p class="section-hint">${t('plannerNoIssues', 'No issues')}</p>`;
-        }
-
-        if (boardView === 'rooms') {
-            renderRoomBoard(data, draft, mount);
-            return;
-        }
-
-        const profiles = order
-            .map((id) => data.teacherProfiles.find((p) => p.id === id))
-            .filter(Boolean)
-            .filter((p) => visible.includes(p.id));
-
-        const periods = [1, 2, 3, 4, 5, 6, 7];
-        const days = [1, 2, 3, 4, 5];
-        const assignments = (draft && draft.assignments) || [];
-        const blockouts = data.plannerState.blockouts || {};
-        const demandById = new Map(api().buildDemandsFromAppData(data).map((d) => [d.demandId, d]));
-        const bands = api().BAND_PERIODS || { junior: [1, 2, 3], middle: [3, 4, 5], senior: [4, 5, 6, 7] };
-
-        mount.innerHTML = `
-<div class="planner-board-toolbar">
-  <span class="section-hint planner-band-legend">
-    <span class="planner-band-chip planner-band-chip--junior">${t('plannerJunior', 'Junior')} P${(bands.junior || []).join('-')}</span>
-    <span class="planner-band-chip planner-band-chip--middle">${t('plannerMiddle', 'Middle')} P${(bands.middle || []).join('-')}</span>
-    <span class="planner-band-chip planner-band-chip--senior">${t('plannerSenior', 'Senior')} P${(bands.senior || []).join('-')}</span>
-  </span>
-</div>
-<div class="planner-teacher-board planner-teacher-board--timetable planner-teacher-board--stack">
-${profiles.map((p) => {
-    const load = draft && draft.metrics && draft.metrics.teacherLoads
-        ? draft.metrics.teacherLoads[p.id]
-        : null;
-    const focused = focusedTeacherId === p.id ? ' is-focused' : '';
-    return `
-<section class="planner-teacher-panel${focused}" data-profile-id="${escapeAttr(p.id)}" id="planner-panel-${escapeAttr(p.id)}">
-  <header class="planner-teacher-panel-header" data-panel-handle="1" draggable="true">
-    <strong class="planner-panel-title">${escapeHtml(p.name)}</strong>
-    <span class="planner-panel-load">${load ? `${load.assigned}/${load.max}` : ''}</span>
-  </header>
-  <table class="timetable-grid planner-tt-grid">
-    <thead><tr><th class="timetable-col-time"></th>${days.map((d) => `<th>${weekdayLabel(d)}</th>`).join('')}</tr></thead>
-    <tbody>
-    ${periods.map((per) => {
-        const band = api().periodBand(per);
-        const prevBand = per > 1 ? api().periodBand(per - 1) : band;
-        const bandCls = `planner-period-band--${band}`;
-        const dividerCls = band !== prevBand ? ' planner-band-divider' : '';
-        return `
-      <tr class="${bandCls}${dividerCls}">
-        <th class="timetable-col-time">${escapeHtml(periodTimeLabel(per, data))}</th>
-        ${days.map((dow) => {
-            const blocked = api().isSlotBlocked(p, dow, per, blockouts);
-            const asg = assignments.find((a) => a.teacherProfileId === p.id
-                && (a.meetings || []).some((m) => Number(m.dow) === dow && String(m.period) === String(per)));
-            if (blocked) {
-                return `<td class="timetable-cell planner-cell planner-cell--blocked" data-dow="${dow}" data-period="${per}" title="Blocked"></td>`;
-            }
-            if (!asg) {
-                return `<td class="timetable-cell planner-cell planner-cell--empty" data-profile-id="${escapeAttr(p.id)}" data-dow="${dow}" data-period="${per}"></td>`;
-            }
-            const demand = demandById.get(asg.demandId) || { name: asg.classId, band: 'junior', classId: asg.classId };
-            const color = classColor(data, demand);
-            const out = api().isOutOfBlock(demand.band, per);
-            const roomName = asg.roomId
-                ? ((data.rooms || []).find((r) => r.id === asg.roomId) || {}).name || asg.roomId
-                : '';
-            const bandShort = demand.band === 'junior'
-                ? t('plannerJrShort', 'Jr')
-                : demand.band === 'middle'
-                    ? t('plannerMidShort', 'Mid')
-                    : t('plannerSrShort', 'Sr');
-            return `<td class="timetable-cell timetable-cell--colored planner-cell${out ? ' planner-cell--outofblock' : ''}"
-              style="background-color:${escapeAttr(color)}"
-              data-profile-id="${escapeAttr(p.id)}" data-dow="${dow}" data-period="${per}">
-              <button type="button" class="planner-card planner-card--tt" draggable="true"
-                data-drag-kind="period"
-                data-assignment-id="${escapeAttr(asg.assignmentId)}"
-                data-from-dow="${dow}" data-from-period="${per}"
-                title="${escapeAttr(demand.name)}">
-                <span class="planner-card-name">${out ? '⚠ ' : ''}${escapeHtml(demand.name)}</span>
-                <span class="planner-card-meta">${escapeHtml(bandShort)}${roomName ? ` · ${escapeHtml(roomName)}` : ''}${(asg.meetings || []).length > 1 ? ` · ${(asg.meetings || []).length}×` : ''}</span>
-              </button>
-              <button type="button" class="planner-tile-remove" data-remove-asg="${escapeAttr(asg.assignmentId)}"
-                data-remove-dow="${dow}" data-remove-period="${per}" aria-label="Remove">×</button>
-            </td>`;
-        }).join('')}
-      </tr>`;
-    }).join('')}
-    </tbody>
-  </table>
-</section>`;
-}).join('')}
-</div>`;
-    }
-
-    function renderRoomBoard(data, draft, mount) {
-        const rooms = Array.isArray(data.rooms) ? data.rooms.slice() : [];
-        const periods = [1, 2, 3, 4, 5, 6, 7];
-        const assignments = (draft && draft.assignments) || [];
-        const demandById = new Map(api().buildDemandsFromAppData(data).map((d) => [d.demandId, d]));
-        const bandOrder = [
-            ['junior', t('plannerJunior', 'Junior')],
-            ['senior', t('plannerSenior', 'Senior')],
-            ['middle', t('plannerMiddle1', '중1')]
-        ];
-
-        if (!(data.cohorts || []).length) {
-            mount.innerHTML = `<div class="planner-empty-card"><p class="module-empty-hint">${t('plannerNoCohortsRoomSheet', 'Add cohorts in Class Setup, then return here to assign rooms by day.')}</p></div>`;
-            return;
-        }
-
-        if (roomCadence !== 'tth') roomCadence = 'mwf';
-        syncRoomDayToCadence();
-        const dayOptions = cadenceDays(roomCadence);
-        const columns = sortedCohortsForRoomSheet(data, {
-            cadence: roomCadence,
-            dow: roomDay,
-            assignments,
-            demandById
-        });
-
-        const cadenceTabs = `
-<button type="button" class="planner-cadence-tab-btn${roomCadence === 'mwf' ? ' is-active' : ''}" data-room-cadence="mwf">${t('plannerCadenceMwf', 'MWF')}</button>
-<button type="button" class="planner-cadence-tab-btn${roomCadence === 'tth' ? ' is-active' : ''}" data-room-cadence="tth">${t('plannerCadenceTth', 'T·Th')}</button>`;
-
-        const dayTabs = dayOptions.map((d) => `
-<button type="button" class="planner-day-tab-btn${Number(roomDay) === d ? ' is-active' : ''}" data-room-day="${d}">${weekdayLabel(d)}</button>`).join('');
-
-        const roomsHint = rooms.length
-            ? t('plannerRoomSheetHintCadence', 'Pick MWF or T·Th, then a day. Only cohorts with a class that day are shown (Junior → Senior → 중1).')
-            : t('plannerNoRoomsBoard', 'Add rooms in step 3, then return here to assign rooms.');
-
-        if (!columns.length) {
-            mount.innerHTML = `
-<div class="planner-board-toolbar planner-room-sheet-toolbar">
-  <div class="planner-room-sheet-filters">
-    <div class="planner-cadence-tabs" role="tablist" aria-label="${escapeAttr(t('plannerCadence', 'Cadence'))}">${cadenceTabs}</div>
-    <div class="planner-day-tabs" role="tablist" aria-label="${escapeAttr(t('plannerBoardRooms', 'Rooms'))}">${dayTabs}</div>
-  </div>
-  <span class="section-hint">${escapeHtml(roomsHint)}</span>
-</div>
-<div class="planner-empty-card"><p class="module-empty-hint">${t('plannerNoScheduledThisDay', 'No classes are scheduled on this day yet. Place periods on the Teachers board first.')}</p></div>`;
-            return;
-        }
-
-        const groupHeaderCells = bandOrder.map(([bandKey, label]) => {
-            const cols = columns.filter((c) => cohortBand(c) === bandKey);
-            if (!cols.length) return '';
-            return `<th class="planner-room-band-header planner-room-band-header--${bandKey}" colspan="${cols.length}">${escapeHtml(label)}</th>`;
-        }).join('');
-
-        const subHeaderCells = columns.map((c) => {
-            const hl = highlightCohortId === c.id ? ' is-col-highlighted' : '';
-            const color = c.color || '#e3e8ef';
-            const textColor = contrastTextForBg(color);
-            const band = cohortBand(c);
-            return `<th class="planner-room-cohort-header planner-room-cohort-header--${band}${hl}"
-              data-cohort-col="${escapeAttr(c.id)}" data-band="${escapeAttr(band)}"
-              style="background:${escapeAttr(color)};color:${escapeAttr(textColor)}">
-  ${escapeHtml(cohortDisplayName(c))}
-</th>`;
-        }).join('');
-
-        const enrollmentCells = columns.map((c) => {
-            const n = cohortEnrollmentCount(c);
-            const hl = highlightCohortId === c.id ? ' is-col-highlighted' : '';
-            return `<td class="planner-room-enrollment-cell${hl}">${n == null ? '—' : String(n)}</td>`;
-        }).join('');
-
-        const bodyRows = periods.map((p) => {
-            const contentCells = columns.map((c) => {
-                const hl = highlightCohortId === c.id ? ' is-col-highlighted' : '';
-                const asg = findAssignmentForCohortSlot(assignments, demandById, c.id, roomDay, p);
-                if (asg) {
-                    const demand = demandById.get(asg.demandId) || {};
-                    const te = asg.teacherProfileId
-                        ? (data.teacherProfiles || []).find((t) => t.id === asg.teacherProfileId)
-                        : null;
-                    const out = api().isOutOfBlock(demand.band || cohortBand(c), p);
-                    const color = classColor(data, demand.cohortIds ? demand : { classId: asg.classId, cohortIds: [c.id] });
-                    const name = demand.name || asg.classId;
-                    return `<td class="planner-room-sheet-cell planner-room-sheet-cell--colored${hl}${out ? ' is-outofblock' : ''}"
-                      style="background:${escapeAttr(color)}"
-                      title="${out ? escapeAttr(t('plannerOutsideBlock', 'Outside the suggested block')) : ''}">
-  <div class="planner-room-sheet-cell-name">${out ? '⚠ ' : ''}${escapeHtml(name)}</div>
-  <div class="planner-room-sheet-cell-teacher">${escapeHtml((te && te.name) || t('plannerNoTeacherShort', 'No teacher'))}</div>
-</td>`;
-                }
-                const cBand = cohortBand(c);
-                const pBand = api().periodBand(p);
-                const outEmpty = (cBand === 'junior' && pBand === 'senior')
-                    || (cBand === 'senior' && pBand === 'junior');
-                if (outEmpty) {
-                    return `<td class="planner-room-sheet-cell planner-room-sheet-cell--outofblock${hl}"></td>`;
-                }
-                return `<td class="planner-room-sheet-cell planner-room-sheet-cell--empty${hl}"></td>`;
-            }).join('');
-
-            const roomCells = columns.map((c) => {
-                const hl = highlightCohortId === c.id ? ' is-col-highlighted' : '';
-                const asg = findAssignmentForCohortSlot(assignments, demandById, c.id, roomDay, p);
-                if (!asg) return `<td class="planner-room-sheet-cell planner-room-row-cell${hl}"></td>`;
-                const opts = rooms.map((r) => `<option value="${escapeAttr(r.id)}"${asg.roomId === r.id ? ' selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
-                return `<td class="planner-room-sheet-cell planner-room-row-cell${hl}">
-  <select class="planner-room-select${!asg.roomId ? ' is-empty' : ''}" data-room-asg="${escapeAttr(asg.assignmentId)}" aria-label="${escapeAttr(t('plannerRoom', 'Room'))}">
-    <option value=""${!asg.roomId ? ' selected' : ''}>${escapeHtml(t('plannerAddRoomOption', '+ Add room'))}</option>
-    ${opts}
-  </select>
-</td>`;
-            }).join('');
-
-            return `<tr><th class="planner-room-time-col">${escapeHtml(periodTimeLabel(p, data))}</th>${contentCells}</tr>
-<tr><th class="planner-room-label-col">${escapeHtml(t('plannerRoomClassroom', '강의실'))}</th>${roomCells}</tr>`;
-        }).join('');
-
-        mount.innerHTML = `
-<div class="planner-board-toolbar planner-room-sheet-toolbar">
-  <div class="planner-room-sheet-filters">
-    <div class="planner-cadence-tabs" role="tablist" aria-label="${escapeAttr(t('plannerCadence', 'Cadence'))}">${cadenceTabs}</div>
-    <div class="planner-day-tabs" role="tablist" aria-label="${escapeAttr(t('plannerBoardRooms', 'Rooms'))}">${dayTabs}</div>
-  </div>
-  <span class="section-hint">${escapeHtml(roomsHint)}</span>
-</div>
-<div class="planner-room-sheet-wrap">
-  <table class="planner-room-sheet" style="--planner-room-cols:${columns.length}">
-    <thead>
-      <tr><th class="planner-room-time-col"></th>${groupHeaderCells}</tr>
-      <tr>
-        <th class="planner-room-time-col planner-room-banmyeong-label">${escapeHtml(t('plannerRoomBanmyeong', '반명'))}</th>
-        ${subHeaderCells}
-      </tr>
-      <tr class="planner-room-enrollment-row">
-        <th class="planner-room-time-col">${escapeHtml(t('plannerRoomEnrollment', '인원'))}</th>
-        ${enrollmentCells}
-      </tr>
-    </thead>
-    <tbody>${bodyRows}</tbody>
-  </table>
-</div>`;
-    }
-
-    function updatePrintBtnLabel() {
-        const el = $('plannerPrintBtnLabel');
-        if (!el) return;
-        el.textContent = boardView === 'rooms'
-            ? t('plannerPrintRooms', 'Print room schedule')
-            : t('plannerPrintTeachers', 'Print teacher timetables');
-    }
-
-    function printPageHeader(title, subtitle) {
-        return `<div class="planner-print-page-header">
-  <div class="planner-print-page-title">${escapeHtml(title)}</div>
-  <div class="planner-print-page-meta">ClassManager · ${escapeHtml(subtitle || '')}</div>
-</div>`;
-    }
-
-    function calendarSubtitle(data) {
-        const name = (data && (data.calendarName || data.name || data.termName)) || '';
-        return name || t('plannerPrintDefaultTerm', 'Schedule planner');
-    }
-
-    function buildTeacherPrintHTML(data, draft) {
-        const assignments = (draft && draft.assignments) || [];
-        const demandById = new Map(api().buildDemandsFromAppData(data).map((d) => [d.demandId, d]));
-        const periods = [1, 2, 3, 4, 5, 6, 7];
-        const days = [1, 2, 3, 4, 5];
-        const profiles = (data.teacherProfiles || []).slice();
-        const blocks = profiles.map((te) => {
-            const rows = periods.map((p) => {
-                const cells = days.map((dow) => {
-                    const asg = assignments.find((a) => a.teacherProfileId === te.id
-                        && (a.meetings || []).some((m) => Number(m.dow) === dow && String(m.period) === String(p)));
-                    if (!asg) return '<td></td>';
-                    const demand = demandById.get(asg.demandId) || {};
-                    const color = classColor(data, demand);
-                    const room = asg.roomId
-                        ? ((data.rooms || []).find((r) => r.id === asg.roomId) || {}).name
-                        : '';
-                    const band = demand.band || 'junior';
-                    const bandShort = band === 'junior'
-                        ? t('plannerJrShort', 'Jr')
-                        : band === 'middle'
-                            ? t('plannerMiddle1', '중1')
-                            : t('plannerSrShort', 'Sr');
-                    return `<td class="planner-print-cell-colored" style="background:${escapeAttr(color)}">
-  <div class="planner-print-cell-name">${escapeHtml(demand.name || asg.classId)}</div>
-  <div class="planner-print-cell-sub">${escapeHtml(bandShort)}${room ? ` · ${escapeHtml(room)}` : ''}</div>
-</td>`;
-                }).join('');
-                return `<tr><th class="planner-print-time-col">${escapeHtml(periodTimeLabel(p, data))}</th>${cells}</tr>`;
-            }).join('');
-            const role = te.role === 'native'
-                ? t('plannerRoleNative', 'Native')
-                : t('plannerRoleKorean', 'Korean');
-            const load = assignments
-                .filter((a) => a.teacherProfileId === te.id)
-                .reduce((n, a) => n + ((a.meetings || []).length), 0);
-            const maxW = (te.limits && te.limits.maxPeriodsPerWeek) || 22;
-            return `<div class="planner-print-block">
-  <div class="planner-print-block-title">${escapeHtml(te.name)}</div>
-  <div class="planner-print-block-subtitle">${escapeHtml(role)} · ${load}/${maxW} ${t('plannerPeriodsPerWeek', 'periods/wk')}</div>
-  <table class="planner-print-table">
-    <thead><tr><th class="planner-print-time-col"></th>${days.map((d) => `<th>${weekdayLabel(d)}</th>`).join('')}</tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
-</div>`;
-        }).join('');
-        return `<div class="planner-print-page">${printPageHeader(
-            t('plannerPrintTeacherTitle', 'Teacher timetable'),
-            calendarSubtitle(data)
-        )}${blocks}</div>`;
-    }
-
-    function buildRoomsPrintHTML(data, draft) {
-        const assignments = (draft && draft.assignments) || [];
-        const demandById = new Map(api().buildDemandsFromAppData(data).map((d) => [d.demandId, d]));
-        const periods = [1, 2, 3, 4, 5, 6, 7];
-        const bandOrder = [
-            ['junior', t('plannerJunior', 'Junior')],
-            ['senior', t('plannerSenior', 'Senior')],
-            ['middle', t('plannerMiddle1', '중1')]
-        ];
-        const days = cadenceDays(roomCadence);
-        const pages = days.map((day) => {
-            const columns = sortedCohortsForRoomSheet(data, {
-                cadence: roomCadence,
-                dow: day,
-                assignments,
-                demandById
-            });
-            if (!columns.length) {
-                return `<div class="planner-print-page">${printPageHeader(
-                    `${weekdayLabel(day)} ${t('plannerPrintRoomTitle', 'Room schedule')}`,
-                    calendarSubtitle(data)
-                )}<p>${escapeHtml(t('plannerNoScheduledThisDay', 'No classes are scheduled on this day yet.'))}</p></div>`;
-            }
-            const groupHeaderCells = bandOrder.map(([bandKey, label]) => {
-                const cols = columns.filter((c) => cohortBand(c) === bandKey);
-                if (!cols.length) return '';
-                return `<th class="planner-print-band-header" colspan="${cols.length}">${escapeHtml(label)}</th>`;
-            }).join('');
-            const subHeaderCells = columns.map((c) => {
-                const color = c.color || '#e3e8ef';
-                const textColor = contrastTextForBg(color);
-                return `<th style="background:${escapeAttr(color)};color:${escapeAttr(textColor)}">${escapeHtml(cohortDisplayName(c))}</th>`;
-            }).join('');
-            const enrollmentCells = columns.map((c) => {
-                const n = cohortEnrollmentCount(c);
-                return `<td>${n == null ? '—' : String(n)}</td>`;
-            }).join('');
-            const bodyRows = periods.map((p) => {
-                const contentCells = columns.map((c) => {
-                    const asg = findAssignmentForCohortSlot(assignments, demandById, c.id, day, p);
-                    if (!asg) return '<td></td>';
-                    const demand = demandById.get(asg.demandId) || {};
-                    const te = asg.teacherProfileId
-                        ? (data.teacherProfiles || []).find((x) => x.id === asg.teacherProfileId)
-                        : null;
-                    const color = classColor(data, demand.cohortIds ? demand : { classId: asg.classId, cohortIds: [c.id] });
-                    const out = api().isOutOfBlock(demand.band || cohortBand(c), p);
-                    return `<td class="planner-print-cell-colored" style="background:${escapeAttr(color)}${out ? ';outline:2px dashed #b45309;outline-offset:-2px' : ''}">
-  <div class="planner-print-cell-name">${out ? '⚠ ' : ''}${escapeHtml(demand.name || asg.classId)}</div>
-  <div class="planner-print-cell-sub">${escapeHtml((te && te.name) || t('plannerNoTeacherShort', 'No teacher'))}</div>
-</td>`;
-                }).join('');
-                const roomCells = columns.map((c) => {
-                    const asg = findAssignmentForCohortSlot(assignments, demandById, c.id, day, p);
-                    if (!asg) return '<td></td>';
-                    const room = asg.roomId
-                        ? ((data.rooms || []).find((r) => r.id === asg.roomId) || {}).name
-                        : null;
-                    return `<td style="font-weight:700;${room ? '' : 'color:#b45309'}">${escapeHtml(room || t('plannerRoomTbd', 'TBD'))}</td>`;
-                }).join('');
-                return `<tr><th class="planner-print-time-col">${escapeHtml(periodTimeLabel(p, data))}</th>${contentCells}</tr>
-<tr><th class="planner-print-room-label">${escapeHtml(t('plannerRoomClassroom', '강의실'))}</th>${roomCells}</tr>`;
-            }).join('');
-            return `<div class="planner-print-page">${printPageHeader(
-                `${weekdayLabel(day)} ${t('plannerPrintRoomTitle', 'Room schedule')}`,
-                calendarSubtitle(data)
-            )}
-  <table class="planner-print-table">
-    <thead>
-      <tr><th class="planner-print-time-col"></th>${groupHeaderCells}</tr>
-      <tr><th class="planner-print-time-col">${escapeHtml(t('plannerRoomBanmyeong', '반명'))}</th>${subHeaderCells}</tr>
-      <tr><th class="planner-print-time-col">${escapeHtml(t('plannerRoomEnrollment', '인원'))}</th>${enrollmentCells}</tr>
-    </thead>
-    <tbody>${bodyRows}</tbody>
-  </table>
-</div>`;
-        }).join('');
-        return pages;
-    }
-
-    function openPrintView() {
+    function buildModel() {
         const data = ensureData();
-        const draft = getActiveDraft(data);
-        if (!data || !draft || !api()) return;
-        const area = $('plannerPrintArea');
-        if (!area) return;
-        area.innerHTML = boardView === 'rooms'
-            ? buildRoomsPrintHTML(data, draft)
-            : buildTeacherPrintHTML(data, draft);
-        area.setAttribute('aria-hidden', 'false');
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                window.print();
-                area.setAttribute('aria-hidden', 'true');
+        if (!data) return null;
+        const draft = ensureDraft(data);
+        const P = api();
+        P.recomputeDraftMetrics(data, draft);
+        const allDemands = P.buildDemandsFromAppData(data);
+        const demands = allDemands.filter((d) => d.includedInDraft !== false);
+        const demandById = new Map(allDemands.map((d) => [d.demandId, d]));
+        const classById = new Map((data.classes || []).map((c) => [c.id, c]));
+        const asgByDemand = new Map();
+        draft.assignments.forEach((a) => { if (!asgByDemand.has(a.demandId)) asgByDemand.set(a.demandId, a); });
+
+        const order = (data.plannerState.teacherBoard && data.plannerState.teacherBoard.panelOrder) || [];
+        const teachers = (data.teacherProfiles || []).slice().sort((a, b) => {
+            const ia = order.indexOf(a.id);
+            const ib = order.indexOf(b.id);
+            return (ia < 0 ? 9999 : ia) - (ib < 0 ? 9999 : ib);
+        });
+        const teacherById = new Map(teachers.map((x) => [x.id, x]));
+
+        const cohorts = (data.cohorts || [])
+            .filter((c) => c && c.id && !c.isArchiveCohort)
+            .map((c) => {
+                const band = P.resolvePlannerBandForCohort(c);
+                return {
+                    id: c.id,
+                    name: String(c.name || '').trim() || c.id,
+                    color: c.color || '',
+                    band,
+                    rank: P.levelSortIndex(band, c),
+                    days: Array.isArray(c.meetingDays) ? c.meetingDays.map(Number) : [],
+                    homeroom: String(c.homeroomTeacherName || '').trim(),
+                    students: Array.isArray(c.students) ? c.students.length : 0
+                };
+            })
+            .sort((a, b) => bandRank(a.band) - bandRank(b.band) || a.rank - b.rank
+                || a.name.localeCompare(b.name, undefined, { numeric: true }));
+        const cohortById = new Map(cohorts.map((c) => [c.id, c]));
+
+        const rooms = (data.rooms || []).slice()
+            .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+        const roomById = new Map(rooms.map((r) => [r.id, r]));
+        const periods = periodRows(data);
+
+        // Where every placed period sits, per sheet.
+        const tiles = [];
+        const teacherSlot = new Map();
+        const cohortSlot = new Map();
+        const roomSlot = new Map();
+        const bump = (map, key) => map.set(key, (map.get(key) || 0) + 1);
+        draft.assignments.forEach((asg) => {
+            const demand = demandById.get(asg.demandId);
+            if (!demand || demand.includedInDraft === false) return;
+            (asg.meetings || []).forEach((m) => {
+                const slot = `${Number(m.dow)}|${String(m.period)}`;
+                const roomId = P.meetingRoomId(asg, m);
+                const cohortIds = (demand.cohortIds || []).filter((id) => cohortById.has(id));
+                tiles.push({ asg, m, demand, slot, roomId, cohortIds });
+                if (asg.teacherProfileId) bump(teacherSlot, `${asg.teacherProfileId}|${slot}`);
+                cohortIds.forEach((cid) => bump(cohortSlot, `${cid}|${slot}`));
+                if (roomId) bump(roomSlot, `${roomId}|${slot}`);
             });
         });
+        const warnSlots = new Map();
+        (draft.issues || []).forEach((i) => {
+            if (['outside_band_block', 'outside_cohort_days', 'teacher_unavailable'].includes(i.code) && i.assignmentId) {
+                const k = `${i.assignmentId}|${i.dow}|${i.period}`;
+                warnSlots.set(k, (warnSlots.get(k) || []).concat([i.code]));
+            }
+        });
+        tiles.forEach((tile) => {
+            const { asg, slot } = tile;
+            tile.clash = [];
+            if (asg.teacherProfileId && teacherSlot.get(`${asg.teacherProfileId}|${slot}`) > 1) tile.clash.push('teacher');
+            if (tile.cohortIds.some((cid) => cohortSlot.get(`${cid}|${slot}`) > 1)) tile.clash.push('cohort');
+            if (tile.roomId && roomSlot.get(`${tile.roomId}|${slot}`) > 1) tile.clash.push('room');
+            tile.warn = warnSlots.get(`${asg.assignmentId}|${slot}`) || null;
+        });
+
+        const m = {
+            data, draft, demands, allDemands, demandById, classById, asgByDemand,
+            teachers, teacherById, cohorts, cohortById, rooms, roomById, periods, tiles,
+            ctx: { demands: allDemands, demandById },
+            noCohortDemands: demands.some((d) => !(d.cohortIds || []).some((id) => cohortById.has(id)))
+        };
+        m.cellTiles = cellMap(m, state.view);
+        return m;
     }
+
+    function tileColumns(tile, view) {
+        if (view === 'teachers') return [tile.asg.teacherProfileId || NONE];
+        if (view === 'rooms') return [tile.roomId || NONE];
+        return tile.cohortIds.length ? tile.cohortIds : [NONE];
+    }
+
+    function cellMap(m, view) {
+        const map = new Map();
+        m.tiles.forEach((tile) => {
+            tileColumns(tile, view).forEach((col) => {
+                const key = `${col}|${tile.slot}`;
+                if (!map.has(key)) map.set(key, []);
+                map.get(key).push(tile);
+            });
+        });
+        return map;
+    }
+
+    function demandColor(m, demand) {
+        const cid = (demand.cohortIds || []).find((id) => m.cohortById.has(id));
+        const cohort = cid ? m.cohortById.get(cid) : null;
+        const cls = m.classById.get(demand.classId);
+        return (cohort && cohort.color) || (cls && cls.color) || '#94a3b8';
+    }
+
+    function demandCohortLabel(m, demand) {
+        return (demand.cohortIds || [])
+            .map((id) => m.cohortById.get(id))
+            .filter(Boolean)
+            .map((c) => c.name)
+            .join(' + ');
+    }
+
+    function demandNeed(demand) {
+        return api().weeklyNeed(demand);
+    }
+
+    function placedCount(m, demand) {
+        const asg = m.asgByDemand.get(demand.demandId);
+        return asg ? (asg.meetings || []).length : 0;
+    }
+
+    function teacherName(m, id) {
+        const p = id ? m.teacherById.get(id) : null;
+        return p ? p.name : '';
+    }
+
+    function roomName(m, id) {
+        const r = id ? m.roomById.get(id) : null;
+        return r ? r.name : '';
+    }
+
+    function columnsFor(m, view) {
+        if (view === 'teachers') {
+            const cols = m.teachers.map((p) => ({ id: p.id, name: p.name, teacher: p }));
+            cols.push({ id: NONE, name: t('spNoTeacher', 'No teacher'), none: true });
+            return cols;
+        }
+        if (view === 'rooms') {
+            const cols = m.rooms.map((r) => ({ id: r.id, name: r.name, room: r }));
+            cols.push({ id: NONE, name: t('spNoRoom', 'No room'), none: true });
+            return cols;
+        }
+        const cols = m.cohorts
+            .filter((c) => state.band === 'all' || c.band === state.band)
+            .map((c) => ({ id: c.id, name: c.name, cohort: c }));
+        if (m.noCohortDemands) cols.push({ id: NONE, name: t('spNoCohort', 'No cohort'), none: true });
+        return cols;
+    }
+
+    /* ------------------------------------------------------------- mutations */
+
+    function mutate(fn, options) {
+        const opts = options || {};
+        if (!M) return null;
+        if (readOnly()) {
+            notice(t('plannerReadOnlyHint', 'This calendar is read-only. Request edit access before applying a draft.'), 'error');
+            return null;
+        }
+        const snap = JSON.stringify(M.draft);
+        const res = fn(M.data, M.draft);
+        if (res && res.ok === false) {
+            notice(reasonText(res.reason || (res.reasons && res.reasons[0])), 'error');
+            return res;
+        }
+        if (!opts.noUndo) {
+            undoStack.push(snap);
+            if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+            redoStack = [];
+        }
+        markDirty();
+        render();
+        return res;
+    }
+
+    function restoreDraft(json) {
+        const data = M.data;
+        const draft = JSON.parse(json);
+        const idx = (data.plannerDrafts || []).findIndex((d) => d.id === data.plannerState.activeDraftId);
+        if (idx >= 0) data.plannerDrafts[idx] = draft;
+        else installDraft(data, draft);
+        data.plannerState.activeDraftId = draft.id;
+    }
+
+    function undo() {
+        if (!undoStack.length || !M || readOnly()) return;
+        redoStack.push(JSON.stringify(M.draft));
+        restoreDraft(undoStack.pop());
+        markDirty();
+        render();
+    }
+
+    function redo() {
+        if (!redoStack.length || !M || readOnly()) return;
+        undoStack.push(JSON.stringify(M.draft));
+        restoreDraft(redoStack.pop());
+        markDirty();
+        render();
+    }
+
+    /* ----------------------------------------------------------------- texts */
+
+    function reasonText(code, ctx) {
+        const c = ctx || {};
+        switch (code) {
+        case 'teacher_day_blocked':
+        case 'teacher_period_blocked':
+        case 'teacher_slot_blocked':
+            return t('spWhyTeacherOff', 'This teacher is marked not available then');
+        case 'teacher_outside_hours':
+            return t('spWhyOutsideWork', 'Outside this teacher’s working hours');
+        case 'global_period_blocked':
+        case 'global_slot_blocked':
+            return t('spWhyEveryoneOff', 'This time is blocked for everyone');
+        case 'wrong_teacher_type':
+            return c.need === 'native'
+                ? t('spWhyNeedsNative', 'This class asks for a native teacher')
+                : t('spWhyNeedsKorean', 'This class asks for a Korean teacher');
+        case 'wrong_junior_senior_band':
+            return t('spWhyBand', 'This teacher is not set to teach this level');
+        case 'outside_cohort_days':
+            return t('spWhyOffDay', 'The cohort does not come on this day');
+        case 'teacher_double_booked':
+            return t('spWhyTeacherBusy', 'The teacher already has a class then');
+        case 'cohort_double_booked':
+            return t('spWhyCohortBusy', 'The cohort already has a class then');
+        case 'room_double_booked':
+            return t('spWhyRoomBusy', 'The room is already in use then');
+        case 'max_periods_per_day':
+            return t('spWhyDayLimit', 'Over the teacher’s limit for one day');
+        case 'weekly_complete':
+            return t('spWhyComplete', 'This class already has all its periods');
+        case 'duplicate_weekday_2x':
+            return t('spWhySameDay', 'Two periods of this class on the same day');
+        case 'out_of_block':
+            return t('spWhyOutOfBlock', 'Outside the hours these students are at school');
+        case 'already_here':
+            return t('spWhyAlreadyHere', 'This class is already here');
+        case 'teacher_reassigned':
+            return t('spWhyTeacherChanges', 'Teacher changes to {name} for all of this class’s periods', { name: c.teacher || '' });
+        case 'missing_context':
+        case 'missing_assignment':
+        case 'slot_missing':
+            return t('spWhyGone', 'That class is no longer on the board. Try again.');
+        default:
+            return code ? String(code) : '';
+        }
+    }
+
+    function slotText(m, dow, period) {
+        if (dow == null || period == null) return '';
+        const row = m.periods.find((p) => p.period === String(period));
+        return `${dayLabel(dow)} ${row && row.start ? row.start : `P${period}`}`;
+    }
+
+    function issueText(m, issue) {
+        const demand = issue.demandId ? m.demandById.get(issue.demandId)
+            : (issue.assignmentId ? m.demandById.get((m.draft.assignments.find((a) => a.assignmentId === issue.assignmentId) || {}).demandId) : null);
+        const name = demand ? classLabel(m, demand) : '';
+        const when = slotText(m, issue.dow, issue.period);
+        const teacher = teacherName(m, issue.teacherProfileId);
+        switch (issue.code) {
+        case 'teacher_double_booked':
+            return t('spIssueTeacherClash', '{teacher} has two classes at {when}', { teacher: teacher || '?', when });
+        case 'cohort_double_booked':
+            return t('spIssueCohortClash', '{cohort} has two classes at {when}', {
+                cohort: (m.cohortById.get(issue.cohortId) || {}).name || name, when
+            });
+        case 'room_conflict':
+            return t('spIssueRoomClash', '{room} is used twice at {when}', { room: roomName(m, issue.roomId) || name, when });
+        case 'no_teacher':
+            return t('spIssueNoTeacher', '{name} has no teacher', { name });
+        case 'incomplete_placements':
+            return t('spIssueIncomplete', '{name} needs {n} more', { name, n: issue.missing || 1 });
+        case 'outside_band_block':
+            return t('spIssueOutOfBlock', '{name} is outside the hours its students are at school ({when})', { name, when });
+        case 'teacher_unavailable':
+            if (issue.outsideHours) {
+                return t('spIssueOutsideWork', '{name} is outside {teacher}’s working hours ({when})', { name, teacher, when });
+            }
+            return issue.everyone
+                ? t('spIssueEveryoneOff', '{name} is at a time blocked for everyone ({when})', { name, when })
+                : t('spIssueTeacherOff', '{name}: {teacher} is marked not available at {when}', { name, teacher, when });
+        case 'outside_cohort_days':
+            return t('spIssueOffDay', '{name} is on a day its cohort does not come ({when})', { name, when });
+        case 'wrong_teacher_type':
+            return t('spIssueTeacherType', '{name}: {teacher} is not the teacher type it asks for', { name, teacher });
+        case 'wrong_junior_senior_band':
+            return t('spIssueTeacherBand', '{name}: {teacher} is not set to teach this level', { name, teacher });
+        case 'over_load':
+            return t('spIssueOverWeek', '{teacher} is over the weekly limit ({count}/{limit})', {
+                teacher, count: issue.count, limit: issue.limit
+            });
+        case 'max_periods_per_day':
+            return t('spIssueOverDay', '{teacher} is over the daily limit on {day} ({count}/{limit})', {
+                teacher, day: dayLabel(issue.dow), count: issue.count, limit: issue.limit
+            });
+        case 'duplicate_weekday_2x':
+            return t('spIssueSameDay', '{name} has two periods on the same day', { name });
+        case 'room_unresolved':
+            return t('spIssueNoRoom', '{name} has no room', { name });
+        default:
+            return issue.message || issue.code;
+        }
+    }
+
+    function classLabel(m, demand) {
+        const cohort = demandCohortLabel(m, demand);
+        if (!cohort || demand.name.toLowerCase().includes(cohort.toLowerCase())) return demand.name;
+        return `${cohort} · ${demand.name}`;
+    }
+
+    const ISSUE_GROUPS = [
+        { id: 'clash', codes: ['teacher_double_booked', 'cohort_double_booked', 'room_conflict'] },
+        { id: 'todo', codes: ['no_teacher', 'incomplete_placements'] },
+        { id: 'warn', codes: ['outside_band_block', 'outside_cohort_days', 'teacher_unavailable', 'wrong_teacher_type', 'wrong_junior_senior_band', 'over_load', 'max_periods_per_day', 'duplicate_weekday_2x'] },
+        { id: 'room', codes: ['room_unresolved'] }
+    ];
+
+    function groupedIssues(m) {
+        const seen = new Set();
+        const groups = ISSUE_GROUPS.map((g) => ({ id: g.id, items: [] }));
+        (m.draft.issues || []).forEach((issue) => {
+            const gi = ISSUE_GROUPS.findIndex((g) => g.codes.includes(issue.code));
+            if (gi < 0) return;
+            // "No room" only matters once the school has rooms set up.
+            if (issue.code === 'room_unresolved' && !m.rooms.length) return;
+            const demand = issue.demandId ? m.demandById.get(issue.demandId) : null;
+            if (demand && demand.includedInDraft === false) return;
+            const text = issueText(m, issue);
+            if (seen.has(text)) return;
+            seen.add(text);
+            groups[gi].items.push({ issue, text });
+        });
+        return groups;
+    }
+
+    /* ---------------------------------------------------------------- render */
 
     function render() {
-        const data = ensureData();
-        if (!data || !api()) return;
-        if (activeStep === 'teachers') renderTeachers(data);
-        if (activeStep === 'demand') renderDemand(data);
-        if (activeStep === 'rooms') renderRooms(data);
-        if (activeStep === 'draft') renderDraft(data);
+        if (drag || sort) {
+            renderQueued = true;
+            return;
+        }
+        renderQueued = false;
+        const root = $('plannerPageRoot');
+        if (!root) return;
+        M = buildModel();
+        if (!M) return;
+        root.hidden = false;
+        if (state.selected && !M.demandById.has(state.selected)) state.selected = null;
+        VIEWS.forEach((v) => {
+            const cols = columnsFor(M, v).filter((c) => !c.none);
+            if (!cols.some((c) => c.id === state.focus[v])) state.focus[v] = cols[0] ? cols[0].id : NONE;
+        });
+        renderToolbar();
+        renderSummary();
+        renderTray();
+        renderBoard();
+        renderIssues();
+        if (state.setupOpen) renderSetup();
+        document.body.classList.toggle('sp-readonly', !!readOnly());
     }
 
-    function readTeacherCardsIntoData(data) {
-        document.querySelectorAll('.planner-teacher-card').forEach((card) => {
-            const id = card.getAttribute('data-profile-id');
-            const profile = data.teacherProfiles.find((p) => p.id === id);
-            if (!profile) return;
-            const role = card.querySelector('[data-field="role"]');
-            if (role) profile.role = role.value === 'native' ? 'native' : 'korean';
-            const maxW = card.querySelector('[data-field="maxPeriodsPerWeek"]');
-            const maxD = card.querySelector('[data-field="maxPeriodsPerDay"]');
-            const minW = card.querySelector('[data-field="minPeriodsPerWeek"]');
-            if (maxW) profile.limits.maxPeriodsPerWeek = Number(maxW.value) || 0;
-            if (maxD) profile.limits.maxPeriodsPerDay = Number(maxD.value) || 0;
-            if (minW) profile.limits.minPeriodsPerWeek = Number(minW.value) || 0;
-            const junior = card.querySelector('[data-field="juniorAllowed"]');
-            const middle = card.querySelector('[data-field="middleAllowed"]');
-            const senior = card.querySelector('[data-field="seniorAllowed"]');
-            if (junior) profile.limits.juniorAllowed = junior.checked;
-            if (middle) profile.limits.middleAllowed = middle.checked;
-            if (senior) profile.limits.seniorAllowed = senior.checked;
-            const a1 = card.querySelector('[data-field="avoidFirstPeriod"]');
-            const aL = card.querySelector('[data-field="avoidLastPeriod"]');
-            if (a1) profile.preferences.avoidFirstPeriod = a1.checked;
-            if (aL) profile.preferences.avoidLastPeriod = aL.checked;
-            const cadence = [];
-            card.querySelectorAll('[data-pref-cadence]').forEach((el) => {
-                if (el.checked) cadence.push(el.getAttribute('data-pref-cadence'));
+    function renderToolbar() {
+        document.querySelectorAll('[data-sp-view]').forEach((b) => {
+            const on = b.getAttribute('data-sp-view') === state.view;
+            b.classList.toggle('is-active', on);
+            b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        const days = $('spDays');
+        if (days) {
+            const clashByDay = {};
+            M.tiles.forEach((tile) => {
+                if (tile.clash.length) clashByDay[Number(tile.m.dow)] = true;
             });
-            profile.preferences.preferCadence = cadence;
-            const blockText = card.querySelector('[data-field="blockoutText"]');
-            if (blockText) {
-                profile.availability.unavailableSlots = String(blockText.value || '')
-                    .split(',')
-                    .map((part) => part.trim())
-                    .filter(Boolean)
-                    .map((part) => {
-                        const [dow, period] = part.split(':');
-                        return { dow: Number(dow), period: String(period) };
-                    })
-                    .filter((s) => s.dow >= 1 && s.dow <= 5 && s.period);
+            days.innerHTML = [0].concat(DAYS).map((d) => `
+<button type="button" class="sp-day${state.day === d ? ' is-active' : ''}" data-sp-day="${d}" aria-pressed="${state.day === d}">
+  ${d === 0 ? esc(t('spWeek', 'Week')) : esc(dayLabel(d))}${d && clashByDay[d] ? '<span class="sp-dot" aria-hidden="true"></span>' : ''}
+</button>`).join('');
+        }
+        const band = $('spBand');
+        if (band && band.value !== state.band) band.value = state.band;
+        const u = $('spUndoBtn');
+        const r = $('spRedoBtn');
+        if (u) u.disabled = !undoStack.length;
+        if (r) r.disabled = !redoStack.length;
+        const ro = !!readOnly();
+        ['plannerApplyBtn', 'spAutoBtn'].forEach((id) => {
+            const el = $(id);
+            if (el) el.disabled = ro;
+        });
+    }
+
+    function renderSummary() {
+        const el = $('spSummary');
+        if (!el) return;
+        const total = M.demands.length;
+        const done = M.demands.filter((d) => placedCount(M, d) >= demandNeed(d) && (M.asgByDemand.get(d.demandId) || {}).teacherProfileId).length;
+        const groups = groupedIssues(M);
+        const clashes = groups[0].items.length;
+        const warns = groups[2].items.length;
+        el.innerHTML = `
+<span class="sp-sum-main">${esc(t('spSumDone', '{done} of {total} classes ready', { done, total }))}</span>
+<span class="sp-sum-bar" aria-hidden="true"><span style="width:${total ? Math.round((done / total) * 100) : 0}%"></span></span>
+${clashes ? `<span class="sp-pill sp-pill--bad">${esc(t('spSumClashes', '{n} clashes', { n: clashes }))}</span>` : ''}
+${warns ? `<span class="sp-pill sp-pill--warn">${esc(t('spSumWarnings', '{n} warnings', { n: warns }))}</span>` : ''}
+${!clashes && !warns && total && done === total ? `<span class="sp-pill sp-pill--ok">${esc(t('spSumAllGood', 'Nothing to fix'))}</span>` : ''}`;
+    }
+
+    function trayCard(m, demand) {
+        const need = demandNeed(demand);
+        const placed = placedCount(m, demand);
+        const asg = m.asgByDemand.get(demand.demandId);
+        const teacher = asg ? teacherName(m, asg.teacherProfileId) : '';
+        const complete = placed >= need;
+        return `
+<div class="sp-card${state.selected === demand.demandId ? ' is-selected' : ''}${complete ? ' is-complete' : ''}" data-drag="tray" data-demand="${esc(demand.demandId)}" style="--c:${esc(demandColor(m, demand))}" tabindex="0" role="button" aria-label="${esc(classLabel(m, demand))}">
+  <span class="sp-card-name">${esc(demand.name)}</span>
+  <span class="sp-badge${complete ? ' is-done' : ''}">${placed}/${need}</span>
+  <span class="sp-card-sub${teacher ? '' : ' is-missing'}">${esc(teacher || t('spNoTeacher', 'No teacher'))}</span>
+</div>`;
+    }
+
+    function renderTray() {
+        const el = $('spTrayList');
+        if (!el) return;
+        const scroll = el.scrollTop;
+        const q = state.query.trim().toLowerCase();
+        const match = (d) => {
+            if (state.band !== 'all' && d.band !== state.band) return false;
+            if (!q) return true;
+            const asg = M.asgByDemand.get(d.demandId);
+            return `${d.name} ${demandCohortLabel(M, d)} ${asg ? teacherName(M, asg.teacherProfileId) : ''}`.toLowerCase().includes(q);
+        };
+        const isDone = (d) => placedCount(M, d) >= demandNeed(d) && !!(M.asgByDemand.get(d.demandId) || {}).teacherProfileId;
+        const list = M.demands.filter(match);
+        const todo = list.filter((d) => !isDone(d));
+        const done = list.filter(isDone);
+        const group = (items) => {
+            const by = new Map();
+            items.forEach((d) => {
+                const cid = (d.cohortIds || []).find((id) => M.cohortById.has(id)) || NONE;
+                if (!by.has(cid)) by.set(cid, []);
+                by.get(cid).push(d);
+            });
+            const ids = M.cohorts.map((c) => c.id).filter((id) => by.has(id));
+            if (by.has(NONE)) ids.push(NONE);
+            return ids.map((cid) => `
+<div class="sp-tray-group">
+  <div class="sp-tray-group-title">${esc(cid === NONE ? t('spNoCohort', 'No cohort') : M.cohortById.get(cid).name)}</div>
+  ${by.get(cid).map((d) => trayCard(M, d)).join('')}
+</div>`).join('');
+        };
+        let html = '';
+        if (!M.demands.length) {
+            html = `<p class="sp-empty">${esc(t('spTrayEmpty', 'No classes yet. Add classes on the calendar first, or open Setup to bring left-out classes back.'))}</p>`;
+        } else {
+            html += `<div class="sp-tray-section-title">${esc(t('spTrayTodo', 'To place'))} <span class="sp-count">${todo.length}</span></div>`;
+            html += todo.length ? group(todo)
+                : `<p class="sp-empty">${esc(q ? t('spTrayNoMatch', 'Nothing matches.') : t('spTrayAllPlaced', 'Every class is placed.'))}</p>`;
+            html += `
+<button type="button" class="sp-tray-section-title sp-tray-toggle" data-act="toggle-done" aria-expanded="${state.doneOpen}">
+  <span class="sp-caret${state.doneOpen ? ' is-open' : ''}" aria-hidden="true">▸</span>${esc(t('spTrayDone', 'Placed'))} <span class="sp-count">${done.length}</span>
+</button>`;
+            if (state.doneOpen) html += group(done);
+        }
+        el.innerHTML = html;
+        el.scrollTop = scroll;
+        renderInspector();
+    }
+
+    function renderInspector() {
+        const el = $('spInspector');
+        if (!el) return;
+        const demand = state.selected ? M.demandById.get(state.selected) : null;
+        if (!demand) {
+            el.hidden = true;
+            el.innerHTML = '';
+            return;
+        }
+        const asg = M.asgByDemand.get(demand.demandId);
+        const meetings = asg ? (asg.meetings || []).slice().sort((a, b) => a.dow - b.dow || Number(a.period) - Number(b.period)) : [];
+        const roomOpts = (cur) => `<option value="">${esc(t('spNoRoom', 'No room'))}</option>`
+            + M.rooms.map((r) => `<option value="${esc(r.id)}"${r.id === cur ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
+        el.hidden = false;
+        el.innerHTML = `
+<div class="sp-insp-head" style="--c:${esc(demandColor(M, demand))}">
+  <strong>${esc(classLabel(M, demand))}</strong>
+  <button type="button" class="sp-icon-btn" data-act="deselect" aria-label="${esc(t('spClose', 'Close'))}">×</button>
+</div>
+<label class="sp-field">
+  <span>${esc(t('spTeacher', 'Teacher'))}</span>
+  <select class="field-select" data-change="class-teacher">
+    <option value="">${esc(t('spNoTeacher', 'No teacher'))}</option>
+    ${M.teachers.map((p) => `<option value="${esc(p.id)}"${asg && asg.teacherProfileId === p.id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}
+  </select>
+</label>
+<div class="sp-field">
+  <span>${esc(t('spPlacedPeriods', 'Periods'))} <em>${meetings.length}/${demandNeed(demand)}</em></span>
+  ${meetings.length ? `<ul class="sp-insp-list">${meetings.map((m) => `
+    <li>
+      <button type="button" class="sp-link" data-act="jump-slot" data-dow="${m.dow}" data-period="${esc(m.period)}">${esc(slotText(M, m.dow, m.period))}</button>
+      ${M.rooms.length ? `<select class="field-select sp-room-select" data-change="meeting-room" data-dow="${m.dow}" data-period="${esc(m.period)}" aria-label="${esc(t('spRoom', 'Room'))}">${roomOpts(api().meetingRoomId(asg, m))}</select>` : ''}
+      <button type="button" class="sp-icon-btn" data-act="remove-period" data-asg="${esc(asg.assignmentId)}" data-dow="${m.dow}" data-period="${esc(m.period)}" aria-label="${esc(t('spRemovePeriod', 'Take off the board'))}">×</button>
+    </li>`).join('')}</ul>` : `<p class="sp-empty">${esc(t('spInspDragHint', 'Drag this class onto the board to give it a time.'))}</p>`}
+</div>`;
+    }
+
+    function colHeader(m, col) {
+        if (col.teacher) {
+            const load = (m.draft.metrics.teacherLoads || {})[col.id] || { assigned: 0, max: col.teacher.limits.maxPeriodsPerWeek };
+            const max = load.max || 0;
+            const pct = max ? Math.min(100, Math.round((load.assigned / max) * 100)) : 0;
+            const over = max && load.assigned > max;
+            return `
+<span class="sp-col-name">${esc(col.name)}</span>
+<span class="sp-col-meta"><span class="sp-role sp-role--${esc(col.teacher.role)}">${esc(col.teacher.role === 'native' ? t('spRoleNativeShort', 'NT') : t('spRoleKoreanShort', 'KT'))}</span>
+<span class="sp-load${over ? ' is-over' : ''}" title="${esc(t('spLoadTitle', 'Periods this week / weekly limit'))}"><span class="sp-load-bar"><span style="width:${pct}%"></span></span>${load.assigned}/${max}</span></span>`;
+        }
+        if (col.cohort) {
+            const c = col.cohort;
+            return `
+<span class="sp-col-name"><span class="sp-swatch" style="background:${esc(c.color || '#94a3b8')}"></span>${esc(col.name)}</span>
+<span class="sp-col-meta">${esc(bandLabel(c.band))}${c.homeroom ? ` · ${esc(c.homeroom)}` : ''}</span>`;
+        }
+        if (col.room) {
+            return `
+<span class="sp-col-name">${esc(col.name)}</span>
+<span class="sp-col-meta">${col.room.capacity ? esc(t('spSeats', '{n} seats', { n: col.room.capacity })) : '&nbsp;'}</span>`;
+        }
+        return `<span class="sp-col-name sp-col-name--none">${esc(col.name)}</span><span class="sp-col-meta">&nbsp;</span>`;
+    }
+
+    function bandLabel(band) {
+        if (band === 'junior') return t('plannerJunior', 'Junior');
+        if (band === 'middle') return t('plannerMiddle', 'Middle');
+        return t('plannerSenior', 'Senior');
+    }
+
+    function tileHtml(m, tile) {
+        const { asg, m: meeting, demand } = tile;
+        const bits = [];
+        const cohort = demandCohortLabel(m, demand);
+        const teacher = teacherName(m, asg.teacherProfileId);
+        const room = roomName(m, tile.roomId);
+        if (state.view !== 'cohorts' && cohort && !demand.name.toLowerCase().includes(cohort.toLowerCase())) bits.push(cohort);
+        if (state.view !== 'teachers') bits.push(teacher || t('spNoTeacher', 'No teacher'));
+        if (state.view !== 'rooms' && room) bits.push(room);
+        const why = [];
+        if (tile.clash.includes('teacher')) why.push(reasonText('teacher_double_booked'));
+        if (tile.clash.includes('cohort')) why.push(reasonText('cohort_double_booked'));
+        if (tile.clash.includes('room')) why.push(reasonText('room_double_booked'));
+        (tile.warn || []).forEach((code) => {
+            why.push(code === 'outside_band_block' ? reasonText('out_of_block')
+                : code === 'outside_cohort_days' ? reasonText('outside_cohort_days')
+                    : t('spWhyTeacherOffOrHours', 'Teacher is not available or off hours then'));
+        });
+        const sel = state.selected === demand.demandId;
+        const key = `${asg.assignmentId}|${tile.slot}`;
+        return `
+<div class="sp-tile${tile.clash.length ? ' is-clash' : ''}${tile.warn ? ' is-warn' : ''}${sel ? ' is-selected' : ''}${state.selected && !sel ? ' is-dim' : ''}${flash === key ? ' is-flash' : ''}"
+  data-drag="tile" data-asg="${esc(asg.assignmentId)}" data-demand="${esc(demand.demandId)}" data-dow="${Number(meeting.dow)}" data-period="${esc(meeting.period)}"
+  style="--c:${esc(demandColor(m, demand))}"${why.length ? ` title="${esc(why.join(' · '))}"` : ''}>
+  <span class="sp-tile-name">${why.length ? '<span class="sp-tile-flag" aria-hidden="true">!</span>' : ''}${esc(demand.name)}</span>
+  ${bits.length ? `<span class="sp-tile-sub">${esc(bits.join(' · '))}</span>` : ''}
+  <button type="button" class="sp-tile-x" data-act="remove-period" data-asg="${esc(asg.assignmentId)}" data-dow="${Number(meeting.dow)}" data-period="${esc(meeting.period)}" aria-label="${esc(t('spRemovePeriod', 'Take off the board'))}">×</button>
+</div>`;
+    }
+
+    function cellHtml(m, col, dow, row) {
+        const key = `${col.id}|${dow}|${row.period}`;
+        const tiles = m.cellTiles.get(key) || [];
+        let cls = 'sp-cell';
+        let label = '';
+        if (col.teacher) {
+            const blocked = api().isSlotBlocked(col.teacher, dow, row.period, m.data.plannerState.blockouts);
+            if (blocked) {
+                cls += ' is-blocked';
+                label = t('spBlocked', 'Not available');
+            } else if (api().outsideTeacherHours(m.data, col.teacher, row.period)) {
+                cls += ' is-blocked';
+                label = t('spOffHours', 'Off hours');
+            }
+        }
+        if (col.cohort && col.cohort.days.length && !col.cohort.days.includes(dow)) cls += ' is-offday';
+        if (col.none) cls += ' is-none';
+        return `<td class="${cls}" data-cell="1" data-col="${esc(col.id)}" data-dow="${dow}" data-period="${esc(row.period)}">${tiles.map((x) => tileHtml(m, x)).join('')}${!tiles.length && label ? `<span class="sp-cell-label">${esc(label)}</span>` : ''}</td>`;
+    }
+
+    function renderBoard() {
+        const el = $('spBoard');
+        if (!el) return;
+        const scroller = el.querySelector('.sp-board-scroll');
+        const keep = scroller ? { x: scroller.scrollLeft, y: scroller.scrollTop } : null;
+        M.cellTiles = cellMap(M, state.view);
+        const cols = columnsFor(M, state.view);
+        const real = cols.filter((c) => !c.none);
+        let html = '';
+
+        if (!real.length) {
+            const msg = state.view === 'teachers'
+                ? t('spEmptyTeachers', 'No teachers yet. Add them in Setup, then drag classes onto their columns.')
+                : state.view === 'rooms'
+                    ? t('spEmptyRooms', 'No rooms yet. Add your classrooms in Setup, then drag classes into them.')
+                    : t('spEmptyCohorts', 'No cohorts on this calendar yet. Create them on the Cohorts tab of the calendar.');
+            el.innerHTML = `<div class="sp-board-empty"><p>${esc(msg)}</p>${state.view !== 'cohorts' ? `<button type="button" class="btn btn-primary btn-small" data-act="open-setup" data-tab="${state.view}">${esc(t('spOpenSetup', 'Open Setup'))}</button>` : ''}</div>`;
+            return;
+        }
+
+        const timeCell = (row, i) => {
+            const split = i > 0 && M.periods[i - 1].band !== row.band;
+            return `<th scope="row" class="sp-time${split ? ' is-split' : ''}"><span class="sp-time-num">${esc(row.period)}</span><span class="sp-time-clock">${esc(row.start)}${row.end ? `<br>${esc(row.end)}` : ''}</span></th>`;
+        };
+
+        if (state.day === 0) {
+            const focusId = state.focus[state.view];
+            const col = cols.find((c) => c.id === focusId) || cols[0];
+            html += `<div class="sp-focus" role="tablist" aria-label="${esc(t('spFocusLabel', 'Show the week for'))}">${cols.map((c) => {
+                const count = M.tiles.filter((x) => tileColumns(x, state.view).includes(c.id)).length;
+                if (c.none && !count) return '';
+                return `<button type="button" role="tab" class="sp-focus-pill${c.id === col.id ? ' is-active' : ''}" data-sp-focus="${esc(c.id)}" aria-selected="${c.id === col.id}">${c.cohort ? `<span class="sp-swatch" style="background:${esc(c.cohort.color || '#94a3b8')}"></span>` : ''}${esc(c.name)} <span class="sp-count">${count}</span></button>`;
+            }).join('')}</div>`;
+            html += `<div class="sp-board-scroll"><table class="sp-grid sp-grid--week"><thead><tr><th class="sp-corner"><div class="sp-colhead">${colHeader(M, col)}</div></th>${DAYS.map((d) => {
+                const off = col.cohort && col.cohort.days.length && !col.cohort.days.includes(d);
+                return `<th scope="col" class="sp-dayhead${off ? ' is-offday' : ''}">${esc(dayLabel(d))}</th>`;
+            }).join('')}</tr></thead><tbody>${M.periods.map((row, i) => `<tr class="${i > 0 && M.periods[i - 1].band !== row.band ? 'is-split' : ''}">${timeCell(row, i)}${DAYS.map((d) => cellHtml(M, col, d, row)).join('')}</tr>`).join('')}</tbody></table></div>`;
+        } else {
+            const d = state.day;
+            html += `<div class="sp-board-scroll"><table class="sp-grid sp-grid--day" style="--cols:${cols.length}"><thead><tr><th class="sp-corner">${esc(dayLabel(d))}</th>${cols.map((c) => {
+                const off = c.cohort && c.cohort.days.length && !c.cohort.days.includes(d);
+                return `<th scope="col" class="sp-colth${off ? ' is-offday' : ''}${c.none ? ' is-none' : ''}"><div class="sp-colhead">${colHeader(M, c)}</div></th>`;
+            }).join('')}</tr></thead><tbody>${M.periods.map((row, i) => `<tr class="${i > 0 && M.periods[i - 1].band !== row.band ? 'is-split' : ''}">${timeCell(row, i)}${cols.map((c) => cellHtml(M, c, d, row)).join('')}</tr>`).join('')}</tbody></table></div>`;
+        }
+        el.innerHTML = html;
+        const next = el.querySelector('.sp-board-scroll');
+        if (next && keep) {
+            next.scrollLeft = keep.x;
+            next.scrollTop = keep.y;
+        }
+    }
+
+    function renderIssues() {
+        const wrap = $('spIssues');
+        if (!wrap) return;
+        const groups = groupedIssues(M);
+        const total = groups.reduce((n, g) => n + g.items.length, 0);
+        wrap.classList.toggle('is-collapsed', !state.issuesOpen);
+        const titles = {
+            clash: t('spGroupClash', 'Clashes'),
+            todo: t('spGroupTodo', 'Still to do'),
+            warn: t('spGroupWarn', 'Worth a look'),
+            room: t('spGroupRoom', 'Rooms')
+        };
+        wrap.innerHTML = `
+<button type="button" class="sp-issues-head" data-act="toggle-issues" aria-expanded="${state.issuesOpen}">
+  <span>${esc(t('spIssuesTitle', 'To fix'))}</span><span class="sp-count${groups[0].items.length ? ' is-bad' : ''}">${total}</span>
+  <span class="sp-caret${state.issuesOpen ? ' is-open' : ''}" aria-hidden="true">▸</span>
+</button>
+${state.issuesOpen ? `<div class="sp-issues-body">${total ? groups.filter((g) => g.items.length).map((g) => `
+<section class="sp-issue-group sp-issue-group--${g.id}">
+  <h3>${esc(titles[g.id])} <span class="sp-count">${g.items.length}</span></h3>
+  <ul>${g.items.slice(0, 40).map((x) => `<li><button type="button" class="sp-issue" data-act="jump-issue" data-issue="${esc(x.issue.id)}">${esc(x.text)}</button></li>`).join('')}</ul>
+</section>`).join('') : `<p class="sp-empty">${esc(t('spIssuesNone', 'Nothing to fix. Check the board, then press Apply to calendar.'))}</p>`}</div>` : ''}`;
+    }
+
+    /* ------------------------------------------------------------ navigation */
+
+    function flashTile(assignmentId, dow, period) {
+        flash = `${assignmentId}|${Number(dow)}|${String(period)}`;
+        setTimeout(() => {
+            flash = null;
+            document.querySelectorAll('.sp-tile.is-flash').forEach((el) => el.classList.remove('is-flash'));
+        }, 1600);
+    }
+
+    function showSlot(demandId, dow, period) {
+        const asg = M.asgByDemand.get(demandId);
+        if (dow != null) {
+            if (state.day !== 0) state.day = Number(dow);
+        }
+        if (asg && state.day === 0) {
+            const demand = M.demandById.get(demandId);
+            const m = (asg.meetings || []).find((x) => Number(x.dow) === Number(dow) && String(x.period) === String(period));
+            if (state.view === 'teachers') state.focus.teachers = asg.teacherProfileId || NONE;
+            else if (state.view === 'rooms') state.focus.rooms = (m && api().meetingRoomId(asg, m)) || NONE;
+            else state.focus.cohorts = (demand.cohortIds || []).find((id) => M.cohortById.has(id)) || NONE;
+        }
+        state.selected = demandId;
+        if (asg && dow != null) flashTile(asg.assignmentId, dow, period);
+        savePrefs();
+        render();
+        const el = document.querySelector('.sp-tile.is-flash');
+        if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    }
+
+    function jumpToIssue(issueId) {
+        const issue = (M.draft.issues || []).find((i) => i.id === issueId);
+        if (!issue) return;
+        let demandId = issue.demandId;
+        const asg = issue.assignmentId ? M.draft.assignments.find((a) => a.assignmentId === issue.assignmentId) : null;
+        if (!demandId && asg) demandId = asg.demandId;
+        if (issue.code === 'room_conflict' || issue.code === 'room_unresolved') {
+            if (M.rooms.length) state.view = 'rooms';
+        } else if (issue.code === 'cohort_double_booked' || issue.code === 'outside_cohort_days') {
+            state.view = 'cohorts';
+        } else if (issue.teacherProfileId) {
+            state.view = 'teachers';
+        }
+        let dow = issue.dow;
+        let period = issue.period;
+        if (dow == null && asg && asg.meetings && asg.meetings[0]) {
+            dow = asg.meetings[0].dow;
+            period = asg.meetings[0].period;
+        }
+        if (!demandId) {
+            // Teacher-level issue (over the limit): show that teacher's week.
+            if (issue.teacherProfileId) {
+                state.view = 'teachers';
+                if (issue.dow != null) state.day = Number(issue.dow);
+                else {
+                    state.day = 0;
+                    state.focus.teachers = issue.teacherProfileId;
+                }
+            }
+            savePrefs();
+            render();
+            return;
+        }
+        if (state.band !== 'all') {
+            const demand = M.demandById.get(demandId);
+            if (demand && demand.band !== state.band) state.band = 'all';
+        }
+        showSlot(demandId, dow, period);
+    }
+
+    /* ------------------------------------------------------------- drag: drop */
+
+    function cellInfo(cell) {
+        return {
+            col: cell.getAttribute('data-col'),
+            dow: Number(cell.getAttribute('data-dow')),
+            period: cell.getAttribute('data-period')
+        };
+    }
+
+    /** What would happen if the held class were dropped on this cell. */
+    function evaluateDrop(d, target) {
+        const P = api();
+        const demand = M.demandById.get(d.demandId);
+        if (!demand) return { ok: false, level: 'bad', hint: reasonText('missing_context') };
+        const view = state.view;
+        const to = { dow: target.dow, period: target.period };
+        if (view === 'teachers') to.teacherProfileId = target.col === NONE ? null : target.col;
+        if (view === 'rooms') to.roomId = target.col === NONE ? '' : target.col;
+        let stays = '';
+        if (view === 'cohorts') {
+            // A class keeps its own cohort: dropped on another column it takes that time in its own.
+            const mine = (demand.cohortIds || []).filter((id) => M.cohortById.has(id));
+            const belongs = target.col === NONE ? !mine.length : mine.includes(target.col);
+            if (!belongs) {
+                target = Object.assign({}, target, { col: mine[0] || NONE });
+                stays = t('spHintOwnCohort', 'Goes in its own column ({name})', {
+                    name: mine[0] ? M.cohortById.get(mine[0]).name : t('spNoCohort', 'No cohort')
+                });
+            }
+        }
+        const key = `${target.col}|${target.dow}|${target.period}`;
+        const here = M.cellTiles.get(key) || [];
+        if (d.kind === 'tile' && here.some((x) => x.asg.assignmentId === d.assignmentId
+            && Number(x.m.dow) === d.dow && String(x.m.period) === String(d.period))) {
+            return { same: true, ok: false, level: 'same', hint: '' };
+        }
+        const others = here.filter((x) => x.asg.assignmentId !== d.assignmentId);
+        let check;
+        let run;
+        let lead = '';
+        if (d.kind === 'tile' && others.length === 1) {
+            const a = { assignmentId: d.assignmentId, dow: d.dow, period: d.period };
+            const b = { assignmentId: others[0].asg.assignmentId, dow: Number(others[0].m.dow), period: String(others[0].m.period) };
+            const mode = view === 'teachers' ? 'teachers' : view === 'rooms' ? 'rooms' : 'time';
+            check = P.checkSwap(M.data, M.draft, a, b, mode);
+            run = (data, draft) => P.swapPeriods(data, draft, a, b, mode);
+            lead = t('spHintSwap', 'Swap with {name}', { name: others[0].demand.name });
+        } else if (d.kind === 'tile') {
+            const from = { dow: d.dow, period: d.period };
+            check = P.checkSlot(M.data, M.draft, d.demandId,
+                Object.assign({}, to, { ignore: [{ assignmentId: d.assignmentId, dow: d.dow, period: d.period }] }), M.ctx);
+            run = (data, draft) => P.movePeriodTo(data, draft, d.assignmentId, from, to);
+        } else {
+            check = P.checkSlot(M.data, M.draft, d.demandId, to, M.ctx);
+            run = (data, draft) => P.placePeriod(data, draft, d.demandId, to);
+        }
+        if (!check.ok) {
+            return { ok: false, level: 'bad', hint: reasonText(check.reasons[0], { need: demand.teacherRequirementType }) };
+        }
+        const soft = (check.softReasons || []).filter((r) => r !== 'teacher_reassigned');
+        const hints = soft.map((r) => reasonText(r, { need: demand.teacherRequirementType }));
+        if (check.warnOutOfBlock) hints.push(reasonText('out_of_block'));
+        const info = [];
+        if (stays) info.push(stays);
+        if (lead) info.push(lead);
+        if (check.teacherChanges && view === 'teachers' && !lead) {
+            info.push(reasonText('teacher_reassigned', { teacher: teacherName(M, to.teacherProfileId) }));
+        }
+        return {
+            ok: true,
+            level: hints.length ? 'warn' : 'ok',
+            hint: info.concat(hints).join(' · '),
+            run,
+            landing: { dow: target.dow, period: target.period }
+        };
+    }
+
+    function markTargets() {
+        if (!drag) return;
+        drag.cache = new Map();
+        document.querySelectorAll('#spBoard [data-cell]').forEach((cell) => {
+            const info = cellInfo(cell);
+            const res = evaluateDrop(drag, info);
+            drag.cache.set(`${info.col}|${info.dow}|${info.period}`, res);
+            cell.setAttribute('data-drop', res.level);
+        });
+    }
+
+    function clearTargets() {
+        document.querySelectorAll('[data-drop]').forEach((el) => el.removeAttribute('data-drop'));
+        document.querySelectorAll('.is-over').forEach((el) => el.classList.remove('is-over'));
+    }
+
+    /* ----------------------------------------------------------- drag: engine */
+
+    function beginDrag(e) {
+        const src = pending.src;
+        const rect = src.getBoundingClientRect();
+        const kind = src.getAttribute('data-drag');
+        const ghost = src.cloneNode(true);
+        ghost.classList.add('sp-ghost');
+        ghost.classList.remove('is-dim', 'is-selected', 'is-flash');
+        ghost.removeAttribute('data-drag');
+        ghost.style.width = `${Math.min(Math.max(rect.width, 120), 220)}px`;
+        const hint = document.createElement('div');
+        hint.className = 'sp-ghost-hint';
+        hint.hidden = true;
+        const holder = document.createElement('div');
+        holder.className = 'sp-ghost-holder';
+        holder.appendChild(ghost);
+        holder.appendChild(hint);
+        document.body.appendChild(holder);
+        drag = {
+            kind,
+            demandId: src.getAttribute('data-demand'),
+            assignmentId: src.getAttribute('data-asg') || null,
+            dow: kind === 'tile' ? Number(src.getAttribute('data-dow')) : null,
+            period: kind === 'tile' ? src.getAttribute('data-period') : null,
+            holder,
+            hint,
+            dx: Math.min(e.clientX - rect.left, 200),
+            dy: Math.min(e.clientY - rect.top, 40),
+            over: null,
+            x: e.clientX,
+            y: e.clientY,
+            pointerId: pending.id
+        };
+        pending = null;
+        src.classList.add('is-drag-source');
+        document.body.classList.add('sp-dragging');
+        document.body.classList.toggle('sp-dragging-tile', kind === 'tile');
+        markTargets();
+        moveDrag(e);
+        drag.raf = requestAnimationFrame(autoScroll);
+    }
+
+    function sourceEl() {
+        if (!drag) return null;
+        if (drag.kind === 'tile') {
+            return document.querySelector(`.sp-tile[data-asg="${CSS.escape(drag.assignmentId)}"][data-dow="${drag.dow}"][data-period="${CSS.escape(String(drag.period))}"]`);
+        }
+        return document.querySelector(`.sp-card[data-demand="${CSS.escape(drag.demandId)}"]`);
+    }
+
+    function setHint(text, level) {
+        if (!drag) return;
+        drag.hint.hidden = !text;
+        drag.hint.textContent = text || '';
+        drag.hint.setAttribute('data-level', level || 'ok');
+    }
+
+    function moveDrag(e) {
+        drag.x = e.clientX;
+        drag.y = e.clientY;
+        drag.holder.style.transform = `translate(${e.clientX - drag.dx}px, ${e.clientY - drag.dy}px)`;
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        const cell = el && el.closest ? el.closest('#spBoard [data-cell]') : null;
+        const tray = !cell && el && el.closest ? el.closest('#spTray') : null;
+        const hop = !cell && el && el.closest ? el.closest('[data-sp-day], [data-sp-focus]') : null;
+        const over = cell || (tray && drag.kind === 'tile' ? tray : null) || hop || null;
+        if (over !== drag.over) {
+            if (drag.over) drag.over.classList.remove('is-over');
+            clearTimeout(drag.hopTimer);
+            drag.over = over;
+            if (over) over.classList.add('is-over');
+            if (hop) {
+                // Hold over a day or a name to turn the page while carrying a class.
+                drag.hopTimer = setTimeout(() => {
+                    if (!drag || drag.over !== hop) return;
+                    if (hop.hasAttribute('data-sp-day')) state.day = Number(hop.getAttribute('data-sp-day'));
+                    else state.focus[state.view] = hop.getAttribute('data-sp-focus');
+                    renderToolbar();
+                    renderBoard();
+                    const src = sourceEl();
+                    if (src) src.classList.add('is-drag-source');
+                    drag.over = null;
+                    markTargets();
+                }, 480);
+            }
+        }
+        if (cell) {
+            const info = cellInfo(cell);
+            const res = (drag.cache && drag.cache.get(`${info.col}|${info.dow}|${info.period}`)) || evaluateDrop(drag, info);
+            setHint(res.hint, res.level);
+        } else if (tray && drag.kind === 'tile') {
+            setHint(t('spHintRemove', 'Take off the board'), 'ok');
+        } else {
+            setHint('', 'ok');
+        }
+    }
+
+    function autoScroll() {
+        if (!drag) return;
+        const sc = document.querySelector('#spBoard .sp-board-scroll');
+        if (sc) {
+            const r = sc.getBoundingClientRect();
+            const edge = 48;
+            const speed = 14;
+            if (drag.y > r.top && drag.y < r.bottom) {
+                if (drag.x > r.right - edge && drag.x < r.right + 20) sc.scrollLeft += speed;
+                else if (drag.x < r.left + edge + 56 && drag.x > r.left - 20) sc.scrollLeft -= speed;
+            }
+            if (drag.x > r.left && drag.x < r.right) {
+                if (drag.y > r.bottom - edge && drag.y < r.bottom + 20) sc.scrollTop += speed;
+                else if (drag.y < r.top + edge + 40 && drag.y > r.top - 20) sc.scrollTop -= speed;
+            }
+        }
+        drag.raf = requestAnimationFrame(autoScroll);
+    }
+
+    function endDrag(e, cancelled) {
+        if (!drag) return;
+        const d = drag;
+        cancelAnimationFrame(d.raf);
+        clearTimeout(d.hopTimer);
+        let action = null;
+        if (!cancelled && e) {
+            const el = document.elementFromPoint(e.clientX, e.clientY);
+            const cell = el && el.closest ? el.closest('#spBoard [data-cell]') : null;
+            const tray = !cell && el && el.closest ? el.closest('#spTray') : null;
+            if (cell) {
+                const res = evaluateDrop(d, cellInfo(cell));
+                if (res.ok) action = res;
+                else if (!res.same && res.hint) notice(res.hint, 'error');
+            } else if (tray && d.kind === 'tile') {
+                action = {
+                    run: (data, draft) => api().removePeriod(data, draft, d.assignmentId, d.dow, d.period)
+                };
+            }
+        }
+        d.holder.remove();
+        drag = null;
+        clearTargets();
+        document.body.classList.remove('sp-dragging', 'sp-dragging-tile');
+        document.querySelectorAll('.is-drag-source').forEach((x) => x.classList.remove('is-drag-source'));
+        if (action) {
+            if (action.landing) {
+                const asg = d.assignmentId ? { assignmentId: d.assignmentId } : null;
+                const res = mutate(action.run);
+                const id = (res && res.assignmentId) || (asg && asg.assignmentId);
+                if (res && res.ok !== false && id) {
+                    flashTile(id, action.landing.dow, action.landing.period);
+                    render();
+                }
+            } else {
+                mutate(action.run);
+            }
+        } else if (renderQueued) {
+            render();
+        }
+    }
+
+    /* ------------------------------------------------- drag to reorder (setup) */
+
+    function beginSort(e) {
+        const item = pending.src.closest('[data-sort-item]');
+        const list = item && item.parentElement;
+        if (!item || !list) {
+            pending = null;
+            return;
+        }
+        const rect = item.getBoundingClientRect();
+        const ghost = item.cloneNode(true);
+        ghost.classList.add('sp-sort-ghost');
+        ghost.style.width = `${rect.width}px`;
+        ghost.style.height = `${rect.height}px`;
+        document.body.appendChild(ghost);
+        item.classList.add('is-sort-source');
+        sort = { item, list, ghost, dy: e.clientY - rect.top, left: rect.left, kind: list.getAttribute('data-sort-list') };
+        pending = null;
+        document.body.classList.add('sp-dragging');
+        moveSort(e);
+    }
+
+    function moveSort(e) {
+        const { item, list, ghost } = sort;
+        ghost.style.transform = `translate(${sort.left}px, ${e.clientY - sort.dy}px)`;
+        const items = Array.from(list.querySelectorAll(':scope > [data-sort-item]'));
+        const before = new Map(items.map((el) => [el, el.getBoundingClientRect().top]));
+        const others = items.filter((el) => el !== item);
+        let ref = null;
+        for (let i = 0; i < others.length; i += 1) {
+            const r = others[i].getBoundingClientRect();
+            if (e.clientY < r.top + r.height / 2) {
+                ref = others[i];
+                break;
+            }
+        }
+        if ((ref || null) === (item.nextElementSibling || null)) return;
+        list.insertBefore(item, ref);
+        // The other rows slide out of the way.
+        items.forEach((el) => {
+            if (el === item) return;
+            const delta = before.get(el) - el.getBoundingClientRect().top;
+            if (!delta) return;
+            el.style.transition = 'none';
+            el.style.transform = `translateY(${delta}px)`;
+            requestAnimationFrame(() => {
+                el.style.transition = 'transform 160ms ease';
+                el.style.transform = '';
+            });
+        });
+    }
+
+    function endSort() {
+        if (!sort) return;
+        const s = sort;
+        const ids = Array.from(s.list.querySelectorAll(':scope > [data-sort-item]')).map((el) => el.getAttribute('data-sort-item'));
+        const target = s.item.getBoundingClientRect();
+        s.ghost.style.transition = 'transform 140ms ease';
+        s.ghost.style.transform = `translate(${target.left}px, ${target.top}px)`;
+        setTimeout(() => {
+            s.ghost.remove();
+            s.item.classList.remove('is-sort-source');
+        }, 150);
+        sort = null;
+        document.body.classList.remove('sp-dragging');
+        const data = M.data;
+        if (s.kind === 'teachers') {
+            data.plannerState.teacherBoard.panelOrder = ids;
+        } else if (s.kind === 'rooms') {
+            ids.forEach((id, i) => {
+                const room = data.rooms.find((r) => r.id === id);
+                if (room) room.sortOrder = i + 1;
+            });
+        }
+        markDirty();
+        setTimeout(render, 160);
+    }
+
+    /* ---------------------------------------------------------- pointer wiring */
+
+    function onPointerDown(e) {
+        if (e.button != null && e.button !== 0) return;
+        const handle = e.target.closest && e.target.closest('[data-sort-handle]');
+        if (handle) {
+            if (readOnly()) return;
+            pending = { src: handle, x: e.clientX, y: e.clientY, id: e.pointerId, sort: true };
+            e.preventDefault();
+            return;
+        }
+        const src = e.target.closest && e.target.closest('[data-drag]');
+        if (!src || e.target.closest('button, select, input, a, textarea')) return;
+        if (readOnly()) return;
+        pending = { src, x: e.clientX, y: e.clientY, id: e.pointerId, touch: e.pointerType === 'touch' };
+        if (pending.touch) {
+            pending.timer = setTimeout(() => {
+                if (pending && pending.src === src) beginDrag({ clientX: pending.x, clientY: pending.y });
+            }, 180);
+        }
+    }
+
+    function onPointerMove(e) {
+        if (sort) {
+            e.preventDefault();
+            moveSort(e);
+            return;
+        }
+        if (drag) {
+            e.preventDefault();
+            moveDrag(e);
+            return;
+        }
+        if (!pending) return;
+        const dist = Math.hypot(e.clientX - pending.x, e.clientY - pending.y);
+        if (pending.sort) {
+            if (dist > 3) beginSort(e);
+            return;
+        }
+        if (pending.touch) {
+            pending.x = e.clientX;
+            pending.y = e.clientY;
+            return;
+        }
+        if (dist > 5) beginDrag(e);
+    }
+
+    function onPointerUp(e) {
+        if (pending) {
+            clearTimeout(pending.timer);
+            pending = null;
+        }
+        if (sort) endSort();
+        if (drag) {
+            drag.justEnded = true;
+            suppressClick = true;
+            setTimeout(() => { suppressClick = false; }, 0);
+            endDrag(e, e.type === 'pointercancel');
+        }
+    }
+    let suppressClick = false;
+
+    /* ----------------------------------------------------------------- setup */
+
+    function openSetup(tab) {
+        if (tab && ['teachers', 'rooms', 'classes'].includes(tab)) state.setupTab = tab;
+        state.setupOpen = true;
+        const dlg = $('spSetup');
+        if (dlg) dlg.hidden = false;
+        document.body.classList.add('sp-modal-open');
+        renderSetup();
+        const first = dlg && dlg.querySelector('[data-setup-tab].is-active');
+        if (first) first.focus();
+    }
+
+    function closeSetup() {
+        state.setupOpen = false;
+        state.openBlockGrid = null;
+        const dlg = $('spSetup');
+        if (dlg) dlg.hidden = true;
+        document.body.classList.remove('sp-modal-open');
+        render();
+    }
+
+    function blockGrid(m, ownerId) {
+        const everyone = ownerId === 'everyone';
+        const profile = everyone ? null : m.teacherById.get(ownerId);
+        const g = m.data.plannerState.blockouts || {};
+        const isOn = (dow, period) => (everyone
+            ? (g.globalUnavailableSlots || []).some((s) => Number(s.dow) === dow && String(s.period) === period)
+            : (profile.availability.unavailableSlots || []).some((s) => Number(s.dow) === dow && String(s.period) === period));
+        return `
+<div class="sp-blockgrid" role="group" aria-label="${esc(t('spBlockGridLabel', 'Times not available'))}">
+  <p class="sp-hint">${esc(everyone
+        ? t('spBlockHintEveryone', 'Click the times when nobody should teach (staff meeting, dinner). A class dropped there gets a warning.')
+        : t('spBlockHintTeacher', 'Click the times this teacher cannot teach. A class dropped there gets a warning.'))}</p>
+  <table><thead><tr><th></th>${DAYS.map((d) => `<th>${esc(dayLabel(d))}</th>`).join('')}</tr></thead>
+  <tbody>${m.periods.map((row) => `<tr><th>${esc(row.start || row.period)}</th>${DAYS.map((d) => {
+        const on = isOn(d, row.period);
+        return `<td><button type="button" class="sp-block${on ? ' is-on' : ''}" data-act="toggle-block" data-owner="${esc(ownerId)}" data-dow="${d}" data-period="${esc(row.period)}" aria-pressed="${on}" aria-label="${esc(`${dayLabel(d)} ${row.start || row.period}`)}"></button></td>`;
+    }).join('')}</tr>`).join('')}</tbody></table>
+</div>`;
+    }
+
+    function renderSetup() {
+        const body = $('spSetupBody');
+        if (!body || !M) return;
+        const keep = body.scrollTop;
+        document.querySelectorAll('[data-setup-tab]').forEach((b) => {
+            const on = b.getAttribute('data-setup-tab') === state.setupTab;
+            b.classList.toggle('is-active', on);
+            b.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        const grip = `<button type="button" class="sp-grip" data-sort-handle aria-label="${esc(t('spDragToReorder', 'Drag to reorder'))}" title="${esc(t('spDragToReorder', 'Drag to reorder'))}"><span aria-hidden="true">⋮⋮</span></button>`;
+        let html = '';
+        if (state.setupTab === 'teachers') {
+            const g = M.data.plannerState.blockouts || {};
+            const everyoneCount = (g.globalUnavailableSlots || []).length;
+            html += `<p class="sp-hint">${esc(t('spSetupTeachersHint', 'Teachers on your classes are listed automatically. Drag to set the column order on the board. Clock-in, clock-out and times off only give warnings; a class can still be placed there.'))}</p>`;
+            html += `<div class="sp-rows" data-sort-list="teachers">${M.teachers.map((p) => {
+                const off = (p.availability.unavailableSlots || []).length;
+                const open = state.openBlockGrid === p.id;
+                return `
+<div class="sp-row" data-sort-item="${esc(p.id)}" data-teacher="${esc(p.id)}">
+  <div class="sp-row-main">
+    ${grip}
+    <input class="field-input sp-in-name" data-input="teacher-name" value="${esc(p.name)}" aria-label="${esc(t('spName', 'Name'))}">
+    <select class="field-select" data-change="teacher-role" aria-label="${esc(t('plannerRole', 'Role'))}">
+      <option value="korean"${p.role === 'korean' ? ' selected' : ''}>${esc(t('spRoleKoreanFull', 'Korean teacher'))}</option>
+      <option value="native"${p.role === 'native' ? ' selected' : ''}>${esc(t('spRoleNativeFull', 'Native teacher'))}</option>
+    </select>
+    <label class="sp-num"><span>${esc(t('spMaxWeek', 'Max / week'))}</span><input type="number" class="field-input" min="0" max="60" data-input="teacher-maxweek" value="${Number(p.limits.maxPeriodsPerWeek) || 0}"></label>
+    <label class="sp-num"><span>${esc(t('spMaxDay', 'Max / day'))}</span><input type="number" class="field-input" min="0" max="12" data-input="teacher-maxday" value="${Number(p.limits.maxPeriodsPerDay) || 0}"></label>
+    <label class="sp-num"><span>${esc(t('spClockIn', 'Clock in'))}</span><input type="time" class="field-input" data-input="teacher-workstart" value="${esc(p.availability.workStart || '')}"></label>
+    <label class="sp-num"><span>${esc(t('spClockOut', 'Clock out'))}</span><input type="time" class="field-input" data-input="teacher-workend" value="${esc(p.availability.workEnd || '')}"></label>
+    <span class="sp-chips" role="group" aria-label="${esc(t('spLevels', 'Levels taught'))}">
+      ${['junior', 'middle', 'senior'].map((b) => `<label class="sp-chip"><input type="checkbox" data-change="teacher-band" data-band="${b}"${p.limits[`${b}Allowed`] !== false ? ' checked' : ''}><span>${esc(bandLabel(b))}</span></label>`).join('')}
+    </span>
+    <button type="button" class="btn btn-outline btn-small${open ? ' is-active' : ''}" data-act="toggle-blockgrid" data-owner="${esc(p.id)}" aria-expanded="${open}">${esc(off ? t('spTimesOffN', 'Times off ({n})', { n: off }) : t('spTimesOff', 'Times off'))}</button>
+    <button type="button" class="sp-icon-btn" data-act="remove-teacher" aria-label="${esc(t('spRemoveTeacher', 'Remove {name}', { name: p.name }))}">×</button>
+  </div>
+  ${open ? blockGrid(M, p.id) : ''}
+</div>`;
+            }).join('')}</div>
+<div class="sp-setup-actions">
+  <button type="button" class="btn btn-outline btn-small" data-act="add-teacher">${esc(t('spAddTeacher', '+ Add teacher'))}</button>
+  <button type="button" class="btn btn-outline btn-small${state.openBlockGrid === 'everyone' ? ' is-active' : ''}" data-act="toggle-blockgrid" data-owner="everyone" aria-expanded="${state.openBlockGrid === 'everyone'}">${esc(everyoneCount ? t('spEveryoneOffN', 'Times blocked for everyone ({n})', { n: everyoneCount }) : t('spEveryoneOff', 'Times blocked for everyone'))}</button>
+</div>
+${state.openBlockGrid === 'everyone' ? blockGrid(M, 'everyone') : ''}`;
+        } else if (state.setupTab === 'rooms') {
+            html += `<p class="sp-hint">${esc(t('spSetupRoomsHint', 'Rooms are optional. Once you add them, drag classes into rooms on the Rooms sheet.'))}</p>`;
+            html += `<div class="sp-rows" data-sort-list="rooms">${M.rooms.map((r) => `
+<div class="sp-row" data-sort-item="${esc(r.id)}" data-room="${esc(r.id)}">
+  <div class="sp-row-main">
+    ${grip}
+    <input class="field-input sp-in-name" data-input="room-name" value="${esc(r.name)}" aria-label="${esc(t('spRoomName', 'Room name'))}">
+    <label class="sp-num"><span>${esc(t('spSeatsLabel', 'Seats'))}</span><input type="number" class="field-input" min="0" max="200" data-input="room-capacity" value="${r.capacity != null ? Number(r.capacity) : ''}"></label>
+    <button type="button" class="sp-icon-btn" data-act="remove-room" aria-label="${esc(t('spRemoveRoom', 'Remove {name}', { name: r.name }))}">×</button>
+  </div>
+</div>`).join('')}</div>
+<div class="sp-setup-actions"><button type="button" class="btn btn-outline btn-small" data-act="add-room">${esc(t('spAddRoom', '+ Add room'))}</button></div>`;
+        } else {
+            html += `<p class="sp-hint">${esc(t('spSetupClassesHint', 'How many periods a week each class needs, and which kind of teacher. Untick a class to leave it out of the plan.'))}</p>`;
+            const by = new Map();
+            M.allDemands.forEach((d) => {
+                const cid = (d.cohortIds || []).find((id) => M.cohortById.has(id)) || NONE;
+                if (!by.has(cid)) by.set(cid, []);
+                by.get(cid).push(d);
+            });
+            const ids = M.cohorts.map((c) => c.id).filter((id) => by.has(id));
+            if (by.has(NONE)) ids.push(NONE);
+            html += ids.length ? `<table class="sp-table"><thead><tr><th>${esc(t('spInPlan', 'In plan'))}</th><th>${esc(t('spClass', 'Class'))}</th><th>${esc(t('spPerWeek', 'Periods / week'))}</th><th>${esc(t('spTeacherType', 'Teacher'))}</th></tr></thead><tbody>${ids.map((cid) => `
+<tr class="sp-table-group"><th colspan="4">${esc(cid === NONE ? t('spNoCohort', 'No cohort') : M.cohortById.get(cid).name)}</th></tr>
+${by.get(cid).map((d) => `
+<tr data-class="${esc(d.classId)}"${d.includedInDraft === false ? ' class="is-off"' : ''}>
+  <td><input type="checkbox" data-change="class-include"${d.includedInDraft !== false ? ' checked' : ''} aria-label="${esc(t('spInPlan', 'In plan'))}"></td>
+  <td><span class="sp-swatch" style="background:${esc(demandColor(M, d))}"></span>${esc(d.name)}</td>
+  <td><input type="number" class="field-input sp-in-small" min="1" max="10" data-input="class-freq" value="${demandNeed(d)}" aria-label="${esc(t('spPerWeek', 'Periods / week'))}"></td>
+  <td><select class="field-select" data-change="class-type" aria-label="${esc(t('spTeacherType', 'Teacher'))}">
+    <option value="either"${d.teacherRequirementType === 'either' ? ' selected' : ''}>${esc(t('spTypeEither', 'Any teacher'))}</option>
+    <option value="korean"${d.teacherRequirementType === 'korean' ? ' selected' : ''}>${esc(t('spRoleKoreanFull', 'Korean teacher'))}</option>
+    <option value="native"${d.teacherRequirementType === 'native' ? ' selected' : ''}>${esc(t('spRoleNativeFull', 'Native teacher'))}</option>
+  </select></td>
+</tr>`).join('')}`).join('')}</tbody></table>` : `<p class="sp-empty">${esc(t('spTrayEmpty', 'No classes yet. Add classes on the calendar first, or open Setup to bring left-out classes back.'))}</p>`;
+        }
+        body.innerHTML = html;
+        body.scrollTop = keep;
+        body.classList.toggle('sp-locked', !!readOnly());
+    }
+
+    function setupEdit(fn) {
+        if (readOnly()) return;
+        fn(M.data);
+        markDirty();
+    }
+
+    /* ---------------------------------------------------------------- actions */
+
+    function confirmBox(message, okLabel) {
+        return new Promise((resolve) => {
+            const dlg = $('spConfirm');
+            if (!dlg) {
+                resolve(global.confirm ? global.confirm(message) : true);
+                return;
+            }
+            $('spConfirmText').textContent = message;
+            const ok = $('spConfirmOk');
+            ok.textContent = okLabel || t('spOk', 'OK');
+            dlg.hidden = false;
+            const done = (val) => {
+                dlg.hidden = true;
+                dlg.removeEventListener('click', onClick);
+                document.removeEventListener('keydown', onKey, true);
+                resolve(val);
+            };
+            function onClick(ev) {
+                const b = ev.target.closest('[data-confirm]');
+                if (b) done(b.getAttribute('data-confirm') === 'ok');
+                else if (ev.target === dlg) done(false);
+            }
+            function onKey(ev) {
+                if (ev.key === 'Escape') {
+                    ev.stopPropagation();
+                    done(false);
+                }
+            }
+            dlg.addEventListener('click', onClick);
+            document.addEventListener('keydown', onKey, true);
+            ok.focus();
+        });
+    }
+
+    async function loadFromCalendar() {
+        if (!M || readOnly()) return;
+        const has = M.draft.assignments.some((a) => a.source === 'manual');
+        if (has && !(await confirmBox(
+            t('spConfirmReload', 'Replace this plan with the times and teachers that are on the calendar now? You can undo this.'),
+            t('spReplace', 'Replace')
+        ))) return;
+        mutate((data) => {
+            const prev = getActiveDraft(data);
+            const draft = api().seedDraftFromCalendar(data, { label: 'From calendar' });
+            if (prev) draft.id = prev.id;
+            installDraft(data, draft);
+            return { ok: true };
+        });
+        notice(t('spLoaded', 'Plan loaded from the calendar.'), 'success');
+    }
+
+    function suggestTeachers() {
+        if (!M || readOnly()) return;
+        const before = M.draft.assignments.filter((a) => a.teacherProfileId).length;
+        mutate((data, draft) => {
+            // Keep everything already decided; only classes without a teacher are filled in.
+            const kept = draft.assignments
+                .filter((a) => a.teacherProfileId)
+                .map((a) => Object.assign({}, a, { manualKeep: true }));
+            const keptIds = new Set(kept.map((a) => a.demandId));
+            const loose = draft.assignments.filter((a) => !keptIds.has(a.demandId));
+            // The generator reads times from the class; lend it the planned times.
+            const classes = data.classes || [];
+            const saved = [];
+            loose.forEach((a) => {
+                const cls = classes.find((c) => c.id === a.classId);
+                if (!cls || !(a.meetings || []).length) return;
+                saved.push([cls, cls.meetingDays, cls.period, cls.periodByWeekday]);
+                cls.meetingDays = [...new Set(a.meetings.map((m) => Number(m.dow)))];
+                cls.periodByWeekday = {};
+                a.meetings.forEach((m) => { cls.periodByWeekday[String(m.dow)] = Number(m.period); });
+                cls.period = Number(a.meetings[0].period);
+            });
+            let next;
+            try {
+                next = api().generateDraft(data, { priorAssignments: kept, label: 'Plan', filters: {} });
+            } finally {
+                saved.forEach(([cls, days, period, byWd]) => {
+                    cls.meetingDays = days;
+                    cls.period = period;
+                    if (byWd === undefined) delete cls.periodByWeekday;
+                    else cls.periodByWeekday = byWd;
+                });
+            }
+            const filled = new Set(next.assignments.map((a) => a.demandId));
+            draft.assignments = next.assignments.concat(loose.filter((a) => !filled.has(a.demandId)));
+            api().recomputeDraftMetrics(data, draft);
+            return { ok: true };
+        });
+        const after = M.draft.assignments.filter((a) => a.teacherProfileId).length;
+        notice(after > before
+            ? t('spSuggested', 'Gave {n} classes a teacher. Check them on the board.', { n: after - before })
+            : t('spSuggestedNone', 'No free teacher fits the classes that are left. Place them by hand.'), after > before ? 'success' : 'info');
+    }
+
+    async function clearBoard() {
+        if (!M || readOnly()) return;
+        if (!(await confirmBox(
+            t('spConfirmClear', 'Take every class off the board? Teachers stay on their classes. You can undo this.'),
+            t('spClear', 'Clear the board')
+        ))) return;
+        mutate((data, draft) => {
+            draft.assignments.forEach((a) => {
+                a.meetings = [];
+                a.source = 'manual';
+            });
+            api().recomputeDraftMetrics(data, draft);
+            return { ok: true };
+        });
+    }
+
+    async function applyToCalendar() {
+        if (!M) return;
+        if (readOnly()) {
+            notice(t('plannerReadOnlyHint', 'This calendar is read-only. Request edit access before applying a draft.'), 'error');
+            return;
+        }
+        const placed = M.draft.assignments.filter((a) => (a.meetings || []).length && M.demandById.get(a.demandId)
+            && M.demandById.get(a.demandId).includedInDraft !== false);
+        if (!placed.length) {
+            notice(t('spApplyNothing', 'Nothing is on the board yet.'), 'info');
+            return;
+        }
+        const clashes = groupedIssues(M)[0].items.length;
+        const msg = t('spConfirmApply', 'Write the days, periods, teachers and rooms of {n} classes to the calendar?', { n: placed.length })
+            + (clashes ? ` ${t('spConfirmApplyClashes', '{n} clashes are still on the board.', { n: clashes })}` : '');
+        if (!(await confirmBox(msg, t('plannerApply', 'Apply to calendar')))) return;
+        const data = M.data;
+        const draft = M.draft;
+        const excluded = draft.assignments.filter((a) => {
+            const d = M.demandById.get(a.demandId);
+            return !d || d.includedInDraft === false;
+        });
+        const view = Object.assign({}, draft, { assignments: draft.assignments.filter((a) => !excluded.includes(a)) });
+        const result = api().applyDraftToAppData(data, view, { allowMissingUserId: true, replaceFirstTeacher: true });
+        draft.status = 'applied';
+        draft.updatedAt = view.updatedAt;
+        installDraft(data, draft);
+        markDirty();
+        render();
+        notice(t('spApplied', 'Calendar updated: {n} classes.', { n: result.applied.length }), 'success');
+    }
+
+    /* ------------------------------------------------------------------ print */
+
+    function printHeader(title) {
+        const name = String((M.data && M.data.calendarName) || '').trim();
+        return `<div class="planner-print-page-header"><div class="planner-print-page-title">${esc(title)}</div><div class="planner-print-page-meta">${esc(name)}</div></div>`;
+    }
+
+    function printCell(tiles, lines) {
+        if (!tiles.length) return '<td></td>';
+        return `<td>${tiles.map((x) => `<div class="planner-print-cell-name">${esc(x.demand.name)}</div><div class="planner-print-cell-sub">${esc(lines(x).filter(Boolean).join(' · '))}</div>`).join('')}</td>`;
+    }
+
+    function timeLabel(row) {
+        return row.start ? `${row.start}–${row.end}` : `P${row.period}`;
+    }
+
+    function printWeekly(kind) {
+        const cols = columnsFor(M, kind).filter((c) => !c.none);
+        const map = cellMap(M, kind);
+        const title = kind === 'teachers' ? t('spPrintTeachers', 'Teacher timetables')
+            : kind === 'rooms' ? t('spPrintRooms', 'Room timetables') : t('spPrintCohorts', 'Cohort timetables');
+        const blocks = cols.map((c) => `
+<div class="planner-print-block">
+  <div class="planner-print-block-title">${esc(c.name)}</div>
+  <table class="planner-print-table"><thead><tr><th class="planner-print-time-col"></th>${DAYS.map((d) => `<th>${esc(dayLabel(d))}</th>`).join('')}</tr></thead>
+  <tbody>${M.periods.map((row) => `<tr><th class="planner-print-time-col">${esc(timeLabel(row))}</th>${DAYS.map((d) => printCell(map.get(`${c.id}|${d}|${row.period}`) || [], (x) => [
+        kind !== 'cohorts' ? demandCohortLabel(M, x.demand) : '',
+        kind !== 'teachers' ? teacherName(M, x.asg.teacherProfileId) : '',
+        kind !== 'rooms' ? roomName(M, x.roomId) : ''
+    ])).join('')}</tr>`).join('')}</tbody></table>
+</div>`).join('');
+        return `<div class="planner-print-page">${printHeader(title)}${blocks}</div>`;
+    }
+
+    function printDaily() {
+        const map = cellMap(M, 'cohorts');
+        return DAYS.map((d) => {
+            const cols = M.cohorts.filter((c) => !c.days.length || c.days.includes(d)
+                || M.periods.some((row) => (map.get(`${c.id}|${d}|${row.period}`) || []).length));
+            if (!cols.length) return '';
+            return `
+<div class="planner-print-page">${printHeader(`${t('spPrintDaily', 'Daily sheet')} · ${dayLabel(d)}`)}
+  <table class="planner-print-table"><thead><tr><th class="planner-print-time-col"></th>${cols.map((c) => `<th>${esc(c.name)}</th>`).join('')}</tr></thead>
+  <tbody>${M.periods.map((row) => `<tr><th class="planner-print-time-col">${esc(timeLabel(row))}</th>${cols.map((c) => printCell(map.get(`${c.id}|${d}|${row.period}`) || [], (x) => [
+        teacherName(M, x.asg.teacherProfileId), roomName(M, x.roomId)
+    ])).join('')}</tr>`).join('')}</tbody></table>
+</div>`;
+        }).join('');
+    }
+
+    function printSheet(kind) {
+        const area = $('plannerPrintArea');
+        if (!area || !M) return;
+        area.innerHTML = kind === 'daily' ? printDaily() : printWeekly(kind);
+        area.setAttribute('aria-hidden', 'false');
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            global.print();
+            area.setAttribute('aria-hidden', 'true');
+        }));
+    }
+
+    /* ----------------------------------------------------------------- events */
+
+    function toggleMenu(id, anchor) {
+        document.querySelectorAll('.sp-menu').forEach((mEl) => {
+            const open = mEl.id === id && mEl.hidden;
+            mEl.hidden = !open;
+            const btn = document.querySelector(`[data-menu="${mEl.id}"]`);
+            if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+        state.menu = id && !$(id).hidden ? id : null;
+        if (state.menu && anchor) {
+            const first = $(id).querySelector('button');
+            if (first) first.focus();
+        }
+    }
+
+    function closeMenus() {
+        if (!state.menu) return;
+        document.querySelectorAll('.sp-menu').forEach((mEl) => { mEl.hidden = true; });
+        document.querySelectorAll('[data-menu]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+        state.menu = null;
+    }
+
+    function onClick(e) {
+        if (suppressClick) return;
+        const menuBtn = e.target.closest('[data-menu]');
+        if (menuBtn) {
+            toggleMenu(menuBtn.getAttribute('data-menu'), menuBtn);
+            return;
+        }
+        if (state.menu && !e.target.closest('.sp-menu')) closeMenus();
+
+        const viewBtn = e.target.closest('[data-sp-view]');
+        if (viewBtn) {
+            state.view = viewBtn.getAttribute('data-sp-view');
+            savePrefs();
+            render();
+            return;
+        }
+        const dayBtn = e.target.closest('[data-sp-day]');
+        if (dayBtn) {
+            state.day = Number(dayBtn.getAttribute('data-sp-day'));
+            savePrefs();
+            render();
+            return;
+        }
+        const focusBtn = e.target.closest('[data-sp-focus]');
+        if (focusBtn) {
+            state.focus[state.view] = focusBtn.getAttribute('data-sp-focus');
+            render();
+            return;
+        }
+        const tabBtn = e.target.closest('[data-setup-tab]');
+        if (tabBtn) {
+            state.setupTab = tabBtn.getAttribute('data-setup-tab');
+            state.openBlockGrid = null;
+            renderSetup();
+            return;
+        }
+        if (e.target.id === 'spSetup') {
+            closeSetup();
+            return;
+        }
+
+        const actEl = e.target.closest('[data-act]');
+        if (actEl) {
+            runAction(actEl.getAttribute('data-act'), actEl);
+            return;
+        }
+        const pick = e.target.closest('.sp-tile, .sp-card');
+        if (pick) {
+            const id = pick.getAttribute('data-demand');
+            state.selected = state.selected === id ? null : id;
+            render();
+        }
+    }
+
+    function runAction(act, el) {
+        const row = el.closest('[data-teacher], [data-room], [data-class]');
+        switch (act) {
+        case 'undo': undo(); break;
+        case 'redo': redo(); break;
+        case 'open-setup': closeMenus(); openSetup(el.getAttribute('data-tab')); break;
+        case 'close-setup': closeSetup(); break;
+        case 'load-calendar': closeMenus(); loadFromCalendar(); break;
+        case 'suggest-teachers': closeMenus(); suggestTeachers(); break;
+        case 'clear-board': closeMenus(); clearBoard(); break;
+        case 'apply': applyToCalendar(); break;
+        case 'print': closeMenus(); printSheet(el.getAttribute('data-kind')); break;
+        case 'toggle-issues':
+            state.issuesOpen = !state.issuesOpen;
+            savePrefs();
+            renderIssues();
+            break;
+        case 'toggle-done':
+            state.doneOpen = !state.doneOpen;
+            renderTray();
+            break;
+        case 'deselect':
+            state.selected = null;
+            render();
+            break;
+        case 'jump-issue': jumpToIssue(el.getAttribute('data-issue')); break;
+        case 'jump-slot': showSlot(state.selected, Number(el.getAttribute('data-dow')), el.getAttribute('data-period')); break;
+        case 'remove-period': {
+            const asgId = el.getAttribute('data-asg');
+            const dow = Number(el.getAttribute('data-dow'));
+            const period = el.getAttribute('data-period');
+            mutate((data, draft) => api().removePeriod(data, draft, asgId, dow, period));
+            break;
+        }
+        case 'toggle-blockgrid': {
+            const owner = el.getAttribute('data-owner');
+            state.openBlockGrid = state.openBlockGrid === owner ? null : owner;
+            renderSetup();
+            break;
+        }
+        case 'toggle-block': {
+            const owner = el.getAttribute('data-owner');
+            const dow = Number(el.getAttribute('data-dow'));
+            const period = el.getAttribute('data-period');
+            const on = !el.classList.contains('is-on');
+            setupEdit((data) => {
+                if (owner === 'everyone') api().setGlobalBlockoutSlot(data.plannerState, dow, period, on);
+                else {
+                    const p = data.teacherProfiles.find((x) => x.id === owner);
+                    if (p) api().setTeacherBlockoutSlot(p, dow, period, on);
+                }
+            });
+            M = buildModel();
+            renderSetup();
+            break;
+        }
+        case 'add-teacher':
+            setupEdit((data) => {
+                const p = api().defaultTeacherProfile({ name: t('spNewTeacher', 'New teacher') });
+                data.teacherProfiles.push(p);
+                const order = data.plannerState.teacherBoard.panelOrder;
+                if (!order.includes(p.id)) order.push(p.id);
+            });
+            M = buildModel();
+            renderSetup();
+            focusLast('[data-teacher] .sp-in-name');
+            break;
+        case 'remove-teacher': {
+            const id = row && row.getAttribute('data-teacher');
+            const onClass = M.draft.assignments.some((a) => a.teacherProfileId === id);
+            const go = () => {
+                setupEdit((data) => {
+                    data.teacherProfiles = data.teacherProfiles.filter((p) => p.id !== id);
+                    data.plannerState.teacherBoard.panelOrder = data.plannerState.teacherBoard.panelOrder.filter((x) => x !== id);
+                    M.draft.assignments.forEach((a) => {
+                        if (a.teacherProfileId === id) {
+                            a.teacherProfileId = null;
+                            a.userId = null;
+                        }
+                    });
+                });
+                M = buildModel();
+                renderSetup();
+            };
+            if (!onClass) go();
+            else {
+                confirmBox(
+                    t('spConfirmRemoveTeacher', 'Remove this teacher from the plan? Their classes stay on the board with no teacher.'),
+                    t('spRemove', 'Remove')
+                ).then((ok) => { if (ok) go(); });
+            }
+            break;
+        }
+        case 'add-room':
+            setupEdit((data) => {
+                const n = data.rooms.length + 1;
+                data.rooms.push(api().defaultRoom({ name: t('spNewRoom', 'Room {n}', { n }), sortOrder: n }));
+            });
+            M = buildModel();
+            renderSetup();
+            focusLast('[data-room] .sp-in-name');
+            break;
+        case 'remove-room': {
+            const id = row && row.getAttribute('data-room');
+            setupEdit((data) => {
+                data.rooms = data.rooms.filter((r) => r.id !== id);
+                M.draft.assignments.forEach((a) => {
+                    if (a.roomId === id) a.roomId = null;
+                    (a.meetings || []).forEach((m) => { if (m.roomId === id) delete m.roomId; });
+                });
+                (data.classes || []).forEach((c) => { if (c.roomId === id) c.roomId = ''; });
+            });
+            M = buildModel();
+            renderSetup();
+            break;
+        }
+        default: break;
+        }
+    }
+
+    function focusLast(selector) {
+        const all = document.querySelectorAll(`#spSetupBody ${selector}`);
+        const el = all[all.length - 1];
+        if (el) {
+            el.focus();
+            if (el.select) el.select();
+        }
+    }
+
+    function onChange(e) {
+        const el = e.target;
+        if (el.id === 'spBand') {
+            state.band = el.value;
+            savePrefs();
+            render();
+            return;
+        }
+        const kind = el.getAttribute('data-change');
+        if (!kind || !M) return;
+        const row = el.closest('[data-teacher], [data-room], [data-class]');
+        if (kind === 'class-teacher') {
+            const demandId = state.selected;
+            mutate((data, draft) => api().setClassTeacher(data, draft, demandId, el.value || null));
+        } else if (kind === 'meeting-room') {
+            const asg = M.asgByDemand.get(state.selected);
+            if (!asg) return;
+            const dow = Number(el.getAttribute('data-dow'));
+            const period = el.getAttribute('data-period');
+            mutate((data, draft) => api().setMeetingRoom(data, draft, asg.assignmentId, dow, period, el.value || ''));
+        } else if (kind === 'teacher-role' || kind === 'teacher-band') {
+            const id = row.getAttribute('data-teacher');
+            setupEdit((data) => {
+                const p = data.teacherProfiles.find((x) => x.id === id);
+                if (!p) return;
+                if (kind === 'teacher-role') p.role = el.value === 'native' ? 'native' : 'korean';
+                else p.limits[`${el.getAttribute('data-band')}Allowed`] = el.checked;
+            });
+        } else if (kind === 'class-include' || kind === 'class-type') {
+            const id = row.getAttribute('data-class');
+            setupEdit((data) => {
+                const cls = (data.classes || []).find((c) => c.id === id);
+                if (!cls) return;
+                if (kind === 'class-include') {
+                    if (el.checked) delete cls.plannerExcluded;
+                    else cls.plannerExcluded = true;
+                    row.classList.toggle('is-off', !el.checked);
+                } else if (el.value === 'either') delete cls.teacherRequirementType;
+                else cls.teacherRequirementType = el.value;
+            });
+        }
+    }
+
+    function onInput(e) {
+        const el = e.target;
+        if (el.id === 'spSearch') {
+            state.query = el.value;
+            renderTray();
+            return;
+        }
+        const kind = el.getAttribute('data-input');
+        if (!kind || !M) return;
+        const row = el.closest('[data-teacher], [data-room], [data-class]');
+        if (!row) return;
+        const num = (min, max, dflt) => {
+            const n = parseInt(el.value, 10);
+            return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : dflt;
+        };
+        setupEdit((data) => {
+            if (kind.startsWith('teacher-')) {
+                const p = data.teacherProfiles.find((x) => x.id === row.getAttribute('data-teacher'));
+                if (!p) return;
+                if (kind === 'teacher-name') p.name = el.value.trim() || p.name;
+                if (kind === 'teacher-maxweek') p.limits.maxPeriodsPerWeek = num(0, 60, 22);
+                if (kind === 'teacher-maxday') p.limits.maxPeriodsPerDay = num(0, 12, 5);
+                if (kind === 'teacher-workstart') p.availability.workStart = el.value || '';
+                if (kind === 'teacher-workend') p.availability.workEnd = el.value || '';
+            } else if (kind.startsWith('room-')) {
+                const r = data.rooms.find((x) => x.id === row.getAttribute('data-room'));
+                if (!r) return;
+                if (kind === 'room-name') r.name = el.value.trim() || r.name;
+                if (kind === 'room-capacity') r.capacity = el.value === '' ? null : num(0, 200, null);
+            } else if (kind === 'class-freq') {
+                const cls = (data.classes || []).find((c) => c.id === row.getAttribute('data-class'));
+                if (cls) cls.weeklyFrequency = num(1, 10, 1);
             }
         });
     }
 
-    function generateDraftAction(rerunOpts) {
-        const data = ensureData();
-        if (!data || !api()) return;
-        readTeacherCardsIntoData(data);
-        const prior = getActiveDraft(data);
-        const draft = api().generateDraft(data, Object.assign({
-            priorAssignments: prior ? prior.assignments : [],
-            label: 'Arrange draft'
-        }, rerunOpts || {}));
-        data.plannerDrafts = [draft].concat((data.plannerDrafts || []).filter((d) => d.id !== draft.id)).slice(0, 5);
-        data.plannerState.activeDraftId = draft.id;
-        data.plannerState.updatedAt = draft.updatedAt;
-        markDirty();
-        setStep('draft');
-    }
-
-    function applyDraftAction() {
-        const data = ensureData();
-        const draft = getActiveDraft(data);
-        if (!data || !draft || !api()) return;
-        if (typeof CalendarSync !== 'undefined' && CalendarSync.isReadOnly && CalendarSync.isReadOnly()) {
-            const msg = t('plannerReadOnlyHint', 'This calendar is read-only. Request edit access before applying a draft.');
-            if (typeof showAppNotice === 'function') showAppNotice(msg, 'error');
-            else if (global.CCPNotice && global.CCPNotice.show) global.CCPNotice.show(msg);
+    function onKeyDown(e) {
+        if (e.key === 'Escape') {
+            if (drag) {
+                endDrag(null, true);
+                return;
+            }
+            if (state.menu) {
+                closeMenus();
+                return;
+            }
+            if (state.setupOpen && $('spConfirm') && $('spConfirm').hidden) {
+                closeSetup();
+                return;
+            }
+            if (state.selected) {
+                state.selected = null;
+                render();
+            }
             return;
         }
-        const result = api().applyDraftToAppData(data, draft, { replaceAllTeachers: false });
-        markDirty();
-        if (typeof renderTimetableTab === 'function') renderTimetableTab();
-        const msg = `Applied ${result.applied.length}` + (result.failed.length ? `, failed ${result.failed.length}` : '');
-        if (typeof showAppNotice === 'function') showAppNotice(msg, 'success');
-        else if (global.CCPNotice && global.CCPNotice.show) global.CCPNotice.show(msg);
-        render();
+        const typing = e.target.closest && e.target.closest('input, textarea, select');
+        if ((e.ctrlKey || e.metaKey) && !typing && !state.setupOpen) {
+            const k = e.key.toLowerCase();
+            if (k === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                undo();
+            } else if (k === 'y' || (k === 'z' && e.shiftKey)) {
+                e.preventDefault();
+                redo();
+            }
+        }
+        if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('sp-card')) {
+            e.preventDefault();
+            const id = e.target.getAttribute('data-demand');
+            state.selected = state.selected === id ? null : id;
+            render();
+        }
     }
 
     function bindEvents() {
         if (bound) return;
         bound = true;
-        document.addEventListener('click', (e) => {
-            const stepTab = e.target.closest && e.target.closest('[data-planner-step]');
-            if (stepTab) {
-                setStep(stepTab.getAttribute('data-planner-step'));
-                return;
-            }
-            const boardBtn = e.target.closest && e.target.closest('[data-board-view]');
-            if (boardBtn) {
-                boardView = boardBtn.getAttribute('data-board-view') === 'rooms' ? 'rooms' : 'teachers';
-                const data = ensureData();
-                if (data) renderDraft(data);
-                return;
-            }
-            if (e.target.closest('#plannerAddRoomBtn')) {
-                const data = ensureData();
-                if (!data || !api()) return;
-                data.rooms = data.rooms || [];
-                const room = api().defaultRoom({
-                    name: `${t('plannerRoomDefaultName', 'Room')} ${data.rooms.length + 1}`,
-                    sortOrder: data.rooms.length
-                });
-                data.rooms.push(room);
-                if (data.plannerState.roomBoard) {
-                    data.plannerState.roomBoard.panelOrder = data.rooms.map((r) => r.id);
-                    data.plannerState.roomBoard.visibleIds = data.rooms.map((r) => r.id);
-                }
-                markDirty();
-                renderRooms(data);
-                return;
-            }
-            if (e.target.classList && e.target.classList.contains('planner-room-remove')) {
-                const card = e.target.closest('.planner-room-card');
-                const roomId = card && card.getAttribute('data-room-id');
-                const data = ensureData();
-                if (!data || !roomId) return;
-                data.rooms = (data.rooms || []).filter((r) => r.id !== roomId);
-                markDirty();
-                renderRooms(data);
-                return;
-            }
-            if (e.target.closest('#plannerGenerateBtn')) {
-                generateDraftAction();
-                return;
-            }
-            if (e.target.closest('#plannerLoadCalendarBtn')) {
-                loadCalendarAction();
-                return;
-            }
-            if (e.target.closest('#plannerRerunUnresolvedBtn')) {
-                generateDraftAction({ onlyUnresolved: true });
-                return;
-            }
-            if (e.target.closest('#plannerApplyBtn')) {
-                applyDraftAction();
-                return;
-            }
-            if (e.target.closest('#plannerPrintBtn')) {
-                openPrintView();
-                return;
-            }
-            const binSelect = e.target.closest && e.target.closest('[data-bin-select]');
-            if (binSelect) {
-                if (e.target.closest('.planner-suggest-panel')) return;
-                const demandId = binSelect.getAttribute('data-bin-select');
-                selectedDemandId = selectedDemandId === demandId ? null : demandId;
-                const data = ensureData();
-                const draft = getActiveDraft(data);
-                const asg = draft && (draft.assignments || []).find((a) => a.demandId === demandId);
-                const demand = (api() && data)
-                    ? api().buildDemandsFromAppData(data).find((d) => d.demandId === demandId)
-                    : null;
-                if (boardView === 'rooms' && demand && (demand.cohortIds || [])[0]) {
-                    focusRoomColumn(data, demand.cohortIds[0], true);
-                    return;
-                }
-                if (asg && asg.teacherProfileId && (asg.meetings || []).length) {
-                    focusedTeacherId = asg.teacherProfileId;
-                    const panel = $(`planner-panel-${asg.teacherProfileId}`);
-                    if (panel && panel.scrollIntoView) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                }
-                if (data) renderDraft(data);
-                return;
-            }
-            const dayTab = e.target.closest && e.target.closest('[data-room-day]');
-            if (dayTab) {
-                roomDay = Number(dayTab.getAttribute('data-room-day')) || 1;
-                const data = ensureData();
-                if (data) renderDraft(data);
-                return;
-            }
-            const cadenceTab = e.target.closest && e.target.closest('[data-room-cadence]');
-            if (cadenceTab) {
-                roomCadence = cadenceTab.getAttribute('data-room-cadence') === 'tth' ? 'tth' : 'mwf';
-                syncRoomDayToCadence();
-                const data = ensureData();
-                if (data) renderDraft(data);
-                return;
-            }
-            const cohortCol = e.target.closest && e.target.closest('[data-cohort-col]');
-            if (cohortCol && boardView === 'rooms') {
-                const data = ensureData();
-                if (data) focusRoomColumn(data, cohortCol.getAttribute('data-cohort-col'), false);
-                return;
-            }
-            const suggestBtn = e.target.closest && e.target.closest('[data-suggest-teacher]');
-            if (suggestBtn) {
-                const data = ensureData();
-                const draft = getActiveDraft(data);
-                if (!data || !draft || !api()) return;
-                const result = api().setAssignmentTeacher(
-                    data,
-                    draft,
-                    suggestBtn.getAttribute('data-suggest-demand'),
-                    suggestBtn.getAttribute('data-suggest-teacher')
-                );
-                if (result.ok) {
-                    focusedTeacherId = suggestBtn.getAttribute('data-suggest-teacher');
-                    markDirty();
-                    renderDraft(data);
-                }
-                return;
-            }
-            const removeBtn = e.target.closest && e.target.closest('[data-remove-asg]');
-            if (removeBtn) {
-                const data = ensureData();
-                const draft = getActiveDraft(data);
-                if (!data || !draft || !api()) return;
-                api().removePeriod(
-                    data,
-                    draft,
-                    removeBtn.getAttribute('data-remove-asg'),
-                    removeBtn.getAttribute('data-remove-dow'),
-                    removeBtn.getAttribute('data-remove-period')
-                );
-                markDirty();
-                renderDraft(data);
-            }
-        });
-
-        document.addEventListener('input', (e) => {
-            if (e.target && e.target.id === 'plannerBinSearch') {
-                binSearchQuery = e.target.value || '';
-                const data = ensureData();
-                if (data) renderClassBin(data, getActiveDraft(data));
-            }
-        });
-
-        document.addEventListener('change', (e) => {
-            const roomSel = e.target && e.target.closest && e.target.closest('.planner-room-select[data-room-asg]');
-            if (!roomSel) return;
-            const data = ensureData();
-            const draft = getActiveDraft(data);
-            if (!data || !draft || !api()) return;
-            const assignmentId = roomSel.getAttribute('data-room-asg');
-            const toRoomId = roomSel.value || null;
-            const result = api().moveAssignmentRoom(draft, assignmentId, toRoomId);
-            if (!result.ok) {
-                if (typeof showAppNotice === 'function') {
-                    showAppNotice(result.reason || t('plannerRoomConflict', 'Room conflict'), 'error');
-                }
-                renderDraft(data);
-                return;
-            }
-            api().recomputeDraftMetrics(data, draft);
-            markDirty();
-            renderDraft(data);
-            if (typeof showAppNotice === 'function') {
-                showAppNotice(
-                    toRoomId
-                        ? t('plannerRoomAssigned', 'Room assigned.')
-                        : t('plannerRoomRemoved', 'Room removed.'),
-                    'success'
-                );
-            }
-        });
-
-        document.addEventListener('change', (e) => {
-            const data = ensureData();
-            if (!data) return;
-            if (e.target.id === 'plannerLockCohortDays') {
-                data.plannerState.lockToCohortDays = !!e.target.checked;
-                const draft = getActiveDraft(data);
-                if (draft && api().recomputeDraftMetrics) api().recomputeDraftMetrics(data, draft);
-                markDirty();
-                renderDraft(data);
-                return;
-            }
-            if (e.target.id === 'plannerFilterBand' || e.target.id === 'plannerFilterCadence' || e.target.id === 'plannerFilterCombined') {
-                data.plannerState.filters.band = ($('plannerFilterBand') || {}).value || 'all';
-                data.plannerState.filters.cadence = ($('plannerFilterCadence') || {}).value || 'all';
-                data.plannerState.filters.combinedOnly = !!(($('plannerFilterCombined') || {}).checked);
-                markDirty();
-                renderDemand(data);
-                return;
-            }
-            if (e.target.classList && e.target.classList.contains('planner-demand-include')) {
-                const row = e.target.closest('tr');
-                const classId = row && row.getAttribute('data-class-id');
-                const cls = (data.classes || []).find((c) => c.id === classId);
-                if (cls) {
-                    cls.plannerExcluded = !e.target.checked;
-                    markDirty();
-                }
-                return;
-            }
-            if (e.target.classList && e.target.classList.contains('planner-demand-type')) {
-                const row = e.target.closest('tr');
-                const classId = row && row.getAttribute('data-class-id');
-                const cls = (data.classes || []).find((c) => c.id === classId);
-                if (cls) {
-                    cls.teacherRequirementType = e.target.value;
-                    markDirty();
-                }
-                return;
-            }
-            if (e.target.closest && e.target.closest('.planner-teacher-card')) {
-                readTeacherCardsIntoData(data);
-                markDirty();
-            }
-            if (e.target.closest && e.target.closest('.planner-room-card')) {
-                const card = e.target.closest('.planner-room-card');
-                const roomId = card.getAttribute('data-room-id');
-                const room = (data.rooms || []).find((r) => r.id === roomId);
-                if (!room) return;
-                const nameEl = card.querySelector('[data-room-field="name"]');
-                const capEl = card.querySelector('[data-room-field="capacity"]');
-                if (nameEl) room.name = nameEl.value;
-                if (capEl) room.capacity = capEl.value === '' ? null : Number(capEl.value);
-                markDirty();
-            }
-        });
-
-        document.addEventListener('dragstart', (e) => {
-            const assignedBin = e.target.closest && e.target.closest('.planner-bin-row--assigned');
-            if (assignedBin && assignedBin.getAttribute('draggable') === 'true') {
-                dragKind = 'bin-assigned';
-                dragDemandId = assignedBin.getAttribute('data-demand-id');
-                dragAssignmentId = assignedBin.getAttribute('data-assignment-id');
-                dragFromDow = null;
-                dragFromPeriod = null;
-                e.dataTransfer.setData('text/plain', dragAssignmentId || '');
-                e.dataTransfer.setData('text/drag-kind', 'bin-assigned');
-                e.dataTransfer.setData('text/demand-id', dragDemandId || '');
-                e.dataTransfer.setData('text/assignment-id', dragAssignmentId || '');
-                e.dataTransfer.effectAllowed = 'move';
-                return;
-            }
-            const binRow = e.target.closest && e.target.closest('.planner-bin-row--unassigned');
-            if (binRow && e.target.closest('[data-bin-select], .planner-bin-row')) {
-                dragKind = 'bin';
-                dragDemandId = binRow.getAttribute('data-demand-id');
-                dragAssignmentId = null;
-                e.dataTransfer.setData('text/plain', dragDemandId || '');
-                e.dataTransfer.setData('text/drag-kind', 'bin');
-                e.dataTransfer.setData('text/demand-id', dragDemandId || '');
-                e.dataTransfer.effectAllowed = 'move';
-                return;
-            }
-            const card = e.target.closest && e.target.closest('.planner-card');
-            if (card) {
-                dragAssignmentId = card.getAttribute('data-assignment-id');
-                dragKind = card.getAttribute('data-drag-kind') || (boardView === 'rooms' ? 'room' : 'period');
-                dragFromDow = card.getAttribute('data-from-dow');
-                dragFromPeriod = card.getAttribute('data-from-period');
-                e.dataTransfer.setData('text/plain', dragAssignmentId || '');
-                e.dataTransfer.setData('text/drag-kind', dragKind);
-                if (dragFromDow != null) e.dataTransfer.setData('text/from-dow', String(dragFromDow));
-                if (dragFromPeriod != null) e.dataTransfer.setData('text/from-period', String(dragFromPeriod));
-                e.dataTransfer.effectAllowed = 'move';
-                return;
-            }
-            const panel = e.target.closest && e.target.closest('.planner-teacher-panel');
-            if (panel && e.target.closest('[data-panel-handle]')) {
-                e.dataTransfer.setData('text/panel', panel.getAttribute('data-profile-id'));
-            }
-            if (panel && e.target.closest('[data-room-panel-handle]')) {
-                e.dataTransfer.setData('text/room-panel', panel.getAttribute('data-room-id'));
-            }
-        });
-
-        document.addEventListener('dragover', (e) => {
-            const cell = e.target.closest && e.target.closest('.planner-cell');
-            if (cell || (e.target.closest && (
-                e.target.closest('.planner-teacher-panel')
-                || e.target.closest('.planner-room-panel')
-            ))) {
-                e.preventDefault();
-            }
-            if (!cell || boardView === 'rooms') return;
-            const data = ensureData();
-            const draft = getActiveDraft(data);
-            if (!data || !draft || !api()) return;
-            clearDropHints();
-            const kind = dragKind;
-            const dow = cell.getAttribute('data-dow');
-            const period = cell.getAttribute('data-period');
-            const teacherId = cell.getAttribute('data-profile-id');
-            if (!teacherId || cell.classList.contains('planner-cell--blocked')) {
-                cell.classList.add('drop-invalid');
-                return;
-            }
-            const demands = api().buildDemandsFromAppData(data);
-            const demandById = new Map(demands.map((d) => [d.demandId, d]));
-            const teacher = (data.teacherProfiles || []).find((p) => p.id === teacherId);
-            const classesById = new Map((data.classes || []).map((c) => [c.id, c]));
-            const className = (demand) => {
-                const cls = demand && classesById.get(demand.classId);
-                return (cls && cls.name) || (demand && demand.name) || '?';
-            };
-            let check = { ok: false, warnOutOfBlock: false, softReasons: [] };
-            let hint = '';
-            const occupant = cell.querySelector('.planner-card');
-            const occupantId = occupant && occupant.getAttribute('data-assignment-id');
-
-            if (kind === 'bin' && dragDemandId) {
-                const demand = demandById.get(dragDemandId);
-                check = api().isValidPlacement(data, teacher, demand, dow, period, draft.assignments, { demandById });
-                hint = t('plannerDropPlaceHere', 'Place here');
-            } else if (kind === 'bin-assigned' && dragAssignmentId) {
-                const asg = draft.assignments.find((a) => a.assignmentId === dragAssignmentId);
-                const demand = asg && demandById.get(asg.demandId);
-                if (occupantId && occupantId !== dragAssignmentId) {
-                    check = { ok: true, warnOutOfBlock: false, softReasons: [] };
-                    const other = draft.assignments.find((a) => a.assignmentId === occupantId);
-                    const otherDemand = other && demandById.get(other.demandId);
-                    const tpl = t('plannerDropSwap', 'Swap: {a} ↔ {b}');
-                    hint = tpl
-                        .replace('{a}', className(demand))
-                        .replace('{b}', className(otherDemand));
-                } else if (occupantId === dragAssignmentId) {
-                    check = { ok: true, softReasons: [] };
-                    hint = t('plannerDropMoveHere', 'Move here');
-                } else {
-                    check = { ok: true, softReasons: [] };
-                    hint = t('plannerDropMoveHere', 'Move here');
-                }
-            } else if ((kind === 'period' || kind === 'teacher') && dragAssignmentId) {
-                const asg = draft.assignments.find((a) => a.assignmentId === dragAssignmentId);
-                const demand = asg && demandById.get(asg.demandId);
-                if (occupantId && occupantId !== dragAssignmentId) {
-                    const swap = api().canSwapPeriods(
-                        data, draft, dragAssignmentId, occupantId,
-                        dow, period, dragFromDow, dragFromPeriod
-                    );
-                    check = {
-                        ok: swap.ok,
-                        warnOutOfBlock: swap.warnOutOfBlock,
-                        softReasons: swap.softReasons || swap.reasons || []
-                    };
-                    const other = draft.assignments.find((a) => a.assignmentId === occupantId);
-                    const otherDemand = other && demandById.get(other.demandId);
-                    const tpl = t('plannerDropSwap', 'Swap: {a} ↔ {b}');
-                    hint = tpl
-                        .replace('{a}', className(demand))
-                        .replace('{b}', className(otherDemand));
-                } else {
-                    const saved = (asg.meetings || []).slice();
-                    asg.meetings = saved.filter((m) => !(Number(m.dow) === Number(dragFromDow) && String(m.period) === String(dragFromPeriod)));
-                    check = api().isValidPlacement(data, teacher, demand, dow, period, draft.assignments, {
-                        demandById,
-                        excludeAssignmentIds: [dragAssignmentId],
-                        replacingSlot: true
-                    });
-                    asg.meetings = saved;
-                    hint = t('plannerDropMoveHere', 'Move here');
-                }
-            }
-
-            if (!check.ok) {
-                cell.classList.add('drop-invalid');
-                return;
-            }
-            const warn = !!(check.warnOutOfBlock || (check.softReasons && check.softReasons.length));
-            setDropHint(cell, hint, warn);
-        });
-
-        document.addEventListener('dragleave', (e) => {
-            const cell = e.target.closest && e.target.closest('.planner-cell');
-            if (!cell) return;
-            // Only clear when leaving the cell entirely
-            const related = e.relatedTarget;
-            if (related && cell.contains(related)) return;
-            cell.classList.remove('drop-valid', 'drop-valid-warn', 'drop-invalid', 'drop-swap-preview');
-            cell.removeAttribute('data-drop-hint');
-            const hint = cell.querySelector('.planner-drop-hint');
-            if (hint) hint.remove();
-        });
-
-        document.addEventListener('dragend', () => {
-            clearDropHints();
-            dragKind = null;
-            dragDemandId = null;
-            dragAssignmentId = null;
-            dragFromDow = null;
-            dragFromPeriod = null;
-        });
-
-        document.addEventListener('drop', (e) => {
-            const data = ensureData();
-            const draft = getActiveDraft(data);
-            if (!data || !draft || !api()) return;
-            clearDropHints();
-
-            const roomPanelId = e.dataTransfer.getData('text/room-panel');
-            if (roomPanelId) {
-                const targetPanel = e.target.closest && e.target.closest('.planner-room-panel');
-                if (!targetPanel) return;
-                e.preventDefault();
-                const order = (data.plannerState.roomBoard.panelOrder || data.rooms.map((r) => r.id)).slice();
-                const from = order.indexOf(roomPanelId);
-                const toId = targetPanel.getAttribute('data-room-id');
-                const to = order.indexOf(toId);
-                if (from >= 0 && to >= 0 && from !== to) {
-                    order.splice(from, 1);
-                    order.splice(to, 0, roomPanelId);
-                    data.plannerState.roomBoard.panelOrder = order;
-                    markDirty();
-                    renderDraft(data);
-                }
-                return;
-            }
-
-            const panelId = e.dataTransfer.getData('text/panel');
-            if (panelId) {
-                const targetPanel = e.target.closest && e.target.closest('.planner-teacher-panel:not(.planner-room-panel)');
-                if (!targetPanel) return;
-                e.preventDefault();
-                const order = data.plannerState.teacherBoard.panelOrder.slice();
-                const from = order.indexOf(panelId);
-                const toId = targetPanel.getAttribute('data-profile-id');
-                const to = order.indexOf(toId);
-                if (from >= 0 && to >= 0 && from !== to) {
-                    order.splice(from, 1);
-                    order.splice(to, 0, panelId);
-                    data.plannerState.teacherBoard.panelOrder = order;
-                    markDirty();
-                    renderDraft(data);
-                }
-                return;
-            }
-
-            const kind = e.dataTransfer.getData('text/drag-kind') || dragKind || 'period';
-            const targetCard = e.target.closest && e.target.closest('.planner-card');
-            const targetCell = e.target.closest && e.target.closest('.planner-cell');
-
-            if (kind === 'room' || boardView === 'rooms') {
-                const assignmentId = e.dataTransfer.getData('text/plain') || dragAssignmentId;
-                if (!assignmentId) return;
-                if (targetCard) {
-                    e.preventDefault();
-                    const otherId = targetCard.getAttribute('data-assignment-id');
-                    const result = api().swapAssignmentRooms(draft, assignmentId, otherId);
-                    if (result.ok) {
-                        markDirty();
-                        renderDraft(data);
-                    }
-                    return;
-                }
-                if (targetCell && targetCell.classList.contains('planner-cell--room')) {
-                    e.preventDefault();
-                    const toRoom = targetCell.getAttribute('data-room-id');
-                    const result = api().moveAssignmentRoom(draft, assignmentId, toRoom);
-                    if (result.ok) {
-                        markDirty();
-                        renderDraft(data);
-                    }
-                }
-                return;
-            }
-
-            const toDow = targetCell && targetCell.getAttribute('data-dow');
-            const toPeriod = targetCell && targetCell.getAttribute('data-period');
-            const toTeacher = targetCell && targetCell.getAttribute('data-profile-id');
-            if (targetCell && targetCell.classList.contains('planner-cell--blocked')) return;
-
-            if (kind === 'bin') {
-                const demandId = e.dataTransfer.getData('text/demand-id') || dragDemandId;
-                if (!demandId || !targetCell || !toTeacher) return;
-                e.preventDefault();
-                const result = api().placePeriodOnTeacher(data, draft, demandId, toTeacher, toDow, toPeriod);
-                if (result.ok) {
-                    markDirty();
-                    renderDraft(data);
-                } else if (typeof showAppNotice === 'function') {
-                    showAppNotice(result.reason || 'Invalid drop', 'error');
-                }
-                return;
-            }
-
-            if (kind === 'bin-assigned') {
-                const assignmentId = e.dataTransfer.getData('text/assignment-id')
-                    || e.dataTransfer.getData('text/plain')
-                    || dragAssignmentId;
-                if (!assignmentId || !targetCell || !toTeacher) return;
-                e.preventDefault();
-                const occupant = targetCell.querySelector('.planner-card');
-                const occupantId = occupant && occupant.getAttribute('data-assignment-id');
-                if (occupantId && occupantId !== assignmentId) {
-                    const result = api().swapAssignmentsFull(data, draft, assignmentId, occupantId);
-                    if (result.ok) {
-                        markDirty();
-                        renderDraft(data);
-                    } else if (typeof showAppNotice === 'function') {
-                        showAppNotice(result.reason || 'Invalid swap', 'error');
-                    }
-                    return;
-                }
-                if (occupantId === assignmentId) return;
-                const demands = api().buildDemandsFromAppData(data);
-                const result = api().moveAssignmentBundle(
-                    draft,
-                    assignmentId,
-                    toTeacher,
-                    data.teacherProfiles,
-                    demands,
-                    (data.plannerState && data.plannerState.blockouts) || {},
-                    { permissive: true }
-                );
-                if (result.ok) {
-                    api().recomputeDraftMetrics(data, draft);
-                    markDirty();
-                    renderDraft(data);
-                } else if (typeof showAppNotice === 'function') {
-                    showAppNotice(result.reason || 'Invalid move', 'error');
-                }
-                return;
-            }
-
-            // Board tile → always move or swap (never place / duplicate)
-            const assignmentId = e.dataTransfer.getData('text/plain') || dragAssignmentId;
-            const fromDow = e.dataTransfer.getData('text/from-dow') || dragFromDow;
-            const fromPeriod = e.dataTransfer.getData('text/from-period') || dragFromPeriod;
-            if (!assignmentId || !targetCell || !toTeacher) return;
-
-            const occupant = targetCell.querySelector('.planner-card');
-            const occupantId = occupant && occupant.getAttribute('data-assignment-id');
-
-            if (occupantId && occupantId !== assignmentId) {
-                e.preventDefault();
-                const result = api().swapPeriodCells(
-                    data, draft, assignmentId, occupantId,
-                    toDow, toPeriod, fromDow, fromPeriod
-                );
-                if (result.ok) {
-                    markDirty();
-                    renderDraft(data);
-                }
-                return;
-            }
-
-            // Same cell = no-op
-            if (Number(fromDow) === Number(toDow) && String(fromPeriod) === String(toPeriod)
-                && occupantId === assignmentId) {
-                e.preventDefault();
-                return;
-            }
-
-            e.preventDefault();
-            const result = api().movePeriod(data, draft, assignmentId, fromDow, fromPeriod, toTeacher, toDow, toPeriod);
-            if (result.ok) {
-                markDirty();
-                renderDraft(data);
-            } else if (typeof showAppNotice === 'function') {
-                showAppNotice(result.reason || 'Invalid move', 'error');
-            }
+        loadPrefs();
+        document.addEventListener('click', onClick);
+        document.addEventListener('change', onChange);
+        document.addEventListener('input', onInput);
+        document.addEventListener('keydown', onKeyDown);
+        document.addEventListener('pointerdown', onPointerDown);
+        document.addEventListener('pointermove', onPointerMove, { passive: false });
+        document.addEventListener('pointerup', onPointerUp);
+        document.addEventListener('pointercancel', onPointerUp);
+        // A touch that has become a drag must not scroll the page.
+        document.addEventListener('touchmove', (e) => {
+            if (drag || sort) e.preventDefault();
+        }, { passive: false });
+        document.addEventListener('contextmenu', (e) => {
+            if (drag || (pending && pending.touch)) e.preventDefault();
         });
     }
 
@@ -1784,17 +2019,26 @@ ${profiles.map((p) => {
         bindEvents();
     }
 
+    function mountPage() {
+        const root = $('plannerPageRoot');
+        if (root) root.hidden = false;
+        render();
+    }
+
     global.CCPTeacherPlannerUi = {
         init,
         mountPage,
-        setStep,
         render,
-        ensureData
+        ensureData,
+        openSetup,
+        // for tests
+        _state: state,
+        _model: () => M,
+        _evaluateDrop: (d, target) => evaluateDrop(d, target)
     };
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
+    if (typeof document !== 'undefined') {
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+        else init();
     }
 })(typeof window !== 'undefined' ? window : globalThis);

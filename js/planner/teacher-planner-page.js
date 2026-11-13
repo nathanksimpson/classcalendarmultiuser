@@ -56,7 +56,7 @@
             && CalendarSync.isReadOnly();
         banner.hidden = !readOnly;
         const applyBtn = document.getElementById('plannerApplyBtn');
-        const genBtn = document.getElementById('plannerGenerateBtn');
+        const genBtn = document.getElementById('spAutoBtn');
         if (applyBtn) applyBtn.disabled = !!readOnly;
         if (genBtn) genBtn.disabled = !!readOnly;
     }

@@ -352,3 +352,56 @@ assert(api.levelSortIndex('junior', { name: 'Orange' }) < api.levelSortIndex('ju
 assert(api.levelSortIndex('senior', { name: '샘물' }) < api.levelSortIndex('senior', { name: '가람' }), 'Saemmul before Garam');
 
 console.log('teacher-planner-core tests passed');
+
+/* Freeform board (Nov 2026): nothing is refused, everything warns. */
+await import(pathToFileURL(path.join(root, 'js', 'timetable-periods.js')).href);
+{
+    const data = {
+        cohorts: [{ id: 'co', name: 'Orange M', meetingDays: [1, 3, 5], level: 'Orange', tmsBlockStart: '14:30', tmsBlockEnd: '17:00' }],
+        classes: [
+            { id: 'a', name: 'A', cohortIds: ['co'], weeklyFrequency: 2 },
+            { id: 'b', name: 'B', cohortIds: ['co'], weeklyFrequency: 1 }
+        ],
+        teacherProfiles: [
+            { id: 't1', name: 'Kim', availability: { workStart: '15:00', workEnd: '19:00', unavailableSlots: [{ dow: 1, period: '2' }] } },
+            { id: 't2', name: 'Lee' }
+        ],
+        rooms: [{ id: 'r1', name: 'R1' }]
+    };
+    api.ensurePlannerFields(data);
+    const draft = { id: 'd', assignments: [], issues: [], metrics: {} };
+    const codes = () => draft.issues.map((i) => i.code);
+
+    // No teacher needed to give a class a time.
+    let r = api.placePeriod(data, draft, 'demand:a', { dow: 1, period: '3', teacherProfileId: null });
+    assert(r.ok, 'place without teacher');
+    // Teacher's blocked time: allowed, warned.
+    r = api.placePeriod(data, draft, 'demand:b', { dow: 1, period: '2', teacherProfileId: 't1' });
+    assert(r.ok && r.softReasons.includes('teacher_slot_blocked'), 'blocked time is a warning');
+    assert(codes().includes('teacher_unavailable'), 'blocked time is listed');
+    // Before clock-in (P1 14:30 < 15:00): allowed, warned.
+    const asgB = draft.assignments.find((a) => a.demandId === 'demand:b');
+    r = api.movePeriodTo(data, draft, asgB.assignmentId, { dow: 1, period: '2' }, { dow: 3, period: '1', teacherProfileId: 't1' });
+    assert(r.ok && r.softReasons.includes('teacher_outside_hours'), 'before clock-in is a warning');
+    // After the cohort has gone home (P5 18:00, cohort leaves 17:00) and off its days (Tue).
+    r = api.movePeriodTo(data, draft, asgB.assignmentId, { dow: 3, period: '1' }, { dow: 2, period: '5', teacherProfileId: 't2' });
+    assert(r.ok && r.warnOutOfBlock && r.softReasons.includes('outside_cohort_days'), 'outside student hours and days warn');
+    assert(codes().includes('outside_band_block') && codes().includes('outside_cohort_days'), 'both listed');
+    // Same cohort, same time: allowed, listed as a clash.
+    r = api.placePeriod(data, draft, 'demand:b', { dow: 1, period: '3', teacherProfileId: 't2' });
+    assert(r.ok && r.softReasons.includes('cohort_double_booked'), 'cohort clash is a warning');
+    // Rooms per period.
+    const asgA = draft.assignments.find((a) => a.demandId === 'demand:a');
+    assert(api.setMeetingRoom(data, draft, asgA.assignmentId, 1, '3', 'r1').ok, 'set room');
+    assert(api.meetingRoomId(asgA, asgA.meetings[0]) === 'r1', 'room stored');
+    assert(api.removePeriod(data, draft, asgB.assignmentId, 1, '3').ok, 'remove period');
+    // Swap keeps both classes.
+    const before = draft.assignments.reduce((n, a) => n + a.meetings.length, 0);
+    r = api.swapPeriods(data, draft, { assignmentId: asgA.assignmentId, dow: 1, period: '3' },
+        { assignmentId: asgB.assignmentId, dow: 2, period: '5' }, 'time');
+    assert(r.ok && draft.assignments.reduce((n, a) => n + a.meetings.length, 0) === before, 'swap');
+    // Apply writes times even with no teacher.
+    const res = api.applyDraftToAppData(data, draft, { allowMissingUserId: true, replaceFirstTeacher: true });
+    assert(res.applied.length === 2 && data.classes[0].meetingDays.length === 1, 'apply without teacher');
+    console.log('freeform planner tests passed');
+}

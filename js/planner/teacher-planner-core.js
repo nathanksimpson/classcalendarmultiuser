@@ -183,6 +183,57 @@
         return !allowed.includes(parsePeriod(period));
     }
 
+    function hhmmToMin(v) {
+        const m = /^(\d{1,2}):(\d{2})$/.exec(normalizeStr(v));
+        return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+    }
+
+    /** Clock times of a period from the calendar's timetable, or null. */
+    function periodClock(appData, period) {
+        const tp = global.CCPTimetablePeriods;
+        if (!tp || !tp.getSortedTimeSlots) return null;
+        const map = (appData && appData.periodSlotMap && Object.keys(appData.periodSlotMap).length)
+            ? appData.periodSlotMap
+            : (tp.getDefaultMap ? tp.getDefaultMap() : {});
+        const slot = tp.getSortedTimeSlots(appData).find((x) => x.id === map[String(period)]);
+        if (!slot) return null;
+        const start = hhmmToMin(slot.start);
+        const end = hhmmToMin(slot.end);
+        return start == null || end == null ? null : { start, end };
+    }
+
+    /**
+     * Is this period outside the hours the class's students are at the school?
+     * Uses the cohort's own hours (TMS block start/end) when known, else the
+     * usual hours of its level (junior / middle / senior).
+     */
+    function outsideStudentHours(appData, demand, period) {
+        const cohorts = Array.isArray(appData && appData.cohorts) ? appData.cohorts : [];
+        const clock = periodClock(appData, period);
+        const windows = [];
+        ((demand && demand.cohortIds) || []).forEach((cid) => {
+            const c = cohorts.find((x) => x && x.id === cid);
+            const start = c ? hhmmToMin(c.tmsBlockStart) : null;
+            const end = c ? hhmmToMin(c.tmsBlockEnd) : null;
+            if (start != null && end != null && end > start) windows.push({ start, end });
+        });
+        if (clock && windows.length) {
+            return windows.some((w) => clock.start < w.start || clock.end > w.end);
+        }
+        return isOutOfBlock(demand && demand.band, period);
+    }
+
+    /** Is this period before the teacher's clock-in or after their clock-out? */
+    function outsideTeacherHours(appData, teacher, period) {
+        const avail = (teacher && teacher.availability) || {};
+        const start = hhmmToMin(avail.workStart);
+        const end = hhmmToMin(avail.workEnd);
+        if (start == null && end == null) return false;
+        const clock = periodClock(appData, period);
+        if (!clock) return false;
+        return (start != null && clock.start < start) || (end != null && clock.end > end);
+    }
+
     function cohortMeetingDays(appData, demand) {
         const cohorts = Array.isArray(appData && appData.cohorts) ? appData.cohorts : [];
         const ids = (demand && demand.cohortIds) || [];
@@ -269,6 +320,9 @@
                 seniorAllowed: p.limits && p.limits.seniorAllowed === false ? false : true
             },
             availability: {
+                // Clock-in / clock-out ("HH:MM", '' = not set). Classes outside these hours get a warning.
+                workStart: hhmmToMin(p.availability && p.availability.workStart) != null ? normalizeStr(p.availability.workStart) : '',
+                workEnd: hhmmToMin(p.availability && p.availability.workEnd) != null ? normalizeStr(p.availability.workEnd) : '',
                 unavailableDays: Array.isArray(p.availability && p.availability.unavailableDays)
                     ? p.availability.unavailableDays.map(Number)
                     : [],
@@ -574,7 +628,7 @@
                 curriculumId: normalizeStr(cls.curriculumId),
                 classTypeId: normalizeStr(cls.classTypeId),
                 cadence: cadence || 'custom',
-                weeklyFrequency: weeklyFrequency >= 2 ? 2 : (weeklyFrequency === 1 ? 1 : meetings.length),
+                weeklyFrequency: weeklyFrequency >= 1 ? weeklyFrequency : meetings.length,
                 teacherRequirementType: cls.teacherRequirementType === 'korean' || cls.teacherRequirementType === 'native'
                     ? cls.teacherRequirementType
                     : 'either',
@@ -620,6 +674,7 @@
     function occupancyMap(assignments) {
         const map = new Map();
         (assignments || []).forEach((asg) => {
+            if (!asg.teacherProfileId) return;
             (asg.meetings || []).forEach((m) => {
                 map.set(`${asg.teacherProfileId}|${slotKey(m.dow, m.period)}`, asg.assignmentId);
             });
@@ -730,16 +785,10 @@
         if (demand.band === 'middle' && teacher.limits.middleAllowed === false) softReasons.push('wrong_junior_senior_band');
         if (demand.band === 'senior' && teacher.limits.seniorAllowed === false) softReasons.push('wrong_junior_senior_band');
 
+        // Freeform board: a blocked time is a warning, never a refusal.
         const blocked = isSlotBlocked(teacher, dow, period, globalBlockouts);
-        if (blocked) {
-            return {
-                ok: false,
-                reasons: [blocked],
-                hardReasons: [blocked],
-                softReasons: [],
-                warnOutOfBlock: false
-            };
-        }
+        if (blocked) softReasons.push(blocked);
+        if (outsideTeacherHours(appData, teacher, period)) softReasons.push('teacher_outside_hours');
 
         const days = cohortMeetingDays(appData, demand);
         if (days.length && !days.includes(Number(dow))) {
@@ -788,7 +837,7 @@
             }
         }
 
-        const warnOutOfBlock = isOutOfBlock(demand.band, period);
+        const warnOutOfBlock = outsideStudentHours(appData, demand, period);
         const uniqueSoft = [...new Set(softReasons)];
         return {
             ok: true,
@@ -965,6 +1014,309 @@
         return { ok: true, warnOutOfBlock: check.warnOutOfBlock, softReasons: check.softReasons || [] };
     }
 
+
+    /* ------------------------------------------------------------------
+     * Slot operations that work with or without a teacher.
+     * The board has three sheets (teachers / cohorts / rooms); on the cohort
+     * and room sheets a class can be given a time before it has a teacher.
+     * ------------------------------------------------------------------ */
+
+    const NO_TEACHER = defaultTeacherProfile({ id: '__no_teacher__', name: '' });
+    NO_TEACHER.limits.maxPeriodsPerDay = 99;
+
+    function newAssignment(demand, teacher) {
+        return {
+            assignmentId: uid('asg'),
+            demandId: demand.demandId,
+            linkGroupId: demand.linkGroupId,
+            classId: demand.classId,
+            teacherProfileId: teacher ? teacher.id : null,
+            userId: teacher ? teacher.userId : null,
+            roomId: demand.preferredRoomId || null,
+            meetings: [],
+            locked: false,
+            manualKeep: true,
+            source: 'manual',
+            score: { hardOk: true, softScore: 0, tags: [] }
+        };
+    }
+
+    function sameSlot(m, dow, period) {
+        return Number(m.dow) === Number(dow) && String(m.period) === String(period);
+    }
+
+    /**
+     * Would putting one period of this class at (dow, period) be allowed?
+     * target.teacherProfileId: a teacher id, null (no teacher), or undefined (keep the class's teacher).
+     * target.ignore: { assignmentId, dow, period }[] meetings treated as empty (the one being moved / swapped).
+     */
+    function checkSlot(appData, draft, demandId, target, ctx) {
+        const c = ctx || {};
+        const demands = c.demands || buildDemandsFromAppData(appData);
+        const demandById = c.demandById || new Map(demands.map((d) => [d.demandId, d]));
+        const demand = demandById.get(demandId);
+        if (!draft || !demand) {
+            return { ok: false, reasons: ['missing_context'], hardReasons: ['missing_context'], softReasons: [], warnOutOfBlock: false };
+        }
+        const tg = target || {};
+        const ignore = tg.ignore || [];
+        const existing = (draft.assignments || []).find((a) => a.demandId === demandId);
+        let teacherId = tg.teacherProfileId;
+        if (teacherId === undefined) teacherId = existing ? existing.teacherProfileId : null;
+        const teacher = teacherId
+            ? (appData.teacherProfiles || []).find((t) => t.id === teacherId)
+            : null;
+        if (teacherId && !teacher) {
+            return { ok: false, reasons: ['missing_context'], hardReasons: ['missing_context'], softReasons: [], warnOutOfBlock: false };
+        }
+        // View of the draft without the meetings being moved.
+        const view = (draft.assignments || []).map((a) => {
+            const drop = ignore.filter((g) => g.assignmentId === a.assignmentId);
+            if (!drop.length) return a;
+            return Object.assign({}, a, {
+                meetings: assignmentMeetings(a).filter((m) => !drop.some((g) => sameSlot(m, g.dow, g.period)))
+            });
+        });
+        const res = isValidPlacement(
+            appData,
+            teacher ? defaultTeacherProfile(teacher) : NO_TEACHER,
+            teacher ? demand : Object.assign({}, demand, { teacherRequirementType: 'either' }),
+            tg.dow,
+            tg.period,
+            view,
+            { demandById, replacingSlot: !!ignore.length }
+        );
+        let soft = (res.softReasons || []).slice();
+        if (!teacher) soft = soft.filter((r) => r !== 'teacher_reassigned' && r !== 'wrong_junior_senior_band');
+        // Same class already at this exact time.
+        const mine = view.find((a) => a.demandId === demandId);
+        if (mine && assignmentMeetings(mine).some((m) => sameSlot(m, tg.dow, tg.period))) {
+            return { ok: false, reasons: ['already_here'], hardReasons: ['already_here'], softReasons: [], warnOutOfBlock: false };
+        }
+        const roomId = tg.roomId === undefined ? null : tg.roomId;
+        if (roomId) {
+            const key = `${roomId}|${slotKey(tg.dow, tg.period)}`;
+            const occ = roomOccupancy(view.filter((a) => a.demandId !== demandId));
+            if (occ.has(key)) soft.push('room_double_booked');
+        }
+        soft = [...new Set(soft)];
+        return {
+            ok: res.ok,
+            reasons: res.ok ? soft : res.reasons,
+            hardReasons: res.hardReasons || [],
+            softReasons: res.ok ? soft : [],
+            warnOutOfBlock: !!res.warnOutOfBlock,
+            teacherChanges: !!(teacher && existing && existing.teacherProfileId && existing.teacherProfileId !== teacher.id)
+        };
+    }
+
+    /** Add one period of a class. target: { dow, period, teacherProfileId?, roomId? } */
+    function placePeriod(appData, draft, demandId, target) {
+        ensurePlannerFields(appData);
+        const tg = target || {};
+        const demands = buildDemandsFromAppData(appData);
+        const demand = demands.find((d) => d.demandId === demandId);
+        if (!draft || !demand) return { ok: false, reason: 'missing_context' };
+        const check = checkSlot(appData, draft, demandId, tg, { demands });
+        if (!check.ok) return { ok: false, reason: check.reasons[0] || 'invalid', reasons: check.reasons };
+        let asg = draft.assignments.find((a) => a.demandId === demandId);
+        if (!asg) {
+            asg = newAssignment(demand, null);
+            draft.assignments.push(asg);
+        }
+        if (tg.teacherProfileId !== undefined) {
+            const teacher = tg.teacherProfileId
+                ? (appData.teacherProfiles || []).find((t) => t.id === tg.teacherProfileId)
+                : null;
+            asg.teacherProfileId = teacher ? teacher.id : null;
+            asg.userId = teacher ? teacher.userId : null;
+        }
+        const meeting = { meetingId: uid('mtg'), dow: Number(tg.dow), period: String(tg.period) };
+        if (tg.roomId !== undefined) {
+            if (!asg.roomId && tg.roomId) asg.roomId = tg.roomId;
+            else if (tg.roomId && tg.roomId !== asg.roomId) meeting.roomId = tg.roomId;
+            else if (!tg.roomId && asg.roomId) meeting.roomId = '';
+        }
+        asg.meetings = assignmentMeetings(asg).concat([meeting]);
+        asg.manualKeep = true;
+        asg.source = 'manual';
+        draft.updatedAt = new Date().toISOString();
+        recomputeDraftMetrics(appData, draft);
+        return { ok: true, assignmentId: asg.assignmentId, softReasons: check.softReasons, warnOutOfBlock: check.warnOutOfBlock };
+    }
+
+    /** Move one period. from: { dow, period }; to: { dow, period, teacherProfileId?, roomId? } */
+    function movePeriodTo(appData, draft, assignmentId, from, to) {
+        const asg = (draft.assignments || []).find((a) => a.assignmentId === assignmentId);
+        if (!asg) return { ok: false, reason: 'missing_assignment' };
+        const idx = assignmentMeetings(asg).findIndex((m) => sameSlot(m, from.dow, from.period));
+        if (idx < 0) return { ok: false, reason: 'slot_missing' };
+        const tg = Object.assign({}, to, { ignore: [{ assignmentId, dow: from.dow, period: from.period }] });
+        const check = checkSlot(appData, draft, asg.demandId, tg);
+        if (!check.ok) return { ok: false, reason: check.reasons[0] || 'invalid', reasons: check.reasons };
+        if (to.teacherProfileId !== undefined) {
+            const teacher = to.teacherProfileId
+                ? (appData.teacherProfiles || []).find((t) => t.id === to.teacherProfileId)
+                : null;
+            asg.teacherProfileId = teacher ? teacher.id : null;
+            asg.userId = teacher ? teacher.userId : null;
+        }
+        const old = asg.meetings[idx];
+        const next = { meetingId: old.meetingId || uid('mtg'), dow: Number(to.dow), period: String(to.period) };
+        if (to.roomId !== undefined) {
+            if ((to.roomId || '') !== (asg.roomId || '')) next.roomId = to.roomId || '';
+            if (!asg.roomId && to.roomId && assignmentMeetings(asg).length === 1) {
+                asg.roomId = to.roomId;
+                delete next.roomId;
+            }
+        } else if (old.roomId !== undefined) {
+            next.roomId = old.roomId;
+        }
+        asg.meetings = asg.meetings.slice();
+        asg.meetings[idx] = next;
+        asg.manualKeep = true;
+        asg.source = 'manual';
+        draft.updatedAt = new Date().toISOString();
+        recomputeDraftMetrics(appData, draft);
+        return { ok: true, softReasons: check.softReasons, warnOutOfBlock: check.warnOutOfBlock };
+    }
+
+    /**
+     * Swap two placed periods (a and b: { assignmentId, dow, period }).
+     * mode 'teachers': each class takes the other's time and teacher (teacher sheet).
+     * mode 'time': times swap, teachers stay (cohort sheet).
+     * mode 'rooms': times and rooms swap, teachers stay (room sheet).
+     */
+    function checkSwap(appData, draft, a, b, mode) {
+        const asgA = (draft.assignments || []).find((x) => x.assignmentId === a.assignmentId);
+        const asgB = (draft.assignments || []).find((x) => x.assignmentId === b.assignmentId);
+        if (!asgA || !asgB || asgA === asgB) {
+            return { ok: false, reasons: ['missing_assignment'], softReasons: [], warnOutOfBlock: false };
+        }
+        const ignore = [a, b];
+        const demands = buildDemandsFromAppData(appData);
+        const ctx = { demands, demandById: new Map(demands.map((d) => [d.demandId, d])) };
+        const mA = assignmentMeetings(asgA).find((m) => sameSlot(m, a.dow, a.period));
+        const mB = assignmentMeetings(asgB).find((m) => sameSlot(m, b.dow, b.period));
+        if (!mA || !mB) return { ok: false, reasons: ['slot_missing'], softReasons: [], warnOutOfBlock: false };
+        const toB = { dow: b.dow, period: b.period, ignore };
+        const toA = { dow: a.dow, period: a.period, ignore };
+        if (mode === 'teachers') {
+            toB.teacherProfileId = asgB.teacherProfileId || null;
+            toA.teacherProfileId = asgA.teacherProfileId || null;
+        }
+        if (mode === 'rooms') {
+            toB.roomId = meetingRoomId(asgB, mB);
+            toA.roomId = meetingRoomId(asgA, mA);
+        }
+        const r1 = checkSlot(appData, draft, asgA.demandId, toB, ctx);
+        const r2 = checkSlot(appData, draft, asgB.demandId, toA, ctx);
+        const soft = [...new Set([...(r1.softReasons || []), ...(r2.softReasons || [])])]
+            .filter((r) => !(mode === 'teachers' && r === 'teacher_reassigned'));
+        return {
+            ok: r1.ok && r2.ok,
+            reasons: r1.ok && r2.ok ? soft : [...(r1.ok ? [] : r1.reasons), ...(r2.ok ? [] : r2.reasons)],
+            softReasons: soft,
+            warnOutOfBlock: !!(r1.warnOutOfBlock || r2.warnOutOfBlock),
+            teacherChanges: mode === 'teachers' && (asgA.teacherProfileId || null) !== (asgB.teacherProfileId || null)
+        };
+    }
+
+    function swapPeriods(appData, draft, a, b, mode) {
+        const check = checkSwap(appData, draft, a, b, mode);
+        if (!check.ok) return { ok: false, reason: check.reasons[0] || 'invalid', reasons: check.reasons };
+        const asgA = draft.assignments.find((x) => x.assignmentId === a.assignmentId);
+        const asgB = draft.assignments.find((x) => x.assignmentId === b.assignmentId);
+        const iA = assignmentMeetings(asgA).findIndex((m) => sameSlot(m, a.dow, a.period));
+        const iB = assignmentMeetings(asgB).findIndex((m) => sameSlot(m, b.dow, b.period));
+        const roomA = meetingRoomId(asgA, asgA.meetings[iA]);
+        const roomB = meetingRoomId(asgB, asgB.meetings[iB]);
+        const nextA = { meetingId: uid('mtg'), dow: Number(b.dow), period: String(b.period) };
+        const nextB = { meetingId: uid('mtg'), dow: Number(a.dow), period: String(a.period) };
+        const keepRoom = (asg, meeting, room) => {
+            if ((room || '') !== (asg.roomId || '')) meeting.roomId = room || '';
+        };
+        if (mode === 'rooms') {
+            keepRoom(asgA, nextA, roomB);
+            keepRoom(asgB, nextB, roomA);
+        } else {
+            keepRoom(asgA, nextA, roomA);
+            keepRoom(asgB, nextB, roomB);
+        }
+        asgA.meetings = asgA.meetings.slice();
+        asgB.meetings = asgB.meetings.slice();
+        asgA.meetings[iA] = nextA;
+        asgB.meetings[iB] = nextB;
+        if (mode === 'teachers' && (asgA.teacherProfileId || null) !== (asgB.teacherProfileId || null)) {
+            const tId = asgA.teacherProfileId;
+            const uId = asgA.userId;
+            asgA.teacherProfileId = asgB.teacherProfileId;
+            asgA.userId = asgB.userId;
+            asgB.teacherProfileId = tId;
+            asgB.userId = uId;
+        }
+        [asgA, asgB].forEach((x) => {
+            x.manualKeep = true;
+            x.source = 'manual';
+        });
+        draft.updatedAt = new Date().toISOString();
+        recomputeDraftMetrics(appData, draft);
+        return { ok: true, softReasons: check.softReasons, warnOutOfBlock: check.warnOutOfBlock };
+    }
+
+    /** Set the room of one placed period ('' / null = no room). */
+    function setMeetingRoom(appData, draft, assignmentId, dow, period, roomId) {
+        const asg = (draft.assignments || []).find((a) => a.assignmentId === assignmentId);
+        if (!asg) return { ok: false, reason: 'missing_assignment' };
+        const meetings = assignmentMeetings(asg);
+        const m = meetings.find((x) => sameSlot(x, dow, period));
+        if (!m) return { ok: false, reason: 'slot_missing' };
+        const want = normalizeStr(roomId);
+        if (!asg.roomId && want && meetings.every((x) => !normalizeStr(x.roomId))) {
+            asg.roomId = want;
+            meetings.forEach((x) => { if (x !== m) x.roomId = ''; });
+            delete m.roomId;
+        } else if (want === normalizeStr(asg.roomId)) {
+            delete m.roomId;
+        } else {
+            m.roomId = want;
+        }
+        // All periods share one room again: make it the class default.
+        const rooms = [...new Set(meetings.map((x) => meetingRoomId(asg, x) || ''))];
+        if (rooms.length === 1) {
+            asg.roomId = rooms[0] || null;
+            meetings.forEach((x) => { delete x.roomId; });
+        }
+        asg.manualKeep = true;
+        asg.source = 'manual';
+        draft.updatedAt = new Date().toISOString();
+        recomputeDraftMetrics(appData, draft);
+        return { ok: true };
+    }
+
+    /** Set or clear the teacher of a class (null clears). Creates the assignment if needed. */
+    function setClassTeacher(appData, draft, demandId, teacherProfileId) {
+        const demand = buildDemandsFromAppData(appData).find((d) => d.demandId === demandId);
+        if (!draft || !demand) return { ok: false, reason: 'missing_context' };
+        const teacher = teacherProfileId
+            ? (appData.teacherProfiles || []).find((t) => t.id === teacherProfileId)
+            : null;
+        if (teacherProfileId && !teacher) return { ok: false, reason: 'missing_context' };
+        let asg = draft.assignments.find((a) => a.demandId === demandId);
+        if (!asg) {
+            if (!teacher) return { ok: true };
+            asg = newAssignment(demand, teacher);
+            draft.assignments.push(asg);
+        }
+        asg.teacherProfileId = teacher ? teacher.id : null;
+        asg.userId = teacher ? teacher.userId : null;
+        asg.manualKeep = true;
+        asg.source = 'manual';
+        draft.updatedAt = new Date().toISOString();
+        recomputeDraftMetrics(appData, draft);
+        return { ok: true, assignmentId: asg.assignmentId };
+    }
+
     function setAssignmentTeacher(appData, draft, demandId, teacherProfileId) {
         const teacher = (appData.teacherProfiles || []).find((t) => t.id === teacherProfileId);
         const demand = buildDemandsFromAppData(appData).find((d) => d.demandId === demandId);
@@ -1069,11 +1421,43 @@
                 }
             }
             meetings.forEach((m) => {
-                if (isOutOfBlock(demand.band, m.period)) {
+                const blockedWhy = teacher
+                    ? isSlotBlocked(teacher, m.dow, m.period, (appData.plannerState && appData.plannerState.blockouts) || {})
+                    : null;
+                if (blockedWhy) {
+                    issues.push(createIssue({
+                        severity: 'soft',
+                        code: 'teacher_unavailable',
+                        message: `${demand.name}: ${teacher.name} is marked not available (D${m.dow} P${m.period}).`,
+                        everyone: blockedWhy.indexOf('global') === 0,
+                        dow: Number(m.dow),
+                        period: String(m.period),
+                        assignmentId: asg.assignmentId,
+                        demandId: demand.demandId,
+                        teacherProfileId: teacher.id
+                    }));
+                }
+                if (teacher && outsideTeacherHours(appData, teacher, m.period)) {
+                    issues.push(createIssue({
+                        severity: 'soft',
+                        code: 'teacher_unavailable',
+                        message: `${demand.name}: outside ${teacher.name}'s working hours (D${m.dow} P${m.period}).`,
+                        outsideHours: true,
+                        dow: Number(m.dow),
+                        period: String(m.period),
+                        assignmentId: asg.assignmentId,
+                        demandId: demand.demandId,
+                        teacherProfileId: teacher.id
+                    }));
+                }
+                if (outsideStudentHours(appData, demand, m.period)) {
                     issues.push(createIssue({
                         severity: 'soft',
                         code: 'outside_band_block',
                         message: `${demand.name} is outside its ${demand.band} block (D${m.dow} P${m.period}).`,
+                        band: demand.band,
+                        dow: Number(m.dow),
+                        period: String(m.period),
                         assignmentId: asg.assignmentId,
                         demandId: demand.demandId,
                         teacherProfileId: asg.teacherProfileId
@@ -1087,39 +1471,47 @@
                         message: lockOn
                             ? `${demand.name}: outside cohort days (lock on — warning only).`
                             : `${demand.name}: placed on a day outside cohort days.`,
+                        dow: Number(m.dow),
+                        period: String(m.period),
                         assignmentId: asg.assignmentId,
                         demandId: demand.demandId
                     }));
                 }
             });
-            if (!asg.roomId) {
+            const roomless = meetings.filter((m) => !meetingRoomId(asg, m));
+            if (roomless.length || (!meetings.length && !asg.roomId)) {
                 issues.push(createIssue({
                     severity: 'soft',
                     code: 'room_unresolved',
                     message: `${demand.name}: no room assigned.`,
                     assignmentId: asg.assignmentId,
                     demandId: demand.demandId,
+                    dow: roomless[0] ? Number(roomless[0].dow) : null,
+                    period: roomless[0] ? String(roomless[0].period) : null,
                     suggestedAction: 'assignRoom'
                 }));
-            } else {
-                const others = (draft.assignments || []).filter((a) => a.assignmentId !== asg.assignmentId);
-                if (roomConflictsFor(asg, asg.roomId, others).length) {
-                    issues.push(createIssue({
-                        severity: 'soft',
-                        code: 'room_conflict',
-                        message: `${demand.name}: room conflict.`,
-                        assignmentId: asg.assignmentId,
-                        demandId: demand.demandId,
-                        suggestedAction: 'reassign'
-                    }));
-                }
             }
+            const roomOthers = (draft.assignments || []).filter((a) => a.assignmentId !== asg.assignmentId);
+            roomClashMeetings(asg, roomOthers).forEach((m) => {
+                issues.push(createIssue({
+                    severity: 'soft',
+                    code: 'room_conflict',
+                    message: `${demand.name}: room conflict.`,
+                    assignmentId: asg.assignmentId,
+                    demandId: demand.demandId,
+                    roomId: meetingRoomId(asg, m),
+                    dow: Number(m.dow),
+                    period: String(m.period),
+                    suggestedAction: 'reassign'
+                }));
+            });
             const need = weeklyNeed(demand);
             if (meetings.length < need) {
                 issues.push(createIssue({
                     severity: 'soft',
                     code: 'incomplete_placements',
                     message: `${demand.name} needs ${need - meetings.length} more period(s).`,
+                    missing: need - meetings.length,
                     assignmentId: asg.assignmentId,
                     demandId: demand.demandId
                 }));
@@ -1145,6 +1537,8 @@
                     severity: 'soft',
                     code: 'over_load',
                     message: `${t.name} is over load target (${assigned}/${t.limits.maxPeriodsPerWeek}).`,
+                    count: assigned,
+                    limit: t.limits.maxPeriodsPerWeek,
                     teacherProfileId: t.id
                 }));
             }
@@ -1162,6 +1556,9 @@
                         severity: 'soft',
                         code: 'max_periods_per_day',
                         message: `${t.name}: over max periods on day ${d} (${byDay[d]}/${t.limits.maxPeriodsPerDay}).`,
+                        dow: Number(d),
+                        count: byDay[d],
+                        limit: t.limits.maxPeriodsPerDay,
                         teacherProfileId: t.id
                     }));
                 }
@@ -1171,6 +1568,7 @@
         // Soft: teacher double-book
         const occ = new Map();
         (draft.assignments || []).forEach((asg) => {
+            if (!asg.teacherProfileId) return;
             assignmentMeetings(asg).forEach((m) => {
                 const key = `${asg.teacherProfileId}|${slotKey(m.dow, m.period)}`;
                 if (occ.has(key)) {
@@ -1178,6 +1576,9 @@
                         severity: 'soft',
                         code: 'teacher_double_booked',
                         message: `Teacher double-booked at D${m.dow} P${m.period}.`,
+                        dow: Number(m.dow),
+                        period: String(m.period),
+                        demandId: asg.demandId,
                         assignmentId: asg.assignmentId,
                         teacherProfileId: asg.teacherProfileId
                     }));
@@ -1198,6 +1599,9 @@
                             severity: 'soft',
                             code: 'cohort_double_booked',
                             message: `${demand.name}: cohort overlap at D${m.dow} P${m.period}.`,
+                            cohortId: cid,
+                            dow: Number(m.dow),
+                            period: String(m.period),
                             assignmentId: asg.assignmentId,
                             demandId: demand.demandId
                         }));
@@ -1236,7 +1640,10 @@
             hardIssueCount: issues.filter((i) => i.severity === 'hard').length,
             softIssueCount: issues.filter((i) => i.severity === 'soft').length,
             teacherLoads,
-            roomUnresolvedCount: (draft.assignments || []).filter((a) => !a.roomId).length
+            roomUnresolvedCount: (draft.assignments || []).filter((a) => {
+                const ms = assignmentMeetings(a);
+                return ms.length ? ms.some((m) => !meetingRoomId(a, m)) : !a.roomId;
+            }).length
         };
         draft.status = draft.metrics.hardIssueCount ? 'hasIssues' : 'ready';
         return draft;
@@ -1513,15 +1920,32 @@
         return draft;
     }
 
+    /** Room for one meeting: the meeting's own room, else the class default. */
+    function meetingRoomId(asg, meeting) {
+        return normalizeStr(meeting && meeting.roomId) || normalizeStr(asg && asg.roomId) || null;
+    }
+
     function roomOccupancy(assignments) {
         const map = new Map();
         (assignments || []).forEach((asg) => {
-            if (!asg.roomId) return;
             (asg.meetings || []).forEach((m) => {
-                map.set(`${asg.roomId}|${slotKey(m.dow, m.period)}`, asg.assignmentId);
+                const roomId = meetingRoomId(asg, m);
+                if (!roomId) return;
+                map.set(`${roomId}|${slotKey(m.dow, m.period)}`, asg.assignmentId);
             });
         });
         return map;
+    }
+
+    /** Meetings of this assignment whose room is also used by another class at the same time. */
+    function roomClashMeetings(assignment, otherAssignments) {
+        const occ = roomOccupancy(otherAssignments);
+        return (assignment.meetings || []).filter((m) => {
+            const roomId = meetingRoomId(assignment, m);
+            if (!roomId) return false;
+            const key = `${roomId}|${slotKey(m.dow, m.period)}`;
+            return occ.has(key) && occ.get(key) !== assignment.assignmentId;
+        });
     }
 
     function roomConflictsFor(assignment, roomId, otherAssignments) {
@@ -1529,7 +1953,7 @@
         const occ = roomOccupancy(otherAssignments);
         const conflicts = [];
         (assignment.meetings || []).forEach((m) => {
-            const key = `${roomId}|${slotKey(m.dow, m.period)}`;
+            const key = `${normalizeStr(m.roomId) || roomId}|${slotKey(m.dow, m.period)}`;
             if (occ.has(key) && occ.get(key) !== assignment.assignmentId) {
                 conflicts.push('room_double_booked');
             }
@@ -1617,6 +2041,7 @@
         draft.assignments.forEach((a) => {
             if (a.linkGroupId !== asg.linkGroupId) return;
             a.roomId = toRoomId || null;
+            (a.meetings || []).forEach((m) => { delete m.roomId; });
             a.manualKeep = true;
             a.source = 'manual';
             if (a.score && Array.isArray(a.score.tags)) {
@@ -1841,12 +2266,17 @@
                 failed.push({ assignmentId: asg.assignmentId, reason: 'class_missing' });
                 return;
             }
-            if (!asg.userId && !opts.allowMissingUserId) {
+            const profile = (appData.teacherProfiles || []).find((t) => t.id === asg.teacherProfileId);
+            if (profile && !asg.userId && !profile.userId && !opts.allowMissingUserId) {
                 failed.push({ assignmentId: asg.assignmentId, reason: 'missing_user_id' });
                 return;
             }
-            const profile = (appData.teacherProfiles || []).find((t) => t.id === asg.teacherProfileId);
             const meetings = asg.meetings || [];
+            if (!meetings.length) {
+                // Nothing placed: leave the class's current times alone.
+                failed.push({ assignmentId: asg.assignmentId, reason: 'no_periods' });
+                return;
+            }
             const meetingDays = [...new Set(meetings.map((m) => Number(m.dow)))].sort((a, b) => a - b);
             const periodByWeekday = {};
             meetings.forEach((m) => {
@@ -1870,15 +2300,33 @@
                 scheduleBlock: cls.scheduleBlock || ''
             };
             if (!Array.isArray(cls.classTeachers)) cls.classTeachers = [];
-            // Replace matching teacher row or set as sole planner-assigned row when empty/overwrite
-            if (opts.replaceAllTeachers) {
+            if (!profile) {
+                // No teacher chosen yet: only the times (below) are written.
+            } else if (opts.replaceAllTeachers) {
                 cls.classTeachers = [row];
             } else {
-                const idx = cls.classTeachers.findIndex((r) => normalizeStr(r.userId) && normalizeStr(r.userId) === normalizeStr(row.userId));
-                if (idx >= 0) cls.classTeachers[idx] = Object.assign({}, cls.classTeachers[idx], row, { id: cls.classTeachers[idx].id || row.id });
-                else cls.classTeachers.push(row);
+                const sameTeacher = (r) => (normalizeStr(r.userId) && normalizeStr(r.userId) === normalizeStr(row.userId))
+                    || (!normalizeStr(r.userId) && !normalizeStr(row.userId)
+                        && normalizeStr(r.name).toLowerCase() === normalizeStr(row.name).toLowerCase());
+                let idx = cls.classTeachers.findIndex(sameTeacher);
+                // The planner plans the class's first teacher; a new teacher takes that row.
+                if (idx < 0 && opts.replaceFirstTeacher && cls.classTeachers.length) idx = 0;
+                if (idx >= 0) {
+                    const prev = cls.classTeachers[idx];
+                    cls.classTeachers[idx] = Object.assign({}, prev, row, {
+                        id: prev.id || row.id,
+                        category: prev.category || row.category
+                    });
+                } else cls.classTeachers.push(row);
             }
             if (asg.roomId) cls.roomId = asg.roomId;
+            const roomByWd = {};
+            meetings.forEach((m) => {
+                const rid = normalizeStr(m.roomId);
+                if (rid && rid !== normalizeStr(asg.roomId)) roomByWd[String(m.dow)] = rid;
+            });
+            if (Object.keys(roomByWd).length) cls.roomIdByWeekday = roomByWd;
+            else if (cls.roomIdByWeekday) delete cls.roomIdByWeekday;
             // Write-through to class module schedule fields (Class Setup)
             cls.meetingDays = meetingDays.slice();
             cls.period = placements[0] ? placements[0].period : cls.period;
@@ -1976,6 +2424,17 @@
         swapPeriodCells,
         setAssignmentTeacher,
         recomputeDraftMetrics,
+        outsideStudentHours,
+        outsideTeacherHours,
+        meetingRoomId,
+        roomClashMeetings,
+        checkSlot,
+        placePeriod,
+        movePeriodTo,
+        checkSwap,
+        swapPeriods,
+        setMeetingRoom,
+        setClassTeacher,
         inferCadence,
         getClassCohortIds
     };

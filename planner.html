@@ -12,7 +12,7 @@
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <script>
-        window.CCP_I18N_VERSION = '20260723-planner-print';
+        window.CCP_I18N_VERSION = '20261114-planner-rebuild';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -27,7 +27,7 @@
             } catch (e) { /* ignore */ }
         })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20260723-planner-print">
+    <link rel="stylesheet" href="styles.css?v=20261114-planner-rebuild">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -71,90 +71,84 @@
 
     <div id="teamLockSyncBar" class="team-lock-sync-bar" hidden aria-live="polite"></div>
 
-    <main id="plannerPageRoot" class="timetable-planner-root planner-page-root">
-        <div class="planner-hero">
-            <p class="planner-hero-lead" data-i18n="plannerHeroLead">Arrange teachers and classrooms for this term, then apply the draft back to your calendar.</p>
-            <ol class="planner-hero-steps" data-i18n-skip="1">
-                <li data-i18n="plannerHeroStep1">1. Set teacher limits and block-outs</li>
-                <li data-i18n="plannerHeroStep2">2. Review which classes need teaching</li>
-                <li data-i18n="plannerHeroStep3">3. Add rooms (optional)</li>
-                <li data-i18n="plannerHeroStep4">4. Generate a draft, drag to fix, apply</li>
-            </ol>
-        </div>
-        <nav class="planner-step-tabs" aria-label="Arrange steps">
-            <button type="button" id="plannerStepTab-teachers" class="btn btn-outline btn-small is-active" data-planner-step="teachers" data-i18n="plannerStepTeachers">1. Teachers</button>
-            <button type="button" id="plannerStepTab-demand" class="btn btn-outline btn-small" data-planner-step="demand" data-i18n="plannerStepDemand">2. Classes</button>
-            <button type="button" id="plannerStepTab-rooms" class="btn btn-outline btn-small" data-planner-step="rooms" data-i18n="plannerStepRooms">3. Rooms</button>
-            <button type="button" id="plannerStepTab-draft" class="btn btn-outline btn-small" data-planner-step="draft" data-i18n="plannerStepDraft">4. Draft board</button>
-        </nav>
-        <div id="plannerStep-teachers" class="planner-step-panel">
-            <div class="planner-step-intro">
-                <h2 class="planner-step-title" data-i18n="plannerStepTeachersTitle">Teacher setup</h2>
-                <p class="section-hint" data-i18n="plannerTeachersHint">Set role, load limits, preferences, and blocked-out times for each teacher.</p>
-            </div>
-            <div id="plannerTeachersMount" class="planner-teachers-mount"></div>
-            <div class="planner-step-footer">
-                <button type="button" class="btn btn-primary" data-planner-step="demand" data-i18n="plannerNextClasses">Next: Classes</button>
-            </div>
-        </div>
-        <div id="plannerStep-demand" class="planner-step-panel" hidden>
-            <div class="planner-step-intro">
-                <h2 class="planner-step-title" data-i18n="plannerStepDemandTitle">Class demand</h2>
-                <p id="plannerDemandSummary" class="planner-summary-strip section-hint"></p>
-            </div>
-            <div id="plannerDemandMount"></div>
-            <div class="planner-step-footer">
-                <button type="button" class="btn btn-outline" data-planner-step="teachers" data-i18n="plannerBack">Back</button>
-                <button type="button" class="btn btn-primary" data-planner-step="rooms" data-i18n="plannerNextRooms">Next: Rooms</button>
-            </div>
-        </div>
-        <div id="plannerStep-rooms" class="planner-step-panel" hidden>
-            <div class="planner-step-intro">
-                <h2 class="planner-step-title" data-i18n="plannerStepRoomsTitle">Rooms</h2>
-                <p class="section-hint" data-i18n="plannerRoomsHint">Add classrooms here. Room conflicts are soft warnings — teacher assignment still works without a perfect room fit.</p>
-            </div>
-            <div id="plannerRoomsMount" class="planner-rooms-mount"></div>
-            <div class="planner-step-footer">
-                <button type="button" class="btn btn-outline" data-planner-step="demand" data-i18n="plannerBack">Back</button>
-                <button type="button" class="btn btn-primary" data-planner-step="draft" data-i18n="plannerNextDraft">Next: Draft board</button>
-            </div>
-        </div>
-        <div id="plannerStep-draft" class="planner-step-panel" hidden>
-            <div class="planner-step-intro">
-                <h2 class="planner-step-title" data-i18n="plannerStepDraftTitle">Draft board</h2>
-                <p class="section-hint" data-i18n="plannerDraftHint">Generate a draft, drag class periods onto teacher grids, or drop onto another tile to swap. Apply writes times back into Class Setup.</p>
-            </div>
-            <div class="module-toolbar classroom-tab-toolbar planner-draft-toolbar">
-                <div class="planner-board-mode" role="group" aria-label="Board view">
-                    <button type="button" id="plannerBoardTeachersBtn" class="btn btn-outline btn-small is-active" data-board-view="teachers" data-i18n="plannerBoardTeachers">Teachers</button>
-                    <button type="button" id="plannerBoardRoomsBtn" class="btn btn-outline btn-small" data-board-view="rooms" data-i18n="plannerBoardRooms">Rooms</button>
+    <main id="plannerPageRoot" class="sp-root" hidden>
+        <div class="sp-topbar">
+            <div class="sp-topbar-row">
+                <div class="sp-seg" role="group" data-i18n-aria-label="spViewLabel" aria-label="Sheet">
+                    <button type="button" class="sp-seg-btn" data-sp-view="teachers" data-i18n="spViewTeachers">Teachers</button>
+                    <button type="button" class="sp-seg-btn" data-sp-view="cohorts" data-i18n="spViewCohorts">Cohorts</button>
+                    <button type="button" class="sp-seg-btn" data-sp-view="rooms" data-i18n="spViewRooms">Rooms</button>
                 </div>
-                <label class="planner-lock-toggle" title="When on, off-cohort days show as soft warnings">
-                    <input type="checkbox" id="plannerLockCohortDays">
-                    <span data-i18n="plannerLockCohortDays">Lock to cohort days</span>
-                </label>
-                <div class="toolbar-actions">
-                    <button type="button" id="plannerLoadCalendarBtn" class="btn btn-outline btn-small" data-i18n="plannerLoadCalendar">Load from calendar</button>
-                    <button type="button" id="plannerGenerateBtn" class="btn btn-primary btn-small" data-i18n="plannerGenerate">Generate draft</button>
-                    <button type="button" id="plannerRerunUnresolvedBtn" class="btn btn-outline btn-small" data-i18n="plannerRerunUnresolved">Rerun unresolved</button>
-                    <button type="button" id="plannerApplyBtn" class="btn btn-secondary btn-small" data-i18n="plannerApply">Apply to calendar</button>
-                    <button type="button" id="plannerPrintBtn" class="btn btn-header-print btn-small">
-                        <span id="plannerPrintBtnLabel" data-i18n="plannerPrintTeachers">Print teacher timetables</span>
-                    </button>
+                <div id="spDays" class="sp-days" role="group" aria-label="Day"></div>
+                <select id="spBand" class="field-select sp-band" data-i18n-aria-label="spBandLabel" aria-label="Level">
+                    <option value="all" data-i18n="spBandAll">All levels</option>
+                    <option value="junior" data-i18n="plannerJunior">Junior</option>
+                    <option value="middle" data-i18n="plannerMiddle">Middle</option>
+                    <option value="senior" data-i18n="plannerSenior">Senior</option>
+                </select>
+                <div class="sp-topbar-actions">
+                    <button type="button" id="spUndoBtn" class="btn btn-outline btn-small" data-act="undo" data-i18n="spUndo" disabled>Undo</button>
+                    <button type="button" id="spRedoBtn" class="btn btn-outline btn-small" data-act="redo" data-i18n="spRedo" disabled>Redo</button>
+                    <button type="button" class="btn btn-outline btn-small" data-act="open-setup" data-i18n="spSetup">Setup</button>
+                    <div class="sp-menu-wrap">
+                        <button type="button" id="spAutoBtn" class="btn btn-outline btn-small" data-menu="spToolsMenu" aria-haspopup="true" aria-expanded="false" data-i18n="spTools">Tools ▾</button>
+                        <div id="spToolsMenu" class="sp-menu" hidden>
+                            <button type="button" data-act="load-calendar" data-i18n="spToolLoad">Load from calendar</button>
+                            <button type="button" data-act="suggest-teachers" data-i18n="spToolSuggest">Suggest teachers for the rest</button>
+                            <button type="button" data-act="clear-board" data-i18n="spToolClear">Clear the board</button>
+                        </div>
+                    </div>
+                    <div class="sp-menu-wrap">
+                        <button type="button" class="btn btn-outline btn-small" data-menu="spPrintMenu" aria-haspopup="true" aria-expanded="false" data-i18n="spPrint">Print ▾</button>
+                        <div id="spPrintMenu" class="sp-menu" hidden>
+                            <button type="button" data-act="print" data-kind="teachers" data-i18n="spPrintTeachers">Teacher timetables</button>
+                            <button type="button" data-act="print" data-kind="cohorts" data-i18n="spPrintCohorts">Cohort timetables</button>
+                            <button type="button" data-act="print" data-kind="rooms" data-i18n="spPrintRooms">Room timetables</button>
+                            <button type="button" data-act="print" data-kind="daily" data-i18n="spPrintDaily">Daily sheet</button>
+                        </div>
+                    </div>
+                    <button type="button" id="plannerApplyBtn" class="btn btn-primary btn-small" data-act="apply" data-i18n="plannerApply">Apply to calendar</button>
                 </div>
             </div>
-            <p id="plannerMetricsMount" class="planner-summary-strip section-hint"></p>
-            <div class="planner-draft-layout planner-draft-layout--3pane">
-                <aside id="plannerClassBin" class="planner-class-bin" aria-label="Class list">
-                    <input type="search" id="plannerBinSearch" class="module-list-search planner-bin-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="plannerBinSearchPlaceholder" placeholder="Search classes…">
-                    <div class="planner-bin-heading" data-i18n="plannerClassList">Class list</div>
-                    <div id="plannerClassBinList" class="planner-class-bin-list"></div>
-                </aside>
-                <div id="plannerDraftMount" class="planner-draft-mount"></div>
-                <aside id="plannerIssuesMount" class="planner-issues-mount" aria-label="Planner issues"></aside>
-            </div>
+            <div id="spSummary" class="sp-summary" role="status"></div>
+        </div>
+
+        <div class="sp-layout">
+            <aside id="spTray" class="sp-tray" data-i18n-aria-label="spTrayLabel" aria-label="Classes">
+                <input type="search" id="spSearch" class="module-list-search sp-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="plannerBinSearchPlaceholder" placeholder="Search classes…">
+                <p class="sp-hint sp-tray-hint" data-i18n="spTrayHint">Drag a class onto the board. Drag it back here to take it off.</p>
+                <div id="spTrayList" class="sp-tray-list"></div>
+                <div id="spInspector" class="sp-inspector" hidden></div>
+            </aside>
+            <section id="spBoard" class="sp-board" data-i18n-aria-label="spBoardLabel" aria-label="Timetable board"></section>
+            <aside id="spIssues" class="sp-issues" data-i18n-aria-label="spIssuesTitle" aria-label="To fix"></aside>
         </div>
     </main>
+
+    <div id="spSetup" class="sp-overlay" hidden>
+        <div class="sp-dialog" role="dialog" aria-modal="true" aria-labelledby="spSetupTitle">
+            <header class="sp-dialog-head">
+                <h2 id="spSetupTitle" data-i18n="spSetupTitle">Planner setup</h2>
+                <div class="sp-seg" role="tablist">
+                    <button type="button" role="tab" class="sp-seg-btn" data-setup-tab="teachers" data-i18n="spViewTeachers">Teachers</button>
+                    <button type="button" role="tab" class="sp-seg-btn" data-setup-tab="rooms" data-i18n="spViewRooms">Rooms</button>
+                    <button type="button" role="tab" class="sp-seg-btn" data-setup-tab="classes" data-i18n="spSetupClasses">Classes</button>
+                </div>
+                <button type="button" class="btn btn-primary btn-small" data-act="close-setup" data-i18n="spDone">Done</button>
+            </header>
+            <div id="spSetupBody" class="sp-dialog-body"></div>
+        </div>
+    </div>
+
+    <div id="spConfirm" class="sp-overlay sp-overlay--confirm" hidden>
+        <div class="sp-dialog sp-dialog--small" role="alertdialog" aria-modal="true" aria-describedby="spConfirmText">
+            <p id="spConfirmText" class="sp-confirm-text"></p>
+            <div class="sp-confirm-actions">
+                <button type="button" class="btn btn-outline btn-small" data-confirm="cancel" data-i18n="spCancel">Cancel</button>
+                <button type="button" id="spConfirmOk" class="btn btn-primary btn-small" data-confirm="ok">OK</button>
+            </div>
+        </div>
+    </div>
 
     <div id="plannerPrintArea" class="planner-print-area" aria-hidden="true"></div>
 
@@ -173,12 +167,12 @@
     <script defer src="js/core/app-state.js?v=20260909-period8"></script>
     <script defer src="js/timetable-periods.js?v=20260909-period8"></script>
     <script defer src="js/teacher-timetable.js?v=20260909-period8"></script>
-    <script defer src="js/planner/teacher-planner-core.js?v=20260723-planner-room-bands"></script>
-    <script defer src="js/planner/teacher-planner-ui.js?v=20260909-period8"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20260723-planner-print"></script>
+    <script defer src="js/planner/teacher-planner-core.js?v=20261114-planner-rebuild"></script>
+    <script defer src="js/planner/teacher-planner-ui.js?v=20261114-planner-rebuild"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20261114-planner-rebuild"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/level-profile.js?v=20261015-p7-level"></script>
     <script defer src="app.js?v=20261015-p7-level"></script>
-    <script defer src="js/planner/teacher-planner-page.js?v=20260723-planner-permissive"></script>
+    <script defer src="js/planner/teacher-planner-page.js?v=20261114-planner-rebuild"></script>
 </body>
 </html>
