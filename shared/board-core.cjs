@@ -453,6 +453,15 @@ function snippetAround(text, query) {
     return snip;
 }
 
+/** Search text split into lowercase words; quotes are ignored. */
+function searchWords(text) {
+    return String(text || '')
+        .toLowerCase()
+        .replace(/["\u201c\u201d]/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean);
+}
+
 function placeholders(list) {
     return list.map(() => '?').join(', ');
 }
@@ -1079,13 +1088,19 @@ async function searchBoard(ctx, user, calendarId, query) {
     appendCommonFilters(where, params, query);
     appendCursor(where, params, cursor);
     const scanned = await selectPosts(ctx, where, params, SEARCH_SCAN);
-    const needle = text.toLowerCase();
+    // Every word must appear somewhere in the note, in any order ("absent math" finds
+    // "Math: Minji was absent"). Case does not matter.
+    const needles = searchWords(text);
+    if (!needles.length) {
+        throw boardError('Type something to search', 400, 'BOARD_QUERY');
+    }
     const matches = [];
     let lastExamined = null;
     for (const row of scanned) {
         lastExamined = row;
         const body = plainBody(ctx, row);
-        if (body.toLowerCase().includes(needle)) {
+        const hay = body.toLowerCase();
+        if (needles.every((word) => hay.includes(word))) {
             matches.push({ row, body });
             if (matches.length >= limit) {
                 break;
@@ -1098,7 +1113,7 @@ async function searchBoard(ctx, user, calendarId, query) {
     );
     const byId = new Map(matches.map((hit) => [String(hit.row.id), hit.body]));
     posts.forEach((post) => {
-        post.snippet = snippetAround(byId.get(String(post.id)) || '', text);
+        post.snippet = snippetAround(byId.get(String(post.id)) || '', needles[0] || text);
     });
     const moreInScan = scanned.length === SEARCH_SCAN || matches.length >= limit;
     const exhausted = !lastExamined || (matches.length < limit && scanned.length < SEARCH_SCAN);

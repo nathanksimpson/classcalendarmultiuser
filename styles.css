@@ -24329,6 +24329,32 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-boo
     color: var(--danger);
 }
 
+.class-board-search {
+    margin: 0 0 var(--space-2);
+}
+
+.class-board-search-input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.class-board-search-summary {
+    margin: 0 0 var(--space-2);
+    color: var(--text-muted);
+    font-size: var(--text-body-sm);
+}
+
+mark.class-board-hit {
+    background: #fff1a8;
+    color: inherit;
+    border-radius: 2px;
+    padding: 0 1px;
+}
+
+[data-theme="dark"] mark.class-board-hit {
+    background: rgba(255, 214, 10, 0.35);
+}
+
 .class-board-body {
     white-space: pre-wrap;
     color: var(--text-primary);

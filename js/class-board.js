@@ -40,7 +40,8 @@
         exportOpen: false,
         exp: null,
         expPosts: null,
-        expLoading: false
+        expLoading: false,
+        search: ''
     };
 
     const SPECIAL_KIND = '__special';
@@ -160,11 +161,29 @@
 
     /** API path for the board or feed being viewed, with the current sort. */
     function listPath(id) {
+        const q = searchText();
+        if (q) {
+            // Search covers every board in this term from the feed, or just the board being viewed.
+            const where = state.scope === 'feed'
+                ? ''
+                : '&kind=' + encodeURIComponent(state.scope) + '&ref=' + encodeURIComponent(state.ref || '');
+            return '/calendars/' + encodeURIComponent(id) + '/board/search?q=' + encodeURIComponent(q) + where +
+                (state.filterTag ? '&tag=' + encodeURIComponent(state.filterTag) : '');
+        }
         const base = state.scope === 'feed'
             ? '/calendars/' + encodeURIComponent(id) + '/board/feed?scope=mine'
             : '/calendars/' + encodeURIComponent(id) + '/board?kind=' + encodeURIComponent(state.scope) + '&ref=' + encodeURIComponent(state.ref || '');
         return base + '&order=' + encodeURIComponent(state.order) +
             (state.filterTag ? '&tag=' + encodeURIComponent(state.filterTag) : '');
+    }
+
+    function searchText() {
+        return String(state.search || '').trim().slice(0, 200);
+    }
+
+    /** Lowercase words from the search box, for highlighting matches. */
+    function searchWordsClient() {
+        return searchText().toLowerCase().replace(/["\u201c\u201d]/g, ' ').split(/\s+/).filter(Boolean);
     }
 
     function tr(key) {
@@ -289,6 +308,8 @@
         return /no such table/i.test(message) || (err && err.body && err.body.code === 'BOARD_SCHEMA');
     }
 
+    let loadRun = 0;
+
     async function load() {
         const id = calendarId();
         const mount = rootEl();
@@ -297,17 +318,33 @@
             paint();
             return;
         }
+        const run = ++loadRun;
+        const searching = Boolean(searchText());
         state.loading = true;
         state.error = '';
         paintStatus();
         try {
             const body = await api(listPath(id));
+            if (run !== loadRun) {
+                return;
+            }
             state.posts = body.posts || [];
             state.nextCursor = body.nextCursor || null;
             if (body.unreadBoards) {
                 state.unread = body.unreadBoards;
             }
-            if (state.scope !== 'feed') {
+            if (searching) {
+                // The server checks notes in batches; keep going until something matches.
+                for (let round = 0; round < 10 && !state.posts.length && state.nextCursor; round += 1) {
+                    const next = await api(listPath(id) + '&cursor=' + encodeURIComponent(state.nextCursor));
+                    if (run !== loadRun) {
+                        return;
+                    }
+                    state.posts = next.posts || [];
+                    state.nextCursor = next.nextCursor || null;
+                }
+            }
+            if (state.scope !== 'feed' && !searching) {
                 await api('/calendars/' + encodeURIComponent(id) + '/board/read', {
                     method: 'POST',
                     body: { boardKind: state.scope, boardRef: state.ref || '' }
@@ -315,12 +352,17 @@
                 state.unread = state.unread.filter((row) => !(row.boardKind === state.scope && String(row.boardRef || '') === String(state.ref || '')));
             }
         } catch (err) {
+            if (run !== loadRun) {
+                return;
+            }
             state.error = schemaMissing(err) ? tr('boardSchemaMissing') : (err && err.message) || tr('boardError');
         } finally {
-            state.loading = false;
-            paint();
+            if (run === loadRun) {
+                state.loading = false;
+                paint();
+            }
         }
-        if (!state.error) {
+        if (!state.error && !searching) {
             importOldNotesInBackground(id);
         }
     }
@@ -1174,10 +1216,104 @@
         const more = state.nextCursor
             ? '<button type="button" class="btn btn-outline btn-small class-board-more" data-more="1">' + esc(tr('boardMore')) + '</button>'
             : '';
-        list.innerHTML = state.posts.length
-            ? state.posts.map(cardHtml).join('') + more
-            : '<p class="class-board-empty">' + esc(tr('boardEmpty')) + '</p>';
+        const q = searchText();
+        if (q) {
+            const count = state.posts.length;
+            const summary = state.loading
+                ? ''
+                : '<p class="class-board-search-summary" role="status">' +
+                    esc((count ? tr('boardSearchCount').replace('{n}', String(count) + (state.nextCursor ? '+' : '')) : tr('boardSearchNone'))
+                        .replace('{q}', q)) +
+                    ' <button type="button" class="class-board-foot-btn" data-search-clear="1">' + esc(tr('boardSearchClear')) + '</button></p>';
+            list.innerHTML = summary + state.posts.map(cardHtml).join('') + more;
+            highlightMatches(list, searchWordsClient());
+        } else {
+            list.innerHTML = state.posts.length
+                ? state.posts.map(cardHtml).join('') + more
+                : '<p class="class-board-empty">' + esc(tr('boardEmpty')) + '</p>';
+        }
         attachMentions(list);
+    }
+
+    /** Wrap each search word inside note bodies in <mark>, without touching the HTML around it. */
+    function highlightMatches(root, words) {
+        if (!words.length) {
+            return;
+        }
+        const pattern = new RegExp('(' + words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'gi');
+        root.querySelectorAll('.class-board-body').forEach((body) => {
+            const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+            const nodes = [];
+            while (walker.nextNode()) {
+                nodes.push(walker.currentNode);
+            }
+            nodes.forEach((node) => {
+                const text = node.nodeValue;
+                pattern.lastIndex = 0;
+                if (!pattern.test(text)) {
+                    return;
+                }
+                const frag = document.createDocumentFragment();
+                text.split(pattern).forEach((part, i) => {
+                    if (!part) {
+                        return;
+                    }
+                    if (i % 2 === 1) {
+                        const mark = document.createElement('mark');
+                        mark.className = 'class-board-hit';
+                        mark.textContent = part;
+                        frag.appendChild(mark);
+                    } else {
+                        frag.appendChild(document.createTextNode(part));
+                    }
+                });
+                node.parentNode.replaceChild(frag, node);
+            });
+        });
+    }
+
+    function searchHtml() {
+        const placeholder = state.scope === 'feed' ? tr('boardSearchPlaceholderAll') : tr('boardSearchPlaceholderBoard');
+        return '<input type="search" class="field-input class-board-search-input" data-board-search="1" autocomplete="off" spellcheck="false"' +
+            ' value="' + esc(state.search) + '" placeholder="' + esc(placeholder) + '" aria-label="' + esc(tr('boardSearchLabel')) + '">';
+    }
+
+    function paintSearch(mount) {
+        const region = mount.querySelector('[data-region="search"]');
+        if (!region) {
+            return;
+        }
+        const input = region.querySelector('[data-board-search]');
+        if (!input) {
+            region.innerHTML = searchHtml();
+            return;
+        }
+        // Never rebuild the box while someone is typing in it; just keep the hint current.
+        const placeholder = state.scope === 'feed' ? tr('boardSearchPlaceholderAll') : tr('boardSearchPlaceholderBoard');
+        input.placeholder = placeholder;
+        if (document.activeElement !== input && input.value !== state.search) {
+            input.value = state.search;
+        }
+    }
+
+    let searchTimer = 0;
+    function setSearch(value, now) {
+        const next = String(value || '');
+        if (next === state.search && !now) {
+            return;
+        }
+        const changed = next.trim() !== searchText();
+        state.search = next;
+        clearTimeout(searchTimer);
+        if (!changed && !now) {
+            return;
+        }
+        state.threads = {};
+        if (now) {
+            load();
+        } else {
+            searchTimer = setTimeout(load, 300);
+        }
     }
 
     function paint() {
@@ -1188,6 +1324,7 @@
         if (!mount.querySelector('[data-region="scope"]')) {
             mount.innerHTML = '<div class="class-board">' +
                 '<div class="class-board-scope" data-region="scope"></div>' +
+                '<div class="class-board-search" data-region="search"></div>' +
                 '<section class="class-board-export-panel" data-region="export" hidden></section>' +
                 '<form class="class-board-compose" data-region="compose"></form>' +
                 '<p class="class-board-status" data-region="status"></p>' +
@@ -1196,6 +1333,7 @@
             bind(mount);
         }
         mount.querySelector('[data-region="scope"]').innerHTML = scopeHtml();
+        paintSearch(mount);
         paintExport();
         const compose = mount.querySelector('[data-region="compose"]');
         const focused = compose.contains(document.activeElement);
@@ -1219,6 +1357,14 @@
                 state.target = '';
                 state.threads = {};
                 load();
+                return;
+            }
+            if (target.dataset.searchClear) {
+                const input = mount.querySelector('[data-board-search]');
+                if (input) {
+                    input.value = '';
+                }
+                setSearch('', true);
                 return;
             }
             if (target.dataset.replies) {
@@ -1389,6 +1535,20 @@
             state.whoOpen = '';
             paintList();
         });
+        mount.addEventListener('keydown', (event) => {
+            const target = event.target;
+            if (!target || !target.dataset || !target.dataset.boardSearch) {
+                return;
+            }
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                setSearch(target.value, true);
+            } else if (event.key === 'Escape' && target.value) {
+                event.preventDefault();
+                target.value = '';
+                setSearch('', true);
+            }
+        });
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape' && (state.pickOpen || state.whoOpen)) {
                 state.pickOpen = '';
@@ -1505,6 +1665,10 @@
         });
         mount.addEventListener('input', (event) => {
             const target = event.target;
+            if (target.dataset.boardSearch) {
+                setSearch(target.value, false);
+                return;
+            }
             if (target.dataset.compose != null) {
                 state.compose = target.value;
                 const hint = mount.querySelector('.class-board-hint');

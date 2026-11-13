@@ -301,6 +301,40 @@ const checkMark = core.REACTIONS[1];
     check('bad sort order is refused', bad.status === 400, String(bad.status));
 }
 
+// Search: every word must match (any order, any case); outsiders get nothing.
+{
+    const { env, A, V, O } = setup();
+    const id = await makeCalendar(A, env, 'Search Term');
+    grant(env, id, 'uv', 'viewer');
+    const bodies = [
+        'Math: Minji was absent today',
+        'Reading went well, Minji led the debate',
+        'Absent: Junho (sick)'
+    ];
+    for (const body of bodies) {
+        await V('POST', `/api/calendars/${id}/board/posts`, {
+            boardKind: 'class', boardRef: 'c1', lessonDate: '2026-11-03', body
+        });
+    }
+    const find = async (q, extra) => {
+        const res = await V('GET', `/api/calendars/${id}/board/search?q=${encodeURIComponent(q)}${extra || ''}`);
+        return { status: res.status, bodies: (res.body.posts || []).map((p) => p.body), posts: res.body.posts || [] };
+    };
+    const one = await find('minji');
+    check('search is case-insensitive', one.bodies.length === 2, one.bodies.join('|'));
+    const both = await find('ABSENT minji');
+    check('search needs every word, any order', both.bodies.length === 1 && both.bodies[0] === bodies[0], both.bodies.join('|'));
+    check('search returns a snippet', both.posts[0] && /absent/i.test(both.posts[0].snippet || ''), JSON.stringify(both.posts[0]));
+    const none = await find('nobody here');
+    check('search with no match is empty', none.status === 200 && none.bodies.length === 0, JSON.stringify(none));
+    const blank = await find('  ""  ');
+    check('blank search is refused', blank.status === 400, String(blank.status));
+    const onBoard = await find('absent', '&kind=class&ref=c1');
+    check('search within one class board', onBoard.bodies.length === 2, onBoard.bodies.join('|'));
+    const outsider = await O('GET', `/api/calendars/${id}/board/search?q=minji`);
+    check('outsider cannot search', outsider.status === 403 || outsider.status === 404, String(outsider.status));
+}
+
 if (failures) {
     console.error(`\n${failures} class-board check(s) failed`);
     process.exit(1);
