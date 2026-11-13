@@ -323,7 +323,7 @@
                     periods.forEach((n, idx) => {
                         if (picked.some((x) => x.dow === dow && x.n === n)) return;
                         if ((demand.cohortIds || []).some((cid) => cohortBusy.has(`${cid}|${dow}|${n}`))) return;
-                        if (api.outsideStudentHours(appData, demand, n)) return;
+                        if (api.outsideStudentHours(appData, demand, n, dow)) return;
                         const mine = tDay(dow);
                         if (!teacherCanTake(teacher, dow, n, mine)) return;
                         let score = -0.4 * idx; // earlier in the students' hours first
@@ -478,7 +478,7 @@
                 for (let pi = 0; pi < periods.length; pi += 1) {
                     const n = periods[pi];
                     if ((asg.meetings || []).some((m) => Number(m.dow) === dow && Number(m.period) === n)) continue;
-                    if (api.outsideStudentHours(appData, demand, n)) continue;
+                    if (api.outsideStudentHours(appData, demand, n, dow)) continue;
                     const inTheWay = [];
                     let fixedInTheWay = false;
                     draft.assignments.forEach((other) => {

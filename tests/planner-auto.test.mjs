@@ -283,3 +283,28 @@ console.log('planner-auto tests passed');
     assert(api.teacherLimitReason(api.defaultTeacherProfile(d.teacherProfiles[1]), dm('c')) === 'wrong_junior_senior_band', 'junior-only teacher not given pre-middle');
     console.log('schedule block tests passed');
 }
+
+/* Tue/Thu: the elementary block runs to 18:00 (period 4); Mon/Wed/Fri it ends at 17:00. */
+{
+    const d = {
+        cohorts: [
+            { id: 'bt', name: 'Blue T', levelPreset: 'Blue', scheduleBlock: 'primary', meetingDays: [2, 4] },
+            { id: 'bm', name: 'Blue M', levelPreset: 'Blue', scheduleBlock: 'primary', meetingDays: [1, 3, 5] },
+            { id: 'gt', name: 'Garam T', levelPreset: 'Garam', scheduleBlock: 'secondary', meetingDays: [2, 4] }
+        ],
+        classes: ['Debate', 'RC', 'Grammar', 'Speaking'].map((s, i) => ({ id: `t${i}`, name: `Blue T ${s}`, cohortIds: ['bt'], weeklyFrequency: 2 }))
+            .concat([{ id: 'm0', name: 'Blue M Debate', cohortIds: ['bm'], weeklyFrequency: 1 }, { id: 'g0', name: 'Garam T Debate', cohortIds: ['gt'], weeklyFrequency: 1 }]),
+        teacherProfiles: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'c', name: 'C' }]
+    };
+    api.ensurePlannerFields(d);
+    const dm = (id) => api.buildDemandsFromAppData(d).find((x) => x.classId === id);
+    assert(!api.outsideStudentHours(d, dm('t0'), 4, 2) && !api.outsideStudentHours(d, dm('t0'), 4, 4), 'elementary P4 fine on Tue/Thu');
+    assert(api.outsideStudentHours(d, dm('m0'), 4, 1) && api.outsideStudentHours(d, dm('t0'), 5, 2), 'not on Mon, and not P5');
+    assert(!api.outsideStudentHours(d, dm('g0'), 4, 2) && api.outsideStudentHours(d, dm('g0'), 3, 2), 'senior starts 17:00 on Tue/Thu');
+    // 4 classes x 2 a week = 8 periods in 2 days x 4 periods: fits only with the longer Tue/Thu block.
+    const dr = { id: 'tt', assignments: [], issues: [], metrics: {} };
+    const res = auto.autoSchedule(d, dr, {});
+    assert(res.unplaced.length === 0, `Tue/Thu cohort fully placed: ${JSON.stringify(res.unplaced)}`);
+    assert(!dr.issues.some((i) => i.code === 'outside_band_block'), 'no hours warning');
+    console.log('tue/thu block tests passed');
+}

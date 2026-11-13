@@ -188,6 +188,8 @@
         return 'senior';
     }
 
+    const JUNIOR_TTH_PERIODS = [1, 2, 3, 4];
+
     function isOutOfBlock(band, period) {
         const b = band === 'middle' || band === 'senior' ? band : 'junior';
         const allowed = BAND_PERIODS[b] || BAND_PERIODS.junior;
@@ -294,7 +296,7 @@
         return pending.length;
     }
 
-    function outsideStudentHours(appData, demand, period) {
+    function outsideStudentHours(appData, demand, period, dow) {
         const cohorts = Array.isArray(appData && appData.cohorts) ? appData.cohorts : [];
         const clock = periodClock(appData, period);
         const windows = [];
@@ -314,7 +316,14 @@
             const c = cohorts.find((x) => x && x.id === cid);
             return c && normalizeStr(c.scheduleBlock).toLowerCase() === 'secondary';
         });
-        return isOutOfBlock(onSecondary ? 'senior' : (demand && demand.band), period);
+        const band = onSecondary ? 'senior' : (demand && demand.band);
+        // On Tuesday and Thursday the elementary (primary) block runs one period longer, to 18:00,
+        // so it overlaps the first senior period (17:00) on those days.
+        const d = Number(dow);
+        if ((d === 2 || d === 4) && band !== 'senior' && band !== 'middle') {
+            return !JUNIOR_TTH_PERIODS.includes(parsePeriod(period));
+        }
+        return isOutOfBlock(band, period);
     }
 
     /** Is this period before the teacher's clock-in or after their clock-out? */
@@ -998,7 +1007,7 @@
             }
         }
 
-        const warnOutOfBlock = outsideStudentHours(appData, demand, period);
+        const warnOutOfBlock = outsideStudentHours(appData, demand, period, dow);
         const uniqueSoft = [...new Set(softReasons)];
         return {
             ok: true,
@@ -1660,7 +1669,7 @@
                         teacherProfileId: teacher.id
                     }));
                 }
-                if (outsideStudentHours(appData, demand, m.period)) {
+                if (outsideStudentHours(appData, demand, m.period, m.dow)) {
                     issues.push(createIssue({
                         severity: 'soft',
                         code: 'outside_band_block',
