@@ -12,7 +12,7 @@
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <script>
-        window.CCP_I18N_VERSION = '20261114-planner-rebuild';
+        window.CCP_I18N_VERSION = '20261114-planner-auto';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -27,7 +27,7 @@
             } catch (e) { /* ignore */ }
         })();
     </script>
-    <link rel="stylesheet" href="styles.css?v=20261114-planner-rebuild">
+    <link rel="stylesheet" href="styles.css?v=20261114-planner-auto">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -90,11 +90,11 @@
                     <button type="button" id="spUndoBtn" class="btn btn-outline btn-small" data-act="undo" data-i18n="spUndo" disabled>Undo</button>
                     <button type="button" id="spRedoBtn" class="btn btn-outline btn-small" data-act="redo" data-i18n="spRedo" disabled>Redo</button>
                     <button type="button" class="btn btn-outline btn-small" data-act="open-setup" data-i18n="spSetup">Setup</button>
+                    <button type="button" id="spAutoBtn" class="btn btn-secondary btn-small" data-act="auto" data-i18n="spAuto">Auto-schedule</button>
                     <div class="sp-menu-wrap">
-                        <button type="button" id="spAutoBtn" class="btn btn-outline btn-small" data-menu="spToolsMenu" aria-haspopup="true" aria-expanded="false" data-i18n="spTools">Tools ▾</button>
+                        <button type="button" class="btn btn-outline btn-small" data-menu="spToolsMenu" aria-haspopup="true" aria-expanded="false" data-i18n="spTools">Tools ▾</button>
                         <div id="spToolsMenu" class="sp-menu" hidden>
                             <button type="button" data-act="load-calendar" data-i18n="spToolLoad">Load from calendar</button>
-                            <button type="button" data-act="suggest-teachers" data-i18n="spToolSuggest">Suggest teachers for the rest</button>
                             <button type="button" data-act="clear-board" data-i18n="spToolClear">Clear the board</button>
                         </div>
                     </div>
@@ -140,6 +140,26 @@
         </div>
     </div>
 
+    <div id="spAuto" class="sp-overlay" hidden>
+        <div class="sp-dialog sp-dialog--auto" role="dialog" aria-modal="true" aria-labelledby="spAutoTitle">
+            <header class="sp-dialog-head">
+                <h2 id="spAutoTitle" data-i18n="spAutoTitle">Auto-schedule</h2>
+                <button type="button" class="btn btn-outline btn-small" data-act="close-auto" data-i18n="spClose">Close</button>
+            </header>
+            <div id="spAutoBody" class="sp-dialog-body"></div>
+        </div>
+    </div>
+
+    <div id="spFix" class="sp-overlay" hidden>
+        <div class="sp-dialog sp-dialog--auto" role="dialog" aria-modal="true" aria-labelledby="spFixTitle">
+            <header class="sp-dialog-head">
+                <h2 id="spFixTitle" data-i18n="spFixTitle">Ways to fix the clashes</h2>
+                <button type="button" class="btn btn-outline btn-small" data-act="close-fix" data-i18n="spFixByHand">I’ll fix it by hand</button>
+            </header>
+            <div id="spFixBody" class="sp-dialog-body"></div>
+        </div>
+    </div>
+
     <div id="spConfirm" class="sp-overlay sp-overlay--confirm" hidden>
         <div class="sp-dialog sp-dialog--small" role="alertdialog" aria-modal="true" aria-describedby="spConfirmText">
             <p id="spConfirmText" class="sp-confirm-text"></p>
@@ -167,12 +187,13 @@
     <script defer src="js/core/app-state.js?v=20260909-period8"></script>
     <script defer src="js/timetable-periods.js?v=20260909-period8"></script>
     <script defer src="js/teacher-timetable.js?v=20260909-period8"></script>
-    <script defer src="js/planner/teacher-planner-core.js?v=20261114-planner-rebuild"></script>
-    <script defer src="js/planner/teacher-planner-ui.js?v=20261114-planner-rebuild"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20261114-planner-rebuild"></script>
+    <script defer src="js/planner/teacher-planner-core.js?v=20261114-planner-auto"></script>
+    <script defer src="js/planner/teacher-planner-auto.js?v=20261114-planner-auto"></script>
+    <script defer src="js/planner/teacher-planner-ui.js?v=20261114-planner-auto"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20261114-planner-auto"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/level-profile.js?v=20261015-p7-level"></script>
     <script defer src="app.js?v=20261015-p7-level"></script>
-    <script defer src="js/planner/teacher-planner-page.js?v=20261114-planner-rebuild"></script>
+    <script defer src="js/planner/teacher-planner-page.js?v=20261114-planner-auto"></script>
 </body>
 </html>

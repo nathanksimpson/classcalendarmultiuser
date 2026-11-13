@@ -1443,6 +1443,12 @@
             return last || { meta: state.notificationMeta || {} };
         },
 
+        /** Read another calendar (e.g. last term) without touching this page's sync state. */
+        async fetchCalendarCopy(id) {
+            const doc = await apiFetch('/calendars/' + encodeURIComponent(id));
+            return doc && doc.data ? doc.data : doc;
+        },
+
         async loadCalendar(id) {
             debugLog('api', 'GET /calendars/:id (load)', { calendarId: id });
             const doc = await apiFetch('/calendars/' + encodeURIComponent(id));

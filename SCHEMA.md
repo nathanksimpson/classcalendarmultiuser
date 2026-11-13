@@ -485,6 +485,9 @@ Optional top-level fields used by the satellite page [`planner.html`](planner.ht
 | `teacherProfiles[]` | array | Planner teacher rows: role, limits, availability block-outs, preferences, learnedPreferences |
 | `teacherProfiles[].availability.workStart` / `workEnd` | string | Optional `HH:MM` clock-in / clock-out. A class outside them is a warning, never refused |
 | `plannerDrafts[].assignments[].meetings[].roomId` | string | Optional room for that one period (overrides the assignment's `roomId`; `''` = no room) |
+| `teacherProfiles[].limits.ownTypeOnly` / `onlyClassTypeIds[]` | boolean / string[] | Teacher only takes classes marked for their own type / only these class types. Warned on the board, never broken by auto-schedule |
+| `plannerState.maxConsecutive` / `previousCalendarId` | number / string | Most periods in a row before a warning (default 4); last term's calendar id for auto-schedule |
+| `plannerDrafts[].assignments[].locked` / `.auto` / `meetings[].movedAt` | | Locked classes are never moved by suggestions; `auto` records why a teacher was chosen; `movedAt` decides which class stays when clashes are fixed |
 | `plannerState` | object | Active draft id, board zoom/order, filters, global blockouts, `lockToCohortDays` (default true) |
 | `plannerDrafts[]` | array | Versioned drafts with assignments, issues, metrics (keep last ~5) |
 | `classes[].teacherRequirementType` | string | `korean` \| `native` \| `either` |

@@ -35,6 +35,7 @@
         setupTab: 'teachers',
         setupOpen: false,
         openBlockGrid: null, // teacher profile id or 'everyone'
+        openTypes: null, // teacher profile id
         menu: null
     };
     let undoStack = [];
@@ -412,6 +413,10 @@
             return t('spWhyTeacherOff', 'This teacher is marked not available then');
         case 'teacher_outside_hours':
             return t('spWhyOutsideWork', 'Outside this teacher’s working hours');
+        case 'teacher_own_type_only':
+            return t('spWhyOwnTypeOnly', 'This teacher only takes classes marked for their teacher type');
+        case 'class_type_not_allowed':
+            return t('spWhyClassType', 'This teacher is not set to teach this class type');
         case 'global_period_blocked':
         case 'global_slot_blocked':
             return t('spWhyEveryoneOff', 'This time is blocked for everyone');
@@ -477,6 +482,10 @@
             return t('spIssueIncomplete', '{name} needs {n} more', { name, n: issue.missing || 1 });
         case 'outside_band_block':
             return t('spIssueOutOfBlock', '{name} is outside the hours its students are at school ({when})', { name, when });
+        case 'long_run':
+            return t('spIssueLongRun', '{teacher} has {count} periods in a row on {day}', { teacher, count: issue.count, day: dayLabel(issue.dow) });
+        case 'teacher_limit':
+            return t('spIssueTeacherLimit', '{name}: outside what {teacher} is set to teach', { name, teacher });
         case 'teacher_unavailable':
             if (issue.outsideHours) {
                 return t('spIssueOutsideWork', '{name} is outside {teacher}’s working hours ({when})', { name, teacher, when });
@@ -516,7 +525,7 @@
     const ISSUE_GROUPS = [
         { id: 'clash', codes: ['teacher_double_booked', 'cohort_double_booked', 'room_conflict'] },
         { id: 'todo', codes: ['no_teacher', 'incomplete_placements'] },
-        { id: 'warn', codes: ['outside_band_block', 'outside_cohort_days', 'teacher_unavailable', 'wrong_teacher_type', 'wrong_junior_senior_band', 'over_load', 'max_periods_per_day', 'duplicate_weekday_2x'] },
+        { id: 'warn', codes: ['outside_band_block', 'outside_cohort_days', 'teacher_unavailable', 'wrong_teacher_type', 'wrong_junior_senior_band', 'over_load', 'max_periods_per_day', 'long_run', 'teacher_limit', 'duplicate_weekday_2x'] },
         { id: 'room', codes: ['room_unresolved'] }
     ];
 
@@ -606,7 +615,7 @@
         el.innerHTML = `
 <span class="sp-sum-main">${esc(t('spSumDone', '{done} of {total} classes ready', { done, total }))}</span>
 <span class="sp-sum-bar" aria-hidden="true"><span style="width:${total ? Math.round((done / total) * 100) : 0}%"></span></span>
-${clashes ? `<span class="sp-pill sp-pill--bad">${esc(t('spSumClashes', '{n} clashes', { n: clashes }))}</span>` : ''}
+${clashes ? `<span class="sp-pill sp-pill--bad">${esc(t('spSumClashes', '{n} clashes', { n: clashes }))}</span><button type="button" class="btn btn-outline btn-small sp-fix-btn" data-act="fix">${esc(t('spFixBtn', 'Suggest fixes'))}</button>` : ''}
 ${warns ? `<span class="sp-pill sp-pill--warn">${esc(t('spSumWarnings', '{n} warnings', { n: warns }))}</span>` : ''}
 ${!clashes && !warns && total && done === total ? `<span class="sp-pill sp-pill--ok">${esc(t('spSumAllGood', 'Nothing to fix'))}</span>` : ''}`;
     }
@@ -699,6 +708,8 @@ ${!clashes && !warns && total && done === total ? `<span class="sp-pill sp-pill-
     ${M.teachers.map((p) => `<option value="${esc(p.id)}"${asg && asg.teacherProfileId === p.id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}
   </select>
 </label>
+${asg ? `<label class="sp-chip sp-lock"><input type="checkbox" data-change="class-lock"${asg.locked ? ' checked' : ''}><span>${esc(t('spLock', 'Lock in place (suggestions will not move it)'))}</span></label>` : ''}
+${asg && asg.auto && asg.auto.count && asg.teacherProfileId ? `<p class="sp-hint sp-auto-why">${esc(t('spAutoWhy', '{teacher} taught {count} of these {total} students last term.', { teacher: teacherName(M, asg.teacherProfileId), count: asg.auto.count, total: asg.auto.total }))}</p>` : ''}
 <div class="sp-field">
   <span>${esc(t('spPlacedPeriods', 'Periods'))} <em>${meetings.length}/${demandNeed(demand)}</em></span>
   ${meetings.length ? `<ul class="sp-insp-list">${meetings.map((m) => `
@@ -765,7 +776,7 @@ ${!clashes && !warns && total && done === total ? `<span class="sp-pill sp-pill-
 <div class="sp-tile${tile.clash.length ? ' is-clash' : ''}${tile.warn ? ' is-warn' : ''}${sel ? ' is-selected' : ''}${state.selected && !sel ? ' is-dim' : ''}${flash === key ? ' is-flash' : ''}"
   data-drag="tile" data-asg="${esc(asg.assignmentId)}" data-demand="${esc(demand.demandId)}" data-dow="${Number(meeting.dow)}" data-period="${esc(meeting.period)}"
   style="--c:${esc(demandColor(m, demand))}"${why.length ? ` title="${esc(why.join(' · '))}"` : ''}>
-  <span class="sp-tile-name">${why.length ? '<span class="sp-tile-flag" aria-hidden="true">!</span>' : ''}${esc(demand.name)}</span>
+  <span class="sp-tile-name">${asg.locked ? '<span class="sp-tile-lock" aria-hidden="true">🔒</span>' : ''}${why.length ? '<span class="sp-tile-flag" aria-hidden="true">!</span>' : ''}${esc(demand.name)}</span>
   ${bits.length ? `<span class="sp-tile-sub">${esc(bits.join(' · '))}</span>` : ''}
   <button type="button" class="sp-tile-x" data-act="remove-period" data-asg="${esc(asg.assignmentId)}" data-dow="${Number(meeting.dow)}" data-period="${esc(meeting.period)}" aria-label="${esc(t('spRemovePeriod', 'Take off the board'))}">×</button>
 </div>`;
@@ -1176,7 +1187,11 @@ ${state.issuesOpen ? `<div class="sp-issues-body">${total ? groups.filter((g) =>
         if (action) {
             if (action.landing) {
                 const asg = d.assignmentId ? { assignmentId: d.assignmentId } : null;
+                const clashesBefore = clashCount();
                 const res = mutate(action.run);
+                if (res && res.ok !== false && clashCount() > clashesBefore) {
+                    notice(t('spClashMade', 'That made a clash. Press “Suggest fixes” to see ways to move the other classes, or fix it by hand.'), 'info');
+                }
                 const id = (res && res.assignmentId) || (asg && asg.assignmentId);
                 if (res && res.ok !== false && id) {
                     flashTile(id, action.landing.dow, action.landing.period);
@@ -1384,6 +1399,7 @@ ${state.issuesOpen ? `<div class="sp-issues-body">${total ? groups.filter((g) =>
         const grip = `<button type="button" class="sp-grip" data-sort-handle aria-label="${esc(t('spDragToReorder', 'Drag to reorder'))}" title="${esc(t('spDragToReorder', 'Drag to reorder'))}"><span aria-hidden="true">⋮⋮</span></button>`;
         let html = '';
         if (state.setupTab === 'teachers') {
+            const classTypes = classTypeList(M);
             const g = M.data.plannerState.blockouts || {};
             const everyoneCount = (g.globalUnavailableSlots || []).length;
             html += `<p class="sp-hint">${esc(t('spSetupTeachersHint', 'Teachers on your classes are listed automatically. Drag to set the column order on the board. Clock-in, clock-out and times off only give warnings; a class can still be placed there.'))}</p>`;
@@ -1405,15 +1421,19 @@ ${state.issuesOpen ? `<div class="sp-issues-body">${total ? groups.filter((g) =>
     <label class="sp-num"><span>${esc(t('spClockOut', 'Clock out'))}</span><input type="time" class="field-input" data-input="teacher-workend" value="${esc(p.availability.workEnd || '')}"></label>
     <span class="sp-chips" role="group" aria-label="${esc(t('spLevels', 'Levels taught'))}">
       ${['junior', 'middle', 'senior'].map((b) => `<label class="sp-chip"><input type="checkbox" data-change="teacher-band" data-band="${b}"${p.limits[`${b}Allowed`] !== false ? ' checked' : ''}><span>${esc(bandLabel(b))}</span></label>`).join('')}
+      <label class="sp-chip" title="${esc(t('spOwnTypeOnlyTitle', 'Only give this teacher classes marked for their own teacher type'))}"><input type="checkbox" data-change="teacher-owntype"${p.limits.ownTypeOnly ? ' checked' : ''}><span>${esc(p.role === 'native' ? t('spNativeClassesOnly', 'Native-teacher classes only') : t('spKoreanClassesOnly', 'Korean-teacher classes only'))}</span></label>
     </span>
+    ${classTypes.length ? `<button type="button" class="btn btn-outline btn-small${state.openTypes === p.id ? ' is-active' : ''}" data-act="toggle-types" data-owner="${esc(p.id)}" aria-expanded="${state.openTypes === p.id}">${esc((p.limits.onlyClassTypeIds || []).length ? t('spClassTypesN', 'Class types ({n})', { n: p.limits.onlyClassTypeIds.length }) : t('spClassTypesAny', 'Class types: any'))}</button>` : ''}
     <button type="button" class="btn btn-outline btn-small${open ? ' is-active' : ''}" data-act="toggle-blockgrid" data-owner="${esc(p.id)}" aria-expanded="${open}">${esc(off ? t('spTimesOffN', 'Times off ({n})', { n: off }) : t('spTimesOff', 'Times off'))}</button>
     <button type="button" class="sp-icon-btn" data-act="remove-teacher" aria-label="${esc(t('spRemoveTeacher', 'Remove {name}', { name: p.name }))}">×</button>
   </div>
+  ${state.openTypes === p.id ? `<div class="sp-blockgrid"><p class="sp-hint">${esc(t('spClassTypesHint', 'Tick the class types this teacher teaches. None ticked means any.'))}</p><span class="sp-chips sp-chips--wrap">${classTypes.map((ct) => `<label class="sp-chip"><input type="checkbox" data-change="teacher-classtype" data-type="${esc(ct.id)}"${(p.limits.onlyClassTypeIds || []).includes(ct.id) ? ' checked' : ''}><span>${esc(ct.label)}</span></label>`).join('')}</span></div>` : ''}
   ${open ? blockGrid(M, p.id) : ''}
 </div>`;
             }).join('')}</div>
 <div class="sp-setup-actions">
   <button type="button" class="btn btn-outline btn-small" data-act="add-teacher">${esc(t('spAddTeacher', '+ Add teacher'))}</button>
+  <label class="sp-num sp-num--inline"><span>${esc(t('spMaxRun', 'Most periods in a row'))}</span><input type="number" class="field-input" min="1" max="12" data-input="max-run" value="${api().maxConsecutive(M.data)}"></label>
   <button type="button" class="btn btn-outline btn-small${state.openBlockGrid === 'everyone' ? ' is-active' : ''}" data-act="toggle-blockgrid" data-owner="everyone" aria-expanded="${state.openBlockGrid === 'everyone'}">${esc(everyoneCount ? t('spEveryoneOffN', 'Times blocked for everyone ({n})', { n: everyoneCount }) : t('spEveryoneOff', 'Times blocked for everyone'))}</button>
 </div>
 ${state.openBlockGrid === 'everyone' ? blockGrid(M, 'everyone') : ''}`;
@@ -1456,6 +1476,23 @@ ${by.get(cid).map((d) => `
         body.innerHTML = html;
         body.scrollTop = keep;
         body.classList.toggle('sp-locked', !!readOnly());
+    }
+
+    function classTypeList(m) {
+        const seen = new Map();
+        const builtin = { 'builtin-debate': 'Debate', 'builtin-wr-sp': 'Wr&Spk', 'builtin-rc': 'RC', 'builtin-conversation': 'Conversation' };
+        m.allDemands.forEach((d) => {
+            const id = String(d.classTypeId || '');
+            if (!id || seen.has(id)) return;
+            let label = '';
+            if (typeof global.getClassTypeDefinitionById === 'function') {
+                const def = global.getClassTypeDefinitionById(id);
+                label = def ? String(def.name || def.label || def.displayName || '') : '';
+            }
+            seen.set(id, label || builtin[id] || id.replace(/^builtin-/, ''));
+        });
+        return [...seen.entries()].map(([id, label]) => ({ id, label }))
+            .sort((a, b) => a.label.localeCompare(b.label));
     }
 
     function setupEdit(fn) {
@@ -1517,48 +1554,242 @@ ${by.get(cid).map((d) => `
         notice(t('spLoaded', 'Plan loaded from the calendar.'), 'success');
     }
 
-    function suggestTeachers() {
-        if (!M || readOnly()) return;
-        const before = M.draft.assignments.filter((a) => a.teacherProfileId).length;
-        mutate((data, draft) => {
-            // Keep everything already decided; only classes without a teacher are filled in.
-            const kept = draft.assignments
-                .filter((a) => a.teacherProfileId)
-                .map((a) => Object.assign({}, a, { manualKeep: true }));
-            const keptIds = new Set(kept.map((a) => a.demandId));
-            const loose = draft.assignments.filter((a) => !keptIds.has(a.demandId));
-            // The generator reads times from the class; lend it the planned times.
-            const classes = data.classes || [];
-            const saved = [];
-            loose.forEach((a) => {
-                const cls = classes.find((c) => c.id === a.classId);
-                if (!cls || !(a.meetings || []).length) return;
-                saved.push([cls, cls.meetingDays, cls.period, cls.periodByWeekday]);
-                cls.meetingDays = [...new Set(a.meetings.map((m) => Number(m.dow)))];
-                cls.periodByWeekday = {};
-                a.meetings.forEach((m) => { cls.periodByWeekday[String(m.dow)] = Number(m.period); });
-                cls.period = Number(a.meetings[0].period);
-            });
-            let next;
+
+    /* ---------------------------------------------------------- auto-schedule */
+
+    const autoState = {
+        open: false, loading: false, calendars: null, prevId: '', prevData: null,
+        analysis: null, options: null, base: null, appliedId: null, appliedSig: null, error: ''
+    };
+
+    function activeCalendarId() {
+        return typeof CalendarSync !== 'undefined' && CalendarSync.getActiveCalendarId // eslint-disable-line no-undef
+            ? String(CalendarSync.getActiveCalendarId() || '') : ''; // eslint-disable-line no-undef
+    }
+
+    async function openAuto() {
+        if (!M || !global.CCPPlannerAuto) return;
+        if (readOnly()) {
+            notice(t('plannerReadOnlyHint', 'This calendar is read-only. Request edit access before applying a draft.'), 'error');
+            return;
+        }
+        // Reopened straight after choosing a plan: offer the same plans so another can be picked.
+        if (!(autoState.base && autoState.appliedSig === JSON.stringify(M.draft.assignments))) {
+            autoState.base = JSON.stringify(M.draft);
+            autoState.appliedId = null;
+        }
+        autoState.open = true;
+        autoState.options = null;
+        autoState.error = '';
+        $('spAuto').hidden = false;
+        document.body.classList.add('sp-modal-open');
+        autoState.loading = true;
+        renderAuto();
+        if (!autoState.calendars) {
             try {
-                next = api().generateDraft(data, { priorAssignments: kept, label: 'Plan', filters: {} });
-            } finally {
-                saved.forEach(([cls, days, period, byWd]) => {
-                    cls.meetingDays = days;
-                    cls.period = period;
-                    if (byWd === undefined) delete cls.periodByWeekday;
-                    else cls.periodByWeekday = byWd;
-                });
+                const res = await CalendarSync.listCalendars(); // eslint-disable-line no-undef
+                const list = Array.isArray(res) ? res : (res && res.calendars) || [];
+                const mine = activeCalendarId();
+                autoState.calendars = list.filter((c) => c && String(c.id) !== mine);
+            } catch (_) {
+                autoState.calendars = [];
             }
-            const filled = new Set(next.assignments.map((a) => a.demandId));
-            draft.assignments = next.assignments.concat(loose.filter((a) => !filled.has(a.demandId)));
-            api().recomputeDraftMetrics(data, draft);
+        }
+        let prevId = String(M.data.plannerState.previousCalendarId || '');
+        if (!autoState.calendars.some((c) => String(c.id) === prevId)) prevId = '';
+        await loadPrevious(prevId);
+    }
+
+    async function loadPrevious(id) {
+        if (!autoState.open || !M) return;
+        autoState.loading = true;
+        autoState.error = '';
+        renderAuto();
+        if (!id) autoState.prevData = null;
+        else if (autoState.prevId !== id || !autoState.prevData) {
+            try {
+                autoState.prevData = await CalendarSync.fetchCalendarCopy(id); // eslint-disable-line no-undef
+            } catch (err) {
+                autoState.prevData = null;
+                autoState.error = t('spAutoPrevFailed', 'Could not open that calendar. Plans below do not use last term.');
+            }
+        }
+        autoState.prevId = id;
+        const A = global.CCPPlannerAuto;
+        autoState.analysis = autoState.prevData
+            ? A.analysePreviousTerm(M.data, autoState.prevData)
+            : { byDemand: new Map(), students: 0, matched: 0 };
+        autoState.options = A.buildOptions(M.data, JSON.parse(autoState.base), autoState.analysis);
+        autoState.loading = false;
+        renderAuto();
+    }
+
+    function closeAuto() {
+        autoState.open = false;
+        const dlg = $('spAuto');
+        if (dlg) dlg.hidden = true;
+        document.body.classList.remove('sp-modal-open');
+    }
+
+    function renderAuto() {
+        const body = $('spAutoBody');
+        if (!body || !M) return;
+        const cals = autoState.calendars || [];
+        const a = autoState.analysis;
+        const titles = {
+            continuity: t('spPlanContinuity', 'Keep teachers with their students'),
+            breaks: t('spPlanBreaks', 'Best breaks for teachers'),
+            balance: t('spPlanBalance', 'Even workload')
+        };
+        let html = `
+<label class="sp-field sp-auto-prev">
+  <span>${esc(t('spAutoPrev', 'Last term’s calendar'))}</span>
+  <select class="field-select" data-change="auto-prev"${autoState.loading ? ' disabled' : ''}>
+    <option value="">${esc(t('spAutoPrevNone', 'None (do not use last term)'))}</option>
+    ${cals.map((c) => `<option value="${esc(c.id)}"${String(c.id) === autoState.prevId ? ' selected' : ''}>${esc(c.name || c.id)}</option>`).join('')}
+  </select>
+</label>`;
+        if (autoState.error) html += `<p class="sp-hint sp-auto-error">${esc(autoState.error)}</p>`;
+        else if (autoState.prevId && a && !autoState.loading) {
+            html += `<p class="sp-hint">${esc(a.matched
+                ? t('spAutoMatched', 'Found {matched} of {total} students in last term’s classes.', { matched: a.matched, total: a.students })
+                : t('spAutoMatchedNone', 'None of this term’s students were found in that calendar, so last term is not used.'))}</p>`;
+        } else if (!autoState.prevId && !autoState.loading) {
+            html += `<p class="sp-hint">${esc(t('spAutoNoPrevHint', 'Choose last term’s calendar to keep teachers with the students they had.'))}</p>`;
+        }
+        if (autoState.loading || !autoState.options) {
+            html += `<p class="sp-empty">${esc(t('spAutoWorking', 'Working out plans…'))}</p>`;
+        } else {
+            html += `<div class="sp-plans">${autoState.options.map((o) => {
+                const st = o.stats;
+                const need = o.result.unplaced.length;
+                const lines = [t('spSumDone', '{done} of {total} classes ready', { done: st.ready, total: st.total })];
+                if (st.keptShare != null) lines.push(t('spPlanKept', '{pct}% of students keep a teacher they had', { pct: Math.round(st.keptShare * 100) }));
+                lines.push(t('spPlanRun', 'Longest stretch: {n} in a row', { n: st.longestRun }));
+                lines.push(t('spPlanHoles', 'One-period gaps: {n}', { n: st.holes }));
+                lines.push(t('spPlanLoad', 'Periods per teacher: {min} to {max}', { min: st.loadMin, max: st.loadMax }));
+                const current = autoState.appliedId === o.id;
+                return `
+<section class="sp-plan${current ? ' is-current' : ''}">
+  <h3>${esc(titles[o.id] || o.id)}</h3>
+  <ul>${lines.map((l) => `<li>${esc(l)}</li>`).join('')}${need ? `<li class="sp-plan-warn">${esc(t('spPlanNeedHand', '{n} classes still need placing by hand', { n: need }))}</li>` : ''}${st.clashes ? `<li class="sp-plan-warn">${esc(t('spSumClashes', '{n} clashes', { n: st.clashes }))}</li>` : ''}</ul>
+  <button type="button" class="btn ${current ? 'btn-outline' : 'btn-primary'} btn-small" data-act="use-plan" data-plan="${esc(o.id)}"${current ? ' disabled' : ''}>${esc(current ? t('spPlanCurrent', 'On the board now') : t('spPlanUse', 'Use this plan'))}</button>
+</section>`;
+            }).join('')}</div>`;
+            if (autoState.options.length === 1) {
+                html += `<p class="sp-hint">${esc(t('spAutoOnePlan', 'The other priorities give this same plan.'))}</p>`;
+            }
+            html += `<p class="sp-hint">${esc(t('spAutoKeeps', 'Plans only fill what is missing. Classes you placed stay where they are, and Undo brings the board back.'))}</p>`;
+        }
+        body.innerHTML = html;
+    }
+
+    function usePlan(id) {
+        const opt = (autoState.options || []).find((o) => o.id === id);
+        if (!opt || !M) return;
+        const switching = !!autoState.appliedId;
+        const res = mutate((data) => {
+            const next = JSON.parse(JSON.stringify(opt.draft));
+            next.id = data.plannerState.activeDraftId || next.id;
+            restoreDraft(JSON.stringify(next));
+            return { ok: true };
+        }, { noUndo: switching }); // switching plans keeps one Undo step back to the board before auto
+        if (!res) return;
+        autoState.appliedId = id;
+        autoState.appliedSig = JSON.stringify(M.draft.assignments);
+        closeAuto();
+        const need = opt.result.unplaced.length;
+        notice(need
+            ? t('spAutoDoneNeed', 'Plan is on the board. {n} classes still need placing by hand (see To fix).', { n: need })
+            : t('spAutoDone', 'Plan is on the board. Drag anything to change it, or press Undo.'), need ? 'info' : 'success');
+    }
+
+    /* ------------------------------------------------------------ fix clashes */
+
+    const fixState = { open: false, options: null, agreed: false };
+
+    function openFix() {
+        if (!M || !global.CCPPlannerAuto) return;
+        if (readOnly()) {
+            notice(t('plannerReadOnlyHint', 'This calendar is read-only. Request edit access before applying a draft.'), 'error');
+            return;
+        }
+        fixState.options = global.CCPPlannerAuto.clashOptions(M.data, M.draft, autoState.analysis || undefined);
+        fixState.agreed = false;
+        fixState.open = true;
+        $('spFix').hidden = false;
+        document.body.classList.add('sp-modal-open');
+        renderFix();
+    }
+
+    function closeFix() {
+        fixState.open = false;
+        const dlg = $('spFix');
+        if (dlg) dlg.hidden = true;
+        document.body.classList.remove('sp-modal-open');
+    }
+
+    function renderFix() {
+        const body = $('spFixBody');
+        if (!body || !M) return;
+        const started = global.CCPPlannerAuto.termHasStarted(M.data);
+        const titles = {
+            keep: t('spFixKeep', 'Keep the class you moved last, move the others'),
+            other: t('spFixOther', 'Move the class you moved last instead'),
+            teacher: t('spFixTeacher', 'Move the others, changing the teacher where no time fits')
+        };
+        const name = (id) => {
+            const d = M.demandById.get(id);
+            return d ? classLabel(M, d) : id;
+        };
+        const opts = fixState.options || [];
+        let html = '';
+        if (!opts.length) {
+            html = `<p class="sp-empty">${esc(t('spFixNone', 'No automatic fix found. Unlock a class or free up a teacher, or move the classes by hand.'))}</p>`;
+        } else {
+            html = `<p class="sp-hint">${esc(t('spFixHint', 'Locked classes never move. Pick a suggestion, or close this and move the classes yourself.'))}</p>
+<div class="sp-plans">${opts.map((o) => {
+                const r = o.result;
+                const lines = r.moved.map((mv) => `${name(mv.demandId)}: ${slotText(M, mv.from.dow, mv.from.period)} → ${slotText(M, mv.to.dow, mv.to.period)}`)
+                    .concat(r.teacherChanged.map((tc) => `${name(tc.demandId)}: ${teacherName(M, tc.from)} → ${teacherName(M, tc.to)}`));
+                if (r.rooms) lines.push(t('spFixRooms', '{n} room changes', { n: r.rooms }));
+                const changes = r.teacherChanged.length;
+                const needsYes = changes && started;
+                return `
+<section class="sp-plan">
+  <h3>${esc(titles[o.id] || o.id)}</h3>
+  <ul>${lines.map((l) => `<li>${esc(l)}</li>`).join('')}
+  ${o.clashesLeft ? `<li class="sp-plan-warn">${esc(t('spFixLeft', '{n} clashes would be left', { n: o.clashesLeft }))}</li>` : ''}
+  ${r.needTeacherChange.length ? `<li class="sp-plan-warn">${esc(t('spFixNeedsTeacher', '{n} classes only fit with a different teacher', { n: r.needTeacherChange.length }))}</li>` : ''}
+  ${changes && !started ? `<li class="sp-plan-warn">${esc(t('spFixTeacherWarn', 'Changes the teacher of {n} classes', { n: changes }))}</li>` : ''}</ul>
+  ${needsYes ? `<label class="sp-chip sp-plan-yes"><input type="checkbox" data-change="fix-agree"${fixState.agreed ? ' checked' : ''}><span>${esc(t('spFixAgree', 'The term has started. Yes, change the teacher of {n} classes.', { n: changes }))}</span></label>` : ''}
+  <button type="button" class="btn btn-primary btn-small" data-act="use-fix" data-plan="${esc(o.id)}"${needsYes && !fixState.agreed ? ' disabled' : ''}>${esc(t('spFixUse', 'Use this'))}</button>
+</section>`;
+            }).join('')}</div>`;
+        }
+        body.innerHTML = html;
+    }
+
+    function useFix(id) {
+        const opt = (fixState.options || []).find((o) => o.id === id);
+        if (!opt || !M) return;
+        const res = mutate((data) => {
+            const next = JSON.parse(JSON.stringify(opt.draft));
+            next.id = data.plannerState.activeDraftId || next.id;
+            restoreDraft(JSON.stringify(next));
             return { ok: true };
         });
-        const after = M.draft.assignments.filter((a) => a.teacherProfileId).length;
-        notice(after > before
-            ? t('spSuggested', 'Gave {n} classes a teacher. Check them on the board.', { n: after - before })
-            : t('spSuggestedNone', 'No free teacher fits the classes that are left. Place them by hand.'), after > before ? 'success' : 'info');
+        if (!res) return;
+        closeFix();
+        const first = opt.result.moved[0];
+        if (first) showSlot(first.demandId, first.to.dow, first.to.period);
+        notice(opt.result.teacherChanged.length
+            ? t('spFixDoneTeacher', 'Fixed. {n} classes have a new teacher. Undo brings it back.', { n: opt.result.teacherChanged.length })
+            : t('spFixDone', 'Fixed. Undo brings it back.'), opt.result.teacherChanged.length ? 'info' : 'success');
+    }
+
+    function clashCount() {
+        return M ? groupedIssues(M)[0].items.length : 0;
     }
 
     async function clearBoard() {
@@ -1729,6 +1960,14 @@ ${by.get(cid).map((d) => `
             renderSetup();
             return;
         }
+        if (e.target.id === 'spFix') {
+            closeFix();
+            return;
+        }
+        if (e.target.id === 'spAuto') {
+            closeAuto();
+            return;
+        }
         if (e.target.id === 'spSetup') {
             closeSetup();
             return;
@@ -1755,7 +1994,18 @@ ${by.get(cid).map((d) => `
         case 'open-setup': closeMenus(); openSetup(el.getAttribute('data-tab')); break;
         case 'close-setup': closeSetup(); break;
         case 'load-calendar': closeMenus(); loadFromCalendar(); break;
-        case 'suggest-teachers': closeMenus(); suggestTeachers(); break;
+        case 'auto': closeMenus(); openAuto(); break;
+        case 'close-auto': closeAuto(); break;
+        case 'fix': openFix(); break;
+        case 'close-fix': closeFix(); break;
+        case 'use-fix': useFix(el.getAttribute('data-plan')); break;
+        case 'use-plan': usePlan(el.getAttribute('data-plan')); break;
+        case 'toggle-types': {
+            const owner = el.getAttribute('data-owner');
+            state.openTypes = state.openTypes === owner ? null : owner;
+            renderSetup();
+            break;
+        }
         case 'clear-board': closeMenus(); clearBoard(); break;
         case 'apply': applyToCalendar(); break;
         case 'print': closeMenus(); printSheet(el.getAttribute('data-kind')); break;
@@ -1896,13 +2146,45 @@ ${by.get(cid).map((d) => `
             const dow = Number(el.getAttribute('data-dow'));
             const period = el.getAttribute('data-period');
             mutate((data, draft) => api().setMeetingRoom(data, draft, asg.assignmentId, dow, period, el.value || ''));
+        } else if (kind === 'fix-agree') {
+            fixState.agreed = el.checked;
+            renderFix();
+        } else if (kind === 'class-lock') {
+            const demandId = state.selected;
+            const on = el.checked;
+            mutate((data, draft) => {
+                const a = draft.assignments.find((x) => x.demandId === demandId);
+                if (a) a.locked = on;
+                return { ok: true };
+            });
+        } else if (kind === 'auto-prev') {
+            if (!readOnly()) {
+                M.data.plannerState.previousCalendarId = el.value || '';
+                markDirty();
+            }
+            loadPrevious(el.value || '');
+        } else if (kind === 'teacher-owntype' || kind === 'teacher-classtype') {
+            const id = row.getAttribute('data-teacher');
+            setupEdit((data) => {
+                const p = data.teacherProfiles.find((x) => x.id === id);
+                if (!p) return;
+                if (kind === 'teacher-owntype') p.limits.ownTypeOnly = el.checked;
+                else {
+                    const type = el.getAttribute('data-type');
+                    const list = (p.limits.onlyClassTypeIds || []).filter((x) => x !== type);
+                    if (el.checked) list.push(type);
+                    p.limits.onlyClassTypeIds = list;
+                }
+            });
         } else if (kind === 'teacher-role' || kind === 'teacher-band') {
             const id = row.getAttribute('data-teacher');
             setupEdit((data) => {
                 const p = data.teacherProfiles.find((x) => x.id === id);
                 if (!p) return;
-                if (kind === 'teacher-role') p.role = el.value === 'native' ? 'native' : 'korean';
-                else p.limits[`${el.getAttribute('data-band')}Allowed`] = el.checked;
+                if (kind === 'teacher-role') {
+                    p.role = el.value === 'native' ? 'native' : 'korean';
+                    setTimeout(renderSetup, 0);
+                } else p.limits[`${el.getAttribute('data-band')}Allowed`] = el.checked;
             });
         } else if (kind === 'class-include' || kind === 'class-type') {
             const id = row.getAttribute('data-class');
@@ -1928,6 +2210,11 @@ ${by.get(cid).map((d) => `
         }
         const kind = el.getAttribute('data-input');
         if (!kind || !M) return;
+        if (kind === 'max-run') {
+            const n = parseInt(el.value, 10);
+            if (Number.isFinite(n) && n >= 1) setupEdit((data) => { data.plannerState.maxConsecutive = Math.min(12, n); });
+            return;
+        }
         const row = el.closest('[data-teacher], [data-room], [data-class]');
         if (!row) return;
         const num = (min, max, dflt) => {
@@ -1963,6 +2250,14 @@ ${by.get(cid).map((d) => `
             }
             if (state.menu) {
                 closeMenus();
+                return;
+            }
+            if (fixState.open) {
+                closeFix();
+                return;
+            }
+            if (autoState.open) {
+                closeAuto();
                 return;
             }
             if (state.setupOpen && $('spConfirm') && $('spConfirm').hidden) {

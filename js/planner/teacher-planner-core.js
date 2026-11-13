@@ -32,6 +32,8 @@
         roomUnresolved: -1
     };
 
+    const DAYS_1_5 = [1, 2, 3, 4, 5];
+
     function normalizeStr(v) {
         return String(v == null ? '' : v).trim();
     }
@@ -234,6 +236,44 @@
         return (start != null && clock.start < start) || (end != null && clock.end > end);
     }
 
+    /**
+     * Why this teacher should not take this class, by the limits set in Setup (null = fine).
+     * The board only warns about these; auto-schedule never breaks them.
+     */
+    function teacherLimitReason(teacher, demand) {
+        if (!teacher || !demand) return null;
+        const limits = teacher.limits || {};
+        const need = demand.teacherRequirementType;
+        if ((need === 'korean' || need === 'native') && teacher.role !== need) return 'wrong_teacher_type';
+        if (limits.ownTypeOnly && need !== teacher.role) return 'teacher_own_type_only';
+        if (demand.band === 'junior' && limits.juniorAllowed === false) return 'wrong_junior_senior_band';
+        if (demand.band === 'middle' && limits.middleAllowed === false) return 'wrong_junior_senior_band';
+        if (demand.band === 'senior' && limits.seniorAllowed === false) return 'wrong_junior_senior_band';
+        const only = limits.onlyClassTypeIds || [];
+        if (only.length && !only.includes(String(demand.classTypeId || ''))) return 'class_type_not_allowed';
+        const never = (teacher.preferences && teacher.preferences.neverCurricula) || [];
+        if ((demand.curriculumId && never.includes(demand.curriculumId))
+            || (demand.classTypeId && never.includes(demand.classTypeId))) return 'class_type_not_allowed';
+        return null;
+    }
+
+    /** Longest run of back-to-back periods in a list of period numbers. */
+    function longestRun(periods) {
+        const nums = [...new Set((periods || []).map((x) => parsePeriod(x)).filter((n) => n != null))].sort((a, b) => a - b);
+        let best = 0;
+        let run = 0;
+        nums.forEach((n, i) => {
+            run = i > 0 && n === nums[i - 1] + 1 ? run + 1 : 1;
+            if (run > best) best = run;
+        });
+        return best;
+    }
+
+    function maxConsecutive(appData) {
+        const n = Number(appData && appData.plannerState && appData.plannerState.maxConsecutive);
+        return Number.isFinite(n) && n >= 1 ? n : 4;
+    }
+
     function cohortMeetingDays(appData, demand) {
         const cohorts = Array.isArray(appData && appData.cohorts) ? appData.cohorts : [];
         const ids = (demand && demand.cohortIds) || [];
@@ -315,6 +355,11 @@
                 maxPeriodsPerWeek: Number(p.limits && p.limits.maxPeriodsPerWeek) || 22,
                 maxPeriodsPerDay: Number(p.limits && p.limits.maxPeriodsPerDay) || 5,
                 minPeriodsPerWeek: Number(p.limits && p.limits.minPeriodsPerWeek) || 0,
+                // Only classes marked for this teacher's own type (e.g. a native teacher who only takes native-teacher classes).
+                ownTypeOnly: !!(p.limits && p.limits.ownTypeOnly),
+                // Class types this teacher may take ([] = any).
+                onlyClassTypeIds: Array.isArray(p.limits && p.limits.onlyClassTypeIds)
+                    ? p.limits.onlyClassTypeIds.map(String) : [],
                 juniorAllowed: p.limits && p.limits.juniorAllowed === false ? false : true,
                 middleAllowed: p.limits && p.limits.middleAllowed === false ? false : true,
                 seniorAllowed: p.limits && p.limits.seniorAllowed === false ? false : true
@@ -406,6 +451,10 @@
                 notes: ''
             }, p.blockouts || {}),
             lockToCohortDays: p.lockToCohortDays === true,
+            // Most periods in a row before a teacher's day gets a warning.
+            maxConsecutive: Number(p.maxConsecutive) >= 1 ? Number(p.maxConsecutive) : 4,
+            // Calendar id of last term, used by auto-schedule to keep teachers with their students.
+            previousCalendarId: normalizeStr(p.previousCalendarId),
             updatedAt: p.updatedAt || null
         };
     }
@@ -784,6 +833,8 @@
         if (demand.band === 'junior' && teacher.limits.juniorAllowed === false) softReasons.push('wrong_junior_senior_band');
         if (demand.band === 'middle' && teacher.limits.middleAllowed === false) softReasons.push('wrong_junior_senior_band');
         if (demand.band === 'senior' && teacher.limits.seniorAllowed === false) softReasons.push('wrong_junior_senior_band');
+        const limitWhy = teacherLimitReason(teacher, demand);
+        if (limitWhy === 'teacher_own_type_only' || limitWhy === 'class_type_not_allowed') softReasons.push(limitWhy);
 
         // Freeform board: a blocked time is a warning, never a refusal.
         const blocked = isSlotBlocked(teacher, dow, period, globalBlockouts);
@@ -1131,7 +1182,7 @@
             asg.teacherProfileId = teacher ? teacher.id : null;
             asg.userId = teacher ? teacher.userId : null;
         }
-        const meeting = { meetingId: uid('mtg'), dow: Number(tg.dow), period: String(tg.period) };
+        const meeting = { meetingId: uid('mtg'), dow: Number(tg.dow), period: String(tg.period), movedAt: Date.now() };
         if (tg.roomId !== undefined) {
             if (!asg.roomId && tg.roomId) asg.roomId = tg.roomId;
             else if (tg.roomId && tg.roomId !== asg.roomId) meeting.roomId = tg.roomId;
@@ -1162,7 +1213,7 @@
             asg.userId = teacher ? teacher.userId : null;
         }
         const old = asg.meetings[idx];
-        const next = { meetingId: old.meetingId || uid('mtg'), dow: Number(to.dow), period: String(to.period) };
+        const next = { meetingId: old.meetingId || uid('mtg'), dow: Number(to.dow), period: String(to.period), movedAt: Date.now() };
         if (to.roomId !== undefined) {
             if ((to.roomId || '') !== (asg.roomId || '')) next.roomId = to.roomId || '';
             if (!asg.roomId && to.roomId && assignmentMeetings(asg).length === 1) {
@@ -1231,8 +1282,8 @@
         const iB = assignmentMeetings(asgB).findIndex((m) => sameSlot(m, b.dow, b.period));
         const roomA = meetingRoomId(asgA, asgA.meetings[iA]);
         const roomB = meetingRoomId(asgB, asgB.meetings[iB]);
-        const nextA = { meetingId: uid('mtg'), dow: Number(b.dow), period: String(b.period) };
-        const nextB = { meetingId: uid('mtg'), dow: Number(a.dow), period: String(a.period) };
+        const nextA = { meetingId: uid('mtg'), dow: Number(b.dow), period: String(b.period), movedAt: Date.now() + 1 };
+        const nextB = { meetingId: uid('mtg'), dow: Number(a.dow), period: String(a.period), movedAt: Date.now() };
         const keepRoom = (asg, meeting, room) => {
             if ((room || '') !== (asg.roomId || '')) meeting.roomId = room || '';
         };
@@ -1420,6 +1471,18 @@
                     }));
                 }
             }
+            const limitWhy = teacher ? teacherLimitReason(teacher, demand) : null;
+            if (limitWhy === 'teacher_own_type_only' || limitWhy === 'class_type_not_allowed') {
+                issues.push(createIssue({
+                    severity: 'soft',
+                    code: 'teacher_limit',
+                    reason: limitWhy,
+                    message: `${demand.name}: outside what ${teacher.name} is set to teach.`,
+                    assignmentId: asg.assignmentId,
+                    demandId: demand.demandId,
+                    teacherProfileId: teacher.id
+                }));
+            }
             meetings.forEach((m) => {
                 const blockedWhy = teacher
                     ? isSlotBlocked(teacher, m.dow, m.period, (appData.plannerState && appData.plannerState.blockouts) || {})
@@ -1549,6 +1612,26 @@
                     const d = Number(m.dow);
                     byDay[d] = (byDay[d] || 0) + 1;
                 });
+            });
+            const runLimit = maxConsecutive(appData);
+            DAYS_1_5.forEach((d) => {
+                const periods = [];
+                (draft.assignments || []).forEach((asg) => {
+                    if (asg.teacherProfileId !== t.id) return;
+                    assignmentMeetings(asg).forEach((m) => { if (Number(m.dow) === d) periods.push(m.period); });
+                });
+                const run = longestRun(periods);
+                if (run > runLimit) {
+                    issues.push(createIssue({
+                        severity: 'soft',
+                        code: 'long_run',
+                        message: `${t.name}: ${run} periods in a row on day ${d}.`,
+                        teacherProfileId: t.id,
+                        dow: d,
+                        count: run,
+                        limit: runLimit
+                    }));
+                }
             });
             Object.keys(byDay).forEach((d) => {
                 if (byDay[d] > (t.limits.maxPeriodsPerDay || 99)) {
@@ -2425,6 +2508,9 @@
         setAssignmentTeacher,
         recomputeDraftMetrics,
         outsideStudentHours,
+        teacherLimitReason,
+        longestRun,
+        maxConsecutive,
         outsideTeacherHours,
         meetingRoomId,
         roomClashMeetings,

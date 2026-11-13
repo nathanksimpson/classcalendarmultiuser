@@ -26109,3 +26109,84 @@ body.sp-readonly .sp-tile-x {
     flex: 1 1 100px;
     min-width: 96px;
 }
+
+/* Planner: auto-schedule and clash suggestions */
+.sp-dialog--auto {
+    width: min(920px, 100%);
+}
+
+.sp-auto-prev .field-select {
+    width: auto;
+    min-width: 260px;
+}
+
+.sp-auto-error,
+.sp-plan-warn {
+    color: var(--warning-text, #92400e);
+}
+
+.sp-plans {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--space-3);
+    margin: var(--space-3) 0;
+}
+
+.sp-plan {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-card, 10px);
+    background: var(--bg-card);
+}
+
+.sp-plan.is-current {
+    border-color: var(--primary);
+    background: var(--accent-muted);
+}
+
+.sp-plan h3 {
+    margin: 0;
+    font-size: 0.9375rem;
+}
+
+.sp-plan ul {
+    flex: 1 1 auto;
+    margin: 0;
+    padding-left: var(--space-4);
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+}
+
+.sp-plan-yes {
+    border-radius: var(--radius-md);
+    font-size: 0.8125rem;
+}
+
+.sp-fix-btn {
+    padding-top: 1px;
+    padding-bottom: 1px;
+}
+
+.sp-lock {
+    margin-top: var(--space-2);
+    border-radius: var(--radius-md);
+}
+
+.sp-tile-lock {
+    margin-right: 3px;
+    font-size: 0.6875rem;
+}
+
+.sp-chips--wrap {
+    flex-wrap: wrap;
+}
+
+.sp-num--inline {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: 0.8125rem;
+}
