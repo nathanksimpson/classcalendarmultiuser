@@ -132,9 +132,15 @@ console.log('planner-auto tests passed');
         return dr;
     };
     const at = (dr, id) => dr.assignments.find((a) => a.classId === id);
+    // A clash cannot be made by hand any more, but one can arrive from the calendar: B lands on A's time.
+    const clash = (dr) => {
+        assert(!api.movePeriodTo(d, dr, at(dr, 'b').assignmentId, { dow: 1, period: '2' }, { dow: 1, period: '1' }).ok, 'double-booking refused by hand');
+        Object.assign(at(dr, 'b').meetings[0], { dow: 1, period: '1', movedAt: Date.now() });
+        api.recomputeDraftMetrics(d, dr);
+    };
     // B is dragged onto A's time: B (moved last) stays, A moves, Kim keeps both.
     let dr = fresh();
-    api.movePeriodTo(d, dr, at(dr, 'b').assignmentId, { dow: 1, period: '2' }, { dow: 1, period: '1' });
+    clash(dr);
     assert(dr.issues.some((i) => i.code === 'teacher_double_booked'), 'clash made');
     let r = auto.resolveClashes(d, dr, {});
     assert(r.moved.length === 1 && r.moved[0].demandId === 'demand:a', 'A moved');
@@ -144,7 +150,7 @@ console.log('planner-auto tests passed');
     // Locked beats recently moved.
     dr = fresh();
     at(dr, 'a').locked = true;
-    api.movePeriodTo(d, dr, at(dr, 'b').assignmentId, { dow: 1, period: '2' }, { dow: 1, period: '1' });
+    clash(dr);
     r = auto.resolveClashes(d, dr, {});
     assert(r.moved[0].demandId === 'demand:b' && at(dr, 'a').meetings[0].period === '1', 'locked class stays');
     // Kim has no other free time: a teacher change is needed, and only happens when allowed.
@@ -152,7 +158,7 @@ console.log('planner-auto tests passed');
     kim.availability.unavailableSlots = [1, 2, 3, 4, 5].flatMap((dow) => ['1', '2', '3', '4', '5', '6', '7', '8'].map((period) => ({ dow, period })))
         .filter((s) => !(s.dow === 1 && s.period === '1'));
     dr = fresh();
-    api.movePeriodTo(d, dr, at(dr, 'b').assignmentId, { dow: 1, period: '2' }, { dow: 1, period: '1' });
+    clash(dr);
     r = auto.resolveClashes(d, dr, { allowTeacherChange: false });
     assert(r.needTeacherChange.includes('demand:a') && at(dr, 'a').teacherProfileId === 'kim', 'asks before changing teacher');
     assert(at(dr, 'a').meetings.length === 1, 'class put back');
@@ -192,9 +198,21 @@ console.log('planner-auto tests passed');
         assert(!o.draft.issues.some((i) => i.code === 'room_too_small'), `${o.id}: rooms fit`);
         assert(!o.draft.issues.some((i) => i.code === 'long_run' || i.code === 'outside_band_block'), `${o.id}: rules kept`);
     });
-    // By hand, a room that is too small is only a warning.
+    // A room that is too small is refused by hand too; so is a room already in use.
     const dr = { id: 'h', assignments: [], issues: [], metrics: {} };
-    assert(api.placePeriod(d, dr, 'demand:o1', { dow: 1, period: '1', roomId: 'small' }).ok, 'small room allowed by hand');
-    assert(dr.issues.some((i) => i.code === 'room_too_small' && i.count === 12 && i.limit === 8), 'and warned');
+    let rr = api.placePeriod(d, dr, 'demand:o1', { dow: 1, period: '1', roomId: 'small' });
+    assert(!rr.ok && rr.reason === 'room_too_small', 'small room refused');
+    assert(api.placePeriod(d, dr, 'demand:o1', { dow: 1, period: '1', roomId: 'big' }).ok, 'big room fine');
+    rr = api.placePeriod(d, dr, 'demand:g1', { dow: 1, period: '1', roomId: 'big' });
+    assert(!rr.ok && rr.reason === 'room_double_booked', 'room double-booking refused');
+    // Moving a class onto a time when its room is taken: the move is fine, the room is given up.
+    assert(api.placePeriod(d, dr, 'demand:g1', { dow: 1, period: '2', roomId: 'big' }).ok, 'g1 in big at P2');
+    const g1 = dr.assignments.find((a) => a.classId === 'g1');
+    assert(api.movePeriodTo(d, dr, g1.assignmentId, { dow: 1, period: '2' }, { dow: 1, period: '1', teacherProfileId: 'k1' }).ok, 'move allowed');
+    assert(!api.meetingRoomId(g1, g1.meetings[0]), 'room given up');
+    assert(!dr.issues.some((i) => i.code === 'room_conflict'), 'no room clash');
+    // A teacher cannot be given a class at a time they already teach.
+    const o1 = dr.assignments.find((a) => a.classId === 'o1');
+    assert(!api.setClassTeacher(d, dr, 'demand:o1', 'k1').ok && !o1.teacherProfileId, 'busy teacher refused');
     console.log('repair and room tests passed');
 }

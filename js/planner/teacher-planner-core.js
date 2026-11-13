@@ -257,6 +257,24 @@
         return null;
     }
 
+    /** Students in a class (all of its cohorts, each student once). */
+    function classSizeOf(appData, demand) {
+        const seen = new Set();
+        ((demand && demand.cohortIds) || []).forEach((cid) => {
+            const c = ((appData && appData.cohorts) || []).find((x) => x && x.id === cid);
+            ((c && c.students) || []).forEach((st) => { if (st && st.active !== false) seen.add(st.id || st.name); });
+        });
+        return seen.size;
+    }
+
+    /** Is this room too small for this class? (No capacity set = any size fits.) */
+    function roomTooSmall(appData, demand, roomId) {
+        if (!roomId) return false;
+        const room = ((appData && appData.rooms) || []).find((r) => r.id === roomId);
+        const cap = room ? Number(room.capacity) : 0;
+        return !!cap && classSizeOf(appData, demand) > cap;
+    }
+
     /** Longest run of back-to-back periods in a list of period numbers. */
     function longestRun(periods) {
         const nums = [...new Set((periods || []).map((x) => parsePeriod(x)).filter((n) => n != null))].sort((a, b) => a - b);
@@ -1072,6 +1090,18 @@
      * and room sheets a class can be given a time before it has a teacher.
      * ------------------------------------------------------------------ */
 
+    const FORBIDDEN = ['teacher_double_booked', 'cohort_double_booked', 'room_double_booked'];
+
+    /** A class that keeps its room when its time changes gives the room up if it is taken then. */
+    function releaseTakenRooms(draft, asg) {
+        const others = (draft.assignments || []).filter((a) => a !== asg);
+        const occ = roomOccupancy(others);
+        assignmentMeetings(asg).forEach((m) => {
+            const rid = meetingRoomId(asg, m);
+            if (rid && occ.has(`${rid}|${slotKey(m.dow, m.period)}`)) m.roomId = '';
+        });
+    }
+
     const NO_TEACHER = defaultTeacherProfile({ id: '__no_teacher__', name: '' });
     NO_TEACHER.limits.maxPeriodsPerDay = 99;
 
@@ -1151,6 +1181,13 @@
             if (occ.has(key)) soft.push('room_double_booked');
         }
         soft = [...new Set(soft)];
+        // Never allowed, by hand or by auto-schedule: two classes for one teacher, cohort or room
+        // at the same time, and a room that cannot seat the class.
+        const forbidden = soft.filter((r) => FORBIDDEN.includes(r));
+        if (roomId && roomTooSmall(appData, demand, roomId)) forbidden.push('room_too_small');
+        if (forbidden.length) {
+            return { ok: false, reasons: forbidden, hardReasons: forbidden, softReasons: [], warnOutOfBlock: false };
+        }
         return {
             ok: res.ok,
             reasons: res.ok ? soft : res.reasons,
@@ -1189,6 +1226,7 @@
             else if (!tg.roomId && asg.roomId) meeting.roomId = '';
         }
         asg.meetings = assignmentMeetings(asg).concat([meeting]);
+        if (tg.roomId === undefined) releaseTakenRooms(draft, asg);
         asg.manualKeep = true;
         asg.source = 'manual';
         draft.updatedAt = new Date().toISOString();
@@ -1225,6 +1263,7 @@
         }
         asg.meetings = asg.meetings.slice();
         asg.meetings[idx] = next;
+        if (to.roomId === undefined) releaseTakenRooms(draft, asg);
         asg.manualKeep = true;
         asg.source = 'manual';
         draft.updatedAt = new Date().toISOString();
@@ -1306,6 +1345,10 @@
             asgB.teacherProfileId = tId;
             asgB.userId = uId;
         }
+        if (mode !== 'rooms') {
+            releaseTakenRooms(draft, asgA);
+            releaseTakenRooms(draft, asgB);
+        }
         [asgA, asgB].forEach((x) => {
             x.manualKeep = true;
             x.source = 'manual';
@@ -1323,6 +1366,12 @@
         const m = meetings.find((x) => sameSlot(x, dow, period));
         if (!m) return { ok: false, reason: 'slot_missing' };
         const want = normalizeStr(roomId);
+        if (want) {
+            const demand = buildDemandsFromAppData(appData).find((d) => d.demandId === asg.demandId);
+            if (demand && roomTooSmall(appData, demand, want)) return { ok: false, reason: 'room_too_small' };
+            const occ = roomOccupancy((draft.assignments || []).filter((a) => a !== asg));
+            if (occ.has(`${want}|${slotKey(dow, period)}`)) return { ok: false, reason: 'room_double_booked' };
+        }
         if (!asg.roomId && want && meetings.every((x) => !normalizeStr(x.roomId))) {
             asg.roomId = want;
             meetings.forEach((x) => { if (x !== m) x.roomId = ''; });
@@ -1354,6 +1403,12 @@
             : null;
         if (teacherProfileId && !teacher) return { ok: false, reason: 'missing_context' };
         let asg = draft.assignments.find((a) => a.demandId === demandId);
+        if (teacher && asg) {
+            const occ = occupancyMap((draft.assignments || []).filter((a) => a !== asg));
+            if (assignmentMeetings(asg).some((m) => occ.has(`${teacher.id}|${slotKey(m.dow, m.period)}`))) {
+                return { ok: false, reason: 'teacher_double_booked' };
+            }
+        }
         if (!asg) {
             if (!teacher) return { ok: true };
             asg = newAssignment(demand, teacher);
@@ -1555,14 +1610,7 @@
                 }));
             }
             // Room smaller than the class.
-            const classSize = (() => {
-                const seen = new Set();
-                (demand.cohortIds || []).forEach((cid) => {
-                    const c = (appData.cohorts || []).find((x) => x && x.id === cid);
-                    ((c && c.students) || []).forEach((st) => { if (st && st.active !== false) seen.add(st.id || st.name); });
-                });
-                return seen.size;
-            })();
+            const classSize = classSizeOf(appData, demand);
             const smallSeen = new Set();
             if (classSize) {
                 meetings.forEach((m) => {
@@ -2036,7 +2084,9 @@
 
     /** Room for one meeting: the meeting's own room, else the class default. */
     function meetingRoomId(asg, meeting) {
-        return normalizeStr(meeting && meeting.roomId) || normalizeStr(asg && asg.roomId) || null;
+        // A period with its own roomId (even '', meaning no room) overrides the class default.
+        if (meeting && typeof meeting.roomId === 'string') return normalizeStr(meeting.roomId) || null;
+        return normalizeStr(asg && asg.roomId) || null;
     }
 
     function roomOccupancy(assignments) {
@@ -2067,7 +2117,9 @@
         const occ = roomOccupancy(otherAssignments);
         const conflicts = [];
         (assignment.meetings || []).forEach((m) => {
-            const key = `${normalizeStr(m.roomId) || roomId}|${slotKey(m.dow, m.period)}`;
+            const own = typeof m.roomId === 'string' ? normalizeStr(m.roomId) : roomId;
+            if (!own) return;
+            const key = `${own}|${slotKey(m.dow, m.period)}`;
             if (occ.has(key) && occ.get(key) !== assignment.assignmentId) {
                 conflicts.push('room_double_booked');
             }
@@ -2540,6 +2592,8 @@
         recomputeDraftMetrics,
         outsideStudentHours,
         teacherLimitReason,
+        classSizeOf,
+        roomTooSmall,
         longestRun,
         maxConsecutive,
         outsideTeacherHours,

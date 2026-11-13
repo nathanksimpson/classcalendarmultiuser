@@ -387,14 +387,14 @@ await import(pathToFileURL(path.join(root, 'js', 'timetable-periods.js')).href);
     r = api.movePeriodTo(data, draft, asgB.assignmentId, { dow: 3, period: '1' }, { dow: 2, period: '5', teacherProfileId: 't2' });
     assert(r.ok && r.warnOutOfBlock && r.softReasons.includes('outside_cohort_days'), 'outside student hours and days warn');
     assert(codes().includes('outside_band_block') && codes().includes('outside_cohort_days'), 'both listed');
-    // Same cohort, same time: allowed, listed as a clash.
+    // Double-booking is forbidden: same cohort at the same time, and same teacher at the same time.
     r = api.placePeriod(data, draft, 'demand:b', { dow: 1, period: '3', teacherProfileId: 't2' });
-    assert(r.ok && r.softReasons.includes('cohort_double_booked'), 'cohort clash is a warning');
+    assert(!r.ok && r.reason === 'cohort_double_booked', 'cohort double-booking refused');
+    assert(asgB.meetings.length === 1, 'nothing added');
     // Rooms per period.
     const asgA = draft.assignments.find((a) => a.demandId === 'demand:a');
     assert(api.setMeetingRoom(data, draft, asgA.assignmentId, 1, '3', 'r1').ok, 'set room');
     assert(api.meetingRoomId(asgA, asgA.meetings[0]) === 'r1', 'room stored');
-    assert(api.removePeriod(data, draft, asgB.assignmentId, 1, '3').ok, 'remove period');
     // Swap keeps both classes.
     const before = draft.assignments.reduce((n, a) => n + a.meetings.length, 0);
     r = api.swapPeriods(data, draft, { assignmentId: asgA.assignmentId, dow: 1, period: '3' },

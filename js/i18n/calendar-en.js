@@ -2862,6 +2862,7 @@
         spWhyTeacherBusy: 'The teacher already has a class then',
         spWhyCohortBusy: 'The cohort already has a class then',
         spWhyRoomBusy: 'The room is already in use then',
+        spWhyRoomSmall: 'This room is too small for the class',
         spWhyDayLimit: 'Over the teacher’s limit for one day',
         spWhyComplete: 'This class already has all its periods',
         spWhySameDay: 'Two periods of this class on the same day',

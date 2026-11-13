@@ -241,26 +241,15 @@
         };
         rebuild();
         const fresh = new Set(); // periods placed in this run (the only ones the repair step may shift)
-        const studentCount = (demand) => {
-            const seen = new Set();
-            (demand.cohortIds || []).forEach((cid) => {
-                ((cohortById.get(cid) || {}).students || []).forEach((st) => {
-                    if (st && st.active !== false) seen.add(st.id || st.name);
-                });
-            });
-            return seen.size;
-        };
         /** A free room for this time: the class's own if free, else the smallest free one that seats everyone. */
         const pickRoom = (asg, demand, dow, n) => {
             if (!rooms.length) return null;
             const free = (id) => id && !roomBusy.has(`${id}|${dow}|${n}`);
-            if (free(asg.roomId)) return asg.roomId;
-            const size = studentCount(demand);
-            const open = rooms.filter((r) => free(r.id));
-            const fits = open.filter((r) => r.capacity == null || !Number(r.capacity) || Number(r.capacity) >= size)
+            if (free(asg.roomId) && !api.roomTooSmall(appData, demand, asg.roomId)) return asg.roomId;
+            // A room that cannot seat the class is never used; the class is left without a room instead.
+            const fits = rooms.filter((r) => free(r.id) && !api.roomTooSmall(appData, demand, r.id))
                 .sort((a, b) => (Number(a.capacity) || 999) - (Number(b.capacity) || 999));
-            const biggest = open.slice().sort((a, b) => (Number(b.capacity) || 0) - (Number(a.capacity) || 0));
-            return (fits[0] || biggest[0] || {}).id || null;
+            return (fits[0] || {}).id || null;
         };
         const addMeeting = (asg, demand, dow, n) => {
             const meeting = {
@@ -684,7 +673,8 @@
                     used.set(`${roomId}|${slot}`, true);
                     return;
                 }
-                const free = rooms.find((r) => !used.has(`${r.id}|${slot}`));
+                const dem = demandById.get(e.asg.demandId);
+                const free = rooms.find((r) => !used.has(`${r.id}|${slot}`) && !api.roomTooSmall(appData, dem, r.id));
                 e.m.roomId = free ? free.id : '';
                 if (free) used.set(`${free.id}|${slot}`, true);
                 out.rooms += 1;

@@ -2861,6 +2861,7 @@
         spWhyTeacherBusy: '교사에게 이미 수업이 있는 시간입니다',
         spWhyCohortBusy: '이 반에 이미 수업이 있는 시간입니다',
         spWhyRoomBusy: '교실이 이미 사용 중인 시간입니다',
+        spWhyRoomSmall: '이 교실은 수업 인원보다 작습니다',
         spWhyDayLimit: '교사의 하루 최대 교시를 넘습니다',
         spWhyComplete: '이 수업은 이미 필요한 교시를 다 채웠습니다',
         spWhySameDay: '같은 요일에 이 수업이 두 번 들어갑니다',

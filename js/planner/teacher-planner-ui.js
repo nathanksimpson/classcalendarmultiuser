@@ -365,6 +365,7 @@
         const res = fn(M.data, M.draft);
         if (res && res.ok === false) {
             notice(reasonText(res.reason || (res.reasons && res.reasons[0])), 'error');
+            render();
             return res;
         }
         if (!opts.noUndo) {
@@ -434,6 +435,8 @@
             return t('spWhyCohortBusy', 'The cohort already has a class then');
         case 'room_double_booked':
             return t('spWhyRoomBusy', 'The room is already in use then');
+        case 'room_too_small':
+            return t('spWhyRoomSmall', 'This room is too small for the class');
         case 'max_periods_per_day':
             return t('spWhyDayLimit', 'Over the teacher’s limit for one day');
         case 'weekly_complete':
