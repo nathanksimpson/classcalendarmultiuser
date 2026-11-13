@@ -150,6 +150,38 @@
         return '';
     }
 
+    const JUNIOR_PRIMARY = ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Navy'];
+
+    /**
+     * Where a level sits for scheduling: 'junior' (Red–Purple), 'senior' (Yeoul–Mirinae) or
+     * 'middle' (middle school, and pre-middle, which is scheduled with middle school). '' if unknown.
+     * @returns {'junior'|'senior'|'middle'|''}
+     */
+    function schedulingGroupForLevel(id) {
+        const level = getLevelById(id);
+        if (!level) {
+            return '';
+        }
+        const group = GROUP_BY_LEVEL.get(level.id);
+        if (group === 'pre-middle' || group === 'middle') {
+            return 'middle';
+        }
+        return JUNIOR_PRIMARY.includes(level.id) || level.id === 'Purple' ? 'junior' : 'senior';
+    }
+
+    /**
+     * Default schedule block of a cohort at this level: Red–Navy use the primary block;
+     * Purple and above, and all (pre-)middle school, use the secondary block.
+     * @returns {'primary'|'secondary'}
+     */
+    function defaultScheduleBlockForLevel(id) {
+        const level = getLevelById(id);
+        if (!level) {
+            return 'primary';
+        }
+        return JUNIOR_PRIMARY.includes(level.id) ? 'primary' : 'secondary';
+    }
+
     /** @returns {'purple'|'yeoulSaemmul'|'senior'|null} */
     function debateBandForLevel(id) {
         const v = str(id);
@@ -692,6 +724,8 @@
         searchNamesForClass,
         localizeClassName,
         resolveLevelId,
+        schedulingGroupForLevel,
+        defaultScheduleBlockForLevel,
         debateBandForLevel,
         debateDefaultsForBand,
         getDebateBandLevels,

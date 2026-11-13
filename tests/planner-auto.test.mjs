@@ -249,3 +249,37 @@ console.log('planner-auto tests passed');
     assert(api.pendingCohortBlocks(d).length === 0 && !api.cohortBlock(d, c).staged, 'nothing pending after write');
     console.log('cohort block tests passed');
 }
+
+/* Schedule block defaults by level, and how the planner reads them. */
+{
+    await import(pathToFileURL(path.join(root, 'js', 'level-profile.js')).href);
+    const lp = globalThis.CCPLevelProfile;
+    ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Navy'].forEach((id) => assert(lp.defaultScheduleBlockForLevel(id) === 'primary', `${id} primary`));
+    ['Purple', 'Yeoul', 'Saemmul', 'Garam', 'Bada', 'Byeolmaru', 'Mirinae', '유마', 'Pre 유마', '캉첸'].forEach((id) =>
+        assert(lp.defaultScheduleBlockForLevel(id) === 'secondary', `${id} secondary`));
+    assert(lp.schedulingGroupForLevel('Purple') === 'junior' && lp.schedulingGroupForLevel('Garam') === 'senior', 'groups');
+    assert(lp.schedulingGroupForLevel('Pre 유마') === 'middle' && lp.schedulingGroupForLevel('유마') === 'middle', 'pre-middle counts as middle');
+    const d = {
+        cohorts: [
+            { id: 'p1', name: 'Purple M', levelPreset: 'Purple', scheduleBlock: 'primary', meetingDays: [1, 3, 5] },
+            { id: 'p2', name: 'Purple T', levelPreset: 'Purple', scheduleBlock: 'secondary', meetingDays: [2, 4] },
+            { id: 'pm', name: 'Pre 유마', levelPreset: 'Pre 유마', scheduleBlock: 'secondary', meetingDays: [2, 4] }
+        ],
+        classes: [
+            { id: 'a', name: 'A', cohortIds: ['p1'], weeklyFrequency: 1 },
+            { id: 'b', name: 'B', cohortIds: ['p2'], weeklyFrequency: 1 },
+            { id: 'c', name: 'C', cohortIds: ['pm'], weeklyFrequency: 1 }
+        ],
+        teacherProfiles: [{ id: 'k', name: 'K' }, { id: 'jr', name: 'Junior only', limits: { middleAllowed: false, seniorAllowed: false } }]
+    };
+    api.ensurePlannerFields(d);
+    const dm = (id) => api.buildDemandsFromAppData(d).find((x) => x.classId === id);
+    assert(api.resolvePlannerBandForCohort(d.cohorts[2]) === 'middle' && dm('c').band === 'middle', 'pre-middle is middle band');
+    assert(dm('a').band === 'junior' && dm('b').band === 'junior', 'purple stays junior level for teacher limits');
+    // Hours: existing Purple on primary keeps the early periods; Purple and pre-middle on secondary use the later ones.
+    assert(!api.outsideStudentHours(d, dm('a'), 2) && api.outsideStudentHours(d, dm('a'), 5), 'primary purple: early periods');
+    assert(api.outsideStudentHours(d, dm('b'), 2) && !api.outsideStudentHours(d, dm('b'), 5), 'secondary purple: later periods');
+    assert(api.outsideStudentHours(d, dm('c'), 2) && !api.outsideStudentHours(d, dm('c'), 5), 'pre-middle on secondary: later periods');
+    assert(api.teacherLimitReason(api.defaultTeacherProfile(d.teacherProfiles[1]), dm('c')) === 'wrong_junior_senior_band', 'junior-only teacher not given pre-middle');
+    console.log('schedule block tests passed');
+}

@@ -11632,6 +11632,7 @@ function initDayNotesUi() {
         });
     }
     bindOpenPlannerAppControl(document.getElementById('openPlannerAppHeaderBtn'));
+    bindOpenPlannerAppControl(document.getElementById('dataOpenPlannerBtn'));
     bindOpenPlannerAppControl(document.getElementById('timetableOpenPlannerBtn'));
     bindOpenPlannerAppControl(document.getElementById('teachersPlaceholderOpenPlannerBtn'));
     bindOpenPlannerAppControl(document.getElementById('printCenterPlannerLink'));
@@ -40919,6 +40920,18 @@ function migrateData(data) {
             }
             if (cohort.scheduleBlock === undefined) {
                 cohort.scheduleBlock = 'primary';
+            }
+            // One-time (Nov 2026): levels above Purple and all (pre-)middle school use the secondary block.
+            // Purple cohorts that already exist keep the block they have; new Purple cohorts default to secondary.
+            if (cohort.blockDefaultV !== 1 && !cohort.isArchiveCohort
+                && window.CCPLevelProfile && window.CCPLevelProfile.defaultScheduleBlockForLevel) {
+                const lvlId = window.CCPLevelProfile.resolveLevelId(cohort);
+                if (lvlId && lvlId !== 'Purple'
+                    && window.CCPLevelProfile.defaultScheduleBlockForLevel(lvlId) === 'secondary') {
+                    cohort.scheduleBlock = 'secondary';
+                }
+                cohort.blockDefaultV = 1;
+                migrated = true;
             }
             if (!Array.isArray(cohort.subjectSlots)) {
                 cohort.subjectSlots = [];

@@ -109,6 +109,12 @@
     }
 
     function resolvePlannerBandForCohort(cohort) {
+        // Known Simson level: middle school and pre-middle are both scheduled as middle.
+        const lp = global.CCPLevelProfile;
+        if (lp && lp.schedulingGroupForLevel && cohort) {
+            const group = lp.schedulingGroupForLevel(lp.resolveLevelId(cohort));
+            if (group) return group;
+        }
         const fromLevel = resolvePlannerBandFromText(cohortLevelText(cohort));
         if (fromLevel) return fromLevel;
         const block = normalizeStr(cohort && cohort.scheduleBlock).toLowerCase();
@@ -137,6 +143,9 @@
         for (let i = 0; i < ids.length; i += 1) {
             const c = (cohorts || []).find((x) => x && x.id === ids[i]);
             if (!c) continue;
+            const lp = global.CCPLevelProfile;
+            const group = lp && lp.schedulingGroupForLevel ? lp.schedulingGroupForLevel(lp.resolveLevelId(c)) : '';
+            if (group) return group;
             const fromLevel = resolvePlannerBandFromText(cohortLevelText(c));
             if (fromLevel) return fromLevel;
         }
@@ -299,7 +308,13 @@
         if (clock && windows.length) {
             return windows.some((w) => clock.start < w.start || clock.end > w.end);
         }
-        return isOutOfBlock(demand && demand.band, period);
+        // No hours set: a cohort on the secondary block uses the later (senior) periods whatever its
+        // level, e.g. Purple; otherwise the usual periods of its level.
+        const onSecondary = ((demand && demand.cohortIds) || []).some((cid) => {
+            const c = cohorts.find((x) => x && x.id === cid);
+            return c && normalizeStr(c.scheduleBlock).toLowerCase() === 'secondary';
+        });
+        return isOutOfBlock(onSecondary ? 'senior' : (demand && demand.band), period);
     }
 
     /** Is this period before the teacher's clock-in or after their clock-out? */

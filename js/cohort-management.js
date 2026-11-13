@@ -1977,6 +1977,12 @@
         });
         blockLabel.appendChild(blockSel);
         schedule.appendChild(blockLabel);
+        // Picking a level sets the block that level normally uses (still changeable before saving).
+        levelSel.addEventListener('change', () => {
+            if (getLevelProfileLevel(levelSel.value)) {
+                blockSel.value = defaultBlockForLevel(levelSel.value);
+            }
+        });
 
         const subjects = document.createElement('section');
         subjects.innerHTML = `<h3 class="form-section-title">${escapeHtml(t('cohortsSectionSubjects'))}</h3>`;
@@ -2074,6 +2080,7 @@
             meetingDays: defaultDays.slice(),
             periodCount: 0,
             scheduleBlock: 'primary',
+            blockDefaultV: 1,
             subjectSlots: [],
             classIds: [],
             homeroomTeacherUserId: '',
@@ -2100,6 +2107,17 @@
      * Draft cohort for TMS Sync "Create" — prefilled name + M/T schedule.
      * @returns {object|null} new cohort
      */
+    function getLevelProfileLevel(levelId) {
+        const lp = global.CCPLevelProfile;
+        return lp && lp.getLevelById ? lp.getLevelById(levelId) : null;
+    }
+
+    /** Red–Navy: primary block. Purple and above and (pre-)middle school: secondary. */
+    function defaultBlockForLevel(levelId) {
+        const lp = global.CCPLevelProfile;
+        return lp && lp.defaultScheduleBlockForLevel ? lp.defaultScheduleBlockForLevel(levelId) : 'primary';
+    }
+
     function createCohortDraftFromTms(options) {
         if (!hooks || (hooks.isViewOnly && hooks.isViewOnly())) {
             return null;
@@ -2128,7 +2146,8 @@
             schedulePattern,
             meetingDays: meetingDays.length ? meetingDays : schedulePattern === 'tth' ? [2, 4] : [1, 3, 5],
             periodCount: 0,
-            scheduleBlock: normalizeStr(opts.scheduleBlock) || 'primary',
+            scheduleBlock: normalizeStr(opts.scheduleBlock) || defaultBlockForLevel(normalizeStr(opts.levelPreset) || normalizeStr(opts.level)),
+            blockDefaultV: 1,
             subjectSlots: [],
             classIds: [],
             students: [],

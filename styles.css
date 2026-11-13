@@ -26203,3 +26203,137 @@ body.sp-readonly .sp-tile-x {
 .sp-auto-hand .sp-seg {
     margin: var(--space-1) 0;
 }
+
+/* ---------- Planner: theme tokens (light / dark) ---------- */
+.planner-page {
+    --sp-warn: #b45309;
+    --sp-warn-bg: #fef3c7;
+    --sp-warn-line: #f59e0b;
+    --sp-bad-bg: #fef2f2;
+    --sp-ok-bg: #ecfdf5;
+    --sp-overlay: rgba(15, 23, 42, 0.45);
+    background: var(--bg-main);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .planner-page {
+    --sp-warn: #fbbf24;
+    --sp-warn-bg: rgba(245, 158, 11, 0.16);
+    --sp-warn-line: #d97706;
+    --sp-bad-bg: rgba(220, 38, 38, 0.2);
+    --sp-ok-bg: rgba(22, 163, 74, 0.2);
+    --sp-overlay: rgba(0, 0, 0, 0.62);
+}
+
+.planner-page .planner-page-header {
+    background: var(--bg-card);
+    border-bottom-color: var(--border-color);
+}
+
+.planner-page .planner-page-title {
+    color: var(--text-primary);
+}
+
+.planner-page .sp-pill--bad,
+.planner-page .sp-count.is-bad {
+    background: var(--sp-bad-bg);
+}
+
+.planner-page .sp-pill--warn {
+    background: var(--sp-warn-bg);
+    color: var(--sp-warn);
+}
+
+.planner-page .sp-pill--ok {
+    background: var(--sp-ok-bg);
+}
+
+.planner-page .sp-card-sub.is-missing,
+.planner-page .sp-auto-error,
+.planner-page .sp-plan-warn {
+    color: var(--sp-warn);
+}
+
+.planner-page .sp-tile.is-warn {
+    border-color: var(--sp-warn-line);
+    border-left-color: var(--c);
+}
+
+.planner-page .sp-tile-flag {
+    background: var(--sp-warn-line);
+}
+
+.planner-page .sp-tile.is-clash .sp-tile-flag {
+    background: var(--danger);
+}
+
+body.planner-page.sp-dragging .sp-cell[data-drop="warn"] {
+    background-color: color-mix(in srgb, var(--sp-warn-line) 10%, transparent);
+}
+
+.planner-page .sp-cell.is-over[data-drop="warn"] {
+    background-color: var(--sp-warn-bg);
+    box-shadow: inset 0 0 0 2px var(--sp-warn-line);
+}
+
+.planner-page .sp-ghost-hint[data-level="warn"] {
+    background: var(--sp-warn-line);
+}
+
+.planner-page .sp-issue-group--warn .sp-issue {
+    border-left-color: var(--sp-warn-line);
+}
+
+.planner-page .sp-overlay {
+    background: var(--sp-overlay);
+}
+
+.planner-page .sp-dialog,
+.planner-page .sp-menu,
+.planner-page .sp-plan,
+.planner-page .sp-row {
+    color: var(--text-primary);
+}
+
+.planner-page .sp-tile,
+.planner-page .sp-card {
+    color: var(--text-primary);
+}
+
+.planner-page .sp-tile-sub,
+.planner-page .sp-card-sub {
+    color: var(--text-secondary);
+}
+
+/* Batch edit of cohorts (Setup) */
+.sp-batch {
+    margin: var(--space-3) 0;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-hover);
+}
+
+.sp-batch-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-2);
+}
+
+.sp-batch-row + .sp-batch-row {
+    margin-top: var(--space-2);
+}
+
+.sp-batch .field-input {
+    padding: var(--space-1) var(--space-2);
+}
+
+.sp-table tr.is-picked td {
+    background: var(--accent-muted);
+}
+
+.sp-batch input[type="time"],
+.sp-table input[type="time"] {
+    width: 132px;
+}
