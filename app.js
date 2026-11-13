@@ -35244,14 +35244,41 @@ function showLockFlash(message, isError) {
     setAppStatusMessage(message, isError, TEAM_LOCK_FLASH_DURATION_MS);
 }
 
+let teamLockBarHideTimer = null;
+/**
+ * Showing is immediate. Hiding waits ~1.5 s: calendar switches and reconnects pass
+ * through a moment with no calendar id, and hiding then made the bar blink away.
+ */
 function setTeamLockBarVisible(visible) {
+    if (!visible) {
+        if (teamLockBarHideTimer) {
+            return;
+        }
+        teamLockBarHideTimer = setTimeout(() => {
+            teamLockBarHideTimer = null;
+            const syncBar = document.getElementById('teamLockSyncBar');
+            const el = document.getElementById('teamLockStatus');
+            if (syncBar) {
+                syncBar.hidden = true;
+            }
+            if (el) {
+                el.hidden = true;
+            }
+            scheduleTabWarningsRefresh();
+        }, 1500);
+        return;
+    }
+    if (teamLockBarHideTimer) {
+        clearTimeout(teamLockBarHideTimer);
+        teamLockBarHideTimer = null;
+    }
     const syncBar = document.getElementById('teamLockSyncBar');
     const el = document.getElementById('teamLockStatus');
     if (syncBar) {
-        syncBar.hidden = !visible;
+        syncBar.hidden = false;
     }
     if (el) {
-        el.hidden = !visible;
+        el.hidden = false;
     }
     scheduleTabWarningsRefresh();
 }

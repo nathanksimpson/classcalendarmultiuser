@@ -661,9 +661,8 @@
         if (!row) {
             return;
         }
-        const lockVisible = lock && !lock.hidden;
-        const hasNotifications = activeCount > 0 || historyCount > 0;
-        row.hidden = false;
+        // Visibility of the lock bar is owned by setTeamLockBarVisible (app.js); forcing it
+        // open here made the bar flash on and off against that logic.
     }
 
     function updateLockBarNotificationsFromSnapshot(snap) {

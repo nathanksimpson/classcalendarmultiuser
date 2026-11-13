@@ -24856,3 +24856,29 @@ html[data-nav-dock="bottom"] .class-board-search-input {
     /* 16px so iOS does not zoom the page when the field is focused. */
     font-size: 1rem;
 }
+
+/* === Steady lock / sync bar (2026-11-14) ===
+   Status changes swap labels and show or hide buttons. Reserve their space so the
+   header never resizes and nudges its neighbours. */
+.team-lock-sync-bar.team-lock-sync-bar--inline .team-lock-chip-label {
+    width: 8rem;
+    max-width: 8rem;
+}
+.team-lock-sync-bar.team-lock-sync-bar--inline .team-lock-action-btn[hidden],
+.header-status-group .team-sync-saved-indicator[hidden] {
+    display: inline-flex !important;
+    visibility: hidden;
+    pointer-events: none;
+}
+@media (min-width: 901px) {
+    .team-lock-sync-bar.team-lock-sync-bar--inline .team-lock-action-btn {
+        min-width: 6.5rem;
+        justify-content: center;
+    }
+}
+@media (max-width: 900px) {
+    .team-lock-sync-bar.team-lock-sync-bar--inline .team-lock-chip-label {
+        width: 6rem;
+        max-width: 6rem;
+    }
+}
