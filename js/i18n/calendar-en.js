@@ -2968,6 +2968,7 @@
         spApplied: 'Calendar updated: {n} classes.',
         spPrintTeachers: 'Teacher timetables',
         spPrintRooms: 'Room timetables',
+        spPrintRoomSchedule: 'Room schedule (one page per day)',
         spPrintCohorts: 'Cohort timetables',
         spPrintDaily: 'Daily sheet',
         spNewTeacher: 'New teacher',

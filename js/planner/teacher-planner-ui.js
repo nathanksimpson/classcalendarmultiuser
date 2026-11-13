@@ -1879,18 +1879,100 @@ ${by.get(cid).map((d) => `
         return `<div class="planner-print-page">${printHeader(title)}${blocks}</div>`;
     }
 
-    function printDaily() {
-        const map = cellMap(M, 'cohorts');
-        return DAYS.map((d) => {
-            const cols = M.cohorts.filter((c) => !c.days.length || c.days.includes(d)
-                || M.periods.some((row) => (map.get(`${c.id}|${d}|${row.period}`) || []).length));
-            if (!cols.length) return '';
+    function printText(hex) {
+        const raw = String(hex || '').replace('#', '');
+        if (!/^[0-9a-fA-F]{6}$/.test(raw)) return '#1c2430';
+        const lum = (0.299 * parseInt(raw.slice(0, 2), 16) + 0.587 * parseInt(raw.slice(2, 4), 16) + 0.114 * parseInt(raw.slice(4, 6), 16)) / 255;
+        return lum > 0.62 ? '#1c2430' : '#ffffff';
+    }
+
+    function printPageHeader(title) {
+        const name = String((M.data && M.data.calendarName) || '').trim() || t('plannerPageTitle', 'Schedule planner');
+        return `<div class="planner-print-page-header"><div class="planner-print-page-title">${esc(title)}</div><div class="planner-print-page-meta">ClassManager · ${esc(name)}</div></div>`;
+    }
+
+    function bandShort(band) {
+        return band === 'junior' ? t('plannerJrShort', 'Jr') : band === 'middle' ? t('plannerMiddle1', '중1') : t('plannerSrShort', 'Sr');
+    }
+
+    /**
+     * Teacher timetable, same sheet as the planner printed before the rebuild:
+     * one block per teacher (role, periods a week), Mon–Fri across, clock times down,
+     * each class in its colour with level and room.
+     */
+    function printTeachers() {
+        const map = cellMap(M, 'teachers');
+        const blocks = M.teachers.map((te) => {
+            const rows = M.periods.map((row) => `<tr><th class="planner-print-time-col">${esc(timeLabel(row))}</th>${DAYS.map((d) => {
+                const tiles = map.get(`${te.id}|${d}|${row.period}`) || [];
+                if (!tiles.length) return '<td></td>';
+                const color = demandColor(M, tiles[0].demand);
+                return `<td class="planner-print-cell-colored" style="background:${esc(color)};color:${printText(color)}">${tiles.map((x) => {
+                    const room = roomName(M, x.roomId);
+                    return `<div class="planner-print-cell-name">${esc(x.demand.name)}</div><div class="planner-print-cell-sub">${esc(bandShort(x.demand.band))}${room ? ` · ${esc(room)}` : ''}</div>`;
+                }).join('')}</td>`;
+            }).join('')}</tr>`).join('');
+            const load = M.tiles.filter((x) => x.asg.teacherProfileId === te.id).length;
+            const role = te.role === 'native' ? t('plannerRoleNative', 'Native') : t('plannerRoleKorean', 'Korean');
             return `
-<div class="planner-print-page">${printHeader(`${t('spPrintDaily', 'Daily sheet')} · ${dayLabel(d)}`)}
-  <table class="planner-print-table"><thead><tr><th class="planner-print-time-col"></th>${cols.map((c) => `<th>${esc(c.name)}</th>`).join('')}</tr></thead>
-  <tbody>${M.periods.map((row) => `<tr><th class="planner-print-time-col">${esc(timeLabel(row))}</th>${cols.map((c) => printCell(map.get(`${c.id}|${d}|${row.period}`) || [], (x) => [
-        teacherName(M, x.asg.teacherProfileId), roomName(M, x.roomId)
-    ])).join('')}</tr>`).join('')}</tbody></table>
+<div class="planner-print-block">
+  <div class="planner-print-block-title">${esc(te.name)}</div>
+  <div class="planner-print-block-subtitle">${esc(role)} · ${load}/${Number(te.limits.maxPeriodsPerWeek) || 22} ${esc(t('plannerPeriodsPerWeek', 'periods/wk'))}</div>
+  <table class="planner-print-table"><thead><tr><th class="planner-print-time-col"></th>${DAYS.map((d) => `<th>${esc(dayLabel(d))}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
+</div>`;
+        }).join('');
+        return `<div class="planner-print-page">${printPageHeader(t('plannerPrintTeacherTitle', 'Teacher timetable'))}${blocks}</div>`;
+    }
+
+    /**
+     * Room schedule, same sheet as before the rebuild: one page per weekday, a column per cohort
+     * that has class that day (grouped Junior / Senior / 중1), 반명 and 인원 rows on top, and under
+     * every period a 강의실 row with the room.
+     */
+    function printRoomSchedule() {
+        const map = cellMap(M, 'cohorts');
+        const bands = [['junior', t('plannerJunior', 'Junior')], ['senior', t('plannerSenior', 'Senior')], ['middle', t('plannerMiddle1', '중1')]];
+        const rank = { junior: 0, senior: 1, middle: 2 };
+        return DAYS.map((d) => {
+            const title = `${dayLabel(d)} ${t('plannerPrintRoomTitle', 'Room schedule')}`;
+            const cols = M.cohorts
+                .filter((c) => M.periods.some((row) => (map.get(`${c.id}|${d}|${row.period}`) || []).length))
+                .sort((a, b) => rank[a.band] - rank[b.band]);
+            if (!cols.length) {
+                return `<div class="planner-print-page">${printPageHeader(title)}<p>${esc(t('plannerNoScheduledThisDay', 'No classes are scheduled on this day yet.'))}</p></div>`;
+            }
+            const bandCells = bands.map(([key, label]) => {
+                const n = cols.filter((c) => c.band === key).length;
+                return n ? `<th class="planner-print-band-header" colspan="${n}">${esc(label)}</th>` : '';
+            }).join('');
+            const nameCells = cols.map((c) => {
+                const color = c.color || '#e3e8ef';
+                return `<th style="background:${esc(color)} !important;color:${printText(color)};-webkit-print-color-adjust:exact;print-color-adjust:exact">${esc(c.name)}</th>`;
+            }).join('');
+            const countCells = cols.map((c) => `<td>${c.students ? c.students : '—'}</td>`).join('');
+            const body = M.periods.map((row) => {
+                const cells = cols.map((c) => map.get(`${c.id}|${d}|${row.period}`) || []);
+                const classRow = cells.map((tiles) => {
+                    if (!tiles.length) return '<td></td>';
+                    const color = demandColor(M, tiles[0].demand);
+                    const warn = tiles.some((x) => (x.warn || []).includes('outside_band_block'));
+                    return `<td class="planner-print-cell-colored" style="background:${esc(color)};color:${printText(color)}${warn ? ';outline:2px dashed #b45309;outline-offset:-2px' : ''}">${tiles.map((x) => `<div class="planner-print-cell-name">${warn ? '⚠ ' : ''}${esc(x.demand.name)}</div><div class="planner-print-cell-sub">${esc(teacherName(M, x.asg.teacherProfileId) || t('plannerNoTeacherShort', 'No teacher'))}</div>`).join('')}</td>`;
+                }).join('');
+                const roomRow = cells.map((tiles) => {
+                    if (!tiles.length) return '<td></td>';
+                    const names = tiles.map((x) => roomName(M, x.roomId));
+                    const missing = names.some((n) => !n);
+                    return `<td style="font-weight:700;${missing ? 'color:#b45309' : ''}">${esc(names.map((n) => n || t('plannerRoomTbd', 'TBD')).join(' / '))}</td>`;
+                }).join('');
+                return `<tr><th class="planner-print-time-col">${esc(timeLabel(row))}</th>${classRow}</tr><tr><th class="planner-print-room-label">${esc(t('plannerRoomClassroom', '강의실'))}</th>${roomRow}</tr>`;
+            }).join('');
+            return `
+<div class="planner-print-page">${printPageHeader(title)}
+  <table class="planner-print-table"><thead>
+    <tr><th class="planner-print-time-col"></th>${bandCells}</tr>
+    <tr><th class="planner-print-time-col">${esc(t('plannerRoomBanmyeong', '반명'))}</th>${nameCells}</tr>
+    <tr><th class="planner-print-time-col">${esc(t('plannerRoomEnrollment', '인원'))}</th>${countCells}</tr>
+  </thead><tbody>${body}</tbody></table>
 </div>`;
         }).join('');
     }
@@ -1898,7 +1980,9 @@ ${by.get(cid).map((d) => `
     function printSheet(kind) {
         const area = $('plannerPrintArea');
         if (!area || !M) return;
-        area.innerHTML = kind === 'daily' ? printDaily() : printWeekly(kind);
+        area.innerHTML = kind === 'teachers' ? printTeachers()
+            : kind === 'rooms' ? printRoomSchedule()
+                : kind === 'byroom' ? printWeekly('rooms') : printWeekly(kind);
         area.setAttribute('aria-hidden', 'false');
         requestAnimationFrame(() => requestAnimationFrame(() => {
             global.print();

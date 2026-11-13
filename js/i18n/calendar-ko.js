@@ -2967,6 +2967,7 @@
         spApplied: '캘린더를 업데이트했습니다: 수업 {n}개.',
         spPrintTeachers: '교사 시간표',
         spPrintRooms: '교실 시간표',
+        spPrintRoomSchedule: '강의실 배정표 (요일별 한 장)',
         spPrintCohorts: '반 시간표',
         spPrintDaily: '일일 시간표',
         spNewTeacher: '새 교사',
