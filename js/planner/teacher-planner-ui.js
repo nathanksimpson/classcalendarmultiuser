@@ -1596,7 +1596,8 @@ ${by.get(cid).map((d) => `
 
     const autoState = {
         open: false, loading: false, calendars: null, prevId: '', prevData: null,
-        analysis: null, options: null, base: null, appliedId: null, appliedSig: null, error: ''
+        analysis: null, options: null, base: null, appliedId: null, appliedSig: null, error: '',
+        handCount: 0, moveHand: false // moveHand: null = not answered yet
     };
 
     function activeCalendarId() {
@@ -1614,6 +1615,10 @@ ${by.get(cid).map((d) => `
         if (!(autoState.base && autoState.appliedSig === JSON.stringify(M.draft.assignments))) {
             autoState.base = JSON.stringify(M.draft);
             autoState.appliedId = null;
+            // Classes already on the board that are not locked: ask before moving any of them.
+            autoState.handCount = M.draft.assignments.filter((a) => !a.locked && (a.meetings || []).length
+                && M.demandById.get(a.demandId) && M.demandById.get(a.demandId).includedInDraft !== false).length;
+            autoState.moveHand = autoState.handCount ? null : false;
         }
         autoState.open = true;
         autoState.options = null;
@@ -1656,7 +1661,15 @@ ${by.get(cid).map((d) => `
         autoState.analysis = autoState.prevData
             ? A.analysePreviousTerm(M.data, autoState.prevData)
             : { byDemand: new Map(), students: 0, matched: 0 };
-        autoState.options = A.buildOptions(M.data, JSON.parse(autoState.base), autoState.analysis);
+        if (autoState.moveHand === null) autoState.options = null;
+        else {
+            const base = JSON.parse(autoState.base);
+            if (autoState.moveHand) {
+                // Allowed to move: unlocked classes come off the board (teachers stay) and are placed again.
+                base.assignments.forEach((a) => { if (!a.locked) a.meetings = []; });
+            }
+            autoState.options = A.buildOptions(M.data, base, autoState.analysis);
+        }
         autoState.loading = false;
         renderAuto();
     }
@@ -1686,6 +1699,17 @@ ${by.get(cid).map((d) => `
     ${cals.map((c) => `<option value="${esc(c.id)}"${String(c.id) === autoState.prevId ? ' selected' : ''}>${esc(c.name || c.id)}</option>`).join('')}
   </select>
 </label>`;
+        if (autoState.handCount) {
+            html += `
+<div class="sp-field sp-auto-hand">
+  <span>${esc(t('spAutoHandAsk', '{n} classes are already on the board. May auto-schedule move them?', { n: autoState.handCount }))}</span>
+  <div class="sp-seg" role="group">
+    <button type="button" class="sp-seg-btn${autoState.moveHand === false ? ' is-active' : ''}" data-act="auto-hand" data-move="0" aria-pressed="${autoState.moveHand === false}">${esc(t('spAutoHandKeep', 'No, keep them where they are'))}</button>
+    <button type="button" class="sp-seg-btn${autoState.moveHand === true ? ' is-active' : ''}" data-act="auto-hand" data-move="1" aria-pressed="${autoState.moveHand === true}">${esc(t('spAutoHandMove', 'Yes, they may move'))}</button>
+  </div>
+  <p class="sp-hint">${esc(t('spAutoHandHint', 'Locked classes never move. Teachers already on a class stay on it either way.'))}</p>
+</div>`;
+        }
         if (autoState.error) html += `<p class="sp-hint sp-auto-error">${esc(autoState.error)}</p>`;
         else if (autoState.prevId && a && !autoState.loading) {
             html += `<p class="sp-hint">${esc(a.matched
@@ -1694,7 +1718,9 @@ ${by.get(cid).map((d) => `
         } else if (!autoState.prevId && !autoState.loading) {
             html += `<p class="sp-hint">${esc(t('spAutoNoPrevHint', 'Choose last term’s calendar to keep teachers with the students they had.'))}</p>`;
         }
-        if (autoState.loading || !autoState.options) {
+        if (!autoState.loading && autoState.moveHand === null) {
+            html += `<p class="sp-empty">${esc(t('spAutoHandFirst', 'Answer the question above to see the plans.'))}</p>`;
+        } else if (autoState.loading || !autoState.options) {
             html += `<p class="sp-empty">${esc(t('spAutoWorking', 'Working out plans…'))}</p>`;
         } else {
             html += `<div class="sp-plans">${autoState.options.map((o) => {
@@ -1716,7 +1742,9 @@ ${by.get(cid).map((d) => `
             if (autoState.options.length === 1) {
                 html += `<p class="sp-hint">${esc(t('spAutoOnePlan', 'The other priorities give this same plan.'))}</p>`;
             }
-            html += `<p class="sp-hint">${esc(t('spAutoKeeps', 'Plans only fill what is missing. Classes you placed stay where they are, and Undo brings the board back.'))}</p>`;
+            html += `<p class="sp-hint">${esc(autoState.moveHand
+                ? t('spAutoMoves', 'These plans place every unlocked class again. Undo brings the board back.')
+                : t('spAutoKeeps', 'Plans only fill what is missing. Classes you placed stay where they are, and Undo brings the board back.'))}</p>`;
         }
         body.innerHTML = html;
     }
@@ -2122,6 +2150,11 @@ ${by.get(cid).map((d) => `
         case 'load-calendar': closeMenus(); loadFromCalendar(); break;
         case 'auto': closeMenus(); openAuto(); break;
         case 'close-auto': closeAuto(); break;
+        case 'auto-hand':
+            autoState.moveHand = el.getAttribute('data-move') === '1';
+            autoState.appliedId = null;
+            loadPrevious(autoState.prevId);
+            break;
         case 'fix': openFix(); break;
         case 'save-cohort-blocks': saveCohortBlocks(); break;
         case 'discard-cohort-blocks':

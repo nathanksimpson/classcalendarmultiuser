@@ -26199,3 +26199,7 @@ body.sp-readonly .sp-tile-x {
     width: 116px;
     padding: var(--space-1) var(--space-2);
 }
+
+.sp-auto-hand .sp-seg {
+    margin: var(--space-1) 0;
+}
