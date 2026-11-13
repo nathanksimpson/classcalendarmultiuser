@@ -26190,3 +26190,12 @@ body.sp-readonly .sp-tile-x {
     gap: var(--space-2);
     font-size: 0.8125rem;
 }
+
+.sp-confirm-text {
+    white-space: pre-line;
+}
+
+.sp-table input[type="time"] {
+    width: 116px;
+    padding: var(--space-1) var(--space-2);
+}

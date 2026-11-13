@@ -488,6 +488,8 @@ Optional top-level fields used by the satellite page [`planner.html`](planner.ht
 | `teacherProfiles[].limits.ownTypeOnly` / `onlyClassTypeIds[]` | boolean / string[] | Teacher only takes classes marked for their own type / only these class types. Warned on the board, never broken by auto-schedule |
 | `plannerState.maxConsecutive` / `previousCalendarId` | number / string | Most periods in a row before a warning (default 4); last term's calendar id for auto-schedule |
 | `plannerDrafts[].assignments[].locked` / `.auto` / `meetings[].movedAt` | | Locked classes are never moved by suggestions; `auto` records why a teacher was chosen; `movedAt` decides which class stays when clashes are fixed |
+| `cohorts[].blockStart` / `blockEnd` | string | `HH:MM` hours the cohort's students are at school, set from the planner (Setup → Cohorts → Save to cohorts). Falls back to `tmsBlockStart` / `tmsBlockEnd` |
+| `plannerState.cohortBlocks` | object | `{ [cohortId]: { days, start, end } }` time blocks changed in the planner and not yet written to the cohorts (written only after the user confirms) |
 | `plannerState` | object | Active draft id, board zoom/order, filters, global blockouts, `lockToCohortDays` (default true) |
 | `plannerDrafts[]` | array | Versioned drafts with assignments, issues, metrics (keep last ~5) |
 | `classes[].teacherRequirementType` | string | `korean` \| `native` \| `either` |

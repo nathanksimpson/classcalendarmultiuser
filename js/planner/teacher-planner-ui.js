@@ -223,7 +223,8 @@
                     color: c.color || '',
                     band,
                     rank: P.levelSortIndex(band, c),
-                    days: Array.isArray(c.meetingDays) ? c.meetingDays.map(Number) : [],
+                    days: P.cohortBlock(data, c).days,
+                    block: P.cohortBlock(data, c),
                     homeroom: String(c.homeroomTeacherName || '').trim(),
                     students: Array.isArray(c.students) ? c.students.length : 0
                 };
@@ -1353,7 +1354,7 @@ ${state.issuesOpen ? `<div class="sp-issues-body">${total ? groups.filter((g) =>
     /* ----------------------------------------------------------------- setup */
 
     function openSetup(tab) {
-        if (tab && ['teachers', 'rooms', 'classes'].includes(tab)) state.setupTab = tab;
+        if (tab && ['cohorts', 'teachers', 'rooms', 'classes'].includes(tab)) state.setupTab = tab;
         state.setupOpen = true;
         const dlg = $('spSetup');
         if (dlg) dlg.hidden = false;
@@ -1442,6 +1443,21 @@ ${state.issuesOpen ? `<div class="sp-issues-body">${total ? groups.filter((g) =>
   <button type="button" class="btn btn-outline btn-small${state.openBlockGrid === 'everyone' ? ' is-active' : ''}" data-act="toggle-blockgrid" data-owner="everyone" aria-expanded="${state.openBlockGrid === 'everyone'}">${esc(everyoneCount ? t('spEveryoneOffN', 'Times blocked for everyone ({n})', { n: everyoneCount }) : t('spEveryoneOff', 'Times blocked for everyone'))}</button>
 </div>
 ${state.openBlockGrid === 'everyone' ? blockGrid(M, 'everyone') : ''}`;
+        } else if (state.setupTab === 'cohorts') {
+            const pending = api().pendingCohortBlocks(M.data);
+            html += `<p class="sp-hint">${esc(t('spSetupCohortsHint', 'When each cohort’s students are at school. The planner uses these straight away for warnings and auto-schedule. The cohorts themselves only change when you press “Save to cohorts”.'))}</p>`;
+            html += M.cohorts.length ? `<table class="sp-table"><thead><tr><th>${esc(t('spCohort', 'Cohort'))}</th><th>${esc(t('spDays', 'Days'))}</th><th>${esc(t('spBlockFrom', 'From'))}</th><th>${esc(t('spBlockTo', 'To'))}</th><th></th></tr></thead><tbody>${M.cohorts.map((c) => `
+<tr data-cohort="${esc(c.id)}">
+  <td><span class="sp-swatch" style="background:${esc(c.color || '#94a3b8')}"></span>${esc(c.name)} <span class="sp-hint">${esc(bandLabel(c.band))}</span></td>
+  <td><span class="sp-chips">${DAYS.map((d) => `<label class="sp-chip"><input type="checkbox" data-change="cohort-day" data-dow="${d}"${c.block.days.includes(d) ? ' checked' : ''}><span>${esc(dayLabel(d))}</span></label>`).join('')}</span></td>
+  <td><input type="time" class="field-input" data-change="cohort-start" value="${esc(c.block.start)}" aria-label="${esc(t('spBlockFrom', 'From'))}"></td>
+  <td><input type="time" class="field-input" data-change="cohort-end" value="${esc(c.block.end)}" aria-label="${esc(t('spBlockTo', 'To'))}"></td>
+  <td>${c.block.staged ? `<span class="sp-pill sp-pill--warn">${esc(t('spNotSaved', 'Not saved to cohort'))}</span>` : (!c.block.start || !c.block.end ? `<span class="sp-hint">${esc(t('spBlockDefault', 'No hours set: uses the usual hours for its level'))}</span>` : '')}</td>
+</tr>`).join('')}</tbody></table>
+<div class="sp-setup-actions">
+  <button type="button" class="btn btn-primary btn-small" data-act="save-cohort-blocks"${pending.length ? '' : ' disabled'}>${esc(t('spSaveCohorts', 'Save to cohorts ({n})', { n: pending.length }))}</button>
+  <button type="button" class="btn btn-outline btn-small" data-act="discard-cohort-blocks"${pending.length ? '' : ' disabled'}>${esc(t('spDiscardCohorts', 'Discard changes'))}</button>
+</div>` : `<p class="sp-empty">${esc(t('spEmptyCohorts', 'No cohorts on this calendar yet. Create them on the Cohorts tab of the calendar.'))}</p>`;
         } else if (state.setupTab === 'rooms') {
             html += `<p class="sp-hint">${esc(t('spSetupRoomsHint', 'Rooms are optional. Once you add them, drag classes into rooms on the Rooms sheet.'))}</p>`;
             html += `<div class="sp-rows" data-sort-list="rooms">${M.rooms.map((r) => `
@@ -1481,6 +1497,22 @@ ${by.get(cid).map((d) => `
         body.innerHTML = html;
         body.scrollTop = keep;
         body.classList.toggle('sp-locked', !!readOnly());
+    }
+
+    async function saveCohortBlocks() {
+        if (!M || readOnly()) return;
+        const pending = api().pendingCohortBlocks(M.data);
+        if (!pending.length) return;
+        const list = pending.map((x) => `${x.name}: ${x.block.days.map(dayLabel).join(' ')}${x.block.start && x.block.end ? ` ${x.block.start}–${x.block.end}` : ''}`).join('\n');
+        if (!(await confirmBox(
+            `${t('spConfirmCohorts', 'Change the days and hours of these cohorts on the calendar?')}\n\n${list}`,
+            t('spSaveCohortsOk', 'Save to cohorts')
+        ))) return;
+        const n = api().writeCohortBlocks(M.data);
+        markDirty();
+        M = buildModel();
+        if (state.setupOpen) renderSetup();
+        notice(t('spCohortsSaved', 'Cohorts updated: {n}.', { n }), 'success');
     }
 
     function classTypeList(m) {
@@ -1828,8 +1860,13 @@ ${by.get(cid).map((d) => `
         const clashes = groupedIssues(M)[0].items.length;
         const msg = t('spConfirmApply', 'Write the days, periods, teachers and rooms of {n} classes to the calendar?', { n: placed.length })
             + (clashes ? ` ${t('spConfirmApplyClashes', '{n} clashes are still on the board.', { n: clashes })}` : '');
-        if (!(await confirmBox(msg, t('plannerApply', 'Apply to calendar')))) return;
+        const pendingBlocks = api().pendingCohortBlocks(M.data);
+        const fullMsg = pendingBlocks.length
+            ? `${msg}\n\n${t('spConfirmApplyCohorts', 'This also saves the changed days and hours of {n} cohorts: {names}.', { n: pendingBlocks.length, names: pendingBlocks.map((x) => x.name).join(', ') })}`
+            : msg;
+        if (!(await confirmBox(fullMsg, t('plannerApply', 'Apply to calendar')))) return;
         const data = M.data;
+        if (pendingBlocks.length) api().writeCohortBlocks(data);
         const draft = M.draft;
         const excluded = draft.assignments.filter((a) => {
             const d = M.demandById.get(a.demandId);
@@ -2086,6 +2123,12 @@ ${by.get(cid).map((d) => `
         case 'auto': closeMenus(); openAuto(); break;
         case 'close-auto': closeAuto(); break;
         case 'fix': openFix(); break;
+        case 'save-cohort-blocks': saveCohortBlocks(); break;
+        case 'discard-cohort-blocks':
+            setupEdit((data) => { data.plannerState.cohortBlocks = {}; });
+            M = buildModel();
+            renderSetup();
+            break;
         case 'close-fix': closeFix(); break;
         case 'use-fix': useFix(el.getAttribute('data-plan')); break;
         case 'use-plan': usePlan(el.getAttribute('data-plan')); break;
@@ -2235,6 +2278,18 @@ ${by.get(cid).map((d) => `
             const dow = Number(el.getAttribute('data-dow'));
             const period = el.getAttribute('data-period');
             mutate((data, draft) => api().setMeetingRoom(data, draft, asg.assignmentId, dow, period, el.value || ''));
+        } else if (kind === 'cohort-day' || kind === 'cohort-start' || kind === 'cohort-end') {
+            const tr = el.closest('[data-cohort]');
+            const id = tr.getAttribute('data-cohort');
+            setupEdit((data) => {
+                api().stageCohortBlock(data, id, {
+                    days: Array.from(tr.querySelectorAll('[data-change="cohort-day"]:checked')).map((x) => Number(x.getAttribute('data-dow'))),
+                    start: tr.querySelector('[data-change="cohort-start"]').value,
+                    end: tr.querySelector('[data-change="cohort-end"]').value
+                });
+            });
+            M = buildModel();
+            renderSetup();
         } else if (kind === 'fix-agree') {
             fixState.agreed = el.checked;
             renderFix();

@@ -216,3 +216,36 @@ console.log('planner-auto tests passed');
     assert(!api.setClassTeacher(d, dr, 'demand:o1', 'k1').ok && !o1.teacherProfileId, 'busy teacher refused');
     console.log('repair and room tests passed');
 }
+
+/* Cohort time blocks: the planner's copy is used at once; the cohort only changes after writeCohortBlocks. */
+{
+    const d = {
+        cohorts: [{ id: 'y', name: 'Yellow', meetingDays: [1, 3, 5], schedulePattern: 'mwf', level: 'Yellow' }],
+        classes: [{ id: 'a', name: 'A', cohortIds: ['y'], weeklyFrequency: 2 }],
+        teacherProfiles: [{ id: 'kim', name: 'Kim' }]
+    };
+    api.ensurePlannerFields(d);
+    const demand = () => api.buildDemandsFromAppData(d)[0];
+    assert(api.cohortBlock(d, d.cohorts[0]).days.join() === '1,3,5' && !api.cohortBlock(d, d.cohorts[0]).staged, 'block from cohort');
+    assert(api.outsideStudentHours(d, demand(), 5) === true, 'P5 is outside junior hours by default');
+    // Planner: Tue/Thu 17:00-19:00.
+    api.stageCohortBlock(d, 'y', { days: [2, 4], start: '17:00', end: '19:00' });
+    assert(api.pendingCohortBlocks(d).length === 1, 'one pending');
+    assert(d.cohorts[0].meetingDays.join() === '1,3,5' && !d.cohorts[0].blockStart, 'cohort not touched yet');
+    assert(api.cohortMeetingDays(d, demand()).join() === '2,4', 'planner uses new days');
+    assert(api.outsideStudentHours(d, demand(), 5) === false && api.outsideStudentHours(d, demand(), 1) === true, 'planner uses new hours');
+    const dr = { id: 'c', assignments: [], issues: [], metrics: {} };
+    auto.autoSchedule(d, dr, {});
+    const ms = dr.assignments[0].meetings;
+    assert(ms.length === 2 && ms.every((m) => [2, 4].includes(m.dow) && ['4', '5'].includes(m.period)), `auto follows the block: ${JSON.stringify(ms)}`);
+    // Staging the saved values again clears the pending change.
+    api.stageCohortBlock(d, 'y', { days: [1, 3, 5], start: '', end: '' });
+    assert(api.pendingCohortBlocks(d).length === 0, 'no pending when equal');
+    // After confirmation it is written to the cohort.
+    api.stageCohortBlock(d, 'y', { days: [2, 4], start: '17:00', end: '19:00' });
+    assert(api.writeCohortBlocks(d) === 1, 'written');
+    const c = d.cohorts[0];
+    assert(c.meetingDays.join() === '2,4' && c.schedulePattern === 'tth' && c.blockStart === '17:00' && c.blockEnd === '19:00', 'cohort updated');
+    assert(api.pendingCohortBlocks(d).length === 0 && !api.cohortBlock(d, c).staged, 'nothing pending after write');
+    console.log('cohort block tests passed');
+}

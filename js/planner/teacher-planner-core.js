@@ -209,14 +209,91 @@
      * Uses the cohort's own hours (TMS block start/end) when known, else the
      * usual hours of its level (junior / middle / senior).
      */
+    function validHHMM(v) {
+        return hhmmToMin(v) != null ? normalizeStr(v) : '';
+    }
+
+    /**
+     * A cohort's time block: the weekdays (1-5) its students come and the hours they are at school.
+     * The planner's own copy (plannerState.cohortBlocks, edited in Setup) wins over the cohort record
+     * until it is written back with writeCohortBlocks.
+     */
+    function cohortBlock(appData, cohort) {
+        if (!cohort) return { days: [], start: '', end: '', staged: false };
+        const saved = {
+            days: (Array.isArray(cohort.meetingDays) ? cohort.meetingDays : []).map(Number)
+                .filter((d) => d >= 1 && d <= 5).sort((a, b) => a - b),
+            start: validHHMM(cohort.blockStart) || validHHMM(cohort.tmsBlockStart),
+            end: validHHMM(cohort.blockEnd) || validHHMM(cohort.tmsBlockEnd)
+        };
+        const all = appData && appData.plannerState && appData.plannerState.cohortBlocks;
+        const st = all && all[cohort.id];
+        if (!st || typeof st !== 'object') return Object.assign(saved, { staged: false });
+        return {
+            days: Array.isArray(st.days)
+                ? [...new Set(st.days.map(Number).filter((d) => d >= 1 && d <= 5))].sort((a, b) => a - b)
+                : saved.days,
+            start: typeof st.start === 'string' ? validHHMM(st.start) : saved.start,
+            end: typeof st.end === 'string' ? validHHMM(st.end) : saved.end,
+            staged: true
+        };
+    }
+
+    /** Set (or clear, when it matches the cohort record) the planner's copy of one cohort's block. */
+    function stageCohortBlock(appData, cohortId, block) {
+        ensurePlannerFields(appData);
+        const cohort = (appData.cohorts || []).find((c) => c && c.id === cohortId);
+        if (!cohort) return false;
+        const state = appData.plannerState;
+        if (!state.cohortBlocks || typeof state.cohortBlocks !== 'object') state.cohortBlocks = {};
+        delete state.cohortBlocks[cohortId];
+        const saved = cohortBlock(appData, cohort);
+        const next = {
+            days: [...new Set((block.days || []).map(Number).filter((d) => d >= 1 && d <= 5))].sort((a, b) => a - b),
+            start: validHHMM(block.start),
+            end: validHHMM(block.end)
+        };
+        if (next.days.join() !== saved.days.join() || next.start !== saved.start || next.end !== saved.end) {
+            state.cohortBlocks[cohortId] = next;
+        }
+        return true;
+    }
+
+    /** Cohorts whose block in the planner differs from the cohort record. */
+    function pendingCohortBlocks(appData) {
+        const all = (appData && appData.plannerState && appData.plannerState.cohortBlocks) || {};
+        return ((appData && appData.cohorts) || [])
+            .filter((c) => c && all[c.id])
+            .map((c) => ({ cohortId: c.id, name: c.name, block: cohortBlock(appData, c) }));
+    }
+
+    /** Write the planner's blocks onto the cohort records. Call only after the user confirms. */
+    function writeCohortBlocks(appData) {
+        const pending = pendingCohortBlocks(appData);
+        pending.forEach(({ cohortId, block }) => {
+            const cohort = appData.cohorts.find((c) => c.id === cohortId);
+            const weekend = (Array.isArray(cohort.meetingDays) ? cohort.meetingDays : []).map(Number)
+                .filter((d) => d === 0 || d === 6);
+            const days = block.days.concat(weekend).sort((a, b) => a - b);
+            const named = { '1,3,5': 'mwf', '2,4': 'tth', '1,3': 'mw', '3,5': 'wf', '1,5': 'mf' };
+            cohort.meetingDays = days;
+            cohort.schedulePattern = named[days.join(',')] || 'custom';
+            cohort.blockStart = block.start;
+            cohort.blockEnd = block.end;
+            delete appData.plannerState.cohortBlocks[cohortId];
+        });
+        return pending.length;
+    }
+
     function outsideStudentHours(appData, demand, period) {
         const cohorts = Array.isArray(appData && appData.cohorts) ? appData.cohorts : [];
         const clock = periodClock(appData, period);
         const windows = [];
         ((demand && demand.cohortIds) || []).forEach((cid) => {
             const c = cohorts.find((x) => x && x.id === cid);
-            const start = c ? hhmmToMin(c.tmsBlockStart) : null;
-            const end = c ? hhmmToMin(c.tmsBlockEnd) : null;
+            const block = c ? cohortBlock(appData, c) : null;
+            const start = block ? hhmmToMin(block.start) : null;
+            const end = block ? hhmmToMin(block.end) : null;
             if (start != null && end != null && end > start) windows.push({ start, end });
         });
         if (clock && windows.length) {
@@ -298,9 +375,7 @@
         const days = new Set();
         ids.forEach((cid) => {
             const c = cohorts.find((x) => x && x.id === cid);
-            if (c && Array.isArray(c.meetingDays)) {
-                c.meetingDays.forEach((d) => days.add(Number(d)));
-            }
+            if (c) cohortBlock(appData, c).days.forEach((d) => days.add(d));
         });
         if (!days.size && demand && Array.isArray(demand.meetings)) {
             demand.meetings.forEach((m) => days.add(Number(m.dow)));
@@ -469,6 +544,8 @@
                 notes: ''
             }, p.blockouts || {}),
             lockToCohortDays: p.lockToCohortDays === true,
+            // cohortId -> { days, start, end }: time blocks changed in the planner, not yet written to the cohorts.
+            cohortBlocks: p.cohortBlocks && typeof p.cohortBlocks === 'object' ? Object.assign({}, p.cohortBlocks) : {},
             // Most periods in a row before a teacher's day gets a warning.
             maxConsecutive: Number(p.maxConsecutive) >= 1 ? Number(p.maxConsecutive) : 4,
             // Calendar id of last term, used by auto-schedule to keep teachers with their students.
@@ -2591,6 +2668,10 @@
         setAssignmentTeacher,
         recomputeDraftMetrics,
         outsideStudentHours,
+        cohortBlock,
+        stageCohortBlock,
+        pendingCohortBlocks,
+        writeCohortBlocks,
         teacherLimitReason,
         classSizeOf,
         roomTooSmall,

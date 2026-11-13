@@ -294,8 +294,9 @@
         const classDays = (demand) => {
             const lists = (demand.cohortIds || [])
                 .map((cid) => cohortById.get(cid))
-                .filter((c) => c && Array.isArray(c.meetingDays) && c.meetingDays.length)
-                .map((c) => c.meetingDays.map(Number).filter((d) => d >= 1 && d <= 5));
+                .filter(Boolean)
+                .map((c) => api.cohortBlock(appData, c).days)
+                .filter((l) => l.length);
             if (!lists.length) return DAYS.slice();
             const common = DAYS.filter((d) => lists.every((l) => l.includes(d)));
             if (common.length) return common;
