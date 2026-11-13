@@ -923,7 +923,20 @@
                         forceForNewSession: true
                     });
                 }
-                const gen = eng.generateDebatesSilent({ replace: true, notify: false, render: false });
+                const roleCounts =
+                    typeof eng.roleCountsFromSessions === 'function'
+                        ? eng.roleCountsFromSessions(getAppData().debateTeamSessions, {
+                              classId: targetClassId,
+                              excludePeriodKey: periodKey,
+                              excludeDate: targetDate
+                          })
+                        : null;
+                const gen = eng.generateDebatesSilent({
+                    replace: true,
+                    notify: false,
+                    render: false,
+                    roleCounts
+                });
                 if (!gen.ok) {
                     return { ok: false, reason: gen.reason || 'generate', detail: gen };
                 }
@@ -1108,6 +1121,17 @@
             },
             canEdit() {
                 return canEdit();
+            },
+            pastRoleCounts() {
+                const eng = engine();
+                if (!eng || typeof eng.roleCountsFromSessions !== 'function' || !classId) {
+                    return {};
+                }
+                return eng.roleCountsFromSessions(getAppData().debateTeamSessions, {
+                    classId,
+                    excludePeriodKey: currentPeriodKey(),
+                    excludeDate: sessionDate
+                });
             },
             onResultsVisibility(visible) {
                 syncShellToolbar(!!visible);

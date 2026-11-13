@@ -1210,4 +1210,106 @@ function loadDebateTeamsModule() {
     assert(pairedLo.role.abbr === 'LO' && pairedLo.present === 'B', 'second Kai keeps the LO role');
 }
 
+{
+    const { api } = loadDebateEngine();
+    const students = ['Ann', 'Ben', 'Cal', 'Dan'];
+    api.loadState({
+        version: 2,
+        students,
+        formatId: 'ap',
+        includeReply: false,
+        maxTeamSize: 3,
+        classTitle: '',
+        hrTeacher: '',
+        topic: '',
+        sheetTemplate: 'garam',
+        debates: []
+    });
+    const seen = {};
+    students.forEach((name) => {
+        seen[name] = {};
+    });
+    for (let i = 0; i < 60; i++) {
+        const debates = api.assignDebates();
+        const members = debates[0].benches.reduce((list, bench) => list.concat(bench.members), []);
+        assert(members.length === 4, 'fresh draw still seats every student');
+        members.forEach((member) => {
+            const abbr = member.role && member.role.abbr;
+            assert(abbr, 'fresh draw gives every student a role');
+            seen[member.name][abbr] = (seen[member.name][abbr] || 0) + 1;
+        });
+    }
+    students.forEach((name) => {
+        const roles = Object.keys(seen[name]);
+        assert(roles.length >= 3, name + ' is not stuck on one role (' + roles.join(', ') + ')');
+    });
+
+    const repeated = { 'name:ann': { PM: 8 }, 'name:ben': { PM: 8 } };
+    for (let i = 0; i < 20; i++) {
+        const debates = api.assignDebates(repeated);
+        const pm = debates[0].benches
+            .reduce((list, bench) => list.concat(bench.members), [])
+            .find((member) => member.role && member.role.abbr === 'PM');
+        assert(pm && pm.name !== 'Ann' && pm.name !== 'Ben', 'PM goes to a student who has not already held it');
+    }
+
+    const history = api.roleCountsFromSessions(
+        [
+            {
+                classId: 'c1',
+                date: '2026-11-01',
+                periodKey: 'book-1',
+                sessionState: {
+                    debates: [
+                        {
+                            benches: [
+                                {
+                                    members: [
+                                        { name: 'Ann', studentId: 's-ann', role: { abbr: 'PM', name: 'Prime Minister' } }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            },
+            {
+                classId: 'c1',
+                date: '2026-11-13',
+                periodKey: 'book-2',
+                sessionState: {
+                    debates: [
+                        {
+                            benches: [
+                                {
+                                    members: [
+                                        { name: 'Ann', studentId: 's-ann', role: { abbr: 'LO', name: 'Leader of Opposition' } }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            },
+            {
+                classId: 'other',
+                date: '2026-11-01',
+                sessionState: {
+                    debates: [
+                        {
+                            benches: [
+                                { members: [{ name: 'Ann', role: { abbr: 'PM', name: 'Prime Minister' } }] }
+                            ]
+                        }
+                    ]
+                }
+            }
+        ],
+        { classId: 'c1', excludePeriodKey: 'book-2', excludeDate: '2026-11-13' }
+    );
+    assert(history['id:s-ann'].PM === 1, 'earlier class session counts the PM');
+    assert(!history['id:s-ann'].LO, 'the session being regenerated is not counted');
+    assert(!history['name:ann'] || !history['name:ann'].LO, 'excluded date is not counted under the name either');
+}
+
 console.log('classroom-debate-teams.test.mjs: all passed');
