@@ -647,6 +647,221 @@
         return a;
     }
 
+    function roleAbbrOf(role) {
+        if (!role || !role.abbr) {
+            return '';
+        }
+        return String(role.abbr).replace(/\*$/, '').trim();
+    }
+
+    /** Stable identity: student id when we have one, otherwise the name. */
+    function personKeys(entry) {
+        const keys = [];
+        const id = entry && entry.studentId ? String(entry.studentId).trim() : '';
+        if (id) {
+            keys.push('id:' + id);
+        }
+        const name = entry && entry.name != null ? String(entry.name) : String(entry || '');
+        const trimmed = name.trim().toLowerCase();
+        if (trimmed) {
+            keys.push('name:' + trimmed);
+        }
+        return keys;
+    }
+
+    function addRoleCount(counts, entry, abbr) {
+        if (!abbr) {
+            return;
+        }
+        personKeys(entry).forEach((key) => {
+            if (!counts[key]) {
+                counts[key] = {};
+            }
+            counts[key][abbr] = (counts[key][abbr] || 0) + 1;
+        });
+    }
+
+    function roleCount(counts, entry, abbr) {
+        if (!abbr || !counts) {
+            return 0;
+        }
+        let n = 0;
+        personKeys(entry).forEach((key) => {
+            const row = counts[key];
+            if (row && row[abbr] > n) {
+                n = row[abbr];
+            }
+        });
+        return n;
+    }
+
+    function roleCountsFromDebates(debates) {
+        const counts = {};
+        (debates || []).forEach((debate) => {
+            (debate.benches || []).forEach((bench) => {
+                (bench.members || []).forEach((member) => {
+                    addRoleCount(counts, member, roleAbbrOf(member && member.role));
+                });
+            });
+        });
+        return counts;
+    }
+
+    function mergeRoleCounts(base, extra) {
+        const out = {};
+        [base, extra].forEach((src) => {
+            if (!src) {
+                return;
+            }
+            Object.keys(src).forEach((key) => {
+                if (!out[key]) {
+                    out[key] = {};
+                }
+                const row = src[key] || {};
+                Object.keys(row).forEach((abbr) => {
+                    out[key][abbr] = (out[key][abbr] || 0) + (Number(row[abbr]) || 0);
+                });
+            });
+        });
+        return out;
+    }
+
+    /**
+     * How often each student has held each role in saved sessions for one class.
+     * The session being regenerated (same period or date) is left out.
+     */
+    function roleCountsFromSessions(sessions, options) {
+        options = options || {};
+        const classId = String(options.classId || '').trim();
+        const excludePeriodKey = String(options.excludePeriodKey || '').trim();
+        const excludeDate = String(options.excludeDate || '').trim();
+        const counts = {};
+        (sessions || []).forEach((session) => {
+            if (!session || !session.sessionState) {
+                return;
+            }
+            if (classId && String(session.classId || '') !== classId) {
+                return;
+            }
+            if (excludePeriodKey && String(session.periodKey || '') === excludePeriodKey) {
+                return;
+            }
+            if (excludeDate && String(session.date || '') === excludeDate) {
+                return;
+            }
+            const part = roleCountsFromDebates(session.sessionState.debates);
+            Object.keys(part).forEach((key) => {
+                if (!counts[key]) {
+                    counts[key] = {};
+                }
+                Object.keys(part[key]).forEach((abbr) => {
+                    counts[key][abbr] = (counts[key][abbr] || 0) + part[key][abbr];
+                });
+            });
+        });
+        return counts;
+    }
+
+    /**
+     * Fill fixed seats. With no history this is a random matching.
+     * When someone has held a role more than the others, that role goes to a
+     * student who has held it fewer times.
+     */
+    function assignPeopleToSeats(people, seats, counts) {
+        const remainingPeople = people.slice();
+        const remainingSeats = seats.map((seat, index) => ({ seat, index }));
+        const placed = new Array(seats.length);
+        while (remainingPeople.length && remainingSeats.length) {
+            let bestGap = -1;
+            const seatChoices = [];
+            remainingSeats.forEach((wrap, si) => {
+                const abbr = roleAbbrOf(wrap.seat.role);
+                let min = Infinity;
+                let max = -1;
+                remainingPeople.forEach((person) => {
+                    const n = roleCount(counts, person, abbr);
+                    if (n < min) {
+                        min = n;
+                    }
+                    if (n > max) {
+                        max = n;
+                    }
+                });
+                const gap = abbr ? max - min : 0;
+                if (gap > bestGap) {
+                    bestGap = gap;
+                    seatChoices.length = 0;
+                    seatChoices.push(si);
+                } else if (gap === bestGap) {
+                    seatChoices.push(si);
+                }
+            });
+            const si = seatChoices[Math.floor(Math.random() * seatChoices.length)];
+            const wrap = remainingSeats[si];
+            const abbr = roleAbbrOf(wrap.seat.role);
+            let min = Infinity;
+            remainingPeople.forEach((person) => {
+                const n = roleCount(counts, person, abbr);
+                if (n < min) {
+                    min = n;
+                }
+            });
+            const candidates = [];
+            remainingPeople.forEach((person, pi) => {
+                if (roleCount(counts, person, abbr) === min) {
+                    candidates.push(pi);
+                }
+            });
+            const pi = candidates[Math.floor(Math.random() * candidates.length)];
+            const person = remainingPeople.splice(pi, 1)[0];
+            remainingSeats.splice(si, 1);
+            placed[wrap.index] = { person, seat: wrap.seat };
+        }
+        return placed;
+    }
+
+    function benchesFromPlaced(benchSpecs, placed) {
+        const benches = benchSpecs.map((spec) => ({ id: spec.id, label: spec.label, members: [] }));
+        placed.forEach((item) => {
+            if (!item) {
+                return;
+            }
+            const bench = benches.find((row) => row.id === item.seat.benchId);
+            if (bench) {
+                bench.members.push(makeMember(item.person, item.seat.role));
+            }
+        });
+        return benches;
+    }
+
+    function twoTeamSeats(size, govId, oppId, govLabel, oppLabel, govRoles, oppRoles) {
+        const seats = [];
+        let g = 0;
+        let o = 0;
+        for (let i = 0; i < size; i++) {
+            if (i % 2 === 0) {
+                seats.push({
+                    benchId: govId,
+                    role: govRoles[g] ? Object.assign({}, govRoles[g]) : null
+                });
+                g += 1;
+            } else {
+                seats.push({
+                    benchId: oppId,
+                    role: oppRoles[o] ? Object.assign({}, oppRoles[o]) : null
+                });
+                o += 1;
+            }
+        }
+        return {
+            seats,
+            specs: [
+                { id: govId, label: govLabel },
+                { id: oppId, label: oppLabel }
+            ]
+        };
+    }
+
     /** Small non-Purple classes pack into one room (Homework + Generate share this). */
     function shouldForceSingleDebate(f, n) {
         return n < 6 && !f.oneVsOne && !f.allowSoloDebate;
@@ -663,28 +878,16 @@
         return Number(f.min) || 2;
     }
 
-    function pushNamedMember(arr, name, roles) {
-        const role = roles[arr.length] ? Object.assign({}, roles[arr.length]) : null;
-        arr.push(makeMember(name, role));
-    }
-
     /** One simplified two-bench debate (used for BP leftovers and under-6 four-team). */
-    function buildSimplifiedDebate(chunk, f) {
-        const gov = [];
-        const opp = [];
+    function buildSimplifiedDebate(chunk, f, counts) {
         const govRoles = (f.roles && f.roles.og) || f.govRoles || [];
         const oppRoles = (f.roles && f.roles.oo) || f.oppRoles || [];
-        chunk.forEach((name, i) => {
-            if (i % 2 === 0) {
-                pushNamedMember(gov, name, govRoles);
-            } else {
-                pushNamedMember(opp, name, oppRoles);
-            }
-        });
         const govLabel =
             (f.benches && f.benches[0] && f.benches[0].name) || f.govName || 'Government';
         const oppLabel =
             (f.benches && f.benches[1] && f.benches[1].name) || f.oppName || 'Opposition';
+        const plan = twoTeamSeats(chunk.length, 'gov', 'opp', govLabel, oppLabel, govRoles, oppRoles);
+        const placed = assignPeopleToSeats(chunk, plan.seats, counts || {});
         return {
             number: 1,
             formatId: state.formatId,
@@ -692,14 +895,11 @@
             simplified: true,
             notes: '',
             order: ['PM', 'LO', 'DPM', 'DLO'],
-            benches: [
-                { id: 'gov', label: govLabel, members: gov },
-                { id: 'opp', label: oppLabel, members: opp }
-            ]
+            benches: benchesFromPlaced(plan.specs, placed)
         };
     }
 
-    function genTwo(list, f) {
+    function genTwo(list, f, counts) {
         const maxPer = effMax(f) * 2;
         const minDebateSize = f.allowSoloDebate ? 1 : 2;
         const forceSingle = shouldForceSingleDebate(f, list.length);
@@ -726,65 +926,72 @@
             }
             const chunk = list.slice(idx, idx + sz);
             idx += sz;
-            const gov = [];
-            const opp = [];
-            chunk.forEach((name, i) => {
-                const arr = i % 2 === 0 ? gov : opp;
-                const roles = i % 2 === 0 ? f.govRoles : f.oppRoles;
-                pushNamedMember(arr, name, roles || []);
-            });
+            const plan = twoTeamSeats(
+                chunk.length,
+                'gov',
+                'opp',
+                f.govName,
+                f.oppName,
+                f.govRoles || [],
+                f.oppRoles || []
+            );
+            const placed = assignPeopleToSeats(chunk, plan.seats, counts || {});
             out.push({
                 number: out.length + 1,
                 formatId: effectiveFormatId(),
                 fourTeam: false,
                 notes: '',
                 order: effOrder(f),
-                benches: [
-                    { id: 'gov', label: f.govName, members: gov },
-                    { id: 'opp', label: f.oppName, members: opp }
-                ]
+                benches: benchesFromPlaced(plan.specs, placed)
             });
         });
         return out;
     }
 
-    function assignDebates() {
+    function assignDebates(roleCounts) {
         const f = fmt();
         const shuffled = shuffle(rosterEntries());
-        return f.fourTeam ? genFour(shuffled, f) : genTwo(shuffled, f);
+        const counts = roleCounts || {};
+        return f.fourTeam ? genFour(shuffled, f, counts) : genTwo(shuffled, f, counts);
     }
 
-    function genFour(list, f) {
+    function genFour(list, f, counts) {
         // Prefer one simplified room for small classes (same under-6 rule as genTwo).
         if (shouldForceSingleDebate(f, list.length) && list.length >= 2) {
-            return [buildSimplifiedDebate(list, f)];
+            return [buildSimplifiedDebate(list, f, counts)];
         }
         const out = [];
         let idx = 0;
-        const seat = ['og', 'oo', 'og', 'oo', 'cg', 'co', 'cg', 'co'];
+        const pattern = ['og', 'oo', 'og', 'oo', 'cg', 'co', 'cg', 'co'];
         while (idx + 8 <= list.length) {
             const chunk = list.slice(idx, idx + 8);
             idx += 8;
-            const benches = f.benches.map((b) => ({ id: b.id, label: b.name, members: [] }));
-            chunk.forEach((name, i) => {
-                const bench = benches.find((x) => x.id === seat[i]);
-                const roles = f.roles[seat[i]];
-                const role =
-                    roles[bench.members.length] ? Object.assign({}, roles[bench.members.length]) : null;
-                bench.members.push(makeMember(name, role));
+            const seen = {};
+            const seats = pattern.map((id) => {
+                const roles = (f.roles && f.roles[id]) || [];
+                const roleIndex = seen[id] || 0;
+                seen[id] = roleIndex + 1;
+                return {
+                    benchId: id,
+                    role: roles[roleIndex] ? Object.assign({}, roles[roleIndex]) : null
+                };
             });
+            const placed = assignPeopleToSeats(chunk, seats, counts || {});
             out.push({
                 number: out.length + 1,
                 formatId: state.formatId,
                 fourTeam: true,
                 notes: '',
                 order: effOrder(f),
-                benches
+                benches: benchesFromPlaced(
+                    (f.benches || []).map((b) => ({ id: b.id, label: b.name })),
+                    placed
+                )
             });
         }
         const left = list.slice(idx);
         if (left.length >= 4) {
-            const simplified = buildSimplifiedDebate(left, f);
+            const simplified = buildSimplifiedDebate(left, f, counts);
             simplified.number = out.length + 1;
             out.push(simplified);
         } else if (left.length && out.length) {
@@ -824,7 +1031,8 @@
                 return;
             }
         }
-        state.debates = assignDebates();
+        const past = bridge && typeof bridge.pastRoleCounts === 'function' ? bridge.pastRoleCounts() : null;
+        state.debates = assignDebates(mergeRoleCounts(past, roleCountsFromDebates(state.debates)));
         notifySave();
         render();
     }
@@ -844,7 +1052,14 @@
         if (state.debates.length && options.replace !== true) {
             return { ok: false, reason: 'exists', count: state.debates.length };
         }
-        state.debates = assignDebates();
+        const counts =
+            options.roleCounts != null
+                ? options.roleCounts
+                : mergeRoleCounts(
+                      bridge && typeof bridge.pastRoleCounts === 'function' ? bridge.pastRoleCounts() : null,
+                      roleCountsFromDebates(state.debates)
+                  );
+        state.debates = assignDebates(counts);
         if (options.notify !== false) {
             notifySave();
         }
@@ -2864,6 +3079,7 @@
         importRoster,
         render,
         assignDebates,
+        roleCountsFromSessions,
         generateDebates,
         generateDebatesSilent,
         formatSpeakingOrderBlock,
