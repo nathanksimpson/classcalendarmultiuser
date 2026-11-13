@@ -24225,6 +24225,29 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-boo
     border-bottom: 1px solid var(--border-color);
 }
 
+.class-board-search {
+    display: block;
+    margin: 0;
+    min-width: 0;
+}
+
+.class-board-search-input {
+    width: 100%;
+}
+
+.class-board-scope-rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.class-board-hit {
+    background: var(--accent-muted);
+    color: inherit;
+    border-radius: var(--radius-sm);
+}
+
 /* Row 1: which board you're reading. */
 .class-board-bar-main {
     display: flex;

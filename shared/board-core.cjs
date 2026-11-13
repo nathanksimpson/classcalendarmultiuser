@@ -1066,19 +1066,35 @@ async function searchBoard(ctx, user, calendarId, query) {
     }
     const limit = pageLimit(query);
     const cursor = readCursor(query);
+    const order = readOrder(query);
     const where = ['calendar_id = ?', 'deleted_at IS NULL'];
     const params = [calendarId];
     const kind = qstr(query, 'kind');
+    const scope = qstr(query, 'scope');
+    if (scope && scope !== 'mine' && scope !== 'all') {
+        throw boardError('scope must be mine or all', 400, 'BOARD_SCOPE');
+    }
     if (kind) {
         const kindRef = takeChecked(normalizeKindRef(kind, qstr(query, 'ref')), 400, 'BOARD_KIND');
         where.push('board_kind = ?');
         params.push(kindRef.kind);
         where.push('board_ref = ?');
         params.push(kindRef.ref);
+    } else if (scope === 'mine') {
+        const data = await ctx.loadCalendar(calendarId);
+        if (!data) {
+            throw boardError('Calendar not found', 404, 'BOARD_NOT_FOUND');
+        }
+        const keys = mineBoardKeys(user.id, data);
+        const parts = keys.map(() => '(board_kind = ? AND board_ref = ?)');
+        where.push(`(${parts.join(' OR ')})`);
+        keys.forEach((key) => {
+            params.push(key.kind, key.ref);
+        });
     }
     appendCommonFilters(where, params, query);
-    appendCursor(where, params, cursor);
-    const scanned = await selectPosts(ctx, where, params, SEARCH_SCAN);
+    appendCursor(where, params, cursor, order);
+    const scanned = await selectPosts(ctx, where, params, SEARCH_SCAN, order);
     const needle = text.toLowerCase();
     const matches = [];
     let lastExamined = null;

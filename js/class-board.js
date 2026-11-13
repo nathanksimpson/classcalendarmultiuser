@@ -35,6 +35,7 @@
         category: 'class-notes',
         target: '',
         filterTag: '',
+        query: '',
         pickOpen: '',
         whoOpen: '',
         exportOpen: false,
@@ -158,13 +159,32 @@
         }
     }
 
-    /** API path for the board or feed being viewed, with the current sort. */
-    function listPath(id) {
-        const base = state.scope === 'feed'
-            ? '/calendars/' + encodeURIComponent(id) + '/board/feed?scope=mine'
-            : '/calendars/' + encodeURIComponent(id) + '/board?kind=' + encodeURIComponent(state.scope) + '&ref=' + encodeURIComponent(state.ref || '');
-        return base + '&order=' + encodeURIComponent(state.order) +
-            (state.filterTag ? '&tag=' + encodeURIComponent(state.filterTag) : '');
+    function searchQuery() {
+        return String(state.query || '').trim();
+    }
+
+    /** API path for the board or feed being viewed, with the current sort and search. */
+    function listPath(id, cursor) {
+        const q = searchQuery();
+        const params = [];
+        if (q) {
+            params.push('q=' + encodeURIComponent(q));
+        }
+        if (state.scope === 'feed') {
+            params.push('scope=mine');
+        } else {
+            params.push('kind=' + encodeURIComponent(state.scope));
+            params.push('ref=' + encodeURIComponent(state.ref || ''));
+        }
+        params.push('order=' + encodeURIComponent(state.order));
+        if (state.filterTag) {
+            params.push('tag=' + encodeURIComponent(state.filterTag));
+        }
+        if (cursor) {
+            params.push('cursor=' + encodeURIComponent(cursor));
+        }
+        const name = q ? 'search' : (state.scope === 'feed' ? 'feed' : '');
+        return '/calendars/' + encodeURIComponent(id) + '/board' + (name ? '/' + name : '') + '?' + params.join('&');
     }
 
     function tr(key) {
@@ -184,6 +204,20 @@
             .replace(/#([^\s#&<]+)/g, '<span class="class-board-tag">#$1</span>')
             .replace(/@([^\s@&<]+)/g, '<span class="class-board-mention">@$1</span>')
             .replace(/\n/g, '<br>');
+    }
+
+    function highlightHtml(html, query) {
+        const needle = String(query || '').trim();
+        if (!needle) {
+            return html;
+        }
+        const re = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        return String(html || '').replace(/(<[^>]+>)|([^<]+)/g, (match, tag, text) => {
+            if (tag) {
+                return tag;
+            }
+            return text.replace(re, (hit) => '<mark class="class-board-hit">' + hit + '</mark>');
+        });
     }
 
     /** Post/reply text with tagged students highlighted by their full label (e.g. "@5-Sky: Minseo"). */
@@ -289,9 +323,14 @@
         return /no such table/i.test(message) || (err && err.body && err.body.code === 'BOARD_SCHEMA');
     }
 
+    let loadSeq = 0;
+    let searchTimer = 0;
+
     async function load() {
         const id = calendarId();
         const mount = rootEl();
+        const seq = ++loadSeq;
+        clearTimeout(searchTimer);
         if (!id || !mount) {
             state.error = tr('boardNoCalendar');
             paint();
@@ -302,25 +341,36 @@
         paintStatus();
         try {
             const body = await api(listPath(id));
+            if (seq !== loadSeq) {
+                return;
+            }
             state.posts = body.posts || [];
             state.nextCursor = body.nextCursor || null;
             if (body.unreadBoards) {
                 state.unread = body.unreadBoards;
             }
-            if (state.scope !== 'feed') {
+            if (!searchQuery() && state.scope !== 'feed') {
                 await api('/calendars/' + encodeURIComponent(id) + '/board/read', {
                     method: 'POST',
                     body: { boardKind: state.scope, boardRef: state.ref || '' }
                 });
+                if (seq !== loadSeq) {
+                    return;
+                }
                 state.unread = state.unread.filter((row) => !(row.boardKind === state.scope && String(row.boardRef || '') === String(state.ref || '')));
             }
         } catch (err) {
+            if (seq !== loadSeq) {
+                return;
+            }
             state.error = schemaMissing(err) ? tr('boardSchemaMissing') : (err && err.message) || tr('boardError');
         } finally {
-            state.loading = false;
-            paint();
+            if (seq === loadSeq) {
+                state.loading = false;
+                paint();
+            }
         }
-        if (!state.error) {
+        if (seq === loadSeq && !state.error) {
             importOldNotesInBackground(id);
         }
     }
@@ -657,7 +707,7 @@
                 '<button type="button" class="btn btn-primary btn-small" data-save-edit="' + esc(post.id) + '" data-kind="post">' + esc(tr('boardSave')) + '</button>' +
                 '<button type="button" class="btn btn-outline btn-small" data-cancel-edit="1">' + esc(tr('boardCancel')) + '</button>' +
                 '</div>'
-            : '<div class="class-board-body" data-press-react="' + esc(post.id) + '">' + richTagged(post.body || '', post.students) + '</div>';
+            : '<div class="class-board-body" data-press-react="' + esc(post.id) + '">' + highlightHtml(richTagged(post.body || '', post.students), searchQuery()) + '</div>';
         const thread = state.threads[post.id];
         const replies = thread
             ? '<div class="class-board-thread">' + thread.map(replyHtml).join('') +
@@ -697,7 +747,7 @@
         const body = editing
             ? '<textarea class="field-input class-board-edit" data-editing="' + esc(reply.id) + '">' + esc(state.editingText) + '</textarea>' +
                 '<button type="button" class="btn btn-primary btn-small" data-save-edit="' + esc(reply.id) + '" data-kind="reply">' + esc(tr('boardSave')) + '</button>'
-            : '<div class="class-board-body" data-press-react="' + esc(reply.id) + '">' + rich(reply.body || '') + '</div>';
+            : '<div class="class-board-body" data-press-react="' + esc(reply.id) + '">' + highlightHtml(rich(reply.body || ''), searchQuery()) + '</div>';
         return '<div class="class-board-reply">' +
             '<p class="class-board-meta">' + esc(reply.authorName || '') + '</p>' +
             body +
@@ -736,6 +786,10 @@
         }
         if (state.filterTag) {
             text += ' ' + tr('boardDescOnly').replace('{kind}', categoryLabel(state.filterTag));
+        }
+        const q = searchQuery();
+        if (q) {
+            text += ' ' + tr('boardDescSearch').replace('{q}', q);
         }
         return text;
     }
@@ -1174,9 +1228,10 @@
         const more = state.nextCursor
             ? '<button type="button" class="btn btn-outline btn-small class-board-more" data-more="1">' + esc(tr('boardMore')) + '</button>'
             : '';
+        const emptyKey = searchQuery() ? 'boardSearchEmpty' : 'boardEmpty';
         list.innerHTML = state.posts.length
             ? state.posts.map(cardHtml).join('') + more
-            : '<p class="class-board-empty">' + esc(tr('boardEmpty')) + '</p>';
+            : '<p class="class-board-empty">' + esc(tr(emptyKey)) + '</p>';
         attachMentions(list);
     }
 
@@ -1187,7 +1242,12 @@
         }
         if (!mount.querySelector('[data-region="scope"]')) {
             mount.innerHTML = '<div class="class-board">' +
-                '<div class="class-board-scope" data-region="scope"></div>' +
+                '<div class="class-board-scope">' +
+                '<form class="class-board-search" data-region="search" role="search">' +
+                '<input type="search" class="module-list-search class-board-search-input" data-search="1" autocomplete="off" spellcheck="false">' +
+                '</form>' +
+                '<div class="class-board-scope-rows" data-region="scope"></div>' +
+                '</div>' +
                 '<section class="class-board-export-panel" data-region="export" hidden></section>' +
                 '<form class="class-board-compose" data-region="compose"></form>' +
                 '<p class="class-board-status" data-region="status"></p>' +
@@ -1196,6 +1256,14 @@
             bind(mount);
         }
         mount.querySelector('[data-region="scope"]').innerHTML = scopeHtml();
+        const search = mount.querySelector('[data-search]');
+        if (search) {
+            search.placeholder = tr('boardSearchPlaceholder');
+            search.setAttribute('aria-label', tr('boardSearchPlaceholder'));
+            if (document.activeElement !== search && search.value !== state.query) {
+                search.value = state.query;
+            }
+        }
         paintExport();
         const compose = mount.querySelector('[data-region="compose"]');
         const focused = compose.contains(document.activeElement);
@@ -1505,6 +1573,15 @@
         });
         mount.addEventListener('input', (event) => {
             const target = event.target;
+            if (target.dataset.search != null) {
+                state.query = target.value;
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(() => {
+                    state.threads = {};
+                    load();
+                }, 250);
+                return;
+            }
             if (target.dataset.compose != null) {
                 state.compose = target.value;
                 const hint = mount.querySelector('.class-board-hint');
@@ -1527,6 +1604,14 @@
         });
         mount.addEventListener('submit', (event) => {
             const form = event.target;
+            if (form.dataset.region === 'search') {
+                event.preventDefault();
+                const input = form.querySelector('[data-search]');
+                state.query = input ? input.value : state.query;
+                state.threads = {};
+                load();
+                return;
+            }
             if (form.dataset.replyForm) {
                 event.preventDefault();
                 sendReply(form.dataset.replyForm);
@@ -1544,7 +1629,14 @@
             return;
         }
         const id = calendarId();
-        const body = await api(listPath(id) + '&cursor=' + encodeURIComponent(state.nextCursor));
+        const cursor = state.nextCursor;
+        const q = state.query;
+        const scope = state.scope;
+        const ref = state.ref;
+        const body = await api(listPath(id, cursor));
+        if (q !== state.query || scope !== state.scope || ref !== state.ref) {
+            return;
+        }
         const seen = new Set(state.posts.map((post) => post.id));
         (body.posts || []).forEach((post) => {
             if (!seen.has(post.id)) {
