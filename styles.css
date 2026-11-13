@@ -7783,10 +7783,18 @@ html[data-viewport="phone"] .class-notes-mobile-app-btn {
     flex-direction: column;
     flex: 1;
     min-height: 0;
-    overflow: hidden;
+    /* clip, not hidden: hidden makes the form a scroll container, which stopped the header
+       (title + Save Class) from sticking while the page scrolls. */
+    overflow: clip;
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
+}
+
+/* Full class editor: the title bar with Save Class stays pinned under the app's top bar. */
+.class-editor-panel #classFormMountTab .class-modal-header {
+    top: var(--app-chrome-sticky-top, 72px);
+    border-radius: var(--border-radius) var(--border-radius) 0 0;
 }
 
 .class-editor-panel #classFormMountTab .class-modal-header .modal-close {

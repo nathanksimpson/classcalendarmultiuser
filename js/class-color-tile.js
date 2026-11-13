@@ -121,8 +121,8 @@
         }
         if (!classData || !classData.id) {
             headerEl.classList.remove('class-panel-accent');
-            headerEl.style.removeProperty('backgroundColor');
-            headerEl.style.removeProperty('borderTopColor');
+            headerEl.style.removeProperty('background-color');
+            headerEl.style.removeProperty('border-top-color');
             headerEl.style.removeProperty('--class-tile-accent');
             headerEl.style.removeProperty('--class-tile-text');
             const h2 = headerEl.querySelector('h2');
@@ -138,6 +138,9 @@
         headerEl.style.setProperty('--class-tile-accent', accent);
         headerEl.style.setProperty('--class-tile-text', text);
         headerEl.style.backgroundColor = hexToRgba(accent, alpha);
+        // Same tint, but opaque: this header stays pinned while the form scrolls under it.
+        // Browsers without color-mix ignore this line and keep the translucent tint above.
+        headerEl.style.backgroundColor = `color-mix(in srgb, ${accent} ${Math.round(alpha * 100)}%, var(--bg-card))`;
         headerEl.style.borderTopColor = accent;
         const h2 = headerEl.querySelector('h2');
         if (h2) {
