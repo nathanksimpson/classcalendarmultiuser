@@ -24233,6 +24233,29 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"]) #panel-debate-boo
 
 .class-board-search-input {
     width: 100%;
+    box-sizing: border-box;
+    padding: var(--pad-control-y-lg) var(--pad-control-x);
+    font-family: var(--font-main);
+    font-size: var(--text-body-md);
+    line-height: var(--leading-body);
+    color: var(--text-primary);
+    /* Same fill as .field-input (compose box, viewing, filters). Dark theme
+       then overrides every input to --input-bg, so this stays in step. */
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.class-board-search-input::placeholder {
+    color: var(--text-muted);
+}
+
+.class-board-search-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 .class-board-scope-rows {
@@ -24826,4 +24849,33 @@ html[data-viewport="tablet-sm"] .class-board-actions {
 
 html[data-viewport="phone"] .class-board {
     max-width: none;
+}
+
+/* A short screen cannot hold the whole Notes toolbar (search, viewing,
+   filters, export). Sticking that block keeps its bottom on screen and
+   scrolls the search field off the top. Drop the wrapper box so only the
+   search row sticks, for the whole feed, just under the app header. */
+html[data-viewport="phone"] .class-board-scope,
+html[data-viewport="tablet-sm"] .class-board-scope,
+html[data-nav-dock="bottom"] .class-board-scope {
+    display: contents;
+}
+
+html[data-viewport="phone"] .class-board-search,
+html[data-viewport="tablet-sm"] .class-board-search,
+html[data-nav-dock="bottom"] .class-board-search {
+    position: sticky;
+    top: var(--app-header-h, 0px);
+    z-index: var(--z-sticky-header);
+    padding: var(--space-2) 0;
+    background: var(--bg-main);
+    border-bottom: 1px solid var(--border-color);
+}
+
+html[data-viewport="phone"] .class-board-search-input,
+html[data-viewport="tablet-sm"] .class-board-search-input,
+html[data-nav-dock="bottom"] .class-board-search-input {
+    min-height: 44px;
+    /* 16px so iOS does not zoom the page when the field is focused. */
+    font-size: 1rem;
 }
