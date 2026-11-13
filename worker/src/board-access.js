@@ -7,6 +7,7 @@ import { calendarDocForClient, CALENDAR_DOC_SELECT, parseDataObjectFromRow, seri
 import * as CalAccess from './calendar-access.js';
 import * as ActivityLog from './activity-log.js';
 import { CALENDAR_DELETE_STEPS, dispatch as dispatchBoard } from '../../shared/board-core.cjs';
+import { CREATE_STATEMENTS, SOURCE_COLUMN_SQL, SOURCE_INDEX_SQL } from '../../shared/board-schema.cjs';
 
 function database(env) {
     return {
@@ -99,11 +100,74 @@ function makeCtx(env) {
     };
 }
 
-export function dispatch(env, http) {
-    return dispatchBoard(makeCtx(env), http);
+const upgraded = new WeakSet();
+
+function isMissingTable(err) {
+    return /no such table/i.test(String((err && err.message) || ''));
+}
+
+/** Column names on board_posts. Empty when the table has not been created yet. */
+async function boardPostColumns(env) {
+    try {
+        const rows = await dbAll(env, 'PRAGMA table_info(board_posts)');
+        return (rows || []).map((row) => row.name);
+    } catch (err) {
+        if (isMissingTable(err)) {
+            return [];
+        }
+        throw err;
+    }
+}
+
+async function hasSourceIndex(env) {
+    const row = await dbOne(
+        env,
+        "SELECT 1 AS ok FROM sqlite_master WHERE type='index' AND name='idx_board_posts_source'"
+    );
+    return Boolean(row);
+}
+
+/**
+ * Add the Notes tables to a database that was created before this feature.
+ * Safe to run more than once. Does not change calendar rows.
+ */
+export async function ensureBoardSchema(env) {
+    if (!env || !env.DB || upgraded.has(env.DB)) {
+        return;
+    }
+    let names = await boardPostColumns(env);
+    const indexed = names.includes('source_ref') ? await hasSourceIndex(env) : false;
+    if (!names.length || !names.includes('source_ref') || !indexed) {
+        if (typeof env.DB.batch === 'function') {
+            await env.DB.batch(CREATE_STATEMENTS.map((sql) => env.DB.prepare(sql)));
+        } else {
+            for (const sql of CREATE_STATEMENTS) {
+                await dbRun(env, sql);
+            }
+        }
+        names = await boardPostColumns(env);
+        if (!names.includes('source_ref')) {
+            await dbRun(env, SOURCE_COLUMN_SQL);
+        }
+        await dbRun(env, SOURCE_INDEX_SQL);
+    }
+    upgraded.add(env.DB);
+}
+
+export async function dispatch(env, http) {
+    await ensureBoardSchema(env);
+    const result = await dispatchBoard(makeCtx(env), http);
+    const message = result && result.body && result.body.error;
+    if (result && isMissingTable({ message }) && env && env.DB) {
+        upgraded.delete(env.DB);
+        await ensureBoardSchema(env);
+        return dispatchBoard(makeCtx(env), http);
+    }
+    return result;
 }
 
 export async function deleteForCalendar(env, calendarId) {
+    await ensureBoardSchema(env);
     for (const step of CALENDAR_DELETE_STEPS) {
         await dbRun(env, step.sql, ...step.params(calendarId));
     }
