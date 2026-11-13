@@ -52,14 +52,7 @@
     function getViewableClasses() {
         const data = getAppData();
         // Every class the viewer may open; editing is checked per action.
-        let classes = (data.classes || []).filter((c) => c && canViewClassRow(c));
-        if (global.CCPCohortSidebarFilter) {
-            classes = global.CCPCohortSidebarFilter.filterClassesByCohort(
-                classes,
-                global.CCPCohortSidebarFilter.getActiveCohortId()
-            );
-        }
-        return classes;
+        return (data.classes || []).filter((c) => c && canViewClassRow(c));
     }
 
     function getClassData() {

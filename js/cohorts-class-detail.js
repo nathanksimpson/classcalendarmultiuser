@@ -124,10 +124,7 @@
     function selectClass(classId, cohortId) {
         selectedClassId = classId || '';
         if (typeof global.CCPActiveContext !== 'undefined') {
-            global.CCPActiveContext.set(
-                { classId: selectedClassId, cohortId: cohortId || getContext().cohortId },
-                { source: 'cohorts-board' }
-            );
+            global.CCPActiveContext.set({ classId: selectedClassId }, { source: 'cohorts-board' });
         }
         refresh();
     }

@@ -16,7 +16,6 @@
         getActiveTab: () => 'calendar',
         navigateToZone: () => {},
         navigateToTab: () => {},
-        clearActiveCohortFilter: () => {},
         openClassEditor: () => {},
         focusScheduleAdjustmentForClass: () => {},
         saveUiStateToLocalStorage: () => {},
@@ -754,9 +753,6 @@
             return;
         }
         if (nav.type === 'class') {
-            if (typeof hooks.clearActiveCohortFilter === 'function') {
-                hooks.clearActiveCohortFilter('notification-class-nav');
-            }
             hooks.navigateToTab(nav.tabId || 'classes', { classId: nav.classId });
             const cls = hooks.getAppData().classes.find((c) => c.id === nav.classId);
             if (cls && nav.tabId === 'classes') {
@@ -843,9 +839,6 @@
             return;
         }
         if (nav.type === 'debate_book_check') {
-            if (typeof hooks.clearActiveCohortFilter === 'function') {
-                hooks.clearActiveCohortFilter('notification-debate-book-check');
-            }
             hooks.navigateToTab('debate-books', {
                 classId: nav.classId || '',
                 focusStudentId: nav.studentId || ''

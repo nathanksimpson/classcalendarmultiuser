@@ -64,22 +64,6 @@ function loadZone(options = {}) {
                 return true;
             }
         },
-        CCPCohortSidebarFilter: {
-            getActiveCohortId() {
-                return sandbox.CCPActiveContext.getActiveCohortId();
-            },
-            filterClassesByCohort(classes, cohortId) {
-                if (!cohortId) {
-                    return classes.slice();
-                }
-                return classes.filter(
-                    (c) =>
-                        c &&
-                        (c.cohortId === cohortId ||
-                            (Array.isArray(c.cohortIds) && c.cohortIds.includes(cohortId)))
-                );
-            }
-        },
         CCPEssayClassFilter: {
             filterClassesForZoneContext(classes, opts) {
                 filterCalls.push(Object.assign({}, opts));
@@ -198,9 +182,11 @@ function loadZone(options = {}) {
 
 {
     const sandbox = loadZone();
+    // There is no active cohort: setting one is ignored and nothing is stored.
     sandbox.CCPActiveContext.set({ cohortId: 'coh-keep' }, { source: 'pre' });
     sandbox.CCPActiveContext.setFromClass(sandbox.appData, 'c-purple', undefined, 'test');
-    assert(sandbox.CCPActiveContext.getActiveCohortId() === 'coh-keep', 'class pick keeps cohort');
+    assert(sandbox.CCPActiveContext.get().cohortId === '', 'no cohort is ever active');
+    assert(typeof sandbox.CCPActiveContext.getActiveCohortId === 'undefined', 'cohort filter API is gone');
     assert(sandbox.CCPActiveContext.getActiveClassId() === 'c-purple', 'class pick sets class');
 }
 

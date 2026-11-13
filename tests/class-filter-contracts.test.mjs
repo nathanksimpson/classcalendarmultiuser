@@ -5,7 +5,6 @@
  * Covers:
  * - same-name class siblings + event applicability exclusions
  * - teacher identity: userId wins over fuzzy display-name match
- * - cohort event filtering using real eventAppliesToClass semantics
  * - daily print class resolution stays date/my-classes scoped
  */
 import { readFileSync } from 'fs';
@@ -124,69 +123,6 @@ function lessonFilterTeacherMatchesRef(ref, selector) {
     );
 }
 
-// --- Cohort event filtering uses eventAppliesToClass ---
-{
-    const sandbox = loadScript('js/cohort-sidebar-filter.js');
-    const CF = sandbox.window.CCPCohortSidebarFilter;
-    assert(CF && CF.filterEventsByCohort, 'cohort sidebar filter module loaded');
-
-    const classes = [
-        { id: 'blue-p1', name: 'Blue', grade: '중1', cohortIds: ['cohort-a'] },
-        { id: 'blue-p2', name: 'Blue', grade: '중1', cohortIds: ['cohort-b'] },
-        { id: 'navy', name: 'Navy', grade: '중2', cohortIds: ['cohort-a'] }
-    ];
-    const events = [
-        {
-            id: 'ev-grade',
-            type: 'holiday',
-            grades: ['중1'],
-            classIds: [],
-            excludedClassIds: [],
-            classNames: []
-        },
-        {
-            id: 'ev-except-p2',
-            type: 'holiday',
-            grades: ['중1'],
-            classIds: [],
-            excludedClassIds: ['blue-p2'],
-            classNames: []
-        },
-        {
-            id: 'ev-only-p2',
-            type: 'holiday',
-            classIds: ['blue-p2'],
-            grades: [],
-            excludedClassIds: [],
-            classNames: []
-        },
-        {
-            id: 'ev-schoolwide',
-            type: 'holiday',
-            grades: [],
-            classIds: [],
-            excludedClassIds: [],
-            classNames: []
-        }
-    ];
-
-    const forCohortA = CF.filterEventsByCohort(events, 'cohort-a', classes, {
-        eventAppliesToClass
-    });
-    const idsA = forCohortA.map((e) => e.id);
-    assert(idsA.includes('ev-grade'), 'cohort A sees grade-중1 holiday via Blue P1');
-    assert(idsA.includes('ev-except-p2'), 'cohort A still sees except-P2 holiday via Blue P1');
-    assert(!idsA.includes('ev-only-p2'), 'cohort A does not see P2-only holiday');
-    assert(idsA.includes('ev-schoolwide'), 'cohort A sees school-wide holiday');
-
-    const forCohortB = CF.filterEventsByCohort(events, 'cohort-b', classes, {
-        eventAppliesToClass
-    });
-    const idsB = forCohortB.map((e) => e.id);
-    assert(idsB.includes('ev-grade'), 'cohort B sees grade-중1 holiday via Blue P2');
-    assert(!idsB.includes('ev-except-p2'), 'cohort B does not see holiday that excludes Blue P2');
-    assert(idsB.includes('ev-only-p2'), 'cohort B sees P2-only holiday');
-}
 
 // --- Daily print: date + myClassesOnly (cohort applied upstream in app.js) ---
 {

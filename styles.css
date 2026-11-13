@@ -1,4 +1,4 @@
-@import url('css/design-fidelity-append.css?v=20261113-cohort-scroll');
+@import url('css/design-fidelity-append.css?v=20261113-cohort-links');
 @import url('css/debate-teams-v2.css');
 
 /* ============================================
@@ -12520,6 +12520,9 @@ body.dino-game-open {
 }
 
 .setup-board-picker-dialog {
+    /* The global margin reset removes the browser's own centring for <dialog>. */
+    margin: auto;
+    width: min(28rem, 92vw);
     max-width: min(28rem, 92vw);
     max-height: min(80dvh, 32rem);
     padding: 0;
@@ -12579,8 +12582,19 @@ body.dino-game-open {
 }
 
 .setup-board-picker-row-label {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
     font-weight: 600;
     font-size: 0.85rem;
+}
+
+.setup-board-picker-row-also {
+    font-weight: 400;
+}
+
+.setup-board-picker-status {
+    margin: 0;
 }
 
 .setup-board-picker-row-actions {
@@ -12598,16 +12612,13 @@ body.dino-game-open {
     min-height: 8rem;
 }
 
+/* As many cohort columns as fit. A fixed max (minmax(24rem, 32rem)) made auto-fill count
+   32rem tracks, so a 1030px board showed one column beside 500px of empty space. */
 .setup-board-cohort-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(24rem, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr));
     gap: 0.65rem;
-}
-
-@media (min-width: 1200px) {
-    .setup-board-cohort-grid {
-        grid-template-columns: repeat(auto-fill, minmax(24rem, 32rem));
-    }
+    align-items: start;
 }
 
 .setup-board-cohort {
@@ -15520,49 +15531,6 @@ body.is-nav-cross-zone-drag .app-zone-btn:not(.is-nav-drop-target):not(.is-nav-d
     flex-wrap: wrap;
     align-items: center;
     gap: var(--space-2);
-}
-
-/* Quiet cohort list-filter indicator (not a selection-chip checkbox tile) */
-.context-cohort-chip-host:not([hidden]) {
-    display: inline-flex;
-    align-items: center;
-    max-width: min(100%, 20rem);
-}
-.context-cohort-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    max-width: 100%;
-    padding: var(--space-1) var(--space-2);
-    font-size: var(--text-small, 0.8125rem);
-    font-weight: 500;
-    line-height: 1.2;
-    color: var(--text-muted);
-    background: var(--bg-card, var(--input-bg));
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-}
-.context-cohort-chip__label {
-    flex-shrink: 0;
-    color: var(--text-muted);
-}
-.context-cohort-chip__name {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-.context-cohort-chip__clear {
-    flex-shrink: 0;
-    margin-left: var(--space-1);
-}
-@media (max-width: 1024px) {
-    .context-cohort-chip__clear {
-        min-height: 44px;
-        min-width: 44px;
-    }
 }
 
 /* Content pipeline stepper */

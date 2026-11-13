@@ -7,7 +7,7 @@
     <link rel="icon" href="/favicon.ico" sizes="32x32">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="styles.css?v=20261113-cohort-scroll">
+    <link rel="stylesheet" href="styles.css?v=20261113-cohort-links">
     <link rel="stylesheet" href="css/ui-refresh.css?v=20261104-float-menu">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
@@ -197,7 +197,6 @@
                             <span class="header-new-plus" aria-hidden="true">+</span>
                             <span class="header-pinned-label" data-i18n="headerNewMenuLabel">New</span>
                         </button>
-                        <span id="contextCohortChip" class="context-cohort-chip-host" hidden></span>
                         <div class="team-account-menu team-account-menu--header" id="teamAccountGroup" hidden>
                         <button type="button" class="btn btn-outline btn-small team-account-menu-trigger team-account-menu-trigger--avatar" id="teamAccountMenuBtn" aria-expanded="false" aria-haspopup="menu" aria-controls="teamAccountPopover">
                             <span id="teamAccountMenuLabel" class="team-account-menu-label" data-i18n="teamAccountMenu">Account</span>
@@ -1390,10 +1389,10 @@
                             <button type="button" class="syllabus-segment-btn" id="setupBoardViewBtnAll" data-board-view="all" data-i18n="setupBoardViewAll">View all</button>
                         </div>
                     </div>
-                    <div class="cohorts-floating-toolbar-row cohorts-floating-toolbar-row--contextual" id="cohortsContextualActions" hidden>
+                    <div class="cohorts-floating-toolbar-row cohorts-floating-toolbar-row--contextual" id="cohortsContextualActions">
                         <button type="button" id="cohortsOpenTimetableBtn" class="btn btn-outline btn-compact" data-i18n="cohortsOpenTimetable">Open timetable</button>
-                        <button type="button" id="cohortsEditBtn" class="btn btn-outline btn-compact" hidden data-i18n="cohortsEditBtn">Edit cohort</button>
-                        <button type="button" id="cohortsDeleteBtn" class="btn btn-danger btn-compact" hidden data-i18n="cohortsDeleteBtn">Delete cohort</button>
+                        <button type="button" id="cohortsEditBtn" class="btn btn-outline btn-compact" disabled data-i18n="cohortsEditBtn">Edit cohort</button>
+                        <button type="button" id="cohortsDeleteBtn" class="btn btn-danger btn-compact" disabled data-i18n="cohortsDeleteBtn">Delete cohort</button>
                     </div>
                 </div>
                 <div class="cohorts-board-with-detail">
@@ -3115,7 +3114,7 @@
     <script defer src="js/theme-toggle.js?v=20260629-theme-icon-only"></script>
     <script defer src="js/storage-prune.js?v=20261112-shared-logout"></script>
     <script defer src="js/session-restore.js?v=20260619-delta-sync"></script>
-    <script defer src="js/active-context.js?v=20261014-shared-class"></script>
+    <script defer src="js/active-context.js?v=20261113-cohort-links"></script>
     <script defer src="js/essay-class-filter.js?v=20260911-essay-groups"></script>
     <script defer src="js/class-scope.js?v=20261014-p6-hierarchy"></script>
     <script defer src="js/header-chrome.js?v=20261103-ui"></script>
@@ -3124,11 +3123,9 @@
     <script defer src="js/tools-month.js?v=20261111-tools-month"></script>
     <script defer src="js/toolbar-menus.js?v=20261111-toolbar-menus"></script>
     <script defer src="js/classroom-zone-context.js?v=20261111-tools-month"></script>
-    <script defer src="js/cohort-sidebar-filter.js?v=20260724-filter-contracts"></script>
-    <script defer src="js/cohort-context-chip.js?v=20260619-ui-overhaul"></script>
     <script defer src="js/template-loader.js?v=20261015-p7-level"></script>
     <script defer src="js/tms-sync-client.js?v=20261013-helper-loopback"></script>
-    <script defer src="js/app-tab-scripts.js?v=20261113-cohort-scroll"></script>
+    <script defer src="js/app-tab-scripts.js?v=20261113-cohort-links"></script>
     <script defer src="js/load-extension-scripts.js?v=20261113-hih-tracks"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
     <script defer src="js/view-as-banner.js?v=20260908-quick-wins"></script>

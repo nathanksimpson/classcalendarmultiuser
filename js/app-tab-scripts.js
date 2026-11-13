@@ -17,9 +17,9 @@
             'js/meeting-days-control.js?v=20260610-setup-board',
             'js/hr-teacher-list.js?v=20261015-p7-level',
             'js/hr-teacher-list-print.js?v=20260909-hr-title',
-            'js/cohort-management.js?v=20261014-p6-hierarchy',
-            'js/setup-board.js?v=20261113-cohort-scroll',
-            'js/cohorts-class-detail.js?v=20260908-quick-wins'
+            'js/cohort-management.js?v=20261113-cohort-links',
+            'js/setup-board.js?v=20261113-cohort-links',
+            'js/cohorts-class-detail.js?v=20261113-cohort-links'
         ],
         timetable: [
             SCRIPT_TEACHER_TIMETABLE,

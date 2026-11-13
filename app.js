@@ -980,7 +980,7 @@ function dispatchEventsRemove(id, meta) {
 function initListViewModules() {
     if (typeof CCPClassListView !== 'undefined') {
         CCPClassListView.init({
-            getClasses: () => filterClassesForActiveCohort(getClassesInDisplayOrder()),
+            getClasses: () => getClassesInDisplayOrder(),
             getSelectedId: () => (elements.classId && elements.classId.value) || '',
             getSearchQuery: () => (document.getElementById('classListSearch')?.value) || '',
             onSelectClass: (classData) => {
@@ -998,7 +998,7 @@ function initListViewModules() {
     }
     if (typeof CCPEventListView !== 'undefined') {
         CCPEventListView.init({
-            getEvents: () => filterEventsForActiveCohort(appData.events || []),
+            getEvents: () => appData.events || [],
             getSelectedId: () => (elements.holidayId && elements.holidayId.value) || '',
             getSearchQuery: () => (document.getElementById('eventListSearch')?.value) || '',
             onSelectEvent: (ev) => {
@@ -1483,36 +1483,6 @@ function compareClassesForDisplayOrder(a, b, weekday) {
 
 function getClassesInDisplayOrder() {
     return [...appData.classes].sort(compareClassesForDisplayOrder);
-}
-
-function filterClassesForActiveCohort(classes) {
-    const list = Array.isArray(classes) ? classes : [];
-    if (typeof CCPCohortSidebarFilter === 'undefined') {
-        return list;
-    }
-    const cohortId = CCPCohortSidebarFilter.getActiveCohortId();
-    return CCPCohortSidebarFilter.filterClassesByCohort(list, cohortId);
-}
-
-function clearActiveCohortFilter(source) {
-    if (typeof CCPActiveContext === 'undefined' || !CCPActiveContext.getActiveCohortId) {
-        return;
-    }
-    if (!CCPActiveContext.getActiveCohortId()) {
-        return;
-    }
-    CCPActiveContext.set({ cohortId: '' }, { source: source || 'cohort-filter-clear' });
-}
-
-function filterEventsForActiveCohort(events) {
-    const list = Array.isArray(events) ? events : [];
-    if (typeof CCPCohortSidebarFilter === 'undefined') {
-        return list;
-    }
-    const cohortId = CCPCohortSidebarFilter.getActiveCohortId();
-    return CCPCohortSidebarFilter.filterEventsByCohort(list, cohortId, appData.classes || [], {
-        eventAppliesToClass
-    });
 }
 
 function openHomeworkFromTimetable(classId, options) {
@@ -17179,7 +17149,6 @@ function initTabWarningsModule() {
         getActiveTab,
         navigateToZone,
         navigateToTab,
-        clearActiveCohortFilter,
         openClassEditor,
         focusScheduleAdjustmentForClass,
         saveUiStateToLocalStorage,
@@ -17744,7 +17713,6 @@ function getHomeworkVisibleClasses() {
     }
     const filteredIdSet = new Set(filteredIds);
     let classes = baseOrder.filter((c) => filteredIdSet.has(c.id));
-    classes = filterClassesForActiveCohort(classes);
     classes = classes.filter((c) => {
         if (!q) {
             return true;
@@ -19131,7 +19099,7 @@ function getClassesForDailySummaryPrint() {
     // Text search stays homework-list-only (print should not hide classes based on search box).
     let classes = [];
     try {
-        classes = filterClassesForActiveCohort(getClassesInDisplayOrder());
+        classes = getClassesInDisplayOrder();
     } catch (err) {
         console.warn('getClassesForDailySummaryPrint cohort filter failed:', err);
         classes = getClassesInDisplayOrder();
@@ -22079,7 +22047,7 @@ function getSetupBoardHooks() {
             if (typeof CCPCohortsClassDetail !== 'undefined' && CCPCohortsClassDetail.selectClass) {
                 CCPCohortsClassDetail.selectClass(classId, cohortId);
             } else if (typeof CCPActiveContext !== 'undefined') {
-                CCPActiveContext.set({ classId, cohortId }, { source: 'cohorts-board' });
+                CCPActiveContext.set({ classId }, { source: 'cohorts-board' });
             }
         }
     });
@@ -22517,8 +22485,6 @@ function getClassroomHooks() {
                 } else if (key === 'classroomZoneMyClassesOnly' || key === 'classroomZoneEssaysOnly') {
                     appData.ui[key] = value === true || value === '1' || value === 'true';
                     saveUiStateToLocalStorage();
-                } else if (key === 'cohortsTabSelectedId') {
-                    CCPActiveContext.set({ cohortId: appData.ui[key] }, { source: 'cohort-ui-pref' });
                 } else {
                     saveUiStateToLocalStorage();
                 }
@@ -24400,75 +24366,6 @@ function syncAllClassCohortLinksInData(data) {
     (target.cohorts || []).forEach((cohort) => syncClassCohortLinks(cohort));
 }
 
-function suggestAndMergeCohorts() {
-    const api = getTimetableApi();
-    if (!api) {
-        return;
-    }
-    const suggestions = api.suggestCohortsFromClasses(appData.classes || []);
-    let added = 0;
-    suggestions.forEach((sug) => {
-        const existing = (appData.cohorts || []).find((c) =>
-            c.level === sug.level
-            && c.grade === sug.grade
-            && api.meetingDaysKey(c.meetingDays) === api.meetingDaysKey(sug.meetingDays)
-        );
-        if (existing) {
-            sug.classIds.forEach((classId) => {
-                if (!existing.classIds.includes(classId)) {
-                    existing.classIds.push(classId);
-                }
-            });
-            syncClassCohortLinks(existing);
-            return;
-        }
-        const cohort = {
-            id: generateId(),
-            name: sug.name,
-            level: sug.level,
-            grade: sug.grade,
-            meetingDays: sug.meetingDays,
-            classIds: sug.classIds.slice(),
-            homeroomTeacherUserId: '',
-            homeroomTeacherName: '',
-            homeroomDaySuffix: api.inferHomeroomDaySuffix(sug, {})
-        };
-        appData.cohorts.push(cohort);
-        syncClassCohortLinks(cohort);
-        added += 1;
-    });
-    (appData.cohorts || []).forEach((cohort) => syncClassCohortLinks(cohort));
-    if (added) {
-        saveData();
-        refreshClassEditorCohortUiIfOpen();
-    }
-    renderTimetableCohortsList();
-    setAppStatusMessage(t('timetableCohortsSuggested').replace('{n}', String(added)), false);
-}
-
-async function initTimetableTabControls(options) {
-    await ensureTeamTeacherAccountsLoaded();
-    initTimetableTabListeners();
-    renderTimetableCohortsList();
-    if (options && options.teacherUserId) {
-        const teachers = listTimetableTeachers();
-        const match = teachers.find((row) => row.userId === options.teacherUserId);
-        if (match) {
-            selectTimetableTeacher({ userId: match.userId, displayName: match.displayName });
-            return;
-        }
-    }
-    const saved = getTimetableTeacherSelectorFromUi();
-    renderTimetableTeacherList();
-    if (saved) {
-        renderTimetableClassList(saved);
-        renderTimetableView(saved);
-    } else {
-        renderTimetableClassList(null);
-        renderTimetableView(null);
-    }
-}
-
 function initTimetablePeriodSchedule() {
     const openBtn = document.getElementById('timetablePeriodScheduleBtn');
     const modal = document.getElementById('timetablePeriodModal');
@@ -25924,23 +25821,6 @@ if (typeof window !== 'undefined') {
 }
 
 function initActiveContextUi() {
-    if (typeof CCPCohortContextChip !== 'undefined') {
-        CCPCohortContextChip.init({
-            getAppData: () => appData,
-            t,
-            onCohortCleared() {
-                if (!appData.ui) {
-                    appData.ui = {};
-                }
-                // Keep Cohorts board selection in sync so reopening the tab
-                // does not re-apply the list filter from a stale ui id.
-                appData.ui.cohortsTabSelectedId = '';
-                renderClassList();
-                renderEventList();
-                renderHomeworkClassList();
-            }
-        });
-    }
     if (typeof CCPActiveContext !== 'undefined' && CCPActiveContext.subscribe) {
         CCPActiveContext.subscribe((detail) => {
             if (!detail) {
@@ -25958,15 +25838,6 @@ function initActiveContextUi() {
                     });
                 return;
             }
-            if (detail.cohortId === undefined) {
-                return;
-            }
-            if (typeof CCPCohortContextChip !== 'undefined') {
-                CCPCohortContextChip.render();
-            }
-            renderClassList();
-            renderEventList();
-            renderHomeworkClassList();
         });
     }
 }

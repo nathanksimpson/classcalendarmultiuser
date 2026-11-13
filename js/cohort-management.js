@@ -14,6 +14,8 @@
     /** @type {Set<string>} */
     let draftClassIds = new Set();
     let catalogDirty = false;
+    /** Cohort whose "Link classes" section is expanded in the editor. */
+    let classAssignmentOpenForCohortId = '';
 
     const PATTERN_IDS = ['mwf', 'tth', 'mw', 'wf', 'mf', 'custom'];
     const DOW_LABELS = { en: ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'], ko: ['', '월', '화', '수', '목', '금'] };
@@ -627,9 +629,11 @@
         if (!appData.ui) {
             appData.ui = {};
         }
+        // Local to this page: selecting a cohort never filters class lists elsewhere.
         appData.ui.cohortsTabSelectedId = selectedCohortId || '';
-        if (typeof global.CCPActiveContext !== 'undefined') {
-            global.CCPActiveContext.set({ cohortId: selectedCohortId || '' }, { source: 'cohort-board' });
+        const saveUi = hooks.saveUiStateToLocalStorage || global.saveUiStateToLocalStorage;
+        if (typeof saveUi === 'function') {
+            saveUi();
         }
     }
 
@@ -880,13 +884,13 @@
         btn.disabled = !!ro || !selectedCohortId;
     }
 
-    function applyClassAssignments(cohort) {
-        if (!hooks || !cohort) {
-            return;
-        }
-        if (hooks.isViewOnly && hooks.isViewOnly()) {
-            showTeamLockBlockedMessage();
-            return;
+    /**
+     * Write the ticked classes in the editor's class list onto the data (both sides of the
+     * link). Returns what changed, or null when nothing was pending. Does not save or re-render.
+     */
+    function applyPendingClassLinks(cohort) {
+        if (!hooks || !cohort || !catalogDirty) {
+            return null;
         }
         const api = getTimetableApi();
         const appData = hooks.getAppData();
@@ -920,6 +924,30 @@
         });
         syncCohortLinksForIds(touchedCohortIds);
         catalogDirty = false;
+        return { linked, unlinked };
+    }
+
+    function showClassLinkSummary(result) {
+        if (!result || (!result.linked && !result.unlinked)) {
+            return;
+        }
+        hooks.showMessage(
+            t('cohortsClassApplySummary')
+                .replace('{linked}', String(result.linked))
+                .replace('{unlinked}', String(result.unlinked)),
+            false
+        );
+    }
+
+    function applyClassAssignments(cohort) {
+        if (!hooks || !cohort) {
+            return;
+        }
+        if (hooks.isViewOnly && hooks.isViewOnly()) {
+            showTeamLockBlockedMessage();
+            return;
+        }
+        const result = applyPendingClassLinks(cohort) || { linked: 0, unlinked: 0 };
         hooks.saveData();
         if (hooks.invalidateScheduleCache) {
             hooks.invalidateScheduleCache();
@@ -930,7 +958,9 @@
             hooks.populateClassCohortSelect();
         }
         hooks.showMessage(
-            t('cohortsClassApplySummary').replace('{linked}', String(linked)).replace('{unlinked}', String(unlinked)),
+            t('cohortsClassApplySummary')
+                .replace('{linked}', String(result.linked))
+                .replace('{unlinked}', String(result.unlinked)),
             false
         );
         renderAll();
@@ -1060,6 +1090,11 @@
 
         const details = document.createElement('details');
         details.className = 'cohort-class-assignment-details';
+        // Stay open across re-renders (each save redraws the editor) for the cohort being edited.
+        details.open = classAssignmentOpenForCohortId === cohort.id;
+        details.addEventListener('toggle', () => {
+            classAssignmentOpenForCohortId = details.open ? cohort.id : '';
+        });
 
         const summary = document.createElement('summary');
         summary.className = 'cohort-class-assignment-summary';
@@ -1256,8 +1291,12 @@
             delete cohort.isDraft;
         }
         cohort.meetingDays = getCohortMeetingDays(cohort);
+        // Ticked classes are part of the cohort: saving the cohort saves them. They used to be
+        // shown as linked in this editor and then dropped unless "Apply class links" was pressed.
+        const linkResult = applyPendingClassLinks(cohort);
         hooks.syncClassCohortLinks(cohort);
         hooks.saveData();
+        showClassLinkSummary(linkResult);
         if (hooks.invalidateScheduleCache) {
             hooks.invalidateScheduleCache();
         }
@@ -1511,6 +1550,21 @@
     function closeCohortEditor() {
         flushCohortEditorFields();
         flushHomeroomEditorFields();
+        const ro = !!(hooks && hooks.isViewOnly && hooks.isViewOnly());
+        const appDataNow = hooks ? hooks.getAppData() : null;
+        const openCohort = appDataNow && selectedCohortId
+            ? (appDataNow.cohorts || []).find((c) => c.id === selectedCohortId)
+            : null;
+        if (!ro && openCohort && catalogDirty) {
+            // Same rule as Save cohort: class ticks are not thrown away on close.
+            const linkResult = applyPendingClassLinks(openCohort);
+            hooks.saveData();
+            if (hooks.invalidateScheduleCache) {
+                hooks.invalidateScheduleCache();
+            }
+            showClassLinkSummary(linkResult);
+            renderAll();
+        }
         const modal = getCohortEditorModal();
         if (!modal) {
             notifyCohortEditorClosed();
@@ -1565,7 +1619,9 @@
 
         const editBtn = document.getElementById('cohortsEditBtn');
         if (editBtn) {
-            editBtn.hidden = !cohort;
+            // Always shown (disabled until a cohort is picked) so selecting one does not push
+            // the board down under the pointer.
+            editBtn.hidden = false;
             editBtn.disabled = ro || !cohort;
             editBtn.title = editBtn.disabled && ro ? getTeamLockBlockedMessage() : '';
             if (!editBtn.dataset.cohortsEditBound) {
@@ -1580,15 +1636,19 @@
 
         const contextualRow = document.getElementById('cohortsContextualActions');
         if (contextualRow) {
-            contextualRow.hidden = !cohort;
+            contextualRow.hidden = false;
+            const timetableBtn = document.getElementById('cohortsOpenTimetableBtn');
+            if (timetableBtn) {
+                timetableBtn.disabled = !cohort;
+            }
         }
 
         const deleteBtn = document.getElementById('cohortsDeleteBtn');
         if (!deleteBtn) {
             return;
         }
-        deleteBtn.hidden = !cohort;
-        deleteBtn.disabled = ro;
+        deleteBtn.hidden = false;
+        deleteBtn.disabled = ro || !cohort;
         deleteBtn.title = deleteBtn.disabled ? getTeamLockBlockedMessage() : '';
         if (!deleteBtn.dataset.cohortsDeleteBound) {
             deleteBtn.dataset.cohortsDeleteBound = '1';

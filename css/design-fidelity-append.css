@@ -194,11 +194,21 @@
 
     padding: var(--space-4);
 
+    /* Stays beside the board while the page scrolls, so the class you click is the class you
+       see. Scrolls inside only when its own content is taller than the screen. */
+    position: sticky;
+
+    /* 8rem clears the pinned cohort toolbar (two rows: Add cohort / search, then the
+       selected-cohort actions). */
+    top: calc(var(--app-chrome-sticky-top, 72px) + 8rem);
+
+    align-self: start;
+
     min-height: 0;
 
-    max-height: none;
+    max-height: calc(100dvh - var(--app-chrome-sticky-top, 72px) - 8rem - var(--space-3));
 
-    overflow: visible;
+    overflow-y: auto;
 
     overscroll-behavior: auto;
 
@@ -303,6 +313,16 @@
     .cohorts-board-with-detail {
 
         grid-template-columns: 1fr;
+
+    }
+
+    .cohorts-class-detail-pane {
+
+        position: static;
+
+        max-height: none;
+
+        overflow-y: visible;
 
     }
 

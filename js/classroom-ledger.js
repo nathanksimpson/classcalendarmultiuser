@@ -87,16 +87,8 @@
 
     function getViewableClasses() {
         const data = getAppData();
-        const cohortId =
-            typeof global.CCPCohortSidebarFilter !== 'undefined'
-                ? global.CCPCohortSidebarFilter.getActiveCohortId()
-                : '';
         // Every class the viewer may open; editing is checked per action.
-        let classes = (data.classes || []).filter((c) => c && canViewClassRow(c));
-        if (cohortId && global.CCPCohortSidebarFilter) {
-            classes = global.CCPCohortSidebarFilter.filterClassesByCohort(classes, cohortId);
-        }
-        return classes;
+        return (data.classes || []).filter((c) => c && canViewClassRow(c));
     }
 
     function syncFromActiveContext() {

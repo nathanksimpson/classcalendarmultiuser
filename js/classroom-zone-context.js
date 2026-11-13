@@ -226,8 +226,6 @@
     function getBaseAccessibleClasses() {
         const data = getAppData();
         const cohorts = data.cohorts || [];
-        // Do not apply active-cohort filter here — Classroom must list every editable class.
-        // Cohort filter is for Class Setup sidebars after an intentional Cohorts-board pick.
         // View is wider than edit: every class in the calendar is listed; editable ones first.
         const classes = editableFirst(
             (data.classes || []).filter((c) => c && canViewClassRow(c)),

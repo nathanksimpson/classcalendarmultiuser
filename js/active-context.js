@@ -1,11 +1,13 @@
 /**
- * Unified teaching context: active class, cohort, and session date per user.
+ * Unified teaching context: active class and session date per user.
+ *
+ * There is no active cohort. Picking a cohort on the Cohorts board only selects it on that
+ * page (appData.ui.cohortsTabSelectedId); it never filters class lists elsewhere. `cohortId`
+ * stays on the context object as an empty string so older callers keep working.
  */
 (function (global) {
     const EVENT_NAME = 'ccp:activeContextChanged';
     const MIGRATE_FLAG_PREFIX = 'ccpActiveContextMigrated:';
-    /** Clears cohort filters that were auto-set from class picks (pre-opt-in era). */
-    const CLEAR_AUTO_COHORT_FLAG_PREFIX = 'ccpClearedAutoCohortFilter:';
     const subscribers = new Set();
     let storageListenerBound = false;
 
@@ -42,7 +44,6 @@
     function storageKeys(scope) {
         return {
             classId: `ccpActiveClassId:${scope}`,
-            cohortId: `ccpActiveCohortId:${scope}`,
             sessionDate: `ccpActiveSessionDate:${scope}`
         };
     }
@@ -59,7 +60,7 @@
         }
         const nextKeys = storageKeys(scope);
         const oldKeys = storageKeys(userId);
-        ['classId', 'cohortId', 'sessionDate'].forEach((field) => {
+        ['classId', 'sessionDate'].forEach((field) => {
             if (!localStorage.getItem(nextKeys[field])) {
                 const old = localStorage.getItem(oldKeys[field]);
                 if (old) {
@@ -82,7 +83,7 @@
         const k = storageKeys(scopeId() || userId);
         return {
             classId: localStorage.getItem(k.classId) || '',
-            cohortId: localStorage.getItem(k.cohortId) || '',
+            cohortId: '',
             sessionDate: localStorage.getItem(k.sessionDate) || ''
         };
     }
@@ -92,7 +93,9 @@
             return;
         }
         const k = storageKeys(scopeId() || userId);
-        ['classId', 'cohortId', 'sessionDate'].forEach((field) => {
+        // Drop the cohort filter older versions stored.
+        localStorage.removeItem(`ccpActiveCohortId:${scopeId() || userId}`);
+        ['classId', 'sessionDate'].forEach((field) => {
             const val = ctx[field] == null ? '' : String(ctx[field]).trim();
             if (val) {
                 localStorage.setItem(k[field], val);
@@ -115,9 +118,6 @@
         if (fullMirror || patch.classId !== undefined) {
             ui.homeworkTabClassId = ctx.classId || '';
             ui.classroomTabClassId = ctx.classId || '';
-        }
-        if (fullMirror || patch.cohortId !== undefined) {
-            ui.cohortsTabSelectedId = ctx.cohortId || '';
         }
         const mirrorSessionDate = fullMirror || patch.sessionDate !== undefined;
         if (mirrorSessionDate && ctx.sessionDate !== undefined) {
@@ -149,7 +149,7 @@
         const prev = readStorage(userId);
         const next = {
             classId: patch.classId !== undefined ? String(patch.classId || '').trim() : prev.classId,
-            cohortId: patch.cohortId !== undefined ? String(patch.cohortId || '').trim() : prev.cohortId,
+            cohortId: '',
             sessionDate:
                 patch.sessionDate !== undefined ? String(patch.sessionDate || '').trim() : prev.sessionDate
         };
@@ -175,38 +175,14 @@
         const current = readStorage(userId);
         const legacy = {
             classId: (ui && ui.homeworkTabClassId) || (ui && ui.classroomTabClassId) || '',
-            cohortId: (ui && ui.cohortsTabSelectedId) || '',
             sessionDate: (ui && ui.classroomTabDate) || (ui && ui.homeworkReferenceDate) || ''
         };
         const merged = {
             classId: current.classId || legacy.classId || '',
-            cohortId: current.cohortId || legacy.cohortId || '',
+            cohortId: '',
             sessionDate: current.sessionDate || legacy.sessionDate || ''
         };
         writeStorage(userId, merged);
-        localStorage.setItem(flag, '1');
-    }
-
-    /**
-     * One-time: drop mystery cohort filters left by older setFromClass behavior.
-     * Intentional Cohorts-board filters set after this flag still persist.
-     */
-    function clearStaleAutoCohortFilter() {
-        const userId = getUserId();
-        if (!userId || typeof localStorage === 'undefined') {
-            return;
-        }
-        const flag = CLEAR_AUTO_COHORT_FLAG_PREFIX + userId;
-        if (localStorage.getItem(flag) === '1') {
-            return;
-        }
-        const ctx = readStorage(userId);
-        if (ctx.cohortId) {
-            writeStorage(userId, Object.assign({}, ctx, { cohortId: '' }));
-            if (typeof global.appData !== 'undefined' && global.appData.ui) {
-                global.appData.ui.cohortsTabSelectedId = '';
-            }
-        }
         localStorage.setItem(flag, '1');
     }
 
@@ -215,16 +191,10 @@
             return get();
         }
         migrateLegacy(ui);
-        clearStaleAutoCohortFilter();
         const ctx = get();
         if (ctx.classId) {
             ui.homeworkTabClassId = ctx.classId;
             ui.classroomTabClassId = ctx.classId;
-        }
-        if (ctx.cohortId) {
-            ui.cohortsTabSelectedId = ctx.cohortId;
-        } else {
-            ui.cohortsTabSelectedId = '';
         }
         if (ctx.sessionDate) {
             ui.classroomTabDate = ctx.sessionDate;
@@ -301,10 +271,7 @@
         return cls.cohortId || '';
     }
 
-    /**
-     * Select a class (and optional session date) without enabling a cohort list filter.
-     * Cohort filter is opt-in via Cohorts board / explicit set({ cohortId }).
-     */
+    /** Select a class (and optional session date). */
     function setFromClass(appData, classId, sessionDate, source) {
         void appData;
         const patch = { classId };
@@ -361,7 +328,6 @@
         set,
         subscribe,
         migrateLegacy,
-        clearStaleAutoCohortFilter,
         hydrateUiFromStorage,
         resolveDefaults,
         resolveActiveClassId,
@@ -371,9 +337,6 @@
         reload,
         getActiveClassId() {
             return get().classId;
-        },
-        getActiveCohortId() {
-            return get().cohortId;
         },
         getActiveSessionDate() {
             return get().sessionDate;

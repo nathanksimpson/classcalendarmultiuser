@@ -515,6 +515,7 @@
         }
     }
 
+    /** The picker stays open after an action so several classes can be linked in one visit. */
     function buildPickerActionBtn(label, onClick) {
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -523,9 +524,24 @@
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
             onClick();
-            closeActivePicker();
         });
         return btn;
+    }
+
+    function levelKey(value) {
+        return normalizeStr(value).toLowerCase();
+    }
+
+    /** True when the class is the cohort's level (Purple class for a Purple cohort). */
+    function classMatchesCohortLevel(classData, cohort) {
+        const cohortLevels = [cohort.levelPreset, cohort.level].map(levelKey).filter(Boolean);
+        if (!cohortLevels.length) {
+            return false;
+        }
+        return [classData.levelPreset, classData.level, classData.levelCustom]
+            .map(levelKey)
+            .filter(Boolean)
+            .some((lv) => cohortLevels.includes(lv));
     }
 
     function showAddClassToCohortPicker(cohort) {
@@ -563,9 +579,16 @@
         const list = document.createElement('div');
         list.className = 'setup-board-picker-list';
 
+        const status = document.createElement('p');
+        status.className = 'setup-board-picker-status section-hint';
+        status.setAttribute('role', 'status');
+        status.hidden = true;
+
         function renderList() {
             const q = normalizeStr(search.value).toLowerCase();
+            const keepScroll = list.scrollTop;
             list.innerHTML = '';
+            const appData = hooks.getAppData();
             const classes = (appData.classes || []).filter((cls) => {
                 if (!cls || !cls.id) {
                     return false;
@@ -578,8 +601,13 @@
                 }
                 return classDisplayLabel(cls).toLowerCase().includes(q);
             });
+            // Likely picks first: this cohort's level, then classes not in any cohort yet.
+            const rank = (cls) =>
+                (classMatchesCohortLevel(cls, cohort) ? 0 : 2)
+                + (getClassCohortIdsForBoard(cls).length ? 1 : 0);
             classes.sort((a, b) =>
-                classDisplayLabel(a).localeCompare(classDisplayLabel(b), undefined, { sensitivity: 'base' })
+                rank(a) - rank(b)
+                || classDisplayLabel(a).localeCompare(classDisplayLabel(b), undefined, { sensitivity: 'base' })
             );
             if (!classes.length) {
                 list.innerHTML = `<p class="module-list-empty">${escapeHtml(t('setupBoardPickerNoClasses'))}</p>`;
@@ -595,15 +623,30 @@
                 const actions = document.createElement('div');
                 actions.className = 'setup-board-picker-row-actions';
                 const linked = getClassCohortIdsForBoard(cls);
+                const others = otherCohortNamesForClass(cls, cohort.id, appData);
+                if (others.length) {
+                    // Say where the class already is, so Link vs Move here only is a clear choice.
+                    const also = document.createElement('span');
+                    also.className = 'setup-board-picker-row-also section-hint';
+                    also.textContent = t('cohortsClassAlsoLinked').replace('{names}', others.join(', '));
+                    label.appendChild(also);
+                }
+                const afterAction = () => {
+                    status.hidden = false;
+                    status.textContent = t('setupBoardPickerLinked').replace('{name}', classDisplayLabel(cls));
+                    renderList();
+                };
                 actions.appendChild(
                     buildPickerActionBtn(t('setupBoardLinkToCohort'), () => {
                         assignClassToCohort(cls, cohort, { fromPool: true, moveOnly: false });
+                        afterAction();
                     })
                 );
                 if (linked.length) {
                     actions.appendChild(
                         buildPickerActionBtn(t('setupBoardMoveToCohortOnly'), () => {
                             assignClassToCohort(cls, cohort, { fromPool: true, moveOnly: true });
+                            afterAction();
                         })
                     );
                 }
@@ -614,13 +657,15 @@
                 }
                 list.appendChild(row);
             });
+            list.scrollTop = keepScroll;
         }
 
         search.addEventListener('input', renderList);
         body.appendChild(search);
+        body.appendChild(status);
         body.appendChild(list);
         renderList();
-        openPickerDialog(t('setupBoardAddClass'), body);
+        openPickerDialog(`${t('setupBoardAddClass')} · ${getCohortDisplayTitle(cohort)}`, body);
     }
 
     function openCohortEditorFor(cohortId) {
@@ -1091,81 +1136,6 @@
         }
     }
 
-    function wheelPixels(event, axis) {
-        const delta = axis === 'x' ? event.deltaX : event.deltaY;
-        if (event.deltaMode === 1) {
-            return delta * 16;
-        }
-        if (event.deltaMode === 2) {
-            const size = axis === 'x' ? window.innerWidth : window.innerHeight;
-            return delta * size;
-        }
-        return delta;
-    }
-
-    function canScrollOnAxis(el, delta, axis) {
-        if (!el || el.nodeType !== 1 || !delta) {
-            return false;
-        }
-        const style = getComputedStyle(el);
-        const overflow = axis === 'x' ? style.overflowX : style.overflowY;
-        if (overflow !== 'auto' && overflow !== 'scroll' && overflow !== 'overlay') {
-            return false;
-        }
-        const range = axis === 'x'
-            ? el.scrollWidth - el.clientWidth
-            : el.scrollHeight - el.clientHeight;
-        if (range <= 1) {
-            return false;
-        }
-        const pos = axis === 'x' ? el.scrollLeft : el.scrollTop;
-        if (delta > 0) {
-            return pos < range - 1;
-        }
-        return pos > 0;
-    }
-
-    function onCohortPageWheel(event) {
-        const panel = document.getElementById('panel-cohorts');
-        if (!panel || panel.hidden || event.ctrlKey) {
-            return;
-        }
-        const deltaY = wheelPixels(event, 'y');
-        const deltaX = wheelPixels(event, 'x');
-        if (!deltaY || Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
-            return;
-        }
-        let node = event.target instanceof Element ? event.target : null;
-        if (!node && event.target && event.target.parentElement) {
-            node = event.target.parentElement;
-        }
-        const dialog = node && node.closest && node.closest('.modal.active, dialog[open]');
-        if (dialog) {
-            while (node && node !== dialog) {
-                if (canScrollOnAxis(node, deltaY, 'y')) {
-                    return;
-                }
-                node = node.parentElement;
-            }
-            const body = dialog.querySelector('.modal-body-scroll, .setup-board-picker-list');
-            if (body && canScrollOnAxis(body, deltaY, 'y')) {
-                body.scrollTop += deltaY;
-                event.preventDefault();
-            }
-            return;
-        }
-        window.scrollBy(0, deltaY);
-        event.preventDefault();
-    }
-
-    function bindCohortPageWheel() {
-        if (typeof document === 'undefined' || document.documentElement.dataset.cohortPageWheel === '1') {
-            return;
-        }
-        document.documentElement.dataset.cohortPageWheel = '1';
-        document.addEventListener('wheel', onCohortPageWheel, { capture: true, passive: false });
-    }
-
     function bindScopeControls(scope) {
         const panel = document.getElementById(scope.panelId);
         if (!panel || panel.dataset.setupBoardBound === '1') {
@@ -1194,7 +1164,6 @@
         registerScope(scope);
         scopeHooksByPanel.set(scope.panelId, tabHooks);
         bindScopeControls(scope);
-        bindCohortPageWheel();
         ensureUiBoardView();
         document.body.dataset.setupBoardInitialized = '1';
         renderBoardForScope(scope.panelId);
