@@ -19445,10 +19445,10 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
     overflow-y: auto;
     border: 1px solid var(--border-color);
     border-radius: 14px;
-    background: var(--surface, #fff);
+    background: var(--bg-card);
     box-shadow: 0 18px 44px rgba(0, 0, 0, 0.18);
     padding: 12px 12px 10px;
-    color: var(--text-color, #111);
+    color: var(--text-primary);
 }
 
 .now-class-popup-title {
@@ -19464,7 +19464,7 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
 .now-class-popup-subtitle {
     font-weight: 500;
     font-size: 0.8rem;
-    opacity: 0.78;
+    color: var(--text-secondary);
 }
 
 .now-class-popup--preview .now-class-popup-subtitle {
@@ -19479,7 +19479,7 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
     font-size: 0.82rem;
     font-weight: 600;
     margin: 0 0 8px;
-    color: var(--text-secondary, #444);
+    color: var(--text-secondary);
 }
 
 .now-class-popup-dismiss-row {
@@ -19500,8 +19500,8 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
 .now-class-popup-section-label {
     font-size: 0.78rem;
     font-weight: 700;
-    opacity: 0.8;
     margin-bottom: 4px;
+    color: var(--text-secondary);
 }
 
 .now-class-popup-section--books .now-class-popup-section-label {
@@ -19517,8 +19517,9 @@ html:is([data-viewport="tablet"], [data-viewport="tablet-sm"], [data-viewport="p
     overflow: auto;
     padding: 8px 10px;
     border-radius: 12px;
-    background: var(--surface-alt, rgba(0, 0, 0, 0.03));
-    border: 1px solid rgba(0, 0, 0, 0.06);
+    color: var(--text-primary);
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
 }
 
 .now-class-popup-actions {
