@@ -71,6 +71,7 @@ module.exports = {
     parseSuggestionRow,
     serializeSuggestionData,
     parseDataObjectFromRow,
+    serializeDataBlob,
     CALENDAR_DOC_SELECT,
     SUGGESTION_DOC_SELECT,
     getMasterKey
