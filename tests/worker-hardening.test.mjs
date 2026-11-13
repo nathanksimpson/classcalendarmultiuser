@@ -41,6 +41,36 @@ function check(name, ok, detail) {
     check('signed-in never redirects off site', res.status >= 300 && res.status < 400 && res.headers.get('location') === '/', `location=${res.headers.get('location')}`);
 }
 
+// --- CSP reports: accepted without a session, logged, never an error -------------------
+{
+    const env = makeEnv();
+    const ctx = { waitUntil() {}, passThroughOnException() {} };
+    const post = (body) =>
+        worker.fetch(
+            new Request('https://classmanager.live/api/csp-report', {
+                method: 'POST',
+                headers: { 'content-type': 'application/csp-report' },
+                body
+            }),
+            env,
+            ctx
+        );
+    const logged = [];
+    const realWarn = console.warn;
+    console.warn = (...args) => logged.push(args.join(' '));
+    try {
+        const ok = await post(JSON.stringify({ 'csp-report': { 'effective-directive': 'script-src', 'blocked-uri': 'https://evil.example/x.js', 'document-uri': 'https://classmanager.live/' } }));
+        check('csp report accepted', ok.status === 204, `status=${ok.status}`);
+        check('csp report logged', logged.some((l) => l.includes('csp-report') && l.includes('script-src') && l.includes('evil.example')));
+        const junk = await post('not json');
+        check('unreadable csp report still answers 204', junk.status === 204, `status=${junk.status}`);
+    } finally {
+        console.warn = realWarn;
+    }
+    const SecurityHeaders = (await import(path.join(ROOT, 'shared', 'security-headers.cjs'))).default;
+    check('policy names the report endpoint', SecurityHeaders.SECURITY_HEADERS['Content-Security-Policy-Report-Only'].includes('report-uri /api/csp-report'));
+}
+
 /** Admin A owns a calendar, teacher B is a member, P signed in but has no calendar. */
 async function setup() {
     const env = makeEnv();

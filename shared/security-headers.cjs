@@ -5,6 +5,8 @@
  * - Worker-served pages (run_worker_first): worker/src/index.js withSecurityHeaders().
  * CSP is report-only until a clean week of production traffic; then rename the key to
  * Content-Security-Policy and move index.html inline on*= handlers into JS.
+ * Violations are posted to /api/csp-report, which logs one line each ("csp-report ...") —
+ * read them in Cloudflare Workers Logs to judge when the policy is safe to enforce.
  */
 
 const CSP_DIRECTIVES = [
@@ -18,7 +20,8 @@ const CSP_DIRECTIVES = [
     "connect-src 'self' http://127.0.0.1:8765 http://127.0.0.1:8080 http://localhost:8765 http://localhost:8080 https://holidays.hyunbin.page https://generativelanguage.googleapis.com https://api.openai.com https://api.blerp.com https://r.jina.ai https://cf.opengrammer.eu.cc https://cdn.jsdelivr.net https://unpkg.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
-    "form-action 'self'"
+    "form-action 'self'",
+    'report-uri /api/csp-report'
 ];
 
 const SECURITY_HEADERS = {

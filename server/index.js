@@ -427,6 +427,11 @@ function kakaoRedirectUri(req) {
     return `${PUBLIC_URL}/api/auth/kakao/callback`;
 }
 
+/** CSP violation reports (see shared/security-headers.cjs). Local dev: accept and drop. */
+app.post('/api/csp-report', (req, res) => {
+    res.status(204).end();
+});
+
 app.get('/api/health', (req, res) => {
     res.json({
         ok: true,

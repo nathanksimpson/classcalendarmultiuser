@@ -32488,13 +32488,6 @@ function setCalendarFocusedMonthIndex(index, dayIndex) {
     return clamped;
 }
 
-function navigateCalendarMonth(delta) {
-    const dayIndex = buildDayIndex();
-    const next = getCalendarFocusedMonthIndex(dayIndex) + delta;
-    setCalendarFocusedMonthIndex(next, dayIndex);
-    renderCalendarNow({ forceFull: true });
-}
-
 function getDefaultCalendarWeekStartIso(dayIndex) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -32668,26 +32661,6 @@ function buildWeekNode(weekStartIso, dayIndex) {
 
 let initCalendarWeekNavBound = false;
 
-function initCalendarMonthNav() {
-    const container = elements.calendarContainer;
-    if (!container || initCalendarMonthNav._bound) {
-        return;
-    }
-    initCalendarMonthNav._bound = true;
-    container.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-calendar-month-nav]');
-        if (!btn || btn.disabled) {
-            return;
-        }
-        const dir = btn.getAttribute('data-calendar-month-nav');
-        if (dir === 'prev') {
-            navigateCalendarMonth(-1);
-        } else if (dir === 'next') {
-            navigateCalendarMonth(1);
-        }
-    });
-}
-
 let calendarScrollToMonthPending = true;
 
 function scrollToFocusedCalendarMonth(behavior) {
@@ -32698,11 +32671,29 @@ function scrollToFocusedCalendarMonth(behavior) {
     if (!el) {
         return;
     }
+    // Stop below the pinned bars, or the month title and weekday row hide under them.
+    el.style.scrollMarginTop = `${calendarPinnedChromeHeight() + 8}px`;
     try {
         el.scrollIntoView({ block: 'start', behavior: behavior || 'auto' });
     } catch (_) {
         el.scrollIntoView(true);
     }
+}
+
+/** Height of the bars pinned above the calendar (top bar + Month / Week toolbar). */
+function calendarPinnedChromeHeight() {
+    let total = 0;
+    ['#appTopBar', '.calendar-view-toolbar'].forEach(selector => {
+        const bar = document.querySelector(selector);
+        if (!bar || bar.offsetParent === null && getComputedStyle(bar).position !== 'fixed') {
+            return;
+        }
+        const position = getComputedStyle(bar).position;
+        if (position === 'sticky' || position === 'fixed') {
+            total += bar.getBoundingClientRect().height;
+        }
+    });
+    return Math.round(total);
 }
 
 /**
@@ -32957,6 +32948,10 @@ function createDayCell(dayNumber, isOtherMonth, dayEvents = [], lessons = [], da
         dayDiv.classList.add('other-month');
     } else if (dateStr && termStartIso && termEndIso && (dateStr < termStartIso || dateStr > termEndIso)) {
         dayDiv.classList.add('out-of-term');
+    }
+    if (dateStr && !isOtherMonth && !calendarRenderForPrint && dateStr === formatDateISO(new Date())) {
+        dayDiv.classList.add('today');
+        dayDiv.setAttribute('aria-current', 'date');
     }
     
     const visibleEvents = (dayEvents || []).filter(ev => {

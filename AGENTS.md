@@ -98,7 +98,10 @@ The calendar edit lock is retired. Everyone with edit access edits at the same t
 - Full `PUT` (whole calendar) is only for import/restore and still needs the matching revision unless forced.
 - Next step planned: one Durable Object per calendar applying these same mutations in order and pushing them over WebSockets instead of polling.
 - Debug: `?lockDebug=1` still logs sync events (`Merged server copy`, `live pull`).
-- Tests: `tests/sync-diff.test.mjs` (diff/apply), `tests/live-sync-tabs.test.mjs` (two tabs, real calendar-sync.js), `tests/worker-concurrency.test.mjs` (real Worker; needs better-sqlite3).
+- Tests: `tests/sync-diff.test.mjs` (diff/apply), `tests/live-sync-tabs.test.mjs` (two tabs, real calendar-sync.js), `tests/worker-concurrency.test.mjs` and `tests/worker-hardening.test.mjs` (real Worker; need better-sqlite3).
+- **One full read per save.** `saveWithRetry` (`worker/src/calendar-write.js`) reads the document once and returns what it wrote in `saved`; build the response with `calendarDocFromSaved` instead of reading the row back.
+- **Size limit.** A calendar is one D1 value and D1 refuses values over 2,000,000 bytes. `writeCalendar` logs a warning from 1,500,000 bytes and answers 507 `CALENDAR_TOO_LARGE` past the limit.
+- **Nightly snapshots.** The 04:17 KST cron copies each changed calendar into `calendar_history` and keeps 14 days (`snapshotChangedCalendars` in `worker/src/calendar-storage.js`). Restore is manual: put `data` back on the `calendars` row and bump `revision`.
 
 ## Key files
 
@@ -111,11 +114,11 @@ The calendar edit lock is retired. Everyone with edit access edits at the same t
 | Debate book periods | `js/debate-periods.js` — start-date book periods (not calendar month only) |
 | Kakao / waiting | `login.html`, `pending-access.html`, `server/kakao.js`, `server/users.js` (`resolveKakaoLoginUser`) |
 | Admin | `admin.html`, `js/admin.js` |
-| Migrations | `worker/migrations/0001` … `0005` |
+| Migrations | `worker/migrations/` (`0001` … `0023`; two files share `0008` and two share `0009`, none is `0002`) — number new ones strictly after the highest |
 
 ## Pitfalls
 
-1. Always change **worker AND server** for API behavior.
+1. Always change **worker AND server** for API behavior. A new route that should not be open to a just-registered account must check `userHasCalendarAccess` (Worker) / `requireCalendarAccess` (server), not only the session.
 2. There is no edit lock: `holdsLock` now just means "may edit" (from permissions). Never add a save path that sends the whole calendar for normal edits — use the live-sync diff.
 3. `409`: revision conflict has `body.document`; duplicate name has `code: DUPLICATE_NAME`.
 4. Sync bugs: same `calendarId` on both browsers; `?lockDebug=1`; hard refresh after deploy.

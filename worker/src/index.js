@@ -1112,6 +1112,37 @@ export default {
             return new Response('Not found', { status: 404 });
         }
 
+        if (path === '/api/csp-report' && request.method === 'POST') {
+            // Browsers post here without a session. Log one short line and nothing else:
+            // no database work, so it cannot be used to load the app.
+            try {
+                const raw = (await request.text()).slice(0, 8192);
+                const parsed = JSON.parse(raw);
+                const report = (parsed && (parsed['csp-report'] || (Array.isArray(parsed) ? parsed[0] && parsed[0].body : parsed.body))) || {};
+                const pick = (...keys) => {
+                    for (const key of keys) {
+                        if (report[key] != null && report[key] !== '') {
+                            return String(report[key]).slice(0, 200);
+                        }
+                    }
+                    return '';
+                };
+                console.warn(
+                    'csp-report',
+                    JSON.stringify({
+                        directive: pick('effective-directive', 'effectiveDirective', 'violated-directive'),
+                        blocked: pick('blocked-uri', 'blockedURL'),
+                        page: pick('document-uri', 'documentURL'),
+                        source: pick('source-file', 'sourceFile'),
+                        line: pick('line-number', 'lineNumber')
+                    })
+                );
+            } catch (_) {
+                /* not a report we can read; ignore */
+            }
+            return new Response(null, { status: 204 });
+        }
+
         if (path === '/api/health') {
             const adminCount = await countAdmins(env);
             return json({

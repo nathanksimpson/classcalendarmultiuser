@@ -54,6 +54,11 @@ binding = "AI"
 [triggers]
 crons = ["17 19 * * *"]   # 04:17 KST
 
+# Keep Worker logs (dashboard: Workers & Pages -> this Worker -> Logs) so CSP reports,
+# calendar size warnings and cron results can be read after the fact.
+[observability]
+enabled = true
+
 [vars]
 PUBLIC_URL = "https://classmanager.live"
 
