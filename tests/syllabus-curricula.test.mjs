@@ -63,8 +63,14 @@ function assert(cond, msg) {
         assert(p.defaultSyllabusRowTemplates[1].planTitle.includes('Unit 1'), `${p.id} session 2 pages`);
         assert(p.defaultSyllabusRowTemplates[0].planDetail.includes('Worksheet 1'), `${p.id} worksheet line`);
     });
-    [orange, yellow].forEach(p => {
-        assert(!p.defaultSyllabusRowTemplates[1].planDetail.includes('Tracks:'), `${p.id} no tracks`);
+    // Each book has its own track numbers (HIH2 / HIH3 ebooks), keyed to the same pages.
+    const tracksOf = (p) => p.defaultSyllabusRowTemplates.map(r => (r.planDetail.match(/Tracks: ([\d-]+)/) || [])[1]);
+    assert(tracksOf(orange).join(' ') === '2-4 5-9 10-16 17-19 20-26 27-31 32-36 37-40 41-45 46-51 52-54 55-59 60-64 65-70 71-74 75-78 79-85 86-88 89-95 96-100 101-106 107-119', `orange tracks: ${tracksOf(orange).join(' ')}`);
+    assert(tracksOf(yellow).join(' ') === '2-4 5-8 9-15 16-19 20-26 27-31 32-37 38-41 42-47 48-53 54-56 57-61 62-66 67-70 71-74 75-78 79-83 84-86 87-91 92-96 97-102 103-115', `yellow tracks: ${tracksOf(yellow).join(' ')}`);
+    assert(tracksOf(red)[5] === '26-30', 'red tracks unchanged');
+    [red, orange, yellow].forEach(p => {
+        const t = tracksOf(p).map(x => x.split('-').map(Number));
+        t.forEach((r, i) => assert(i === 0 || r[0] === t[i - 1][1] + 1, `${p.id} tracks continuous at lesson ${i + 1}`));
     });
     assert(red.defaultBook === 'Hand in Hand 1', 'red book');
     assert(orange.defaultBook === 'Hand in Hand 2', 'orange book');
@@ -72,7 +78,7 @@ function assert(cond, msg) {
     assert(red.defaultSyllabusRowTemplates[0].planDetail.includes('Tracks: 2-4'), 'red listening tracks');
     assert(red.defaultSyllabusRowTemplates[0].planDetail.includes('음원경로'), 'red audio path');
     assert(red.defaultSyllabusRowTemplates[1].planDetail.includes('Homework:'), 'red homework heading');
-    assert(!orange.defaultSyllabusRowTemplates[0].planDetail.includes('음원경로'), 'orange no audio block');
+    assert(orange.defaultSyllabusRowTemplates[0].planDetail.includes('음원경로'), 'orange audio path');
     assert(red.defaultSyllabusRowTemplates[21].planTitle.includes('Review Pages 88-93'), 'final review row');
     assert(!red.defaultSyllabusRowTemplates.some(r => r.planTitle.includes('Substitute Holiday')), 'no baked-in holidays');
     assert(!red.defaultSyllabusRowTemplates.some(r => r.planTitle.includes('Extra Class')), 'no baked-in extra class');

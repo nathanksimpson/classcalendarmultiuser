@@ -73,7 +73,12 @@
 2) 워크북
 3) 복습`;
 
-    /** Hand in Hand 1–3: shared SB pagination (22 lessons); Red includes verified listening tracks. Holidays/extra days come from the calendar. */
+    /**
+     * Hand in Hand 1–3: shared SB pagination (22 lessons). Each book numbers its own
+     * listening tracks: `tracks` = HIH1 (Red), `orangeTracks` = HIH2, `yellowTracks` = HIH3
+     * (HIH2/HIH3 read page by page from the eSmart Campus ebooks, Nov 2026).
+     * Holidays/extra days come from the calendar.
+     */
     const HAND_IN_HAND_LISTENING_PATH =
         '[음원경로] : 통합자료실 → [반이름] → [교재이름] 교재파일 다운';
     const HAND_IN_HAND_PARENT_SIGN =
@@ -81,34 +86,34 @@
     const HAND_IN_HAND_INCOMPLETE_HW = 'If not completed in class, it is homework.';
 
     const HAND_IN_HAND_LESSONS = [
-        { sb: 'Unit 1 – Pages 4-7', worksheet: 1, tracks: [2, 4], homeworkHeading: false },
-        { sb: 'Unit 1 – Pages 8-11', tracks: [5, 9] },
-        { sb: 'Unit 2 – Pages 12-15', worksheet: 2, tracks: [10, 16] },
-        { sb: 'Unit 2 – Pages 16-19', pb: 'p. 1', tracks: [17, 19] },
-        { sb: 'Unit 3 – Pages 20-23', worksheet: 3, tracks: [20, 25] },
-        { sb: 'Units 3 & 4 – Pages 24-27', tracks: [26, 30] },
-        { sb: 'Unit 4 – Pages 28-31', worksheet: 4, tracks: [31, 36] },
-        { sb: 'Units 4 & 5 – Pages 32-35', pb: 'p. 3', tracks: [37, 40] },
-        { sb: 'Unit 5 – Pages 36-39', worksheet: 5, tracks: [41, 46] },
-        { sb: 'Unit 6 – Pages 40-43', worksheet: 6, tracks: [47, 52] },
-        { sb: 'Unit 6 – Pages 44-47', pb: 'p. 5', tracks: [53, 55] },
-        { sb: 'Unit 7 – Pages 48-51', worksheet: 7, tracks: [56, 61] },
-        { sb: 'Units 7 & 8 – Pages 52-55', tracks: [62, 65] },
-        { sb: 'Unit 8 – Pages 56-59', worksheet: 8, tracks: [66, 71] },
+        { sb: 'Unit 1 – Pages 4-7', worksheet: 1, tracks: [2, 4], orangeTracks: [2, 4], yellowTracks: [2, 4], homeworkHeading: false },
+        { sb: 'Unit 1 – Pages 8-11', tracks: [5, 9], orangeTracks: [5, 9], yellowTracks: [5, 8] },
+        { sb: 'Unit 2 – Pages 12-15', worksheet: 2, tracks: [10, 16], orangeTracks: [10, 16], yellowTracks: [9, 15] },
+        { sb: 'Unit 2 – Pages 16-19', pb: 'p. 1', tracks: [17, 19], orangeTracks: [17, 19], yellowTracks: [16, 19] },
+        { sb: 'Unit 3 – Pages 20-23', worksheet: 3, tracks: [20, 25], orangeTracks: [20, 26], yellowTracks: [20, 26] },
+        { sb: 'Units 3 & 4 – Pages 24-27', tracks: [26, 30], orangeTracks: [27, 31], yellowTracks: [27, 31] },
+        { sb: 'Unit 4 – Pages 28-31', worksheet: 4, tracks: [31, 36], orangeTracks: [32, 36], yellowTracks: [32, 37] },
+        { sb: 'Units 4 & 5 – Pages 32-35', pb: 'p. 3', tracks: [37, 40], orangeTracks: [37, 40], yellowTracks: [38, 41] },
+        { sb: 'Unit 5 – Pages 36-39', worksheet: 5, tracks: [41, 46], orangeTracks: [41, 45], yellowTracks: [42, 47] },
+        { sb: 'Unit 6 – Pages 40-43', worksheet: 6, tracks: [47, 52], orangeTracks: [46, 51], yellowTracks: [48, 53] },
+        { sb: 'Unit 6 – Pages 44-47', pb: 'p. 5', tracks: [53, 55], orangeTracks: [52, 54], yellowTracks: [54, 56] },
+        { sb: 'Unit 7 – Pages 48-51', worksheet: 7, tracks: [56, 61], orangeTracks: [55, 59], yellowTracks: [57, 61] },
+        { sb: 'Units 7 & 8 – Pages 52-55', tracks: [62, 65], orangeTracks: [60, 64], yellowTracks: [62, 66] },
+        { sb: 'Unit 8 – Pages 56-59', worksheet: 8, tracks: [66, 71], orangeTracks: [65, 70], yellowTracks: [67, 70] },
         {
             sb: 'Units 8 & 9 – Pages 60-63',
             pb: 'p. 7-8',
-            tracks: [72, 75],
+            tracks: [72, 75], orangeTracks: [71, 74], yellowTracks: [71, 74],
             incompleteInClass: false,
             homeworkHeading: false
         },
-        { sb: 'Unit 9 – Pages 64-67', worksheet: 9, tracks: [76, 80] },
-        { sb: 'Unit 10 – Pages 68-71', worksheet: 10, tracks: [81, 87] },
-        { sb: 'Unit 10 – Pages 72-75', pb: 'p. 9', tracks: [88, 90] },
-        { sb: 'Unit 11 – Pages 76-79', worksheet: 11, tracks: [91, 97] },
-        { sb: 'Units 11 & 12 – Pages 80-83', tracks: [98, 102] },
-        { sb: 'Unit 12 – Pages 84-87', worksheet: 12, tracks: [103, 107] },
-        { sb: 'Unit 12, Review Pages 88-93', pb: 'p. 11', tracks: [108, 118] }
+        { sb: 'Unit 9 – Pages 64-67', worksheet: 9, tracks: [76, 80], orangeTracks: [75, 78], yellowTracks: [75, 78] },
+        { sb: 'Unit 10 – Pages 68-71', worksheet: 10, tracks: [81, 87], orangeTracks: [79, 85], yellowTracks: [79, 83] },
+        { sb: 'Unit 10 – Pages 72-75', pb: 'p. 9', tracks: [88, 90], orangeTracks: [86, 88], yellowTracks: [84, 86] },
+        { sb: 'Unit 11 – Pages 76-79', worksheet: 11, tracks: [91, 97], orangeTracks: [89, 95], yellowTracks: [87, 91] },
+        { sb: 'Units 11 & 12 – Pages 80-83', tracks: [98, 102], orangeTracks: [96, 100], yellowTracks: [92, 96] },
+        { sb: 'Unit 12 – Pages 84-87', worksheet: 12, tracks: [103, 107], orangeTracks: [101, 106], yellowTracks: [97, 102] },
+        { sb: 'Unit 12, Review Pages 88-93', pb: 'p. 11', tracks: [108, 118], orangeTracks: [107, 119], yellowTracks: [103, 115] }
     ];
 
     function handInHandLessonTitle(lesson) {
@@ -129,6 +134,16 @@
         return `Tracks: ${tracks[0]}-${tracks[1]}`;
     }
 
+    function handInHandTracksForLevel(lesson, level) {
+        if (level === 'Orange') {
+            return lesson.orangeTracks || null;
+        }
+        if (level === 'Yellow') {
+            return lesson.yellowTracks || null;
+        }
+        return level === 'Red' ? lesson.tracks || null : null;
+    }
+
     function handInHandPlanDetail(lesson, level) {
         const lines = ['Covered in Class:', `Student Book: ${lesson.sb}`];
         if (lesson.worksheet != null) {
@@ -140,12 +155,12 @@
         if (lesson.incompleteInClass !== false) {
             lines.push(HAND_IN_HAND_INCOMPLETE_HW);
         }
-        const includeListening = level === 'Red' && lesson.tracks;
-        if (includeListening) {
+        const tracks = handInHandTracksForLevel(lesson, level);
+        if (tracks) {
             if (lesson.homeworkHeading !== false) {
                 lines.push('Homework:');
             }
-            lines.push(HAND_IN_HAND_LISTENING_PATH, handInHandFormatTracks(lesson.tracks));
+            lines.push(HAND_IN_HAND_LISTENING_PATH, handInHandFormatTracks(tracks));
         }
         lines.push(HAND_IN_HAND_PARENT_SIGN);
         return lines.join('\n');

@@ -7,7 +7,7 @@
         'js/syllabus-table.js?v=20261002-essay-list-month',
         'js/schedule-matrix-data.js',
         'js/syllabus-schedule-matrix.js',
-        'js/syllabus-curricula-data.js?v=20261015-p7-level',
+        'js/syllabus-curricula-data.js?v=20261113-hih-tracks',
         'js/syllabus-curricula.js',
         'js/syllabus-presets.js',
         'js/default-class-editor.js?v=20260908-quick-wins',
