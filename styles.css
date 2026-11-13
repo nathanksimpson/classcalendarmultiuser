@@ -1,4 +1,4 @@
-@import url('css/design-fidelity-append.css');
+@import url('css/design-fidelity-append.css?v=20261113-cohort-scroll');
 @import url('css/debate-teams-v2.css');
 
 /* ============================================
@@ -12231,7 +12231,7 @@ body.dino-game-open {
 
 #panel-cohorts .cohorts-board-with-detail {
     flex: 1 1 auto;
-    min-height: 0;
+    min-height: auto;
     align-items: stretch;
 }
 
@@ -12441,15 +12441,15 @@ body.dino-game-open {
 #panel-cohorts .setup-board-layout {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    height: auto;
     max-height: none;
     min-height: 0;
-    overflow: hidden;
+    overflow: visible;
     align-items: stretch;
 }
 
 #panel-cohorts .setup-board-layout > * {
-    min-height: 0;
+    min-height: auto;
 }
 
 .setup-board-center {
@@ -12463,10 +12463,10 @@ body.dino-game-open {
 #panel-cohorts .setup-board-center {
     display: flex;
     flex-direction: column;
-    flex: 1 1 0%;
-    min-height: 0;
-    overflow: hidden;
-    height: 100%;
+    flex: 1 1 auto;
+    min-height: auto;
+    overflow: visible;
+    height: auto;
 }
 
 .setup-board-main {
@@ -12476,13 +12476,13 @@ body.dino-game-open {
     gap: 0.65rem;
 }
 
+/* The page is the scroller. An inner overflow box with nothing to scroll
+   (or overscroll: contain) swallowed the wheel while the pointer was over a card. */
 #panel-cohorts .setup-board-main {
-    flex: 1 1 0%;
-    min-height: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
+    flex: 1 1 auto;
+    min-height: auto;
+    overflow: visible;
+    overscroll-behavior: auto;
 }
 
 .setup-board-view-switch {
