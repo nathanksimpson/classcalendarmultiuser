@@ -231,11 +231,64 @@
             });
             if (roomId) roomBusy.add(`${roomId}|${dow}|${n}`);
         };
-        draft.assignments.forEach((asg) => {
-            const demand = demandById.get(asg.demandId);
-            if (!demand) return;
-            (asg.meetings || []).forEach((m) => occupy(demand, asg.teacherProfileId, Number(m.dow), m.period, api.meetingRoomId(asg, m)));
-        });
+        const rebuild = () => {
+            [teacherBusy, cohortBusy, roomBusy, teacherDay, cohortDay, load].forEach((x) => x.clear());
+            draft.assignments.forEach((asg) => {
+                const demand = demandById.get(asg.demandId);
+                if (!demand) return;
+                (asg.meetings || []).forEach((m) => occupy(demand, asg.teacherProfileId, Number(m.dow), m.period, api.meetingRoomId(asg, m)));
+            });
+        };
+        rebuild();
+        const fresh = new Set(); // periods placed in this run (the only ones the repair step may shift)
+        const studentCount = (demand) => {
+            const seen = new Set();
+            (demand.cohortIds || []).forEach((cid) => {
+                ((cohortById.get(cid) || {}).students || []).forEach((st) => {
+                    if (st && st.active !== false) seen.add(st.id || st.name);
+                });
+            });
+            return seen.size;
+        };
+        /** A free room for this time: the class's own if free, else the smallest free one that seats everyone. */
+        const pickRoom = (asg, demand, dow, n) => {
+            if (!rooms.length) return null;
+            const free = (id) => id && !roomBusy.has(`${id}|${dow}|${n}`);
+            if (free(asg.roomId)) return asg.roomId;
+            const size = studentCount(demand);
+            const open = rooms.filter((r) => free(r.id));
+            const fits = open.filter((r) => r.capacity == null || !Number(r.capacity) || Number(r.capacity) >= size)
+                .sort((a, b) => (Number(a.capacity) || 999) - (Number(b.capacity) || 999));
+            const biggest = open.slice().sort((a, b) => (Number(b.capacity) || 0) - (Number(a.capacity) || 0));
+            return (fits[0] || biggest[0] || {}).id || null;
+        };
+        const addMeeting = (asg, demand, dow, n) => {
+            const meeting = {
+                meetingId: `mtg-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+                dow,
+                period: String(n),
+                auto: true
+            };
+            const roomId = pickRoom(asg, demand, dow, n);
+            if (rooms.length) {
+                if (roomId && !asg.roomId) asg.roomId = roomId;
+                else if ((roomId || '') !== (asg.roomId || '')) meeting.roomId = roomId || '';
+            }
+            asg.meetings = (asg.meetings || []).concat([meeting]);
+            fresh.add(meeting);
+            occupy(demand, asg.teacherProfileId, dow, n, roomId);
+            return meeting;
+        };
+        /** The fixed rules for one teacher (or none) taking one period at this time. Cohort clashes are checked by the caller. */
+        const teacherCanTake = (teacher, dow, n, mine) => {
+            if (!teacher) return !api.isSlotBlocked(api.defaultTeacherProfile({}), dow, n, blockouts);
+            if (teacherBusy.has(`${teacher.id}|${dow}|${n}`)) return false;
+            if (api.isSlotBlocked(teacher, dow, n, blockouts)) return false;
+            if (api.outsideTeacherHours(appData, teacher, n)) return false;
+            if (mine.length + 1 > (teacher.limits.maxPeriodsPerDay || 99)) return false;
+            if (api.longestRun(mine.concat([n])) > runLimit) return false;
+            return true;
+        };
 
         const asgOf = (demand) => draft.assignments.find((a) => a.demandId === demand.demandId) || null;
         const missingOf = (demand) => {
@@ -282,15 +335,7 @@
                         if ((demand.cohortIds || []).some((cid) => cohortBusy.has(`${cid}|${dow}|${n}`))) return;
                         if (api.outsideStudentHours(appData, demand, n)) return;
                         const mine = tDay(dow);
-                        if (teacher) {
-                            if (teacherBusy.has(`${teacher.id}|${dow}|${n}`)) return;
-                            if (api.isSlotBlocked(teacher, dow, n, blockouts)) return;
-                            if (api.outsideTeacherHours(appData, teacher, n)) return;
-                            if (mine.length + 1 > (teacher.limits.maxPeriodsPerDay || 99)) return;
-                            if (api.longestRun(mine.concat([n])) > runLimit) return;
-                        } else if (api.isSlotBlocked(api.defaultTeacherProfile({}), dow, n, blockouts)) {
-                            return;
-                        }
+                        if (!teacherCanTake(teacher, dow, n, mine)) return;
                         let score = -0.4 * idx; // earlier in the students' hours first
                         // Students should not sit through empty periods.
                         (demand.cohortIds || []).forEach((cid) => {
@@ -418,27 +463,92 @@
                 });
             }
             best.slots.picked.forEach((slot) => {
-                const meeting = {
-                    meetingId: `mtg-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-                    dow: slot.dow,
-                    period: String(slot.n),
-                    auto: true
-                };
-                let roomId = null;
-                if (rooms.length) {
-                    const free = (id) => id && !roomBusy.has(`${id}|${slot.dow}|${slot.n}`);
-                    roomId = free(asg.roomId) ? asg.roomId : ((rooms.find((r) => free(r.id)) || {}).id || null);
-                    if (roomId && !asg.roomId) asg.roomId = roomId;
-                    else if ((roomId || '') !== (asg.roomId || '')) meeting.roomId = roomId || '';
-                }
-                asg.meetings = (asg.meetings || []).concat([meeting]);
-                occupy(demand, asg.teacherProfileId, slot.dow, slot.n, roomId);
+                addMeeting(asg, demand, slot.dow, slot.n);
                 result.placed += 1;
             });
             const left = missing - best.slots.picked.length;
             if (left > 0) result.unplaced.push({ demandId: demand.demandId, missing: left, reason: 'no_time' });
             else if (!asg.teacherProfileId) result.unplaced.push({ demandId: demand.demandId, missing: 0, reason: 'no_teacher' });
         });
+
+        /*
+         * Repair step. Placing one class at a time can paint itself into a corner: a period is
+         * left over although a full timetable exists. For each left-over period, look for a time
+         * that is only taken by periods placed in this run, take it, and find those periods a new
+         * home. If they cannot all be re-homed the try is undone. Nothing placed before this run moves.
+         */
+        const teacherOf = (asg) => (asg.teacherProfileId ? teachers.find((t) => t.id === asg.teacherProfileId) || null : null);
+        const tryEject = (demand, asg) => {
+            const teacher = teacherOf(asg);
+            const days = classDays(demand);
+            const used = new Set((asg.meetings || []).map((m) => Number(m.dow)));
+            const order = days.filter((d) => !used.has(d)).concat(days.filter((d) => used.has(d)));
+            for (let di = 0; di < order.length; di += 1) {
+                const dow = order[di];
+                for (let pi = 0; pi < periods.length; pi += 1) {
+                    const n = periods[pi];
+                    if ((asg.meetings || []).some((m) => Number(m.dow) === dow && Number(m.period) === n)) continue;
+                    if (api.outsideStudentHours(appData, demand, n)) continue;
+                    const inTheWay = [];
+                    let fixedInTheWay = false;
+                    draft.assignments.forEach((other) => {
+                        if (other === asg) return;
+                        const od = demandById.get(other.demandId);
+                        if (!od) return;
+                        const shares = (od.cohortIds || []).some((cid) => (demand.cohortIds || []).includes(cid))
+                            || (teacher && other.teacherProfileId === teacher.id);
+                        if (!shares) return;
+                        (other.meetings || []).forEach((m) => {
+                            if (Number(m.dow) !== dow || Number(m.period) !== n) return;
+                            if (!fresh.has(m) || other.locked) fixedInTheWay = true;
+                            else inTheWay.push({ asg: other, m, demand: od });
+                        });
+                    });
+                    if (fixedInTheWay || !inTheWay.length || inTheWay.length > 2) continue;
+                    const saved = [[asg, asg.meetings]].concat(inTheWay.map((o) => [o.asg, o.asg.meetings]));
+                    const undo = () => {
+                        saved.forEach(([a, list]) => { a.meetings = list; });
+                        rebuild();
+                    };
+                    inTheWay.forEach((o) => { o.asg.meetings = o.asg.meetings.filter((m) => m !== o.m); });
+                    rebuild();
+                    const mine = teacher ? (teacherDay.get(`${teacher.id}|${dow}`) || []) : [];
+                    if (!teacherCanTake(teacher, dow, n, mine)) {
+                        undo();
+                        continue;
+                    }
+                    addMeeting(asg, demand, dow, n);
+                    const rehomed = inTheWay.every((o) => {
+                        const pick = chooseSlots(o.demand, teacherOf(o.asg), 1).picked[0];
+                        if (!pick) return false;
+                        addMeeting(o.asg, o.demand, pick.dow, pick.n);
+                        return true;
+                    });
+                    if (rehomed) return true;
+                    undo();
+                }
+            }
+            return false;
+        };
+        let rounds = 0;
+        let progress = true;
+        while (progress && rounds < 40) {
+            progress = false;
+            rounds += 1;
+            result.unplaced.forEach((u) => {
+                if (u.missing <= 0) return;
+                const demand = demandById.get(u.demandId);
+                const asg = demand && asgOf(demand);
+                if (!asg) return;
+                if (tryEject(demand, asg)) {
+                    u.missing -= 1;
+                    result.placed += 1;
+                    result.repaired = (result.repaired || 0) + 1;
+                    progress = true;
+                }
+            });
+        }
+        result.unplaced = result.unplaced.filter((u) => u.missing > 0 || u.reason === 'no_teacher');
 
         draft.updatedAt = new Date().toISOString();
         api.recomputeDraftMetrics(appData, draft);

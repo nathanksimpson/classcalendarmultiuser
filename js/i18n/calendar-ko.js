@@ -2884,6 +2884,7 @@
         spIssueOverDay: '{teacher}: {day}요일 하루 최대 교시를 넘었습니다 ({count}/{limit})',
         spIssueSameDay: '{name}: 같은 요일에 두 교시가 있습니다',
         spIssueNoRoom: '{name}: 교실이 없습니다',
+        spIssueRoomSmall: '{name}: 학생 {count}명, {room}은(는) {limit}석',
         spWeek: '주간',
         spSumDone: '수업 {total}개 중 {done}개 완료',
         spSumClashes: '겹침 {n}건',

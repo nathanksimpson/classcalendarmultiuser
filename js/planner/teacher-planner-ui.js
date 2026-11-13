@@ -509,6 +509,8 @@
             });
         case 'duplicate_weekday_2x':
             return t('spIssueSameDay', '{name} has two periods on the same day', { name });
+        case 'room_too_small':
+            return t('spIssueRoomSmall', '{name}: {count} students in {room}, which seats {limit}', { name, count: issue.count, limit: issue.limit, room: roomName(m, issue.roomId) });
         case 'room_unresolved':
             return t('spIssueNoRoom', '{name} has no room', { name });
         default:
@@ -526,7 +528,7 @@
         { id: 'clash', codes: ['teacher_double_booked', 'cohort_double_booked', 'room_conflict'] },
         { id: 'todo', codes: ['no_teacher', 'incomplete_placements'] },
         { id: 'warn', codes: ['outside_band_block', 'outside_cohort_days', 'teacher_unavailable', 'wrong_teacher_type', 'wrong_junior_senior_band', 'over_load', 'max_periods_per_day', 'long_run', 'teacher_limit', 'duplicate_weekday_2x'] },
-        { id: 'room', codes: ['room_unresolved'] }
+        { id: 'room', codes: ['room_unresolved', 'room_too_small'] }
     ];
 
     function groupedIssues(m) {
@@ -914,7 +916,7 @@ ${state.issuesOpen ? `<div class="sp-issues-body">${total ? groups.filter((g) =>
         let demandId = issue.demandId;
         const asg = issue.assignmentId ? M.draft.assignments.find((a) => a.assignmentId === issue.assignmentId) : null;
         if (!demandId && asg) demandId = asg.demandId;
-        if (issue.code === 'room_conflict' || issue.code === 'room_unresolved') {
+        if (issue.code === 'room_conflict' || issue.code === 'room_unresolved' || issue.code === 'room_too_small') {
             if (M.rooms.length) state.view = 'rooms';
         } else if (issue.code === 'cohort_double_booked' || issue.code === 'outside_cohort_days') {
             state.view = 'cohorts';

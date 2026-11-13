@@ -1554,6 +1554,37 @@
                     suggestedAction: 'assignRoom'
                 }));
             }
+            // Room smaller than the class.
+            const classSize = (() => {
+                const seen = new Set();
+                (demand.cohortIds || []).forEach((cid) => {
+                    const c = (appData.cohorts || []).find((x) => x && x.id === cid);
+                    ((c && c.students) || []).forEach((st) => { if (st && st.active !== false) seen.add(st.id || st.name); });
+                });
+                return seen.size;
+            })();
+            const smallSeen = new Set();
+            if (classSize) {
+                meetings.forEach((m) => {
+                    const rid = meetingRoomId(asg, m);
+                    const room = rid ? (appData.rooms || []).find((r) => r.id === rid) : null;
+                    const cap = room ? Number(room.capacity) : 0;
+                    if (!cap || cap >= classSize || smallSeen.has(rid)) return;
+                    smallSeen.add(rid);
+                    issues.push(createIssue({
+                        severity: 'soft',
+                        code: 'room_too_small',
+                        message: `${demand.name}: ${classSize} students in a room for ${cap}.`,
+                        assignmentId: asg.assignmentId,
+                        demandId: demand.demandId,
+                        roomId: rid,
+                        dow: Number(m.dow),
+                        period: String(m.period),
+                        count: classSize,
+                        limit: cap
+                    }));
+                });
+            }
             const roomOthers = (draft.assignments || []).filter((a) => a.assignmentId !== asg.assignmentId);
             roomClashMeetings(asg, roomOthers).forEach((m) => {
                 issues.push(createIssue({

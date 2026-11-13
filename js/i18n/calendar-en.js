@@ -2885,6 +2885,7 @@
         spIssueOverDay: '{teacher} is over the daily limit on {day} ({count}/{limit})',
         spIssueSameDay: '{name} has two periods on the same day',
         spIssueNoRoom: '{name} has no room',
+        spIssueRoomSmall: '{name}: {count} students in {room}, which seats {limit}',
         spWeek: 'Week',
         spSumDone: '{done} of {total} classes ready',
         spSumClashes: '{n} clashes',

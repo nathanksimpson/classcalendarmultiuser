@@ -163,3 +163,38 @@ console.log('planner-auto tests passed');
     assert(auto.termHasStarted(d, new Date(2026, 10, 14)) === false, 'term not started');
     console.log('clash fixing tests passed');
 }
+
+/* Repair step: a completely full cohort still gets every period, and rooms fit the class. */
+{
+    const kids = (n, p) => Array.from({ length: n }, (_, i) => ({ id: `${p}${i}`, name: `${p}${i}` }));
+    const d = {
+        cohorts: [
+            { id: 'o', name: 'Orange', meetingDays: [1, 3, 5], level: 'Orange', students: kids(12, 'o') },
+            { id: 'g', name: 'Green', meetingDays: [1, 3, 5], level: 'Green', students: kids(6, 'g') }
+        ],
+        // Junior hours are 3 periods a day x 3 days = 9 slots; each cohort needs all 9.
+        classes: [].concat(...['o', 'g'].map((c) => [
+            { id: `${c}1`, name: `${c} Debate`, cohortIds: [c], weeklyFrequency: 2 },
+            { id: `${c}2`, name: `${c} RC`, cohortIds: [c], weeklyFrequency: 2 },
+            { id: `${c}3`, name: `${c} Grammar`, cohortIds: [c], weeklyFrequency: 2 },
+            { id: `${c}4`, name: `${c} Speaking`, cohortIds: [c], weeklyFrequency: 3, teacherRequirementType: 'native' }
+        ])),
+        teacherProfiles: [
+            { id: 'k1', name: 'K1' }, { id: 'k2', name: 'K2' }, { id: 'k3', name: 'K3' },
+            { id: 'n1', name: 'N1', role: 'native', limits: { ownTypeOnly: true } }
+        ],
+        rooms: [{ id: 'small', name: 'Small', capacity: 8, sortOrder: 1 }, { id: 'big', name: 'Big', capacity: 16, sortOrder: 2 }]
+    };
+    api.ensurePlannerFields(d);
+    auto.buildOptions(d, { id: 'f', assignments: [], issues: [], metrics: {} }, undefined).forEach((o) => {
+        assert(o.result.unplaced.length === 0, `${o.id}: full timetable placed (${JSON.stringify(o.result.unplaced)})`);
+        assert(o.stats.ready === 8 && o.stats.clashes === 0, `${o.id}: all ready, no clashes`);
+        assert(!o.draft.issues.some((i) => i.code === 'room_too_small'), `${o.id}: rooms fit`);
+        assert(!o.draft.issues.some((i) => i.code === 'long_run' || i.code === 'outside_band_block'), `${o.id}: rules kept`);
+    });
+    // By hand, a room that is too small is only a warning.
+    const dr = { id: 'h', assignments: [], issues: [], metrics: {} };
+    assert(api.placePeriod(d, dr, 'demand:o1', { dow: 1, period: '1', roomId: 'small' }).ok, 'small room allowed by hand');
+    assert(dr.issues.some((i) => i.code === 'room_too_small' && i.count === 12 && i.limit === 8), 'and warned');
+    console.log('repair and room tests passed');
+}
