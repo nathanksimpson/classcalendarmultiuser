@@ -1091,6 +1091,81 @@
         }
     }
 
+    function wheelPixels(event, axis) {
+        const delta = axis === 'x' ? event.deltaX : event.deltaY;
+        if (event.deltaMode === 1) {
+            return delta * 16;
+        }
+        if (event.deltaMode === 2) {
+            const size = axis === 'x' ? window.innerWidth : window.innerHeight;
+            return delta * size;
+        }
+        return delta;
+    }
+
+    function canScrollOnAxis(el, delta, axis) {
+        if (!el || el.nodeType !== 1 || !delta) {
+            return false;
+        }
+        const style = getComputedStyle(el);
+        const overflow = axis === 'x' ? style.overflowX : style.overflowY;
+        if (overflow !== 'auto' && overflow !== 'scroll' && overflow !== 'overlay') {
+            return false;
+        }
+        const range = axis === 'x'
+            ? el.scrollWidth - el.clientWidth
+            : el.scrollHeight - el.clientHeight;
+        if (range <= 1) {
+            return false;
+        }
+        const pos = axis === 'x' ? el.scrollLeft : el.scrollTop;
+        if (delta > 0) {
+            return pos < range - 1;
+        }
+        return pos > 0;
+    }
+
+    function onCohortPageWheel(event) {
+        const panel = document.getElementById('panel-cohorts');
+        if (!panel || panel.hidden || event.ctrlKey) {
+            return;
+        }
+        const deltaY = wheelPixels(event, 'y');
+        const deltaX = wheelPixels(event, 'x');
+        if (!deltaY || Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
+            return;
+        }
+        let node = event.target instanceof Element ? event.target : null;
+        if (!node && event.target && event.target.parentElement) {
+            node = event.target.parentElement;
+        }
+        const dialog = node && node.closest && node.closest('.modal.active, dialog[open]');
+        if (dialog) {
+            while (node && node !== dialog) {
+                if (canScrollOnAxis(node, deltaY, 'y')) {
+                    return;
+                }
+                node = node.parentElement;
+            }
+            const body = dialog.querySelector('.modal-body-scroll, .setup-board-picker-list');
+            if (body && canScrollOnAxis(body, deltaY, 'y')) {
+                body.scrollTop += deltaY;
+                event.preventDefault();
+            }
+            return;
+        }
+        window.scrollBy(0, deltaY);
+        event.preventDefault();
+    }
+
+    function bindCohortPageWheel() {
+        if (typeof document === 'undefined' || document.documentElement.dataset.cohortPageWheel === '1') {
+            return;
+        }
+        document.documentElement.dataset.cohortPageWheel = '1';
+        document.addEventListener('wheel', onCohortPageWheel, { capture: true, passive: false });
+    }
+
     function bindScopeControls(scope) {
         const panel = document.getElementById(scope.panelId);
         if (!panel || panel.dataset.setupBoardBound === '1') {
@@ -1119,6 +1194,7 @@
         registerScope(scope);
         scopeHooksByPanel.set(scope.panelId, tabHooks);
         bindScopeControls(scope);
+        bindCohortPageWheel();
         ensureUiBoardView();
         document.body.dataset.setupBoardInitialized = '1';
         renderBoardForScope(scope.panelId);

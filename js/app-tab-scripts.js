@@ -18,7 +18,7 @@
             'js/hr-teacher-list.js?v=20261015-p7-level',
             'js/hr-teacher-list-print.js?v=20260909-hr-title',
             'js/cohort-management.js?v=20261014-p6-hierarchy',
-            'js/setup-board.js?v=20260828-cohort-catch22',
+            'js/setup-board.js?v=20261113-cohort-scroll',
             'js/cohorts-class-detail.js?v=20260908-quick-wins'
         ],
         timetable: [

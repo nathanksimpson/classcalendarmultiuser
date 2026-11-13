@@ -89,7 +89,8 @@ function concatCssForDist(entryRel) {
         let css = readFileSync(abs, 'utf8');
         return css.replace(/@import\s+url\(['"]?([^'")]+)['"]?\)\s*;/g, (_, relImport) => {
             const baseDir = path.dirname(abs);
-            const importPath = path.resolve(baseDir, relImport).replace(/\\/g, '/');
+            const cleanImport = relImport.split('#')[0].split('?')[0];
+            const importPath = path.resolve(baseDir, cleanImport).replace(/\\/g, '/');
             if (visited.has(importPath)) {
                 return '';
             }
