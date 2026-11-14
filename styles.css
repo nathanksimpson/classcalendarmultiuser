@@ -26337,3 +26337,75 @@ body.planner-page.sp-dragging .sp-cell[data-drop="warn"] {
 .sp-table input[type="time"] {
     width: 132px;
 }
+
+/* Planner Cohorts sheet: students under the cohort name, room row under each period */
+.sp-col-count {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.sp-grid tr.sp-roomrow > th,
+.sp-grid tr.sp-roomrow > td {
+    border-bottom-width: 2px;
+}
+
+.sp-roomlabel {
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    vertical-align: middle !important;
+}
+
+.sp-roomcell {
+    padding: 2px 3px;
+    background: var(--bg-hover);
+    vertical-align: top;
+}
+
+.sp-roomcell.is-empty {
+    background: transparent;
+}
+
+.sp-roomline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 6px;
+}
+
+.sp-roomline + .sp-roomline {
+    margin-top: 3px;
+}
+
+.sp-roomsel {
+    min-width: 0;
+    max-width: 100%;
+    flex: 1 1 90px;
+    padding: 1px 4px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.sp-roomline.is-missing .sp-roomsel {
+    border-style: dashed;
+    color: var(--sp-warn, #b45309);
+}
+
+.sp-roomline.is-clash .sp-roomsel {
+    border-color: var(--danger);
+}
+
+.sp-roomsize,
+.sp-roomnone {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}

@@ -227,7 +227,7 @@
                     days: P.cohortBlock(data, c).days,
                     block: P.cohortBlock(data, c),
                     homeroom: String(c.homeroomTeacherName || '').trim(),
-                    students: Array.isArray(c.students) ? c.students.length : 0
+                    students: Array.isArray(c.students) ? c.students.filter((st) => st && st.active !== false && !st.archivedAt).length : 0
                 };
             })
             .sort((a, b) => bandRank(a.band) - bandRank(b.band) || a.rank - b.rank
@@ -347,8 +347,13 @@
             cols.push({ id: NONE, name: t('spNoRoom', 'No room'), none: true });
             return cols;
         }
+        // One day: only cohorts that come that day (an MWF day has no TT columns, and the other way
+        // round), plus any cohort that has a class placed on it anyway.
+        const dayOnly = state.day >= 1 && state.day <= 5;
         const cols = m.cohorts
             .filter((c) => state.band === 'all' || c.band === state.band)
+            .filter((c) => !dayOnly || !c.days.length || c.days.includes(state.day)
+                || m.tiles.some((x) => Number(x.m.dow) === state.day && x.cohortIds.includes(c.id)))
             .map((c) => ({ id: c.id, name: c.name, cohort: c }));
         if (m.noCohortDemands) cols.push({ id: NONE, name: t('spNoCohort', 'No cohort'), none: true });
         return cols;
@@ -745,6 +750,7 @@ ${asg && asg.auto && asg.auto.count && asg.teacherProfileId ? `<p class="sp-hint
             const c = col.cohort;
             return `
 <span class="sp-col-name"><span class="sp-swatch" style="background:${esc(c.color || '#94a3b8')}"></span>${esc(col.name)}</span>
+<span class="sp-col-count">${esc(t('spStudentsN', '{n} students', { n: c.students }))}</span>
 <span class="sp-col-meta">${esc(bandLabel(c.band))}${c.homeroom ? ` · ${esc(c.homeroom)}` : ''}</span>`;
         }
         if (col.room) {
@@ -761,6 +767,13 @@ ${asg && asg.auto && asg.auto.count && asg.teacherProfileId ? `<p class="sp-hint
         return t('plannerSenior', 'Senior');
     }
 
+    /** On the Cohorts sheet the column already names the cohort: show the subject part of the class name. */
+    function subjectOnly(m, demand) {
+        const name = String(demand.name || '');
+        const i = name.lastIndexOf(' · ');
+        return i > 0 ? name.slice(i + 3) : name;
+    }
+
     function tileHtml(m, tile) {
         const { asg, m: meeting, demand } = tile;
         const bits = [];
@@ -769,7 +782,7 @@ ${asg && asg.auto && asg.auto.count && asg.teacherProfileId ? `<p class="sp-hint
         const room = roomName(m, tile.roomId);
         if (state.view !== 'cohorts' && cohort && !demand.name.toLowerCase().includes(cohort.toLowerCase())) bits.push(cohort);
         if (state.view !== 'teachers') bits.push(teacher || t('spNoTeacher', 'No teacher'));
-        if (state.view !== 'rooms' && room) bits.push(room);
+        if (state.view === 'teachers' && room) bits.push(room);
         const why = [];
         if (tile.clash.includes('teacher')) why.push(reasonText('teacher_double_booked'));
         if (tile.clash.includes('cohort')) why.push(reasonText('cohort_double_booked'));
@@ -785,7 +798,7 @@ ${asg && asg.auto && asg.auto.count && asg.teacherProfileId ? `<p class="sp-hint
 <div class="sp-tile${tile.clash.length ? ' is-clash' : ''}${tile.warn ? ' is-warn' : ''}${sel ? ' is-selected' : ''}${state.selected && !sel ? ' is-dim' : ''}${flash === key ? ' is-flash' : ''}"
   data-drag="tile" data-asg="${esc(asg.assignmentId)}" data-demand="${esc(demand.demandId)}" data-dow="${Number(meeting.dow)}" data-period="${esc(meeting.period)}"
   style="--c:${esc(demandColor(m, demand))}"${why.length ? ` title="${esc(why.join(' · '))}"` : ''}>
-  <span class="sp-tile-name">${asg.locked ? '<span class="sp-tile-lock" aria-hidden="true">🔒</span>' : ''}${why.length ? '<span class="sp-tile-flag" aria-hidden="true">!</span>' : ''}${esc(demand.name)}</span>
+  <span class="sp-tile-name">${asg.locked ? '<span class="sp-tile-lock" aria-hidden="true">🔒</span>' : ''}${why.length ? '<span class="sp-tile-flag" aria-hidden="true">!</span>' : ''}${esc(state.view === 'cohorts' ? subjectOnly(m, demand) : demand.name)}</span>
   ${bits.length ? `<span class="sp-tile-sub">${esc(bits.join(' · '))}</span>` : ''}
   <button type="button" class="sp-tile-x" data-act="remove-period" data-asg="${esc(asg.assignmentId)}" data-dow="${Number(meeting.dow)}" data-period="${esc(meeting.period)}" aria-label="${esc(t('spRemovePeriod', 'Take off the board'))}">×</button>
 </div>`;
@@ -809,6 +822,58 @@ ${asg && asg.auto && asg.auto.count && asg.teacherProfileId ? `<p class="sp-hint
         if (col.cohort && col.cohort.days.length && !col.cohort.days.includes(dow)) cls += ' is-offday';
         if (col.none) cls += ' is-none';
         return `<td class="${cls}" data-cell="1" data-col="${esc(col.id)}" data-dow="${dow}" data-period="${esc(row.period)}">${tiles.map((x) => tileHtml(m, x)).join('')}${!tiles.length && label ? `<span class="sp-cell-label">${esc(label)}</span>` : ''}</td>`;
+    }
+
+    /** Students in a class: every student of all its cohorts, counted once (combined classes too). */
+    function classSize(m, demand) {
+        return api().classSizeOf(m.data, demand);
+    }
+
+    /**
+     * Cohort sheet: a row under each period with the room of every class in it, like the printed
+     * 강의실 row. A combined class shows its total students. Only on the Cohorts sheet.
+     */
+    function roomRowHtml(m, cells, row) {
+        if (state.view !== 'cohorts') return '';
+        const anything = cells.some(({ col, dow }) => (m.cellTiles.get(`${col.id}|${dow}|${row.period}`) || []).length);
+        if (!anything) return '';
+        const used = new Map(); // roomId -> assignmentId at this time, per weekday
+        const roomUse = (dow) => {
+            if (!used.has(dow)) {
+                const map = new Map();
+                m.tiles.forEach((x) => {
+                    if (x.roomId && Number(x.m.dow) === Number(dow) && String(x.m.period) === row.period) map.set(x.roomId, x.asg.assignmentId);
+                });
+                used.set(dow, map);
+            }
+            return used.get(dow);
+        };
+        const cellsHtml = cells.map(({ col, dow }) => {
+            const tiles = m.cellTiles.get(`${col.id}|${dow}|${row.period}`) || [];
+            if (!tiles.length) return '<td class="sp-roomcell is-empty"></td>';
+            return `<td class="sp-roomcell">${tiles.map((x) => {
+                const size = classSize(m, x.demand);
+                const combined = (x.demand.cohortIds || []).filter((cid) => m.cohortById.has(cid)).length > 1;
+                const busy = roomUse(dow);
+                const opts = m.rooms.map((r) => {
+                    const takenBy = busy.get(r.id);
+                    const taken = takenBy && takenBy !== x.asg.assignmentId;
+                    const small = Number(r.capacity) > 0 && size > Number(r.capacity);
+                    const note = taken ? t('spRoomInUse', 'in use') : small ? t('spRoomTooSmallShort', 'too small') : '';
+                    return `<option value="${esc(r.id)}"${r.id === x.roomId ? ' selected' : ''}${(taken || small) && r.id !== x.roomId ? ' disabled' : ''}>${esc(r.name)}${r.capacity ? ` (${Number(r.capacity)})` : ''}${note ? ` · ${esc(note)}` : ''}</option>`;
+                }).join('');
+                const label = combined
+                    ? t('spCombinedSize', '{n} students (combined)', { n: size })
+                    : t('spStudentsN', '{n} students', { n: size });
+                return `<div class="sp-roomline${x.roomId ? '' : ' is-missing'}${x.clash.includes('room') ? ' is-clash' : ''}">
+  ${m.rooms.length ? `<select class="sp-roomsel" data-change="tile-room" data-asg="${esc(x.asg.assignmentId)}" data-dow="${Number(x.m.dow)}" data-period="${esc(x.m.period)}" aria-label="${esc(t('spRoomFor', 'Room for {name}', { name: x.demand.name }))}"${readOnly() ? ' disabled' : ''}>
+    <option value="">${esc(t('spNoRoom', 'No room'))}</option>${opts}
+  </select>` : `<span class="sp-roomnone">${esc(t('spNoRoomsYet', 'No rooms set up'))}</span>`}
+  ${combined || tiles.length > 1 ? `<span class="sp-roomsize">${esc(label)}</span>` : ''}
+</div>`;
+            }).join('')}</td>`;
+        }).join('');
+        return `<tr class="sp-roomrow"><th scope="row" class="sp-time sp-roomlabel">${esc(t('spRoomRow', 'Room'))}</th>${cellsHtml}</tr>`;
     }
 
     function renderBoard() {
@@ -847,13 +912,13 @@ ${asg && asg.auto && asg.auto.count && asg.teacherProfileId ? `<p class="sp-hint
             html += `<div class="sp-board-scroll"><table class="sp-grid sp-grid--week"><thead><tr><th class="sp-corner"><div class="sp-colhead">${colHeader(M, col)}</div></th>${DAYS.map((d) => {
                 const off = col.cohort && col.cohort.days.length && !col.cohort.days.includes(d);
                 return `<th scope="col" class="sp-dayhead${off ? ' is-offday' : ''}">${esc(dayLabel(d))}</th>`;
-            }).join('')}</tr></thead><tbody>${M.periods.map((row, i) => `<tr class="${i > 0 && M.periods[i - 1].band !== row.band ? 'is-split' : ''}">${timeCell(row, i)}${DAYS.map((d) => cellHtml(M, col, d, row)).join('')}</tr>`).join('')}</tbody></table></div>`;
+            }).join('')}</tr></thead><tbody>${M.periods.map((row, i) => `<tr class="${i > 0 && M.periods[i - 1].band !== row.band ? 'is-split' : ''}">${timeCell(row, i)}${DAYS.map((d) => cellHtml(M, col, d, row)).join('')}</tr>${roomRowHtml(M, DAYS.map((d) => ({ col, dow: d })), row)}`).join('')}</tbody></table></div>`;
         } else {
             const d = state.day;
             html += `<div class="sp-board-scroll"><table class="sp-grid sp-grid--day" style="--cols:${cols.length}"><thead><tr><th class="sp-corner">${esc(dayLabel(d))}</th>${cols.map((c) => {
                 const off = c.cohort && c.cohort.days.length && !c.cohort.days.includes(d);
                 return `<th scope="col" class="sp-colth${off ? ' is-offday' : ''}${c.none ? ' is-none' : ''}"><div class="sp-colhead">${colHeader(M, c)}</div></th>`;
-            }).join('')}</tr></thead><tbody>${M.periods.map((row, i) => `<tr class="${i > 0 && M.periods[i - 1].band !== row.band ? 'is-split' : ''}">${timeCell(row, i)}${cols.map((c) => cellHtml(M, c, d, row)).join('')}</tr>`).join('')}</tbody></table></div>`;
+            }).join('')}</tr></thead><tbody>${M.periods.map((row, i) => `<tr class="${i > 0 && M.periods[i - 1].band !== row.band ? 'is-split' : ''}">${timeCell(row, i)}${cols.map((c) => cellHtml(M, c, d, row)).join('')}</tr>${roomRowHtml(M, cols.map((c) => ({ col: c, dow: d })), row)}`).join('')}</tbody></table></div>`;
         }
         el.innerHTML = html;
         const next = el.querySelector('.sp-board-scroll');
@@ -2442,6 +2507,11 @@ ${by.get(cid).map((d) => `
             });
             M = buildModel();
             renderSetup();
+        } else if (kind === 'tile-room') {
+            const asgId = el.getAttribute('data-asg');
+            const dow = Number(el.getAttribute('data-dow'));
+            const period = el.getAttribute('data-period');
+            mutate((data, draft) => api().setMeetingRoom(data, draft, asgId, dow, period, el.value || ''));
         } else if (kind === 'fix-agree') {
             fixState.agreed = el.checked;
             renderFix();

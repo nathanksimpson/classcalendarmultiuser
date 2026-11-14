@@ -168,9 +168,29 @@ const TEACHERS = [
     role,
     limits: { maxPeriodsPerWeek: 22, maxPeriodsPerDay: 6, ownTypeOnly: role === 'native' }
 }));
-const ROOMS = ['201', '202', '203', '204', '205', '206'].map((n, i) => ({
-    id: id('rm'), name: `Room ${n}`, capacity: i < 2 ? 8 : 12, sortOrder: i + 1
+const ROOMS = ['201', '202', '203', '204', '205', '206', '301'].map((n, i) => ({
+    id: id('rm'), name: `Room ${n}`, capacity: n === '301' ? 20 : i < 2 ? 8 : 12, sortOrder: i + 1
 }));
+
+/**
+ * Combined classes (합반): two cohorts with the same subject take it together. The two cohorts'
+ * own classes of that subject are replaced by one class linked to both.
+ */
+function combine(cohorts, classes, nameA, nameB, track) {
+    const a = cohorts.find((c) => c.name === nameA);
+    const b = cohorts.find((c) => c.name === nameB);
+    const sub = SUBJECTS[track];
+    const mine = classes.filter((c) => (c.cohortId === a.id || c.cohortId === b.id) && c.name.endsWith(`· ${sub.en}`));
+    if (mine.length !== 2) throw new Error(`cannot combine ${nameA} + ${nameB} ${track}`);
+    const keep = mine[0];
+    const drop = mine[1];
+    classes.splice(classes.indexOf(drop), 1);
+    b.classIds = b.classIds.filter((x) => x !== drop.id).concat([keep.id]);
+    keep.name = `${a.name} + ${b.name} · ${sub.en}`;
+    keep.cohortIds = [a.id, b.id];
+    keep.weeklyFrequency = Math.max(keep.weeklyFrequency, drop.weeklyFrequency);
+    return keep;
+}
 
 function baseCalendar(name, term, cohorts, classes) {
     return {
@@ -197,6 +217,8 @@ const fallTerm = { start: '2026-09-01', end: '2026-11-30' };
 const roster = SIZES.map((n) => Array.from({ length: n }, student));
 const fallCohorts = FALL.map(([lvl, pat], i) => makeCohort(lvl, pat, roster[i]));
 const fallClasses = fallCohorts.flatMap((c) => makeClasses(c, fallTerm));
+combine(fallCohorts, fallClasses, 'Garam M', 'Bada M', 'debate');
+combine(fallCohorts, fallClasses, 'Byeolmaru M', 'Mirinae M', 'newsLc');
 const fall = baseCalendar('Sample · Fall 2026 (scheduled)', fallTerm, fallCohorts, fallClasses);
 P.ensurePlannerFields(fall);
 
@@ -258,6 +280,8 @@ const wCohorts = [...merged.values()].map((w) => {
     return makeCohort(w.level, w.pattern, w.students);
 });
 const wClasses = wCohorts.flatMap((c) => makeClasses(c, winterTerm));
+combine(wCohorts, wClasses, 'Garam M', 'Bada M', 'debate');
+combine(wCohorts, wClasses, 'Byeolmaru M', 'Mirinae M', 'newsLc');
 const winter = baseCalendar('Sample · Winter 2027 (to schedule)', winterTerm, wCohorts, wClasses);
 
 /* ------------------------------------------------------------ checks */

@@ -321,7 +321,11 @@
                         if (api.outsideStudentHours(appData, demand, n, dow)) return;
                         const mine = tDay(dow);
                         if (!teacherCanTake(teacher, dow, n, mine)) return;
+                        // Prefer times when a room that seats the class is free (a room is never shared or overfilled).
+                        const roomFree = !rooms.length || rooms.some((r) => !roomBusy.has(`${r.id}|${dow}|${n}`)
+                            && !api.roomTooSmall(appData, demand, r.id));
                         let score = -0.4 * idx; // earlier in the students' hours first
+                        if (!roomFree) score -= 40;
                         // Students should not sit through empty periods.
                         (demand.cohortIds || []).forEach((cid) => {
                             const theirs = cohortDay.get(`${cid}|${dow}`) || [];
