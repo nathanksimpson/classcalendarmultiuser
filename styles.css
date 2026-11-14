@@ -26446,3 +26446,83 @@ body.planner-page.sp-dragging .sp-cell[data-drop="warn"] {
     border-color: color-mix(in srgb, var(--c) 60%, var(--border-color));
     background: color-mix(in srgb, var(--c) 22%, var(--bg-card));
 }
+
+/* Schedule sub-tab row on the planner page, and the Planner link among the Schedule sub-tabs */
+a.app-zone-segment-btn {
+    text-decoration: none;
+}
+
+.sp-subtabs {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: var(--space-2) var(--app-gutter, var(--space-5)) 0;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--zone-tab-track-bg, var(--bg-hover));
+}
+
+/* Planner print sheets: always dark ink on white (also from the dark theme), colours kept,
+   blocks and rows not split across pages, wide sheets squeezed to fit (iPad prints portrait). */
+@media print {
+    body:has(#plannerPrintArea),
+    body:has(#plannerPrintArea) #plannerPrintArea {
+        background: #fff !important;
+        color: #1c2430 !important;
+        -webkit-text-size-adjust: 100%;
+    }
+    body:has(#plannerPrintArea) #plannerPrintArea {
+        position: static !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+    }
+    #plannerPrintArea .planner-print-page-title,
+    #plannerPrintArea .planner-print-block-title {
+        color: #1c2430 !important;
+    }
+    #plannerPrintArea .planner-print-page-meta,
+    #plannerPrintArea .planner-print-block-subtitle {
+        color: #5a6a80 !important;
+    }
+    #plannerPrintArea .planner-print-page-header {
+        border-bottom-color: #1c2430 !important;
+    }
+    #plannerPrintArea .planner-print-table {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    #plannerPrintArea .planner-print-table th,
+    #plannerPrintArea .planner-print-table td {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        overflow-wrap: anywhere;
+        word-break: keep-all;
+    }
+    #plannerPrintArea .planner-print-table th:not([style*="color"]),
+    #plannerPrintArea .planner-print-table td:not([style*="color"]) {
+        color: #1c2430;
+    }
+    #plannerPrintArea .planner-print-table tr,
+    #plannerPrintArea .planner-print-block {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+    #plannerPrintArea .planner-print-page {
+        break-after: page;
+        margin-bottom: 0;
+    }
+    #plannerPrintArea .planner-print-page:last-child {
+        break-after: auto;
+    }
+    #plannerPrintArea[data-density="snug"] .planner-print-table,
+    #plannerPrintArea[data-density="snug"] .planner-print-cell-name { font-size: 9px; }
+    #plannerPrintArea[data-density="snug"] .planner-print-cell-sub { font-size: 8px; }
+    #plannerPrintArea[data-density="snug"] .planner-print-time-col { width: 52px; font-size: 8px; }
+    #plannerPrintArea[data-density="tight"] .planner-print-table,
+    #plannerPrintArea[data-density="tight"] .planner-print-cell-name { font-size: 7.5px; }
+    #plannerPrintArea[data-density="tight"] .planner-print-cell-sub { font-size: 6.5px; }
+    #plannerPrintArea[data-density="tight"] .planner-print-time-col { width: 44px; font-size: 7px; }
+    #plannerPrintArea[data-density="tight"] .planner-print-table th,
+    #plannerPrintArea[data-density="tight"] .planner-print-table td { padding: 2px; }
+}

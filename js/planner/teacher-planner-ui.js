@@ -2221,10 +2221,14 @@ ${by.get(cid).map((d) => `
             : kind === 'rooms' ? printRoomSchedule()
                 : kind === 'byroom' ? printWeekly('rooms') : printWeekly(kind);
         area.setAttribute('aria-hidden', 'false');
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-            global.print();
-            area.setAttribute('aria-hidden', 'true');
-        }));
+        // Wide sheets (a column per cohort or room) are squeezed to the page instead of being cut off.
+        const cols = Math.max(0, ...Array.from(area.querySelectorAll('table')).map((tb) => (tb.rows[0] ? tb.rows[tb.rows.length - 1].cells.length : 0)));
+        area.setAttribute('data-density', cols > 12 ? 'tight' : cols > 8 ? 'snug' : 'normal');
+        // Print straight from the tap: iPad Safari may ignore print() called later. Reading a size
+        // forces layout first. The sheet stays in place (hidden on screen), because on iPad print()
+        // returns before the page is captured.
+        void area.offsetHeight;
+        global.print();
     }
 
     /* ----------------------------------------------------------------- events */

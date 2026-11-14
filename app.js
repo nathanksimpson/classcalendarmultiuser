@@ -11633,6 +11633,7 @@ function initDayNotesUi() {
     }
     bindOpenPlannerAppControl(document.getElementById('openPlannerAppHeaderBtn'));
     bindOpenPlannerAppControl(document.getElementById('dataOpenPlannerBtn'));
+    bindOpenPlannerAppControl(document.getElementById('scheduleOpenPlannerSeg'));
     bindOpenPlannerAppControl(document.getElementById('timetableOpenPlannerBtn'));
     bindOpenPlannerAppControl(document.getElementById('teachersPlaceholderOpenPlannerBtn'));
     bindOpenPlannerAppControl(document.getElementById('printCenterPlannerLink'));

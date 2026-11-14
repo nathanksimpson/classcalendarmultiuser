@@ -376,6 +376,7 @@
         boardPickBoard: 'Choose a class or cohort first.',
         tabNotesMobile: 'Day notes',
         tabTimetable: 'Timetable',
+        tabPlanner: 'Planner',
         tabCommandCenter: 'Command Center',
         tabTeachers: 'Teachers',
         teachersPlaceholderTitle: 'Teachers',

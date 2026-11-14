@@ -376,6 +376,7 @@
         boardPickBoard: '먼저 수업이나 반을 선택하세요.',
         tabNotesMobile: '일지',
         tabTimetable: '시간표',
+        tabPlanner: '시간표 플래너',
         tabCommandCenter: '커맨드 센터',
         tabTeachers: '선생님 관리',
         teachersPlaceholderTitle: '선생님',
