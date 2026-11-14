@@ -142,7 +142,7 @@ Use these in `@media` — **not** ad-hoc pixel values:
 
 Touch targets: `--touch-min` (44px) on `.btn`, `.btn-small`, `.btn-sm`, `.btn-compact`, and `.app-top-bar-toggle` when `html[data-viewport]` is `phone`, `tablet-sm`, or `tablet` (≤1024px). Desktop (>1024px) keeps compact 36px controls. Optional utility: `.touch-target`.
 
-**Scroll:** `body { overscroll-behavior: none }` on the shell; inner panels use `.scroll-region` or `overscroll-behavior: contain` plus `-webkit-overflow-scrolling: touch`.
+**Scroll (summary):** `body { overscroll-behavior: none }` on the shell; inner panels use `.scroll-region` or `overscroll-behavior: contain` plus `-webkit-overflow-scrolling: touch`. Full rules: [Scroll, sticky, and layout stability](#scroll-sticky-and-layout-stability).
 
 ### Dark mode exceptions
 
@@ -305,6 +305,72 @@ name → colors → curriculum → term dates → period/level/grade → total l
 
 ---
 
+## Scroll, sticky, and layout stability
+
+These patterns are the default for new setup tabs, editors, and satellite pages (validated on Cohorts, Homework, class editor, lock/sync bar, Schedule planner). Prefer **CSS layout** over JavaScript wheel routing unless only JS can fix a browser quirk.
+
+### Choose one primary scroller
+
+| Pattern | When | Example |
+|---------|------|---------|
+| **Page scrolls** | Long forms, setup boards, side-by-side panels | Cohorts (`#panel-cohorts`), Homework |
+| **Named inner scrollport** | Wide grids, bounded lists in modals | `.sp-board-scroll`, `.setup-board-picker-list`, `.modal-body-scroll` |
+
+**Rules**
+
+- Decide explicitly before coding; add a short CSS comment if the choice is not obvious (see `#panel-cohorts .setup-board-main` in `styles.css`).
+- On page-scroll surfaces: `overflow: visible` on flex children that should not trap the wheel. Empty or nearly empty inner boxes with `overflow: auto` or `overscroll-behavior: contain` **capture the wheel** over cards and feel broken.
+- Use `overscroll-behavior: contain` only on regions that **should** scroll internally (picker lists, planner board, modal bodies).
+- Do **not** add tab-wide `wheel` listeners to “forward” scroll to the document — fix accidental scroll containers instead (Cohorts, Nov 2026).
+
+### Sticky chrome and side panels
+
+- Sticky offset: `top: var(--app-chrome-sticky-top, 72px)` plus **local toolbar height** when a tab has its own pinned rows (e.g. Cohorts class detail: `+ 8rem` in `css/design-fidelity-append.css`).
+- **Homework pattern:** page scrolls; left sidebar `position: sticky` under chrome. Do **not** set `min-height: 0` / `flex-basis: 0` on the main split layout unless the sidebar is **meant** to be the scroll container — that caps the sticky containing block and the sidebar scrolls away (comment on `#panel-homework` in `styles.css`).
+- **Class full editor:** sticky Save header must stick to the **page**, not the form. Use `overflow: clip` on `#classForm` in the tab mount — `overflow: hidden` on the form makes the form the scroll container and the header scrolls away.
+- Below `--bp-tablet` (1024px): drop sticky two-column layouts when needed (Cohorts detail pane → `position: static`).
+
+### Tab shell (flex column)
+
+Typical setup tab:
+
+1. `#panel-*` — `display: flex; flex-direction: column; min-height: calc(100dvh - var(--app-chrome-sticky-top) - …)`.
+2. Toolbars / collapsible hints — `flex-shrink: 0`.
+3. Main work area — `flex: 1 1 auto; min-height: auto; overflow: visible`.
+
+### Layout stability (no “jumping” UI)
+
+- **Reserve space** for chrome that changes label or visibility (lock/sync bar: fixed label width; hidden action buttons stay in layout with `visibility: hidden` + `pointer-events: none` so neighbors do not move — see `.team-lock-sync-bar--inline` in `styles.css`).
+- **Keep toolbars in the DOM** with controls disabled until context exists (Cohorts contextual row) instead of inserting rows on selection.
+- **Grid density:** `repeat(auto-fill, minmax(22rem, 1fr))` for cohort tiles — an oversized `minmax` max track forces one column and wasted vertical scroll.
+
+### Inner scrollports and re-render
+
+When JS replaces HTML inside a scrollport, save and restore `scrollLeft` / `scrollTop` (Schedule planner `renderBoard()` on `.sp-board-scroll`; picker list `scrollTop` in `js/setup-board.js`).
+
+### Satellite / feature pages
+
+- Reuse global tokens and button classes; namespace new CSS (planner: `body.planner-page`, `.sp-*`).
+- Load `theme-init.js` / `language-init.js` before styles; include `#appNoticeRail`, i18n `calendar-en.js` + `calendar-ko.js`, and `[data-theme="dark"]` overrides on the same tokens — no parallel color system.
+- Primary action placement matches main app (`btn-primary` Apply, outline Tools/Print ▾ menus in `planner.html`).
+
+### UX defaults (with UI)
+
+- **Selection on a board ≠ global filter** — local highlight only unless the product explicitly scopes lists elsewhere.
+- **Declutter:** merge duplicate export/filter rows; inline quiet actions on meta lines; fix stray `flex-basis` that creates empty gaps on tablet (Notes tab, Nov 2026).
+- **One home per header action** — Print Center, + New popover; no duplicate header buttons or ⋮ overflow on desktop ([UI_STYLE_GUIDE.md](UI_STYLE_GUIDE.md) toolbars section).
+
+### Ship checklist (UI-only change)
+
+1. Reused cookbook classes listed in commit/PR description.
+2. Light + dark via tokens.
+3. `calendar-en.js` + `calendar-ko.js` for new strings.
+4. `?v=` bump on touched HTML/JS/CSS loaders (build re-stamps for deploy).
+5. CSS comment if scroll/sticky choice is easy to regress.
+6. [CLAUDE_DESIGN_BRIEF.md](CLAUDE_DESIGN_BRIEF.md) only when `:root` tokens or shell layout change.
+
+---
+
 ## Do / don't checklist
 
 **Do**
@@ -316,6 +382,7 @@ name → colors → curriculum → term dates → period/level/grade → total l
 - Bump `?v=` cache strings in `index.html` (or `js/load-extension-scripts.js`) when changing JS/CSS.
 - List which existing components you will reuse when **planning** a UI change.
 - When changing `:root` tokens, shell chrome, or core component look — update [CLAUDE_DESIGN_BRIEF.md](CLAUDE_DESIGN_BRIEF.md) in the same PR/commit.
+- Document scroll/sticky choices when adding setup tabs or movable editors (see [Scroll, sticky, and layout stability](#scroll-sticky-and-layout-stability)).
 
 **Don't**
 
@@ -324,6 +391,8 @@ name → colors → curriculum → term dates → period/level/grade → total l
 - Use `.visibility-chip` in new setup-tab UI (prefer `.selection-chip`).
 - Apply [Syllabus Style Guide.md](Syllabus%20Style%20Guide.md) rules to on-screen editor UI.
 - Open HTML as `file://` for testing — use `npm start` at http://localhost:8080.
+- Use `overflow: hidden` on a parent of a sticky Save/header bar when `overflow: clip` or page scroll is the intended model.
+- Add JavaScript `wheel` forwarding for whole-tab scroll before auditing `overflow` on flex children.
 
 ---
 
@@ -345,6 +414,11 @@ name → colors → curriculum → term dates → period/level/grade → total l
 | Print Center + Import & export | [`js/print-center.js`](js/print-center.js) — `#printCenterModal`, `#dataImportExportList` (`.print-center-row`) |
 | Header scope switch | [`js/class-scope.js`](js/class-scope.js) — `#headerClassScope` |
 | Level Auto / Custom hint (class form) | [`templates/class-form.html`](templates/class-form.html) — `#classGradeLevelHint`, `#classColorLevelHint`: `<p class="section-hint level-auto-hint">` text + `.btn.btn-outline.btn-small` "Reset to auto" (shown only when Custom). `.level-auto-hint` is layout-only (flex + `--space-*` gap); no new chip or color. Defaults come from [`js/level-profile.js`](js/level-profile.js) |
+| Page scroll + sticky sidebar | `styles.css` — `#panel-homework`, `#panel-cohorts`; Cohorts sticky detail in [`css/design-fidelity-append.css`](css/design-fidelity-append.css) `.cohorts-class-detail-pane` |
+| Cohorts board (no wheel hack) | `index.html` `#panel-cohorts`, `js/setup-board.js`, comments on `.setup-board-main` in `styles.css` |
+| Sticky class Save header | `styles.css` — `.class-editor-panel #classFormMountTab #classForm` (`overflow: clip`) |
+| Steady header chrome (no resize blink) | `styles.css` — `.team-lock-sync-bar--inline`; `app.js` lock/sync bar |
+| Schedule planner island | [`planner.html`](planner.html), `styles.css` `.sp-*`, [`js/planner/teacher-planner-ui.js`](js/planner/teacher-planner-ui.js) (`renderBoard` scroll keep) |
 
 ---
 
@@ -417,10 +491,11 @@ Before implementing a UI change:
 2. **Existing class** — which cookbook entry applies (button, field, chip, modal)?
 3. **Harmonization** — which pattern from **Filter, save, and toolbar conventions** applies? Same placement as the reference tab?
 4. **Viewport** — phone/tablet behavior? Need `data-viewport` or JS helper?
-5. **Theme** — works in light and dark (tokens only)?
-6. **Mount pattern** — new fields in movable form vs new shell?
-7. **Cache bust** — which `?v=` strings need bumping?
-8. **Print only?** — if yes, switch to [Syllabus Style Guide.md](Syllabus%20Style%20Guide.md).
+5. **Scroll model** — page vs inner scrollport? Sticky bars? Risk of wheel trap or layout jump?
+6. **Theme** — works in light and dark (tokens only)?
+7. **Mount pattern** — new fields in movable form vs new shell?
+8. **Cache bust** — which `?v=` strings need bumping?
+9. **Print only?** — if yes, switch to [Syllabus Style Guide.md](Syllabus%20Style%20Guide.md).
 
 ---
 
@@ -465,4 +540,4 @@ Full audit: [docs/UI_AUDIT.md](docs/UI_AUDIT.md).
 
 ---
 
-*Aligned with `styles.css` and [DEVELOPER.md](DEVELOPER.md) UI tokens section — June 2026.*
+*Aligned with `styles.css` and [DEVELOPER.md](DEVELOPER.md) UI tokens section — updated Nov 2026 (scroll/sticky synthesis).*
