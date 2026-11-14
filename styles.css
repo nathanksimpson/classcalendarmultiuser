@@ -26409,3 +26409,40 @@ body.planner-page.sp-dragging .sp-cell[data-drop="warn"] {
     color: var(--text-muted);
     white-space: nowrap;
 }
+
+/* Planner: teacher colour legend (Cohorts and Rooms sheets) */
+.sp-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+    margin-bottom: var(--space-2);
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+}
+
+.sp-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sp-legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+}
+
+.sp-colour {
+    width: 44px;
+    height: 32px;
+    padding: 2px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    cursor: pointer;
+}
+
+.sp-by-teacher .sp-tile {
+    border-color: color-mix(in srgb, var(--c) 60%, var(--border-color));
+    background: color-mix(in srgb, var(--c) 22%, var(--bg-card));
+}

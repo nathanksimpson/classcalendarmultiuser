@@ -2995,6 +2995,8 @@
         spSetupClasses: '수업',
         spDone: '완료',
         spCancel: '취소',
+        spLegendTeachers: '교사별 색상',
+        spColour: '색상',
         spStudentsN: '{n}명',
         spCombinedSize: '합반 {n}명',
         spRoomInUse: '사용 중',

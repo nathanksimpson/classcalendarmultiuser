@@ -2996,6 +2996,8 @@
         spSetupClasses: 'Classes',
         spDone: 'Done',
         spCancel: 'Cancel',
+        spLegendTeachers: 'Colour by teacher',
+        spColour: 'Colour',
         spStudentsN: '{n} students',
         spCombinedSize: '{n} students (combined)',
         spRoomInUse: 'in use',

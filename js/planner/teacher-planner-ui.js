@@ -302,6 +302,25 @@
         return map;
     }
 
+    // Teacher colours: distinct, readable with white text, in teacher order. A teacher's own colour
+    // (Setup) wins.
+    const TEACHER_PALETTE = ['#2563eb', '#dc2626', '#059669', '#9333ea', '#ea580c', '#0891b2',
+        '#c026d3', '#4d7c0f', '#b45309', '#4f46e5', '#0f766e', '#be123c'];
+    const NO_TEACHER_COLOR = '#94a3b8';
+
+    function teacherColor(m, teacherProfileId) {
+        if (!teacherProfileId) return NO_TEACHER_COLOR;
+        const i = m.teachers.findIndex((x) => x.id === teacherProfileId);
+        if (i < 0) return NO_TEACHER_COLOR;
+        const own = m.teachers[i].color;
+        return /^#[0-9a-f]{6}$/i.test(own || '') ? own : TEACHER_PALETTE[i % TEACHER_PALETTE.length];
+    }
+
+    /** Per-day sheets (Cohorts, Rooms) colour classes by teacher; the Teachers sheet by cohort. */
+    function colorByTeacher() {
+        return state.view === 'cohorts' || state.view === 'rooms';
+    }
+
     function demandColor(m, demand) {
         const cid = (demand.cohortIds || []).find((id) => m.cohortById.has(id));
         const cohort = cid ? m.cohortById.get(cid) : null;
@@ -797,7 +816,7 @@ ${asg && asg.auto && asg.auto.count && asg.teacherProfileId ? `<p class="sp-hint
         return `
 <div class="sp-tile${tile.clash.length ? ' is-clash' : ''}${tile.warn ? ' is-warn' : ''}${sel ? ' is-selected' : ''}${state.selected && !sel ? ' is-dim' : ''}${flash === key ? ' is-flash' : ''}"
   data-drag="tile" data-asg="${esc(asg.assignmentId)}" data-demand="${esc(demand.demandId)}" data-dow="${Number(meeting.dow)}" data-period="${esc(meeting.period)}"
-  style="--c:${esc(demandColor(m, demand))}"${why.length ? ` title="${esc(why.join(' · '))}"` : ''}>
+  style="--c:${esc(colorByTeacher() ? teacherColor(m, asg.teacherProfileId) : demandColor(m, demand))}"${why.length ? ` title="${esc(why.join(' · '))}"` : ''}>
   <span class="sp-tile-name">${asg.locked ? '<span class="sp-tile-lock" aria-hidden="true">🔒</span>' : ''}${why.length ? '<span class="sp-tile-flag" aria-hidden="true">!</span>' : ''}${esc(state.view === 'cohorts' ? subjectOnly(m, demand) : demand.name)}</span>
   ${bits.length ? `<span class="sp-tile-sub">${esc(bits.join(' · '))}</span>` : ''}
   <button type="button" class="sp-tile-x" data-act="remove-period" data-asg="${esc(asg.assignmentId)}" data-dow="${Number(meeting.dow)}" data-period="${esc(meeting.period)}" aria-label="${esc(t('spRemovePeriod', 'Take off the board'))}">×</button>
@@ -876,6 +895,16 @@ ${asg && asg.auto && asg.auto.count && asg.teacherProfileId ? `<p class="sp-hint
         return `<tr class="sp-roomrow"><th scope="row" class="sp-time sp-roomlabel">${esc(t('spRoomRow', 'Room'))}</th>${cellsHtml}</tr>`;
     }
 
+    function teacherLegend(m) {
+        const used = new Set(m.tiles.map((x) => x.asg.teacherProfileId || NONE));
+        const items = m.teachers.filter((x) => used.has(x.id))
+            .map((x) => ({ name: x.name, color: teacherColor(m, x.id) }));
+        if (used.has(NONE)) items.push({ name: t('spNoTeacher', 'No teacher'), color: NO_TEACHER_COLOR });
+        if (!items.length) return '';
+        return `<div class="sp-legend" aria-label="${esc(t('spLegendTeachers', 'Colour by teacher'))}">${items.map((x) =>
+            `<span class="sp-legend-item"><span class="sp-legend-dot" style="background:${esc(x.color)}"></span>${esc(x.name)}</span>`).join('')}</div>`;
+    }
+
     function renderBoard() {
         const el = $('spBoard');
         if (!el) return;
@@ -920,6 +949,8 @@ ${asg && asg.auto && asg.auto.count && asg.teacherProfileId ? `<p class="sp-hint
                 return `<th scope="col" class="sp-colth${off ? ' is-offday' : ''}${c.none ? ' is-none' : ''}"><div class="sp-colhead">${colHeader(M, c)}</div></th>`;
             }).join('')}</tr></thead><tbody>${M.periods.map((row, i) => `<tr class="${i > 0 && M.periods[i - 1].band !== row.band ? 'is-split' : ''}">${timeCell(row, i)}${cols.map((c) => cellHtml(M, c, d, row)).join('')}</tr>${roomRowHtml(M, cols.map((c) => ({ col: c, dow: d })), row)}`).join('')}</tbody></table></div>`;
         }
+        if (colorByTeacher()) html = teacherLegend(M) + html;
+        el.classList.toggle('sp-by-teacher', colorByTeacher());
         el.innerHTML = html;
         const next = el.querySelector('.sp-board-scroll');
         if (next && keep) {
@@ -1529,6 +1560,7 @@ ${state.issuesOpen ? `<div class="sp-issues-body">${total ? groups.filter((g) =>
       <option value="korean"${p.role === 'korean' ? ' selected' : ''}>${esc(t('spRoleKoreanFull', 'Korean teacher'))}</option>
       <option value="native"${p.role === 'native' ? ' selected' : ''}>${esc(t('spRoleNativeFull', 'Native teacher'))}</option>
     </select>
+    <label class="sp-num"><span>${esc(t('spColour', 'Colour'))}</span><input type="color" class="sp-colour" data-change="teacher-colour" value="${esc(teacherColor(M, p.id))}"></label>
     <label class="sp-num"><span>${esc(t('spMaxWeek', 'Max / week'))}</span><input type="number" class="field-input" min="0" max="60" data-input="teacher-maxweek" value="${Number(p.limits.maxPeriodsPerWeek) || 0}"></label>
     <label class="sp-num"><span>${esc(t('spMaxDay', 'Max / day'))}</span><input type="number" class="field-input" min="0" max="12" data-input="teacher-maxday" value="${Number(p.limits.maxPeriodsPerDay) || 0}"></label>
     <label class="sp-num"><span>${esc(t('spClockIn', 'Clock in'))}</span><input type="time" class="field-input" data-input="teacher-workstart" value="${esc(p.availability.workStart || '')}"></label>
@@ -2159,7 +2191,7 @@ ${by.get(cid).map((d) => `
                 const cells = cols.map((c) => map.get(`${c.id}|${d}|${row.period}`) || []);
                 const classRow = cells.map((tiles) => {
                     if (!tiles.length) return '<td></td>';
-                    const color = demandColor(M, tiles[0].demand);
+                    const color = teacherColor(M, tiles[0].asg.teacherProfileId);
                     const warn = tiles.some((x) => (x.warn || []).includes('outside_band_block'));
                     return `<td class="planner-print-cell-colored" style="background:${esc(color)};color:${printText(color)}${warn ? ';outline:2px dashed #b45309;outline-offset:-2px' : ''}">${tiles.map((x) => `<div class="planner-print-cell-name">${warn ? '⚠ ' : ''}${esc(x.demand.name)}</div><div class="planner-print-cell-sub">${esc(teacherName(M, x.asg.teacherProfileId) || t('plannerNoTeacherShort', 'No teacher'))}</div>`).join('')}</td>`;
                 }).join('');
@@ -2512,6 +2544,13 @@ ${by.get(cid).map((d) => `
             const dow = Number(el.getAttribute('data-dow'));
             const period = el.getAttribute('data-period');
             mutate((data, draft) => api().setMeetingRoom(data, draft, asgId, dow, period, el.value || ''));
+        } else if (kind === 'teacher-colour') {
+            const id = row.getAttribute('data-teacher');
+            setupEdit((data) => {
+                const p = data.teacherProfiles.find((x) => x.id === id);
+                if (p) p.color = el.value;
+            });
+            M = buildModel();
         } else if (kind === 'fix-agree') {
             fixState.agreed = el.checked;
             renderFix();

@@ -481,6 +481,7 @@
         return {
             id: normalizeStr(p.id) || uid('tp'),
             userId: normalizeStr(p.userId),
+            color: /^#[0-9a-f]{6}$/i.test(normalizeStr(p.color)) ? normalizeStr(p.color) : '',
             name: normalizeStr(p.name) || 'Teacher',
             role: p.role === 'native' ? 'native' : 'korean',
             color: normalizeStr(p.color),
