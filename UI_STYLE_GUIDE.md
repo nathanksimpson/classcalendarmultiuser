@@ -4,6 +4,8 @@ How on-screen UI is built in Class Calendar Multi User. **Read this before plann
 
 For broader dev workflow (deploy, API, locks), see [DEVELOPER.md](DEVELOPER.md). For **syllabus A4 print/PDF layout only**, see [Syllabus Style Guide.md](Syllabus%20Style%20Guide.md) — that guide does **not** apply to the on-screen syllabus editor or general app chrome. For **AI design mockups** (Claude Design, Figma AI), use [CLAUDE_DESIGN_BRIEF.md](CLAUDE_DESIGN_BRIEF.md) — keep it in sync when tokens or shell layout change.
 
+**Agent workflow and product UX principles** (freeform + warn, control order, drag reorder, plain copy, desktop + iPad): [docs/AGENT_WORKING_RULES.md](docs/AGENT_WORKING_RULES.md) §6 and [AGENTS.md](AGENTS.md) *How to work*.
+
 ---
 
 ## When to use this guide

@@ -2,6 +2,20 @@
 
 Use this with [DEVELOPER.md](DEVELOPER.md) for day-to-day edits and deploy steps.
 
+## How to work (read this first)
+
+**Full rules:** [docs/AGENT_WORKING_RULES.md](docs/AGENT_WORKING_RULES.md) — investigate, fix root cause, minimal diffs, prove with tests and UI checks, data safety, Nathan’s product UX, and how to report back.
+
+| | |
+|--|--|
+| **Goal** | Right answer + evidence it works — not plausible-looking code. |
+| **Before edit** | Search defs/usages; trace create → save → load → UI; read AGENTS / DEVELOPER / UI_STYLE_GUIDE / SCHEMA. |
+| **Bugs** | Reproduce first; fix cause; revert failed fixes; grep sibling save paths. |
+| **Scope** | Smallest correct change; `shared/*.cjs` + worker + server + en/ko + SCHEMA/tests when needed. |
+| **Done** | `npm test`; visual check (light/dark/narrow); say what was not tested (e.g. TMS at school). |
+| **Safety** | TMS read-only; no real student names in git; confirm destructive migrations; branch + PR — `main` deploys live. |
+| **UX** | Warn don’t block; scope-ordered chrome; drag-only reorder; tokens + plain copy — [UI_STYLE_GUIDE.md](UI_STYLE_GUIDE.md). |
+
 ## Project
 
 | | |
