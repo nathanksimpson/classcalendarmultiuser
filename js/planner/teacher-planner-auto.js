@@ -292,15 +292,9 @@
 
         /** Days every cohort of the class comes (falls back to any day a cohort comes, then Mon–Fri). */
         const classDays = (demand) => {
-            const lists = (demand.cohortIds || [])
-                .map((cid) => cohortById.get(cid))
-                .filter(Boolean)
-                .map((c) => api.cohortBlock(appData, c).days)
-                .filter((l) => l.length);
-            if (!lists.length) return DAYS.slice();
-            const common = DAYS.filter((d) => lists.every((l) => l.includes(d)));
-            if (common.length) return common;
-            return DAYS.filter((d) => lists.some((l) => l.includes(d)));
+            // Only days every cohort of the class comes; none in common means it cannot be placed.
+            const allowed = api.classAllowedDays(appData, demand);
+            return allowed || DAYS.slice();
         };
 
         /** Choose `count` slots for this class with this teacher (null = no teacher). */

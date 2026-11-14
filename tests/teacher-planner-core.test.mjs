@@ -384,8 +384,12 @@ await import(pathToFileURL(path.join(root, 'js', 'timetable-periods.js')).href);
     r = api.movePeriodTo(data, draft, asgB.assignmentId, { dow: 1, period: '2' }, { dow: 3, period: '1', teacherProfileId: 't1' });
     assert(r.ok && r.softReasons.includes('teacher_outside_hours'), 'before clock-in is a warning');
     // After the cohort has gone home (P5 18:00, cohort leaves 17:00) and off its days (Tue).
+    // A Mon/Wed/Fri cohort cannot go on Tuesday...
     r = api.movePeriodTo(data, draft, asgB.assignmentId, { dow: 3, period: '1' }, { dow: 2, period: '5', teacherProfileId: 't2' });
-    assert(r.ok && r.warnOutOfBlock && r.softReasons.includes('outside_cohort_days'), 'outside student hours and days warn');
+    assert(!r.ok && r.reason === 'outside_cohort_days', 'off-day refused');
+    // ...unless it is overridden by hand; then it is a warning.
+    r = api.movePeriodTo(data, draft, asgB.assignmentId, { dow: 3, period: '1' }, { dow: 2, period: '5', teacherProfileId: 't2', allowOffDay: true });
+    assert(r.ok && r.warnOutOfBlock && r.softReasons.includes('outside_cohort_days'), 'override: outside student hours and days warn');
     assert(codes().includes('outside_band_block') && codes().includes('outside_cohort_days'), 'both listed');
     // Double-booking is forbidden: same cohort at the same time, and same teacher at the same time.
     r = api.placePeriod(data, draft, 'demand:b', { dow: 1, period: '3', teacherProfileId: 't2' });
@@ -398,7 +402,7 @@ await import(pathToFileURL(path.join(root, 'js', 'timetable-periods.js')).href);
     // Swap keeps both classes.
     const before = draft.assignments.reduce((n, a) => n + a.meetings.length, 0);
     r = api.swapPeriods(data, draft, { assignmentId: asgA.assignmentId, dow: 1, period: '3' },
-        { assignmentId: asgB.assignmentId, dow: 2, period: '5' }, 'time');
+        { assignmentId: asgB.assignmentId, dow: 2, period: '5' }, 'time', { allowOffDay: true });
     assert(r.ok && draft.assignments.reduce((n, a) => n + a.meetings.length, 0) === before, 'swap');
     // Apply writes times even with no teacher.
     const res = api.applyDraftToAppData(data, draft, { allowMissingUserId: true, replaceFirstTeacher: true });

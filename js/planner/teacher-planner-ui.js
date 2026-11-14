@@ -491,6 +491,8 @@
             return t('spIssueLongRun', '{teacher} has {count} periods in a row on {day}', { teacher, count: issue.count, day: dayLabel(issue.dow) });
         case 'teacher_limit':
             return t('spIssueTeacherLimit', '{name}: outside what {teacher} is set to teach', { name, teacher });
+        case 'no_common_day':
+            return t('spIssueNoCommonDay', '{name}: its cohorts do not share a day, so it cannot be placed', { name });
         case 'teacher_unavailable':
             if (issue.outsideHours) {
                 return t('spIssueOutsideWork', '{name} is outside {teacher}’s working hours ({when})', { name, teacher, when });
@@ -531,7 +533,7 @@
 
     const ISSUE_GROUPS = [
         { id: 'clash', codes: ['teacher_double_booked', 'cohort_double_booked', 'room_conflict'] },
-        { id: 'todo', codes: ['no_teacher', 'incomplete_placements'] },
+        { id: 'todo', codes: ['no_teacher', 'incomplete_placements', 'no_common_day'] },
         { id: 'warn', codes: ['outside_band_block', 'outside_cohort_days', 'teacher_unavailable', 'wrong_teacher_type', 'wrong_junior_senior_band', 'over_load', 'max_periods_per_day', 'long_run', 'teacher_limit', 'duplicate_weekday_2x'] },
         { id: 'room', codes: ['room_unresolved', 'room_too_small'] }
     ];
@@ -995,6 +997,8 @@ ${state.issuesOpen ? `<div class="sp-issues-body">${total ? groups.filter((g) =>
         const others = here.filter((x) => x.asg.assignmentId !== d.assignmentId);
         let check;
         let run;
+        let recheck;
+        let rerun;
         let lead = '';
         if (d.kind === 'tile' && others.length === 1) {
             const a = { assignmentId: d.assignmentId, dow: d.dow, period: d.period };
@@ -1002,15 +1006,32 @@ ${state.issuesOpen ? `<div class="sp-issues-body">${total ? groups.filter((g) =>
             const mode = view === 'teachers' ? 'teachers' : view === 'rooms' ? 'rooms' : 'time';
             check = P.checkSwap(M.data, M.draft, a, b, mode);
             run = (data, draft) => P.swapPeriods(data, draft, a, b, mode);
+            recheck = () => P.checkSwap(M.data, M.draft, a, b, mode, { allowOffDay: true });
+            rerun = (data, draft) => P.swapPeriods(data, draft, a, b, mode, { allowOffDay: true });
             lead = t('spHintSwap', 'Swap with {name}', { name: others[0].demand.name });
         } else if (d.kind === 'tile') {
             const from = { dow: d.dow, period: d.period };
             check = P.checkSlot(M.data, M.draft, d.demandId,
                 Object.assign({}, to, { ignore: [{ assignmentId: d.assignmentId, dow: d.dow, period: d.period }] }), M.ctx);
             run = (data, draft) => P.movePeriodTo(data, draft, d.assignmentId, from, to);
+            recheck = () => P.checkSlot(M.data, M.draft, d.demandId,
+                Object.assign({}, to, { allowOffDay: true, ignore: [{ assignmentId: d.assignmentId, dow: d.dow, period: d.period }] }), M.ctx);
+            rerun = (data, draft) => P.movePeriodTo(data, draft, d.assignmentId, from, Object.assign({}, to, { allowOffDay: true }));
         } else {
             check = P.checkSlot(M.data, M.draft, d.demandId, to, M.ctx);
             run = (data, draft) => P.placePeriod(data, draft, d.demandId, to);
+            recheck = () => P.checkSlot(M.data, M.draft, d.demandId, Object.assign({}, to, { allowOffDay: true }), M.ctx);
+            rerun = (data, draft) => P.placePeriod(data, draft, d.demandId, Object.assign({}, to, { allowOffDay: true }));
+        }
+        let offDay = false;
+        if (!check.ok && (check.reasons || []).length === 1 && check.reasons[0] === 'outside_cohort_days') {
+            // The only thing against it is the day: allowed by hand after a confirmation.
+            const again = recheck();
+            if (again.ok) {
+                check = again;
+                run = rerun;
+                offDay = true;
+            }
         }
         if (!check.ok) {
             return { ok: false, level: 'bad', hint: reasonText(check.reasons[0], { need: demand.teacherRequirementType }) };
@@ -1018,6 +1039,7 @@ ${state.issuesOpen ? `<div class="sp-issues-body">${total ? groups.filter((g) =>
         const soft = (check.softReasons || []).filter((r) => r !== 'teacher_reassigned');
         const hints = soft.map((r) => reasonText(r, { need: demand.teacherRequirementType }));
         if (check.warnOutOfBlock) hints.push(reasonText('out_of_block'));
+        if (offDay) hints.push(t('spHintConfirmFirst', 'you will be asked to confirm'));
         const info = [];
         if (stays) info.push(stays);
         if (lead) info.push(lead);
@@ -1029,6 +1051,11 @@ ${state.issuesOpen ? `<div class="sp-issues-body">${total ? groups.filter((g) =>
             level: hints.length ? 'warn' : 'ok',
             hint: info.concat(hints).join(' · '),
             run,
+            confirm: offDay
+                ? t('spConfirmOffDay', '{name} does not normally come on {day}. Place it there anyway?', {
+                    name: demandCohortLabel(M, demand) || demand.name, day: dayLabel(target.dow)
+                })
+                : '',
             landing: { dow: target.dow, period: target.period }
         };
     }
@@ -1191,7 +1218,22 @@ ${state.issuesOpen ? `<div class="sp-issues-body">${total ? groups.filter((g) =>
         clearTargets();
         document.body.classList.remove('sp-dragging', 'sp-dragging-tile');
         document.querySelectorAll('.is-drag-source').forEach((x) => x.classList.remove('is-drag-source'));
-        if (action) {
+        if (action && action.confirm) {
+            // Off-day override: nothing happens unless the user says yes.
+            const pendingAction = Object.assign({}, action, { confirm: '' });
+            confirmBox(action.confirm, t('spPlaceAnyway', 'Place anyway')).then((yes) => {
+                if (!yes) {
+                    render();
+                    return;
+                }
+                const res = mutate(pendingAction.run);
+                const id = (res && res.assignmentId) || d.assignmentId;
+                if (res && res.ok !== false && id) {
+                    flashTile(id, pendingAction.landing.dow, pendingAction.landing.period);
+                    render();
+                }
+            });
+        } else if (action) {
             if (action.landing) {
                 const asg = d.assignmentId ? { assignmentId: d.assignmentId } : null;
                 const clashesBefore = clashCount();

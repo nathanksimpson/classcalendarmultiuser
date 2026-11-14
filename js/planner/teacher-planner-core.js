@@ -393,6 +393,22 @@
         return Number.isFinite(n) && n >= 1 ? n : 4;
     }
 
+    /**
+     * Weekdays a class may meet: the days every one of its cohorts comes (a Mon/Wed/Fri cohort
+     * never has class on Tue/Thu and the other way round). null when no cohort has days set;
+     * [] when its cohorts share no day.
+     */
+    function classAllowedDays(appData, demand) {
+        const cohorts = Array.isArray(appData && appData.cohorts) ? appData.cohorts : [];
+        const lists = ((demand && demand.cohortIds) || [])
+            .map((cid) => cohorts.find((x) => x && x.id === cid))
+            .filter(Boolean)
+            .map((c) => cohortBlock(appData, c).days)
+            .filter((l) => l.length);
+        if (!lists.length) return null;
+        return DAYS_1_5.filter((d) => lists.every((l) => l.includes(d)));
+    }
+
     function cohortMeetingDays(appData, demand) {
         const cohorts = Array.isArray(appData && appData.cohorts) ? appData.cohorts : [];
         const ids = (demand && demand.cohortIds) || [];
@@ -960,8 +976,8 @@
         if (blocked) softReasons.push(blocked);
         if (outsideTeacherHours(appData, teacher, period)) softReasons.push('teacher_outside_hours');
 
-        const days = cohortMeetingDays(appData, demand);
-        if (days.length && !days.includes(Number(dow))) {
+        const days = classAllowedDays(appData, demand);
+        if (days && !days.includes(Number(dow))) {
             softReasons.push('outside_cohort_days');
         }
         if (lockOn && days.length && !days.includes(Number(dow))) {
@@ -1191,7 +1207,7 @@
      * and room sheets a class can be given a time before it has a teacher.
      * ------------------------------------------------------------------ */
 
-    const FORBIDDEN = ['teacher_double_booked', 'cohort_double_booked', 'room_double_booked'];
+    const FORBIDDEN = ['teacher_double_booked', 'cohort_double_booked', 'room_double_booked', 'outside_cohort_days'];
 
     /** A class that keeps its room when its time changes gives the room up if it is taken then. */
     function releaseTakenRooms(draft, asg) {
@@ -1284,7 +1300,9 @@
         soft = [...new Set(soft)];
         // Never allowed, by hand or by auto-schedule: two classes for one teacher, cohort or room
         // at the same time, and a room that cannot seat the class.
-        const forbidden = soft.filter((r) => FORBIDDEN.includes(r));
+        // An off-day can be overridden by hand (target.allowOffDay), after the user confirms; it then stays a warning.
+        const forbidden = soft.filter((r) => FORBIDDEN.includes(r)
+            && !(r === 'outside_cohort_days' && tg.allowOffDay));
         if (roomId && roomTooSmall(appData, demand, roomId)) forbidden.push('room_too_small');
         if (forbidden.length) {
             return { ok: false, reasons: forbidden, hardReasons: forbidden, softReasons: [], warnOutOfBlock: false };
@@ -1378,7 +1396,7 @@
      * mode 'time': times swap, teachers stay (cohort sheet).
      * mode 'rooms': times and rooms swap, teachers stay (room sheet).
      */
-    function checkSwap(appData, draft, a, b, mode) {
+    function checkSwap(appData, draft, a, b, mode, options) {
         const asgA = (draft.assignments || []).find((x) => x.assignmentId === a.assignmentId);
         const asgB = (draft.assignments || []).find((x) => x.assignmentId === b.assignmentId);
         if (!asgA || !asgB || asgA === asgB) {
@@ -1390,8 +1408,9 @@
         const mA = assignmentMeetings(asgA).find((m) => sameSlot(m, a.dow, a.period));
         const mB = assignmentMeetings(asgB).find((m) => sameSlot(m, b.dow, b.period));
         if (!mA || !mB) return { ok: false, reasons: ['slot_missing'], softReasons: [], warnOutOfBlock: false };
-        const toB = { dow: b.dow, period: b.period, ignore };
-        const toA = { dow: a.dow, period: a.period, ignore };
+        const allowOffDay = !!(options && options.allowOffDay);
+        const toB = { dow: b.dow, period: b.period, ignore, allowOffDay };
+        const toA = { dow: a.dow, period: a.period, ignore, allowOffDay };
         if (mode === 'teachers') {
             toB.teacherProfileId = asgB.teacherProfileId || null;
             toA.teacherProfileId = asgA.teacherProfileId || null;
@@ -1413,8 +1432,8 @@
         };
     }
 
-    function swapPeriods(appData, draft, a, b, mode) {
-        const check = checkSwap(appData, draft, a, b, mode);
+    function swapPeriods(appData, draft, a, b, mode, options) {
+        const check = checkSwap(appData, draft, a, b, mode, options);
         if (!check.ok) return { ok: false, reason: check.reasons[0] || 'invalid', reasons: check.reasons };
         const asgA = draft.assignments.find((x) => x.assignmentId === a.assignmentId);
         const asgB = draft.assignments.find((x) => x.assignmentId === b.assignmentId);
@@ -1682,8 +1701,8 @@
                         teacherProfileId: asg.teacherProfileId
                     }));
                 }
-                const days = cohortMeetingDays(appData, demand);
-                if (days.length && !days.includes(Number(m.dow))) {
+                const days = classAllowedDays(appData, demand);
+                if (days && !days.includes(Number(m.dow))) {
                     issues.push(createIssue({
                         severity: 'soft',
                         code: 'outside_cohort_days',
@@ -1757,6 +1776,18 @@
                     missing: need - meetings.length,
                     assignmentId: asg.assignmentId,
                     demandId: demand.demandId
+                }));
+            }
+        });
+
+        demands.forEach((d) => {
+            const allowed = classAllowedDays(appData, d);
+            if (allowed && !allowed.length) {
+                issues.push(createIssue({
+                    severity: 'soft',
+                    code: 'no_common_day',
+                    message: `${d.name}: its cohorts share no day.`,
+                    demandId: d.demandId
                 }));
             }
         });
@@ -2693,6 +2724,7 @@
         recomputeDraftMetrics,
         outsideStudentHours,
         cohortBlock,
+        classAllowedDays,
         stageCohortBlock,
         pendingCohortBlocks,
         writeCohortBlocks,

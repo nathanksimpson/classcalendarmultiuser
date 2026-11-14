@@ -308,3 +308,31 @@ console.log('planner-auto tests passed');
     assert(!dr.issues.some((i) => i.code === 'outside_band_block'), 'no hours warning');
     console.log('tue/thu block tests passed');
 }
+
+/* MWF cohorts are never auto-scheduled on Tue/Thu and the other way round. */
+{
+    const d = {
+        cohorts: [
+            { id: 'm', name: 'Green M', levelPreset: 'Green', meetingDays: [1, 3, 5] },
+            { id: 't', name: 'Green T', levelPreset: 'Green', meetingDays: [2, 4] }
+        ],
+        classes: [
+            { id: 'm1', name: 'M Debate', cohortIds: ['m'], weeklyFrequency: 3 },
+            { id: 't1', name: 'T Debate', cohortIds: ['t'], weeklyFrequency: 2 },
+            { id: 'both', name: 'Shared', cohortIds: ['m', 't'], weeklyFrequency: 1 }
+        ],
+        teacherProfiles: [{ id: 'k', name: 'K' }]
+    };
+    api.ensurePlannerFields(d);
+    assert(api.classAllowedDays(d, api.buildDemandsFromAppData(d)[2]).length === 0, 'MWF + TT share no day');
+    const dr = { id: 'x', assignments: [], issues: [], metrics: {} };
+    const res = auto.autoSchedule(d, dr, {});
+    const of = (id) => (dr.assignments.find((a) => a.classId === id) || { meetings: [] }).meetings;
+    assert(of('m1').length === 3 && of('m1').every((m) => [1, 3, 5].includes(m.dow)), 'MWF class only on MWF');
+    assert(of('t1').length === 2 && of('t1').every((m) => [2, 4].includes(m.dow)), 'TT class only on TT');
+    assert(of('both').length === 0 && res.unplaced.some((u) => u.demandId === 'demand:both'), 'no common day: left unplaced');
+    assert(dr.issues.some((i) => i.code === 'no_common_day'), 'and listed');
+    assert(!api.placePeriod(d, dr, 'demand:m1', { dow: 2, period: '3' }).ok, 'by hand: refused');
+    assert(api.placePeriod(d, dr, 'demand:both', { dow: 2, period: '3', allowOffDay: true }).ok, 'by hand with override: allowed');
+    console.log('cohort day tests passed');
+}
