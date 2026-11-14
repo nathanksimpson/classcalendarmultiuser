@@ -409,3 +409,23 @@ await import(pathToFileURL(path.join(root, 'js', 'timetable-periods.js')).href);
     assert(res.applied.length === 2 && data.classes[0].meetingDays.length === 1, 'apply without teacher');
     console.log('freeform planner tests passed');
 }
+
+/* Rooms that differ by weekday survive Apply → reopen. */
+{
+    const data = {
+        cohorts: [{ id: 'c', name: 'C', meetingDays: [1, 3, 5], level: 'Garam', levelPreset: 'Garam', scheduleBlock: 'secondary' }],
+        classes: [{ id: 'k', name: 'K', cohortIds: ['c'], weeklyFrequency: 3 }],
+        teacherProfiles: [{ id: 't', name: 'T' }],
+        rooms: [{ id: 'r1', name: 'R1' }, { id: 'r2', name: 'R2' }]
+    };
+    api.ensurePlannerFields(data);
+    const draft = { id: 'd', assignments: [], issues: [], metrics: {} };
+    api.placePeriod(data, draft, 'demand:k', { dow: 1, period: '4', teacherProfileId: 't', roomId: 'r1' });
+    api.placePeriod(data, draft, 'demand:k', { dow: 3, period: '4', roomId: 'r2' });
+    api.placePeriod(data, draft, 'demand:k', { dow: 5, period: '4', roomId: '' });
+    api.applyDraftToAppData(data, draft, { allowMissingUserId: true });
+    const again = api.seedDraftFromCalendar(data, {});
+    const rooms = again.assignments[0].meetings.map((m) => `${m.dow}:${api.meetingRoomId(again.assignments[0], m) || '-'}`).sort().join(' ');
+    assert(rooms === '1:r1 3:r2 5:-', `rooms after reopen: ${rooms}`);
+    console.log('room round-trip tests passed');
+}

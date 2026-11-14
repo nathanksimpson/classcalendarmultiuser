@@ -272,6 +272,7 @@
         const teacherCanTake = (teacher, dow, n, mine) => {
             if (!teacher) return !api.isSlotBlocked(api.defaultTeacherProfile({}), dow, n, blockouts);
             if (teacherBusy.has(`${teacher.id}|${dow}|${n}`)) return false;
+            if ((load.get(teacher.id) || 0) + 1 > (teacher.limits.maxPeriodsPerWeek || 99)) return false;
             if (api.isSlotBlocked(teacher, dow, n, blockouts)) return false;
             if (api.outsideTeacherHours(appData, teacher, n)) return false;
             if (mine.length + 1 > (teacher.limits.maxPeriodsPerDay || 99)) return false;

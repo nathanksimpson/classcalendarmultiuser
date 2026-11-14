@@ -693,11 +693,17 @@
         demands.forEach((demand) => {
             const cls = classesById.get(demand.classId);
             const teacher = cls ? findTeacherProfileForClass(appData, cls) : null;
-            const meetings = (demand.meetings || []).map((m) => ({
-                meetingId: uid('mtg'),
-                dow: Number(m.dow),
-                period: String(m.period)
-            }));
+            const byWd = cls && cls.roomIdByWeekday && typeof cls.roomIdByWeekday === 'object' ? cls.roomIdByWeekday : {};
+            const meetings = (demand.meetings || []).map((m) => {
+                const meeting = {
+                    meetingId: uid('mtg'),
+                    dow: Number(m.dow),
+                    period: String(m.period)
+                };
+                // Rooms that differ by weekday (written by Apply) come back as that period's room.
+                if (Object.prototype.hasOwnProperty.call(byWd, String(m.dow))) meeting.roomId = normalizeStr(byWd[String(m.dow)]);
+                return meeting;
+            });
             if (!teacher && !meetings.length) return;
             assignments.push({
                 assignmentId: uid('asg'),
@@ -2620,8 +2626,10 @@
             if (asg.roomId) cls.roomId = asg.roomId;
             const roomByWd = {};
             meetings.forEach((m) => {
+                // A period whose room differs from the class room (including '' = no room) is kept per weekday.
+                if (typeof m.roomId !== 'string') return;
                 const rid = normalizeStr(m.roomId);
-                if (rid && rid !== normalizeStr(asg.roomId)) roomByWd[String(m.dow)] = rid;
+                if (rid !== normalizeStr(asg.roomId)) roomByWd[String(m.dow)] = rid;
             });
             if (Object.keys(roomByWd).length) cls.roomIdByWeekday = roomByWd;
             else if (cls.roomIdByWeekday) delete cls.roomIdByWeekday;

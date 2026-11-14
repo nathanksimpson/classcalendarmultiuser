@@ -336,3 +336,20 @@ console.log('planner-auto tests passed');
     assert(api.placePeriod(d, dr, 'demand:both', { dow: 2, period: '3', allowOffDay: true }).ok, 'by hand with override: allowed');
     console.log('cohort day tests passed');
 }
+
+/* The repair step never takes a teacher past the weekly limit. */
+{
+    const d = {
+        cohorts: ['a', 'b', 'c'].map((id) => ({ id, name: id, meetingDays: [1, 3, 5], level: 'Garam', levelPreset: 'Garam', scheduleBlock: 'secondary' })),
+        classes: ['a', 'b', 'c'].flatMap((c) => [1, 2].map((i) => ({ id: `${c}${i}`, name: `${c}${i}`, cohortIds: [c], weeklyFrequency: 3 }))),
+        teacherProfiles: [{ id: 't1', name: 'T1', limits: { maxPeriodsPerWeek: 7, maxPeriodsPerDay: 8 } }, { id: 't2', name: 'T2', limits: { maxPeriodsPerWeek: 7, maxPeriodsPerDay: 8 } }]
+    };
+    api.ensurePlannerFields(d);
+    const dr = { id: 'w', assignments: [], issues: [], metrics: {} };
+    auto.autoSchedule(d, dr, {});
+    ['t1', 't2'].forEach((tid) => {
+        const n = dr.assignments.filter((a) => a.teacherProfileId === tid).reduce((s, a) => s + a.meetings.length, 0);
+        assert(n <= 7, `${tid} has ${n} periods, limit 7`);
+    });
+    console.log('weekly limit tests passed');
+}
