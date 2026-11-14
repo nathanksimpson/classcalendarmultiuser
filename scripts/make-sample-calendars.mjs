@@ -1,7 +1,9 @@
 /**
  * Two fake sample calendars for the Schedule planner (no real names).
  *
- *   Fall 2026  – 21 cohorts, every class scheduled (days, periods, teacher, room).
+ *   Fall 2026  – 17 cohorts, every class scheduled (days, periods, teacher, room).
+ *   Staff: 4 Korean teachers and 1 native teacher (NT), 22 periods a week each at most;
+ *   the NT only takes native-teacher classes (Speaking & Writing, IPE, Debate).
  *   Winter 2027 – the next term: cohorts levelled up, same teachers and rooms,
  *                 classes created from the curriculum with no times or teachers.
  *
@@ -90,13 +92,16 @@ function student() {
 }
 
 /* ------------------------------------------------------------ cohorts */
+// 5 teachers x 22 = 110 periods a week, and every cohort needs 6, so at most 18 cohorts.
+// The one NT has 22 periods: 2 per Red-Navy cohort (Speaking & Writing) and 1 per Purple
+// or senior cohort (IPE / Debate), so 17 cohorts with 5 Red-Navy cohorts uses all 22.
+// Senior TT cohorts need 3 periods each on Tue/Thu evenings, so most seniors are MWF.
 const FALL = [
-    ['Red', 'mwf'], ['Orange', 'mwf'], ['Yellow', 'mwf'], ['Green', 'mwf'], ['Blue', 'mwf'], ['Navy', 'mwf'], ['Purple', 'mwf'],
-    ['Orange', 'tth'], ['Yellow', 'tth'], ['Green', 'tth'], ['Purple', 'tth'],
-    ['Yeoul', 'mwf'], ['Saemmul', 'mwf'], ['Garam', 'mwf'], ['Bada', 'mwf'], ['Byeolmaru', 'mwf'],
-    ['Yeoul', 'tth'], ['Saemmul', 'tth'], ['Garam', 'tth'], ['Mirinae', 'tth'], ['Byeolmaru', 'tth']
+    ['Red', 'mwf'], ['Orange', 'tth'], ['Yellow', 'mwf'], ['Green', 'tth'], ['Navy', 'mwf'],
+    ['Purple', 'mwf'], ['Yeoul', 'mwf'], ['Saemmul', 'mwf'], ['Garam', 'mwf'], ['Bada', 'mwf'], ['Byeolmaru', 'mwf'], ['Mirinae', 'mwf'],
+    ['Purple', 'tth'], ['Yeoul', 'tth'], ['Saemmul', 'tth'], ['Garam', 'tth'], ['Byeolmaru', 'tth']
 ];
-const SIZES = [6, 7, 7, 6, 5, 7, 6, 5, 6, 7, 6, 7, 7, 5, 6, 5, 8, 6, 5, 7, 6]; // 130 students
+const SIZES = [8, 7, 8, 7, 8, 8, 8, 7, 8, 8, 7, 7, 8, 7, 8, 8, 8]; // 130 students
 
 function makeCohort(level, pattern, students) {
     const days = pattern === 'mwf' ? [1, 3, 5] : [2, 4];
@@ -152,17 +157,19 @@ function makeClasses(cohort, term) {
 }
 
 /* ------------------------------------------------------------ teachers & rooms */
+// Fake userIds so the app's Timetable treats them like team accounts (it lists teachers by account id).
 const TEACHERS = [
-    ['김테하', 'korean'], ['박테라', 'korean'], ['이테소', 'korean'],
-    ['Ava Testa', 'native'], ['Ben Tello', 'native'], ['Cal Teague', 'native']
-].map(([name, role]) => P.defaultTeacherProfile({
+    ['김테하', 'korean'], ['박테라', 'korean'], ['이테소', 'korean'], ['최테나', 'korean'],
+    ['Ava Testa', 'native']
+].map(([name, role], i) => P.defaultTeacherProfile({
     id: id('tp'),
+    userId: `sample-teacher-${i + 1}`,
     name,
     role,
-    limits: { maxPeriodsPerWeek: 22, maxPeriodsPerDay: 6 }
+    limits: { maxPeriodsPerWeek: 22, maxPeriodsPerDay: 6, ownTypeOnly: role === 'native' }
 }));
-const ROOMS = ['201', '202', '203', '204', '205', '206', '207'].map((n, i) => ({
-    id: id('rm'), name: `Room ${n}`, capacity: i < 2 ? 6 : 10, sortOrder: i + 1
+const ROOMS = ['201', '202', '203', '204', '205', '206'].map((n, i) => ({
+    id: id('rm'), name: `Room ${n}`, capacity: i < 2 ? 8 : 12, sortOrder: i + 1
 }));
 
 function baseCalendar(name, term, cohorts, classes) {
