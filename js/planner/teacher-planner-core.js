@@ -6,11 +6,28 @@
 (function (global) {
     const PLANNER_RULES_VERSION = 2;
     /** Soft suggested period windows (shuttle bands). Overlap is intentional. */
+    // Usual student hours when a cohort has none set. Junior = lower elementary, senior = upper
+    // elementary, middle = middle school (and pre-middle), which comes latest.
+    // A cohort is usually in for about 2 periods on MWF and 3 on Tue/Thu, somewhere inside its window.
     const BAND_PERIODS = {
         junior: [1, 2, 3],
-        middle: [3, 4, 5],
-        senior: [4, 5, 6, 7]
+        senior: [4, 5, 6, 7],
+        middle: [5, 6, 7, 8]
     };
+    /** Usual periods a cohort is in on one day: 2 on Mon/Wed/Fri, 3 on Tue/Thu. */
+    function usualCohortPeriods(dow) {
+        const d = Number(dow);
+        return d === 2 || d === 4 ? 3 : 2;
+    }
+
+    /** Purple sits between junior and senior: its classes can go at any period without a warning. */
+    function isPurpleCohort(cohort) {
+        if (!cohort) return false;
+        const lp = global.CCPLevelProfile;
+        const id = lp && lp.resolveLevelId ? lp.resolveLevelId(cohort) : '';
+        if (id) return id === 'Purple';
+        return /^purple\b/i.test(cohortLevelText(cohort));
+    }
     const SOFT_WEIGHTS = {
         preferredLevel: 8,
         preferredCurriculum: 8,
@@ -296,7 +313,7 @@
         return pending.length;
     }
 
-    function outsideStudentHours(appData, demand, period, dow) {
+    function outsideStudentHours(appData, demand, period, dow, options) {
         const cohorts = Array.isArray(appData && appData.cohorts) ? appData.cohorts : [];
         const clock = periodClock(appData, period);
         const windows = [];
@@ -310,13 +327,14 @@
         if (clock && windows.length) {
             return windows.some((w) => clock.start < w.start || clock.end > w.end);
         }
-        // No hours set: a cohort on the secondary block uses the later (senior) periods whatever its
-        // level, e.g. Purple; otherwise the usual periods of its level.
-        const onSecondary = ((demand && demand.cohortIds) || []).some((cid) => {
-            const c = cohorts.find((x) => x && x.id === cid);
-            return c && normalizeStr(c.scheduleBlock).toLowerCase() === 'secondary';
-        });
-        const band = onSecondary ? 'senior' : (demand && demand.band);
+        // No hours set: the usual periods of the level. Purple can go anywhere. An elementary cohort on
+        // the secondary block uses the upper elementary (senior) periods; middle school keeps its own, later ones.
+        const mine = ((demand && demand.cohortIds) || []).map((cid) => cohorts.find((x) => x && x.id === cid)).filter(Boolean);
+        // options.byBlock: judge Purple by its block too (auto-schedule uses this as a preference).
+        if (!(options && options.byBlock) && mine.some(isPurpleCohort)) return false;
+        const onSecondary = mine.some((c) => normalizeStr(c.scheduleBlock).toLowerCase() === 'secondary');
+        const own = demand && demand.band;
+        const band = onSecondary && own !== 'middle' ? 'senior' : own;
         // On Tuesday and Thursday the elementary (primary) block runs one period longer, to 18:00,
         // so it overlaps the first senior period (17:00) on those days.
         const d = Number(dow);
@@ -2756,6 +2774,8 @@
         setAssignmentTeacher,
         recomputeDraftMetrics,
         outsideStudentHours,
+        usualCohortPeriods,
+        isPurpleCohort,
         cohortBlock,
         classAllowedDays,
         stageCohortBlock,

@@ -276,10 +276,12 @@ console.log('planner-auto tests passed');
     const dm = (id) => api.buildDemandsFromAppData(d).find((x) => x.classId === id);
     assert(api.resolvePlannerBandForCohort(d.cohorts[2]) === 'middle' && dm('c').band === 'middle', 'pre-middle is middle band');
     assert(dm('a').band === 'junior' && dm('b').band === 'junior', 'purple stays junior level for teacher limits');
-    // Hours: existing Purple on primary keeps the early periods; Purple and pre-middle on secondary use the later ones.
-    assert(!api.outsideStudentHours(d, dm('a'), 2) && api.outsideStudentHours(d, dm('a'), 5), 'primary purple: early periods');
-    assert(api.outsideStudentHours(d, dm('b'), 2) && !api.outsideStudentHours(d, dm('b'), 5), 'secondary purple: later periods');
-    assert(api.outsideStudentHours(d, dm('c'), 2) && !api.outsideStudentHours(d, dm('c'), 5), 'pre-middle on secondary: later periods');
+    // Hours: Purple can go anywhere without a warning; its block is only a preference (byBlock).
+    assert(!api.outsideStudentHours(d, dm('a'), 2) && !api.outsideStudentHours(d, dm('a'), 7), 'purple: no hours warning');
+    assert(!api.outsideStudentHours(d, dm('a'), 2, 1, { byBlock: true }) && api.outsideStudentHours(d, dm('a'), 5, 1, { byBlock: true }), 'primary purple prefers early periods');
+    assert(api.outsideStudentHours(d, dm('b'), 2, 2, { byBlock: true }) && !api.outsideStudentHours(d, dm('b'), 5, 2, { byBlock: true }), 'secondary purple prefers later periods');
+    // Middle school (and pre-middle) comes latest: P5-8, not the upper elementary P4.
+    assert(api.outsideStudentHours(d, dm('c'), 4) && !api.outsideStudentHours(d, dm('c'), 5) && !api.outsideStudentHours(d, dm('c'), 8), 'pre-middle: periods 5-8');
     assert(api.teacherLimitReason(api.defaultTeacherProfile(d.teacherProfiles[1]), dm('c')) === 'wrong_junior_senior_band', 'junior-only teacher not given pre-middle');
     console.log('schedule block tests passed');
 }
@@ -301,6 +303,8 @@ console.log('planner-auto tests passed');
     assert(!api.outsideStudentHours(d, dm('t0'), 4, 2) && !api.outsideStudentHours(d, dm('t0'), 4, 4), 'elementary P4 fine on Tue/Thu');
     assert(api.outsideStudentHours(d, dm('m0'), 4, 1) && api.outsideStudentHours(d, dm('t0'), 5, 2), 'not on Mon, and not P5');
     assert(!api.outsideStudentHours(d, dm('g0'), 4, 2) && api.outsideStudentHours(d, dm('g0'), 3, 2), 'senior starts 17:00 on Tue/Thu');
+    assert(!api.outsideStudentHours(d, dm('g0'), 7, 2) && api.outsideStudentHours(d, dm('g0'), 8, 2), 'upper elementary: periods 4-7');
+    assert(api.usualCohortPeriods(1) === 2 && api.usualCohortPeriods(2) === 3, 'usual periods a day: 2 MWF, 3 Tue/Thu');
     // 4 classes x 2 a week = 8 periods in 2 days x 4 periods: fits only with the longer Tue/Thu block.
     const dr = { id: 'tt', assignments: [], issues: [], metrics: {} };
     const res = auto.autoSchedule(d, dr, {});

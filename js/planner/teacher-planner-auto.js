@@ -325,6 +325,8 @@
                         const roomFree = !rooms.length || rooms.some((r) => !roomBusy.has(`${r.id}|${dow}|${n}`)
                             && !api.roomTooSmall(appData, demand, r.id));
                         let score = -0.4 * idx; // earlier in the students' hours first
+                        // Purple may go anywhere, but its own block (primary early, secondary later) is preferred.
+                        if (api.outsideStudentHours(appData, demand, n, dow, { byBlock: true })) score -= 10;
                         if (!roomFree) score -= 40;
                         // Students should not sit through empty periods.
                         (demand.cohortIds || []).forEach((cid) => {
@@ -332,6 +334,8 @@
                             if (!theirs.length) return;
                             const dist = Math.min(...theirs.map((x) => Math.abs(x - n)));
                             score += dist === 1 ? 6 : -6 * (dist - 1);
+                            // Usually 2 periods a day on MWF and 3 on Tue/Thu: more than that is not liked.
+                            if (theirs.length >= api.usualCohortPeriods(dow)) score -= 8;
                         });
                         if (teacher) {
                             score += w.breaks * (dayShapeScore(mine.concat([n]), runLimit) - dayShapeScore(mine, runLimit));
