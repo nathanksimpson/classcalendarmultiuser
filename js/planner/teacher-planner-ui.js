@@ -31,6 +31,8 @@
         query: '',
         selected: null, // demandId
         issuesOpen: true,
+        issuesAll: false, // show every line of a long To fix group
+        compact: false, // Cohorts sheet: room on the tile, whole day fits on screen
         doneOpen: false,
         setupTab: 'teachers',
         setupOpen: false,
@@ -126,13 +128,14 @@
             if ([0, 1, 2, 3, 4, 5].includes(raw.day)) state.day = raw.day;
             if (['all', 'junior', 'middle', 'senior'].includes(raw.band)) state.band = raw.band;
             if (typeof raw.issuesOpen === 'boolean') state.issuesOpen = raw.issuesOpen;
+            if (typeof raw.compact === 'boolean') state.compact = raw.compact;
         } catch (_) { /* ignore */ }
     }
 
     function savePrefs() {
         try {
             localStorage.setItem(PREF_KEY, JSON.stringify({
-                view: state.view, day: state.day, band: state.band, issuesOpen: state.issuesOpen
+                view: state.view, day: state.day, band: state.band, issuesOpen: state.issuesOpen, compact: state.compact
             }));
         } catch (_) { /* ignore */ }
     }
@@ -626,6 +629,12 @@
         }
         const band = $('spBand');
         if (band && band.value !== state.band) band.value = state.band;
+        const compact = $('spCompactBtn');
+        if (compact) {
+            compact.hidden = state.view !== 'cohorts';
+            compact.classList.toggle('is-active', state.compact);
+            compact.setAttribute('aria-pressed', state.compact ? 'true' : 'false');
+        }
         const u = $('spUndoBtn');
         const r = $('spRedoBtn');
         if (u) u.disabled = !undoStack.length;
@@ -787,6 +796,11 @@ ${asg && asg.auto && asg.auto.count && asg.teacherProfileId ? `<p class="sp-hint
     }
 
     /** On the Cohorts sheet the column already names the cohort: show the subject part of the class name. */
+    /** Compact Cohorts sheet: the room sits on the tile instead of a row under it. */
+    function compactCohorts() {
+        return state.view === 'cohorts' && state.compact;
+    }
+
     function subjectOnly(m, demand) {
         const name = String(demand.name || '');
         const i = name.lastIndexOf(' · ');
@@ -819,6 +833,7 @@ ${asg && asg.auto && asg.auto.count && asg.teacherProfileId ? `<p class="sp-hint
   style="--c:${esc(colorByTeacher() ? teacherColor(m, asg.teacherProfileId) : demandColor(m, demand))}"${why.length ? ` title="${esc(why.join(' · '))}"` : ''}>
   <span class="sp-tile-name">${asg.locked ? '<span class="sp-tile-lock" aria-hidden="true">🔒</span>' : ''}${why.length ? '<span class="sp-tile-flag" aria-hidden="true">!</span>' : ''}${esc(state.view === 'cohorts' ? subjectOnly(m, demand) : demand.name)}</span>
   ${bits.length ? `<span class="sp-tile-sub">${esc(bits.join(' · '))}</span>` : ''}
+  ${compactCohorts() ? tileRoomChip(m, tile) : ''}
   <button type="button" class="sp-tile-x" data-act="remove-period" data-asg="${esc(asg.assignmentId)}" data-dow="${Number(meeting.dow)}" data-period="${esc(meeting.period)}" aria-label="${esc(t('spRemovePeriod', 'Take off the board'))}">×</button>
 </div>`;
     }
@@ -848,46 +863,58 @@ ${asg && asg.auto && asg.auto.count && asg.teacherProfileId ? `<p class="sp-hint
         return api().classSizeOf(m.data, demand);
     }
 
+    /** Rooms already used at a time on a day: room id -> assignment id. */
+    function roomsBusyAt(m, dow, period) {
+        const busy = new Map();
+        m.tiles.forEach((x) => {
+            if (Number(x.m.dow) === Number(dow) && String(x.m.period) === String(period) && x.roomId) busy.set(x.roomId, x.asg.assignmentId);
+        });
+        return busy;
+    }
+
+    /** Room picker for one placed period. Rooms that are taken or too small can't be picked. */
+    function roomSelectHtml(m, x, extraClass) {
+        const size = classSize(m, x.demand);
+        const busy = roomsBusyAt(m, x.m.dow, x.m.period);
+        const opts = m.rooms.map((r) => {
+            const takenBy = busy.get(r.id);
+            const taken = takenBy && takenBy !== x.asg.assignmentId;
+            const small = Number(r.capacity) > 0 && size > Number(r.capacity);
+            const note = taken ? t('spRoomInUse', 'in use') : small ? t('spRoomTooSmallShort', 'too small') : '';
+            const seats = r.capacity && !extraClass ? ` (${Number(r.capacity)})` : '';
+            return `<option value="${esc(r.id)}"${r.id === x.roomId ? ' selected' : ''}${(taken || small) && r.id !== x.roomId ? ' disabled' : ''}>${esc(r.name)}${seats}${note ? ` · ${esc(note)}` : ''}</option>`;
+        }).join('');
+        return `<select class="sp-roomsel${extraClass ? ` ${extraClass}` : ''}" data-change="tile-room" data-asg="${esc(x.asg.assignmentId)}" data-dow="${Number(x.m.dow)}" data-period="${esc(x.m.period)}" aria-label="${esc(t('spRoomFor', 'Room for {name}', { name: x.demand.name }))}"${readOnly() ? ' disabled' : ''}>
+    <option value="">${esc(t('spNoRoom', 'No room'))}</option>${opts}
+  </select>`;
+    }
+
+    /** Compact Cohorts sheet: room picker on the tile, plus the combined size. */
+    function tileRoomChip(m, x) {
+        if (!m.rooms.length) return '';
+        const combined = (x.demand.cohortIds || []).filter((cid) => m.cohortById.has(cid)).length > 1;
+        return `<span class="sp-tile-room${x.roomId ? '' : ' is-missing'}${x.clash.includes('room') ? ' is-clash' : ''}">${roomSelectHtml(m, x, 'sp-roomsel--chip')}${combined ? `<span class="sp-roomsize" title="${esc(t('spCombinedSize', '{n} students (combined)', { n: classSize(m, x.demand) }))}">${esc(t('spCombinedShort', '{n} comb.', { n: classSize(m, x.demand) }))}</span>` : ''}</span>`;
+    }
+
     /**
      * Cohort sheet: a row under each period with the room of every class in it, like the printed
      * 강의실 row. A combined class shows its total students. Only on the Cohorts sheet.
      */
     function roomRowHtml(m, cells, row) {
-        if (state.view !== 'cohorts') return '';
+        if (state.view !== 'cohorts' || state.compact) return '';
         const anything = cells.some(({ col, dow }) => (m.cellTiles.get(`${col.id}|${dow}|${row.period}`) || []).length);
         if (!anything) return '';
-        const used = new Map(); // roomId -> assignmentId at this time, per weekday
-        const roomUse = (dow) => {
-            if (!used.has(dow)) {
-                const map = new Map();
-                m.tiles.forEach((x) => {
-                    if (x.roomId && Number(x.m.dow) === Number(dow) && String(x.m.period) === row.period) map.set(x.roomId, x.asg.assignmentId);
-                });
-                used.set(dow, map);
-            }
-            return used.get(dow);
-        };
         const cellsHtml = cells.map(({ col, dow }) => {
             const tiles = m.cellTiles.get(`${col.id}|${dow}|${row.period}`) || [];
             if (!tiles.length) return '<td class="sp-roomcell is-empty"></td>';
             return `<td class="sp-roomcell">${tiles.map((x) => {
                 const size = classSize(m, x.demand);
                 const combined = (x.demand.cohortIds || []).filter((cid) => m.cohortById.has(cid)).length > 1;
-                const busy = roomUse(dow);
-                const opts = m.rooms.map((r) => {
-                    const takenBy = busy.get(r.id);
-                    const taken = takenBy && takenBy !== x.asg.assignmentId;
-                    const small = Number(r.capacity) > 0 && size > Number(r.capacity);
-                    const note = taken ? t('spRoomInUse', 'in use') : small ? t('spRoomTooSmallShort', 'too small') : '';
-                    return `<option value="${esc(r.id)}"${r.id === x.roomId ? ' selected' : ''}${(taken || small) && r.id !== x.roomId ? ' disabled' : ''}>${esc(r.name)}${r.capacity ? ` (${Number(r.capacity)})` : ''}${note ? ` · ${esc(note)}` : ''}</option>`;
-                }).join('');
                 const label = combined
                     ? t('spCombinedSize', '{n} students (combined)', { n: size })
                     : t('spStudentsN', '{n} students', { n: size });
                 return `<div class="sp-roomline${x.roomId ? '' : ' is-missing'}${x.clash.includes('room') ? ' is-clash' : ''}">
-  ${m.rooms.length ? `<select class="sp-roomsel" data-change="tile-room" data-asg="${esc(x.asg.assignmentId)}" data-dow="${Number(x.m.dow)}" data-period="${esc(x.m.period)}" aria-label="${esc(t('spRoomFor', 'Room for {name}', { name: x.demand.name }))}"${readOnly() ? ' disabled' : ''}>
-    <option value="">${esc(t('spNoRoom', 'No room'))}</option>${opts}
-  </select>` : `<span class="sp-roomnone">${esc(t('spNoRoomsYet', 'No rooms set up'))}</span>`}
+  ${m.rooms.length ? roomSelectHtml(m, x) : `<span class="sp-roomnone">${esc(t('spNoRoomsYet', 'No rooms set up'))}</span>`}
   ${combined || tiles.length > 1 ? `<span class="sp-roomsize">${esc(label)}</span>` : ''}
 </div>`;
             }).join('')}</td>`;
@@ -903,6 +930,24 @@ ${asg && asg.auto && asg.auto.count && asg.teacherProfileId ? `<p class="sp-hint
         if (!items.length) return '';
         return `<div class="sp-legend" aria-label="${esc(t('spLegendTeachers', 'Colour by teacher'))}">${items.map((x) =>
             `<span class="sp-legend-item"><span class="sp-legend-dot" style="background:${esc(x.color)}"></span>${esc(x.name)}</span>`).join('')}</div>`;
+    }
+
+    /** Empty board: one clear next step instead of a long To fix list. */
+    function startCardHtml(m) {
+        if (m.tiles.length) return '';
+        const todo = m.demands.filter((d) => d.includedInDraft !== false);
+        if (!todo.length) return '';
+        const ro = readOnly();
+        return `<div class="sp-start" role="note">
+  <div class="sp-start-text">
+    <strong>${esc(t('spStartTitle', '{n} classes to place', { n: todo.length }))}</strong>
+    <span>${esc(t('spStartBody', 'Let Auto-schedule make a first plan, or drag classes from the To place list onto the board. Check teachers and rooms in Setup first.'))}</span>
+  </div>
+  <div class="sp-start-actions">
+    <button type="button" class="btn btn-primary btn-small" data-act="auto"${ro ? ' disabled' : ''}>${esc(t('spAuto', 'Auto-schedule'))}</button>
+    <button type="button" class="btn btn-outline btn-small" data-act="open-setup">${esc(t('spSetup', 'Setup'))}</button>
+  </div>
+</div>`;
     }
 
     function renderBoard() {
@@ -950,7 +995,9 @@ ${asg && asg.auto && asg.auto.count && asg.teacherProfileId ? `<p class="sp-hint
             }).join('')}</tr></thead><tbody>${M.periods.map((row, i) => `<tr class="${i > 0 && M.periods[i - 1].band !== row.band ? 'is-split' : ''}">${timeCell(row, i)}${cols.map((c) => cellHtml(M, c, d, row)).join('')}</tr>${roomRowHtml(M, cols.map((c) => ({ col: c, dow: d })), row)}`).join('')}</tbody></table></div>`;
         }
         if (colorByTeacher()) html = teacherLegend(M) + html;
+        html = startCardHtml(M) + html;
         el.classList.toggle('sp-by-teacher', colorByTeacher());
+        el.classList.toggle('is-compact', compactCohorts());
         el.innerHTML = html;
         const next = el.querySelector('.sp-board-scroll');
         if (next && keep) {
@@ -959,12 +1006,42 @@ ${asg && asg.auto && asg.auto.count && asg.teacherProfileId ? `<p class="sp-hint
         }
     }
 
+    const ISSUE_SHORT = 6;
+
+    /**
+     * One To fix group. Long groups are shortened: "Still to do" becomes one line per kind
+     * ("No teacher yet: 61 classes"), other groups show the first few. "Show all" opens the rest.
+     */
+    function issueListHtml(g) {
+        const line = (x) => `<li><button type="button" class="sp-issue" data-act="jump-issue" data-issue="${esc(x.issue.id)}">${esc(x.text)}</button></li>`;
+        const long = g.items.length > ISSUE_SHORT;
+        if (!long || state.issuesAll) {
+            return `<ul>${g.items.slice(0, 200).map(line).join('')}</ul>${long ? `<button type="button" class="sp-link sp-issues-more" data-act="issues-all">${esc(t('spIssuesShowFewer', 'Show fewer'))}</button>` : ''}`;
+        }
+        let body;
+        if (g.id === 'todo') {
+            const counts = new Map();
+            g.items.forEach((x) => counts.set(x.issue.code, (counts.get(x.issue.code) || 0) + 1));
+            const label = {
+                no_teacher: t('spSumNoTeacher', 'No teacher yet: {n} classes'),
+                incomplete_placements: t('spSumIncomplete', 'Need more periods on the board: {n} classes'),
+                no_common_day: t('spSumNoCommonDay', 'Cohorts with no shared day: {n} classes')
+            };
+            body = `<ul class="sp-issue-sum">${[...counts].map(([code, n]) => `<li>${esc((label[code] || code).replace('{n}', n))}</li>`).join('')}</ul>`;
+        } else {
+            body = `<ul>${g.items.slice(0, ISSUE_SHORT).map(line).join('')}</ul>`;
+        }
+        return `${body}<button type="button" class="sp-link sp-issues-more" data-act="issues-all">${esc(t('spIssuesShowAll', 'Show all {n}', { n: g.items.length }))}</button>`;
+    }
+
     function renderIssues() {
         const wrap = $('spIssues');
         if (!wrap) return;
         const groups = groupedIssues(M);
         const total = groups.reduce((n, g) => n + g.items.length, 0);
-        wrap.classList.toggle('is-collapsed', !state.issuesOpen);
+        // Nothing to fix: fold the panel so the board gets the width (the summary bar says so too).
+        const open = state.issuesOpen && total > 0;
+        wrap.classList.toggle('is-collapsed', !open);
         const titles = {
             clash: t('spGroupClash', 'Clashes'),
             todo: t('spGroupTodo', 'Still to do'),
@@ -972,14 +1049,14 @@ ${asg && asg.auto && asg.auto.count && asg.teacherProfileId ? `<p class="sp-hint
             room: t('spGroupRoom', 'Rooms')
         };
         wrap.innerHTML = `
-<button type="button" class="sp-issues-head" data-act="toggle-issues" aria-expanded="${state.issuesOpen}">
+<button type="button" class="sp-issues-head" data-act="toggle-issues" aria-expanded="${open}">
   <span>${esc(t('spIssuesTitle', 'To fix'))}</span><span class="sp-count${groups[0].items.length ? ' is-bad' : ''}">${total}</span>
-  <span class="sp-caret${state.issuesOpen ? ' is-open' : ''}" aria-hidden="true">▸</span>
+  <span class="sp-caret${open ? ' is-open' : ''}" aria-hidden="true">▸</span>
 </button>
-${state.issuesOpen ? `<div class="sp-issues-body">${total ? groups.filter((g) => g.items.length).map((g) => `
+${open ? `<div class="sp-issues-body">${total ? groups.filter((g) => g.items.length).map((g) => `
 <section class="sp-issue-group sp-issue-group--${g.id}">
   <h3>${esc(titles[g.id])} <span class="sp-count">${g.items.length}</span></h3>
-  <ul>${g.items.slice(0, 40).map((x) => `<li><button type="button" class="sp-issue" data-act="jump-issue" data-issue="${esc(x.issue.id)}">${esc(x.text)}</button></li>`).join('')}</ul>
+  ${issueListHtml(g)}
 </section>`).join('') : `<p class="sp-empty">${esc(t('spIssuesNone', 'Nothing to fix. Check the board, then press Apply to calendar.'))}</p>`}</div>` : ''}`;
     }
 
@@ -2309,7 +2386,7 @@ ${by.get(cid).map((d) => `
             return;
         }
         const pick = e.target.closest('.sp-tile, .sp-card');
-        if (pick) {
+        if (pick && !e.target.closest('select, input, label')) {
             const id = pick.getAttribute('data-demand');
             state.selected = state.selected === id ? null : id;
             render();
@@ -2388,6 +2465,15 @@ ${by.get(cid).map((d) => `
             state.issuesOpen = !state.issuesOpen;
             savePrefs();
             renderIssues();
+            break;
+        case 'issues-all':
+            state.issuesAll = !state.issuesAll;
+            renderIssues();
+            break;
+        case 'toggle-compact':
+            state.compact = !state.compact;
+            savePrefs();
+            render();
             break;
         case 'toggle-done':
             state.doneOpen = !state.doneOpen;

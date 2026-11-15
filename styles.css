@@ -26526,3 +26526,132 @@ a.app-zone-segment-btn {
     #plannerPrintArea[data-density="tight"] .planner-print-table th,
     #plannerPrintArea[data-density="tight"] .planner-print-table td { padding: 2px; }
 }
+
+/* ---- Schedule planner: start card, short To fix lists, compact Cohorts day ---- */
+.sp-start {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--primary);
+    border-radius: var(--radius-card, 10px);
+    background: var(--bg-card);
+    color: var(--text-primary);
+}
+
+.sp-start-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1 1 260px;
+}
+
+.sp-start-text span {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+}
+
+.sp-start-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.sp-issue-sum {
+    margin: 0;
+    padding-left: var(--space-4);
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+}
+
+.sp-issues-more {
+    margin-top: var(--space-1);
+    font-size: 0.8125rem;
+}
+
+.sp-compact-btn {
+    border: 1px solid var(--border-color);
+}
+
+/* Compact: narrow columns, names wrap, room picker on the tile. */
+.sp-board.is-compact .sp-grid--day {
+    min-width: calc(48px + var(--cols, 6) * 84px);
+}
+
+.sp-board.is-compact .sp-grid--day .sp-corner {
+    width: 48px;
+}
+
+.sp-board.is-compact .sp-col-name {
+    font-size: 0.75rem;
+    white-space: normal;
+    overflow-wrap: break-word;
+    line-height: 1.2;
+}
+
+.sp-board.is-compact .sp-col-meta {
+    display: none;
+}
+
+.sp-board.is-compact .sp-tile {
+    min-height: 0;
+    padding: 2px 4px;
+}
+
+/* No room for the × in compact: take a class off from its details panel or drag it back to the list. */
+.sp-board.is-compact .sp-tile-x {
+    display: none;
+}
+
+.sp-board.is-compact .sp-tile-name {
+    font-size: 0.75rem;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: break-word;
+    hyphens: auto;
+    line-height: 1.2;
+}
+
+.sp-board.is-compact .sp-tile-sub {
+    font-size: 0.6875rem;
+    white-space: normal;
+    overflow-wrap: break-word;
+}
+
+.sp-board.is-compact .sp-time-clock {
+    font-size: 0.625rem;
+}
+
+.sp-tile-room {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 4px;
+    margin-top: 2px;
+}
+
+.sp-roomsel--chip {
+    flex: 1 1 100%;
+    width: 100%;
+    padding: 1px 4px;
+    font-size: 0.6875rem;
+    text-align: center;
+    text-align-last: center;
+    border-radius: 999px;
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
+}
+
+.sp-tile-room.is-missing .sp-roomsel--chip {
+    border-style: dashed;
+    color: var(--sp-warn, #b45309);
+}
+
+.sp-tile-room.is-clash .sp-roomsel--chip {
+    border-color: var(--danger);
+}
