@@ -39,6 +39,7 @@
         openBlockGrid: null, // teacher profile id or 'everyone'
         openTypes: null, // teacher profile id
         cohortSel: new Set(), // cohort ids ticked for batch edit in Setup
+        cohortFilter: { level: 'all', days: 'all', block: 'all', hours: 'all' }, // Setup > Cohorts list filters
         editClass: null, // demandId whose class settings are open in the side panel
         menu: null
     };
@@ -233,6 +234,7 @@
                     rank: P.levelSortIndex(band, c),
                     days: P.cohortBlock(data, c).days,
                     block: P.cohortBlock(data, c),
+                    scheduleBlock: String(c.scheduleBlock || '').toLowerCase(),
                     homeroom: String(c.homeroomTeacherName || '').trim(),
                     students: Array.isArray(c.students) ? c.students.filter((st) => st && st.active !== false && !st.archivedAt).length : 0
                 };
@@ -1877,27 +1879,41 @@ ${state.openBlockGrid === 'everyone' ? blockGrid(M, 'everyone') : ''}`;
             const pending = api().pendingCohortBlocks(M.data);
             html += `<p class="sp-hint">${esc(t('spSetupCohortsHint', 'When each cohort’s students are at school, by class period (blank = the level’s usual periods). The planner uses these straight away for warnings and auto-schedule. The cohorts themselves only change when you press “Save to cohorts”.'))}</p>`;
             [...state.cohortSel].forEach((id) => { if (!M.cohortById.has(id)) state.cohortSel.delete(id); });
-            const selN = state.cohortSel.size;
-            const allOn = M.cohorts.length > 0 && selN === M.cohorts.length;
-            const bandsHere = ['junior', 'middle', 'senior'].filter((b) => M.cohorts.some((c) => c.band === b));
+            // Filters narrow the list; "change several at once" works on the ticked cohorts that are
+            // shown, or on everything shown when none is ticked.
+            const shown = M.cohorts.filter(cohortFilterMatch);
+            const ticked = shown.filter((c) => state.cohortSel.has(c.id));
+            const target = ticked.length ? ticked : shown;
+            const allOn = shown.length > 0 && ticked.length === shown.length;
+            const group = (key, opts) => `<span class="sp-filter-group" role="group" aria-label="${esc(cohortFilterTitle(key))}">
+      <span class="sp-filter-label">${esc(cohortFilterTitle(key))}</span>
+      ${opts.map((v) => `<button type="button" class="sp-filter-chip${state.cohortFilter[key] === v ? ' is-active' : ''}" data-act="cohort-filter" data-key="${key}" data-value="${v}" aria-pressed="${state.cohortFilter[key] === v}">${esc(cohortFilterLabel(v))}</button>`).join('')}
+    </span>`;
+            const levels = ['all'].concat(['junior', 'senior', 'middle'].filter((b) => M.cohorts.some((c) => c.band === b)));
             html += M.cohorts.length ? `
+<div class="sp-filters" role="group" aria-label="${esc(t('spFilterLabel', 'Show cohorts'))}">
+    ${group('level', levels)}
+    ${group('days', ['all', 'mwf', 'tth'])}
+    ${group('block', ['all', 'primary', 'secondary'])}
+    ${group('hours', ['all', 'nohours', 'set'])}
+    <span class="sp-count">${esc(t('spFilterCount', '{n} of {total} shown', { n: shown.length, total: M.cohorts.length }))}</span>
+</div>
 <div class="sp-batch" role="group" aria-label="${esc(t('spBatchLabel', 'Change several cohorts at once'))}">
   <div class="sp-batch-row">
     <strong>${esc(t('spBatchTitle', 'Change several at once'))}</strong>
-    <span class="sp-hint">${esc(t('spBatchSelect', 'Tick cohorts below, or pick:'))}</span>
-    <button type="button" class="btn btn-outline btn-small" data-act="cohort-select" data-which="${allOn ? 'none' : 'all'}">${esc(allOn ? t('spBatchNone', 'None') : t('spBatchAll', 'All'))}</button>
-    ${bandsHere.map((b) => `<button type="button" class="btn btn-outline btn-small" data-act="cohort-select" data-which="${b}">${esc(bandLabel(b))}</button>`).join('')}
-    <span class="sp-count">${esc(t('spBatchCount', '{n} selected', { n: selN }))}</span>
+    <span class="sp-hint">${esc(ticked.length
+        ? t('spBatchTicked', 'Applies to the {n} ticked cohorts.', { n: ticked.length })
+        : t('spBatchShown', 'Applies to all {n} cohorts shown. Tick some to narrow it.', { n: shown.length }))}</span>
   </div>
   <div class="sp-batch-row">
     <span class="sp-chips">${DAYS.map((d) => `<label class="sp-chip"><input type="checkbox" data-batch-day="${d}"${state.batchDays && state.batchDays.includes(d) ? ' checked' : ''}><span>${esc(dayLabel(d))}</span></label>`).join('')}</span>
-    <button type="button" class="btn btn-outline btn-small" data-act="cohort-batch" data-what="days"${selN ? '' : ' disabled'}>${esc(t('spBatchSetDays', 'Set these days'))}</button>
+    <button type="button" class="btn btn-outline btn-small" data-act="cohort-batch" data-what="days"${target.length ? '' : ' disabled'}>${esc(t('spBatchSetDays', 'Set these days'))}</button>
     <label class="sp-num"><span>${esc(t('spBlockFrom', 'From'))}</span>${periodSelectHtml('start', state.batchStart || '', 'id="spBatchStart"')}</label>
     <label class="sp-num"><span>${esc(t('spBlockTo', 'To'))}</span>${periodSelectHtml('end', state.batchEnd || '', 'id="spBatchEnd"')}</label>
-    <button type="button" class="btn btn-outline btn-small" data-act="cohort-batch" data-what="hours"${selN ? '' : ' disabled'}>${esc(t('spBatchSetHours', 'Set these hours'))}</button>
+    <button type="button" class="btn btn-outline btn-small" data-act="cohort-batch" data-what="hours"${target.length ? '' : ' disabled'}>${esc(t('spBatchSetHours', 'Set these hours'))}</button>
   </div>
 </div>
-<table class="sp-table"><thead><tr><th><input type="checkbox" data-change="cohort-select-all"${allOn ? ' checked' : ''} aria-label="${esc(t('spBatchAll', 'All'))}"></th><th>${esc(t('spCohort', 'Cohort'))}</th><th>${esc(t('spDays', 'Days'))}</th><th>${esc(t('spBlockFrom', 'From'))}</th><th>${esc(t('spBlockTo', 'To'))}</th><th></th></tr></thead><tbody>${M.cohorts.map((c) => `
+<table class="sp-table"><thead><tr><th><input type="checkbox" data-change="cohort-select-all"${allOn ? ' checked' : ''} aria-label="${esc(t('spBatchAll', 'All'))}"></th><th>${esc(t('spCohort', 'Cohort'))}</th><th>${esc(t('spDays', 'Days'))}</th><th>${esc(t('spBlockFrom', 'From'))}</th><th>${esc(t('spBlockTo', 'To'))}</th><th></th></tr></thead><tbody>${shown.length ? '' : `<tr><td colspan="6" class="sp-empty">${esc(t('spFilterNone', 'No cohorts match these filters.'))}</td></tr>`}${shown.map((c) => `
 <tr data-cohort="${esc(c.id)}"${state.cohortSel.has(c.id) ? ' class="is-picked"' : ''}>
   <td><input type="checkbox" data-change="cohort-select"${state.cohortSel.has(c.id) ? ' checked' : ''} aria-label="${esc(c.name)}"></td>
   <td><span class="sp-swatch" style="background:${esc(c.color || '#94a3b8')}"></span>${esc(c.name)} <span class="sp-hint">${esc(bandLabel(c.band))}</span></td>
@@ -1972,6 +1988,42 @@ ${by.get(cid).map((d) => `
   ${known ? '' : `<option value="${esc(cur)}" selected>${esc(cur)}</option>`}
   ${opts.map((o) => `<option value="${esc(o.time)}"${o.time === cur ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}
 </select>`;
+    }
+
+    /** Setup > Cohorts filters: which cohorts the list shows. */
+    function cohortFilterMatch(c) {
+        const f = state.cohortFilter;
+        const days = (c.block && c.block.days) || [];
+        const hasHours = !!(c.block && c.block.start && c.block.end);
+        if (f.level !== 'all' && c.band !== f.level) return false;
+        if (f.days === 'mwf' && !(days.length && days.every((d) => [1, 3, 5].includes(d)))) return false;
+        if (f.days === 'tth' && !(days.length && days.every((d) => [2, 4].includes(d)))) return false;
+        if (f.block !== 'all' && (c.scheduleBlock || '') !== f.block) return false;
+        if (f.hours === 'nohours' && hasHours) return false;
+        if (f.hours === 'set' && !hasHours) return false;
+        return true;
+    }
+
+    function cohortFilterTitle(key) {
+        return {
+            level: t('spFilterLevel', 'Level'),
+            days: t('spDays', 'Days'),
+            block: t('spFilterBlock', 'Block'),
+            hours: t('spFilterHours', 'Hours')
+        }[key] || key;
+    }
+
+    function cohortFilterLabel(v) {
+        if (v === 'junior' || v === 'senior' || v === 'middle') return bandLabel(v);
+        return {
+            all: t('spBatchAll', 'All'),
+            mwf: t('spPickMwf', 'Mon/Wed/Fri'),
+            tth: t('spPickTth', 'Tue/Thu'),
+            primary: t('spPickPrimary', 'Primary block'),
+            secondary: t('spPickSecondary', 'Secondary block'),
+            nohours: t('spPickNoHours', 'No hours set'),
+            set: t('spPickHoursSet', 'Hours set')
+        }[v] || v;
     }
 
     /** Remember what is typed in the batch row across re-renders. */
@@ -2652,10 +2704,10 @@ ${by.get(cid).map((d) => `
             break;
         case 'fix': openFix(); break;
         case 'save-cohort-blocks': saveCohortBlocks(); break;
-        case 'cohort-select': {
-            const which = el.getAttribute('data-which');
+        case 'cohort-filter': {
             keepBatchInputs();
-            state.cohortSel = new Set(which === 'none' ? [] : M.cohorts.filter((c) => which === 'all' || c.band === which).map((c) => c.id));
+            const key = el.getAttribute('data-key');
+            if (state.cohortFilter[key] !== undefined) state.cohortFilter[key] = el.getAttribute('data-value');
             renderSetup();
             break;
         }
@@ -2670,7 +2722,9 @@ ${by.get(cid).map((d) => `
                 notice(t('spBatchNeedDays', 'Tick at least one day first.'), 'error');
                 break;
             }
-            const ids = [...state.cohortSel];
+            const shownIds = M.cohorts.filter(cohortFilterMatch).map((c) => c.id);
+            const tickedIds = shownIds.filter((id) => state.cohortSel.has(id));
+            const ids = tickedIds.length ? tickedIds : shownIds;
             setupEdit((data) => {
                 ids.forEach((id) => {
                     const cohort = (data.cohorts || []).find((c) => c.id === id);
@@ -2862,7 +2916,7 @@ ${by.get(cid).map((d) => `
             const period = el.getAttribute('data-period');
             mutate((data, draft) => api().setMeetingRoom(data, draft, asg.assignmentId, dow, period, el.value || ''));
         } else if (kind === 'cohort-select' || kind === 'cohort-select-all') {
-            if (kind === 'cohort-select-all') state.cohortSel = new Set(el.checked ? M.cohorts.map((c) => c.id) : []);
+            if (kind === 'cohort-select-all') state.cohortSel = new Set(el.checked ? M.cohorts.filter(cohortFilterMatch).map((c) => c.id) : []);
             else {
                 const id = el.closest('[data-cohort]').getAttribute('data-cohort');
                 if (el.checked) state.cohortSel.add(id);
