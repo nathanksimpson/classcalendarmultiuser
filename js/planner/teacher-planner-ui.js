@@ -391,9 +391,20 @@
 
     /* ------------------------------------------------------------- mutations */
 
+    /**
+     * The calendar copy can be swapped for a newer one at any time (live sync pulls another device's
+     * changes every few seconds). Always edit the current copy, or the change goes into an old object
+     * that is no longer saved and disappears on the next redraw.
+     */
+    function freshModel() {
+        const current = getAppData();
+        if (current && (!M || M.data !== current)) M = buildModel();
+        return M;
+    }
+
     function mutate(fn, options) {
         const opts = options || {};
-        if (!M) return null;
+        if (!freshModel()) return null;
         if (readOnly()) {
             notice(t('plannerReadOnlyHint', 'This calendar is read-only. Request edit access before applying a draft.'), 'error');
             return null;
@@ -2274,7 +2285,7 @@ ${by.get(cid).map((d) => `
     }
 
     function setupEdit(fn) {
-        if (readOnly()) return;
+        if (readOnly() || !freshModel()) return;
         fn(M.data);
         markDirty();
     }
@@ -3351,18 +3362,19 @@ ${by.get(cid).map((d) => `
         loadPrefs();
         document.addEventListener('click', (e) => {
             if (inPlanner(e.target)) {
+                freshModel();
                 onClick(e);
                 return;
             }
             // A click elsewhere closes an open planner menu.
             document.querySelectorAll('.sp-menu').forEach((mEl) => { mEl.hidden = true; });
         });
-        document.addEventListener('change', (e) => { if (inPlanner(e.target)) onChange(e); });
-        document.addEventListener('input', (e) => { if (inPlanner(e.target)) onInput(e); });
+        document.addEventListener('change', (e) => { if (inPlanner(e.target)) { freshModel(); onChange(e); } });
+        document.addEventListener('input', (e) => { if (inPlanner(e.target)) { freshModel(); onInput(e); } });
         document.addEventListener('keydown', (e) => {
             if (plannerVisible() && (inPlanner(e.target) || e.target === document.body || e.target === document.documentElement)) onKeyDown(e);
         });
-        document.addEventListener('pointerdown', (e) => { if (inPlanner(e.target)) onPointerDown(e); });
+        document.addEventListener('pointerdown', (e) => { if (inPlanner(e.target)) { freshModel(); onPointerDown(e); } });
         document.addEventListener('pointermove', onPointerMove, { passive: false });
         document.addEventListener('pointerup', onPointerUp);
         document.addEventListener('pointercancel', onPointerUp);

@@ -1051,6 +1051,10 @@ function bindLiveSyncSource() {
             if (!isNotesPage() && !isWorkspacePage() && !isPlannerPage()) {
                 initializeTermStart();
                 requestUiCalendarRender();
+                // The Schedule planner tab shows the calendar too: redraw it with the merged copy.
+                if (getActiveTab() === 'planner' && typeof CCPTeacherPlannerUi !== 'undefined') {
+                    CCPTeacherPlannerUi.refresh();
+                }
             } else if (isWorkspacePage()) {
                 refreshWorkspaceHomeworkUi();
             } else if (isPlannerPage() && typeof window.refreshPlannerPageUi === 'function') {
@@ -39298,6 +39302,15 @@ function refreshActiveTabAfterHydration() {
         }
     } else if (tab === 'timetable') {
         initTimetableTabControls();
+    } else if (tab === 'planner') {
+        // Opened straight on the planner: draw it again now the team calendar has loaded.
+        if (typeof CCPTabScripts !== 'undefined' && CCPTabScripts.ensureTabScripts) {
+            void CCPTabScripts.ensureTabScripts('planner').then(() => {
+                if (typeof CCPTeacherPlannerUi !== 'undefined') CCPTeacherPlannerUi.mountPage();
+            });
+        } else if (typeof CCPTeacherPlannerUi !== 'undefined') {
+            CCPTeacherPlannerUi.mountPage();
+        }
     } else if (tab === 'calendar') {
         ensureTermStartData();
         initializeTermStart();
