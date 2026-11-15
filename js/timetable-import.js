@@ -540,54 +540,37 @@
                 return;
             }
 
-            if (!Array.isArray(cls.classTeachers)) {
-                cls.classTeachers = [];
-            }
-
-            let teacherRow = cls.classTeachers.find(
-                (r) => teacherUserId && normalizeStr(r.userId) === teacherUserId
-            );
-            if (!teacherRow && teacherUserId) {
-                teacherRow = {
-                    id: makeId('ct'),
-                    userId: teacherUserId,
-                    name: teacherName,
-                    category: normalizeStr(entry.category),
-                    placements: []
-                };
-                cls.classTeachers.push(teacherRow);
-            } else if (!teacherRow && teacherName) {
-                teacherRow = cls.classTeachers.find(
-                    (r) => normalizeStr(r.name).toLowerCase() === teacherName.toLowerCase()
-                );
-                if (!teacherRow) {
-                    teacherRow = {
-                        id: makeId('ct'),
-                        userId: '',
-                        name: teacherName,
-                        category: normalizeStr(entry.category),
-                        placements: []
-                    };
-                    cls.classTeachers.push(teacherRow);
-                }
-            }
-            if (!teacherRow) {
+            // One teacher per class: the teacher whose timetable this is becomes the class's teacher.
+            // The times go on the class itself.
+            if (!teacherUserId && !teacherName) {
                 return;
             }
+            const prev = Array.isArray(cls.classTeachers) ? cls.classTeachers[0] : null;
+            const sameTeacher = prev && (
+                (teacherUserId && normalizeStr(prev.userId) === teacherUserId)
+                || (!teacherUserId && normalizeStr(prev.name).toLowerCase() === teacherName.toLowerCase())
+            );
+            cls.classTeachers = [{
+                id: (sameTeacher && prev.id) || makeId('ct'),
+                userId: teacherUserId,
+                name: teacherName,
+                category: (sameTeacher && normalizeStr(prev.category)) || normalizeStr(entry.category)
+            }];
 
-            if (!Array.isArray(teacherRow.placements)) {
-                teacherRow.placements = [];
+            // Copy: `classes` holds shallow copies, so the array may still be the live class's.
+            cls.placements = Array.isArray(cls.placements) ? cls.placements.slice() : [];
+            const placement = { dow: entry.dow };
+            if (period != null) {
+                placement.period = period;
             }
-            const placement = {
-                dow: entry.dow,
-                period: period != null ? period : undefined,
-                timeSlotId: timeSlotId || undefined
-            };
-            const dup = teacherRow.placements.some(
+            if (timeSlotId) {
+                placement.timeSlotId = timeSlotId;
+            }
+            const dup = cls.placements.some(
                 (p) => p.dow === placement.dow && p.period === placement.period
             );
             if (!dup) {
-                teacherRow.placements.push(placement);
+                cls.placements.push(placement);
                 applied += 1;
             }
 

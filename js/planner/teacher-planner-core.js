@@ -786,6 +786,23 @@
         return draft;
     }
 
+    /** The class's own placements ({dow, period}), Mon–Fri, sorted and without duplicates. */
+    function classPlacementList(classData) {
+        const list = Array.isArray(classData && classData.placements) ? classData.placements : [];
+        const seen = new Set();
+        const out = [];
+        list.forEach((p) => {
+            const dow = Number(p && p.dow);
+            const period = parsePeriod(p && p.period);
+            if (!(dow >= 1 && dow <= 5) || period == null) return;
+            const key = `${dow}|${period}`;
+            if (seen.has(key)) return;
+            seen.add(key);
+            out.push({ dow, period });
+        });
+        return out.sort((a, b) => a.dow - b.dow || Number(a.period) - Number(b.period));
+    }
+
     function collectClassMeetings(classData, appData) {
         const meetings = [];
         const days = Array.isArray(classData.meetingDays)
@@ -795,6 +812,16 @@
             ? classData.periodByWeekday
             : null;
         const basePeriod = parsePeriod(classData.period);
+
+        // The class's own placements (one teacher per class) come first; older data kept them on the teacher row.
+        const own = classPlacementList(classData);
+        if (own.length) {
+            return own.map((pl, idx) => ({
+                meetingId: `demand:${classData.id}:m${idx + 1}`,
+                dow: pl.dow,
+                period: String(pl.period)
+            }));
+        }
 
         if (Array.isArray(classData.classTeachers) && classData.classTeachers.length) {
             const row = classData.classTeachers[0];
@@ -2699,38 +2726,23 @@
                 dow: Number(m.dow),
                 period: parsePeriod(m.period)
             }));
-            const row = {
-                id: uid('ct'),
-                userId: asg.userId || (profile && profile.userId) || '',
-                name: (profile && profile.name) || '',
-                category: '',
-                curriculumId: cls.curriculumId || '',
-                classTypeId: cls.classTypeId || '',
-                meetingDays,
-                period: placements[0] ? placements[0].period : cls.period,
-                periodByWeekday,
-                placements,
-                scheduleBlock: cls.scheduleBlock || ''
-            };
-            if (!Array.isArray(cls.classTeachers)) cls.classTeachers = [];
+            // One teacher per class. The times live on the class (below), so the teacher row is only
+            // who teaches it; nothing else is copied onto it.
             if (!profile) {
                 // No teacher chosen yet: only the times (below) are written.
-            } else if (opts.replaceAllTeachers) {
-                cls.classTeachers = [row];
             } else {
-                const sameTeacher = (r) => (normalizeStr(r.userId) && normalizeStr(r.userId) === normalizeStr(row.userId))
-                    || (!normalizeStr(r.userId) && !normalizeStr(row.userId)
-                        && normalizeStr(r.name).toLowerCase() === normalizeStr(row.name).toLowerCase());
-                let idx = cls.classTeachers.findIndex(sameTeacher);
-                // The planner plans the class's first teacher; a new teacher takes that row.
-                if (idx < 0 && opts.replaceFirstTeacher && cls.classTeachers.length) idx = 0;
-                if (idx >= 0) {
-                    const prev = cls.classTeachers[idx];
-                    cls.classTeachers[idx] = Object.assign({}, prev, row, {
-                        id: prev.id || row.id,
-                        category: prev.category || row.category
-                    });
-                } else cls.classTeachers.push(row);
+                const userId = asg.userId || (profile && profile.userId) || '';
+                const name = (profile && profile.name) || '';
+                const prev = Array.isArray(cls.classTeachers) ? cls.classTeachers[0] : null;
+                const same = prev && ((normalizeStr(prev.userId) && normalizeStr(prev.userId) === normalizeStr(userId))
+                    || (!normalizeStr(prev.userId) && !normalizeStr(userId)
+                        && normalizeStr(prev.name).toLowerCase() === normalizeStr(name).toLowerCase()));
+                cls.classTeachers = [{
+                    id: (prev && prev.id) || uid('ct'),
+                    userId,
+                    name,
+                    category: (same && prev.category) || ''
+                }];
             }
             if (asg.roomId) cls.roomId = asg.roomId;
             const roomByWd = {};
@@ -2746,6 +2758,7 @@
             cls.meetingDays = meetingDays.slice();
             cls.period = placements[0] ? placements[0].period : cls.period;
             cls.periodByWeekday = Object.assign({}, periodByWeekday);
+            cls.placements = placements.map((pl) => ({ dow: pl.dow, period: pl.period }));
             if (placements.length) {
                 cls.weeklyFrequency = Math.max(Number(cls.weeklyFrequency) || 0, placements.length);
             }

@@ -28153,23 +28153,7 @@ function persistCurriculumLinkToSavedClass(classId, link) {
     if (link.book != null) {
         appData.classes[index].book = link.book;
     }
-    const teachers = appData.classes[index].classTeachers;
-    if (Array.isArray(teachers)) {
-        teachers.forEach((row) => {
-            if (!row || typeof row !== 'object') {
-                return;
-            }
-            if (curriculumId) {
-                row.curriculumId = curriculumId;
-            }
-            if (link.classTypeId) {
-                row.classTypeId = link.classTypeId;
-            }
-            if (link.book != null) {
-                row.book = link.book;
-            }
-        });
-    }
+    // One curriculum per class: it lives on the class only, never on the teacher row.
     saveData();
 }
 
@@ -40412,6 +40396,7 @@ function migrateCompressedDaySyllabusRetcon(data) {
 }
 
 function migrateData(data) {
+    const oneTeacherTidyNotes = [];
     let migrated = false;
     let migratedClasses = 0;
     let migratedHolidays = 0;
@@ -40830,51 +40815,38 @@ function migrateData(data) {
                 classData.classTeachers = [];
                 migrated = true;
             }
-            classData.classTeachers.forEach((row) => {
-                if (!row.id) {
-                    row.id = generateId();
-                    migrated = true;
-                }
-                if (row.curriculumId === undefined) {
-                    row.curriculumId = classData.curriculumId || '';
-                    migrated = true;
-                }
-                if (row.classTypeId === undefined) {
-                    row.classTypeId = classData.classTypeId || '';
-                    migrated = true;
-                }
-                if (row.book === undefined) {
-                    row.book = classData.book || '';
-                    migrated = true;
-                }
-                if (!Array.isArray(row.meetingDays)) {
-                    row.meetingDays = [];
-                    migrated = true;
-                }
-                if (row.period === undefined) {
-                    row.period = null;
-                }
-                if (!Array.isArray(row.placements)) {
-                    row.placements = [];
-                    migrated = true;
-                }
-                if (row.scheduleBlock === undefined) {
-                    row.scheduleBlock = '';
-                }
-            });
             if (classData.classTeachers.length === 0
                 && (classData.assignedTeacherUserId || classData.assignedTeacherName)) {
                 classData.classTeachers = [{
                     id: generateId(),
                     userId: classData.assignedTeacherUserId || '',
                     name: classData.assignedTeacherName || '',
-                    category: classData.teacherCategory || '',
-                    curriculumId: classData.curriculumId || '',
-                    classTypeId: classData.classTypeId || '',
-                    book: classData.book || ''
+                    category: classData.teacherCategory || ''
                 }];
                 migrated = true;
             }
+            // One teacher and one curriculum per class: keep the first teacher, move its own
+            // days and periods onto the class, and note anything dropped (shown once below).
+            const tidyApi = getTimetableApi();
+            if (tidyApi && tidyApi.tidyClassToOneTeacher) {
+                const tidy = tidyApi.tidyClassToOneTeacher(classData);
+                if (tidy.changed) {
+                    migrated = true;
+                }
+                if (tidy.droppedTeachers.length || tidy.curriculumConflict) {
+                    oneTeacherTidyNotes.push({
+                        className: classData.name || classData.id,
+                        teachers: tidy.droppedTeachers,
+                        curriculumId: tidy.curriculumConflict
+                    });
+                }
+            }
+            classData.classTeachers.forEach((row) => {
+                if (!row.id) {
+                    row.id = generateId();
+                    migrated = true;
+                }
+            });
             if (classData.homeroomTeacherUserId === undefined) {
                 classData.homeroomTeacherUserId = '';
             }
@@ -41028,6 +41000,10 @@ function migrateData(data) {
         migrated = true;
     }
     
+    if (oneTeacherTidyNotes.length) {
+        showOneTeacherTidyNotice(data, oneTeacherTidyNotes);
+    }
+
     if (migratedClasses > 0 || migratedHolidays > 0) {
         const msg = t('migrationNotice')
             .replace('{classes}', migratedClasses)
@@ -41036,6 +41012,34 @@ function migrateData(data) {
     }
     
     return migrated;
+}
+
+/**
+ * Says once which extra teachers and per-teacher curricula were removed when classes moved to
+ * one teacher each. Only shown to accounts that may edit classes (their save keeps the change).
+ */
+function showOneTeacherTidyNotice(data, notes) {
+    if (!canEditArea('edit_classes') || (typeof teamViewOnlyActive !== 'undefined' && teamViewOnlyActive)) {
+        return;
+    }
+    const curriculumName = (id) => (window.CCPBooksEditor && window.CCPBooksEditor.getCurriculumDisplayName
+        ? window.CCPBooksEditor.getCurriculumDisplayName(id, data)
+        : id) || id;
+    const lines = notes.slice(0, 30).map((n) => {
+        const parts = [];
+        if (n.teachers.length) {
+            parts.push(t('oneTeacherTidyTeachers').replace('{names}', n.teachers.join(', ')));
+        }
+        if (n.curriculumId) {
+            parts.push(t('oneTeacherTidyCurriculum').replace('{name}', curriculumName(n.curriculumId)));
+        }
+        return `• ${n.className}: ${parts.join('; ')}`;
+    });
+    if (notes.length > 30) {
+        lines.push(t('oneTeacherTidyMore').replace('{count}', String(notes.length - 30)));
+    }
+    const msg = `${t('oneTeacherTidyIntro')}\n\n${lines.join('\n')}`;
+    setTimeout(() => alert(msg), 600);
 }
 
 const SYLLABUS_PACK_KIND = 'ccp-syllabus-pack';

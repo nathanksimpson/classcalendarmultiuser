@@ -265,6 +265,16 @@
             out.push({ dow, period, timeSlotId: slotId });
         }
 
+        // A class has one teacher, so its own placements (written by the class editor and the
+        // planner's Apply) come first. Older data kept them on the teacher row.
+        const classPlacements = normalizeTeacherRow({ placements: classData && classData.placements }).placements;
+        if (classPlacements.length) {
+            const days = new Set(classPlacements.map((p) => p.dow));
+            effectiveDays.splice(0, effectiveDays.length, ...[...days].sort((a, b) => a - b));
+            classPlacements.forEach((p) => addPlacement(p.dow, p.period));
+            return out;
+        }
+
         if (row.placements.length) {
             row.placements.forEach((p) => addPlacement(p.dow, p.period));
             return out;
@@ -341,63 +351,131 @@
         return classData.classTeachers;
     }
 
+    /** A class's teacher row: only who teaches it. Times, curriculum and block live on the class. */
     function buildDefaultTeacherRowForClass(classData, selector, options) {
         options = options || {};
         const userId = normalizeStr(selector && selector.userId);
         const name = normalizeStr(selector && selector.displayName) || userId;
-        const level = normalizeStr(classData.levelPreset)
-            || normalizeStr(classData.levelCustom)
-            || normalizeStr(classData.level);
-        let curriculumId = normalizeStr(options.curriculumId) || normalizeStr(classData.curriculumId);
-        let classTypeId = normalizeStr(classData.classTypeId);
-        let book = normalizeStr(classData.book);
-        let category = normalizeStr(options.category) || deriveTeacherCategory(classData);
-        if (global.CCPBooksEditor && curriculumId) {
-            const presetId = global.CCPBooksEditor.resolvePresetFromLevelAndBook(
-                level,
-                curriculumId,
-                options.appData
-            );
-            if (presetId) {
-                classTypeId = presetId;
-            }
-            const merged = global.CCPBooksEditor.buildMergedClassDefaults(
-                curriculumId,
-                classTypeId,
-                options.appData,
-                level
-            );
-            if (merged.defaultBook && !book) {
-                book = merged.defaultBook;
-            }
-        }
-        return normalizeTeacherRow({
+        return {
             id: options.rowId || '',
             userId,
             name,
-            category,
-            curriculumId,
-            classTypeId,
-            book
-        });
+            category: normalizeStr(options.category) || deriveTeacherCategory(classData)
+        };
     }
 
+    /** Set the class's one teacher (replaces any other). Returns false when it already is the teacher. */
     function addTeacherRowToClass(classData, selector, options) {
+        options = options || {};
         if (!classData || !selector) {
             return false;
         }
-        if (classHasTeacherAssignment(classData, selector)) {
+        const rows = ensureClassTeachersArray(classData);
+        if (rows.length === 1 && classHasTeacherAssignment(classData, selector)) {
             return false;
         }
-        const rows = ensureClassTeachersArray(classData);
         const row = buildDefaultTeacherRowForClass(classData, selector, options);
         if (!row.id && typeof options.generateId === 'function') {
             row.id = options.generateId();
         } else if (!row.id) {
             row.id = 'tr' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
         }
-        rows.push(row);
+        classData.classTeachers = [row];
         return true;
+    }
+
+    /** Placements a teacher row holds on its own (older data), or [] when it follows the class. */
+    function teacherRowOwnPlacements(classData, row) {
+        const r = normalizeTeacherRow(row);
+        if (r.placements.length) {
+            return r.placements.map((p) => ({ dow: p.dow, period: p.period }));
+        }
+        const days = r.meetingDays.length ? r.meetingDays : getMeetingDaysFromClass(classData);
+        const out = [];
+        if (r.periodByWeekday) {
+            days.forEach((dow) => {
+                const p = r.periodByWeekday[String(dow)];
+                if (p !== undefined) out.push({ dow, period: p });
+            });
+            if (out.length) return out;
+        }
+        if (r.period != null && !Number.isNaN(r.period)) {
+            days.forEach((dow) => out.push({ dow, period: r.period }));
+            if (out.length) return out;
+        }
+        if (r.meetingDays.length) {
+            // Own days, class period.
+            r.meetingDays.forEach((dow) => {
+                const p = getClassPeriodNumber(classData, dow);
+                if (p != null) out.push({ dow, period: p });
+            });
+        }
+        return out;
+    }
+
+    /**
+     * One teacher and one curriculum per class (Nov 2026). Keeps the first teacher, moves that
+     * row's own days and periods onto the class, and strips the row to who teaches it.
+     * Returns what was dropped so the page can say so once. Safe to run on every load.
+     */
+    function tidyClassToOneTeacher(classData) {
+        const report = { changed: false, droppedTeachers: [], curriculumConflict: '' };
+        if (!classData || !Array.isArray(classData.classTeachers)) {
+            return report;
+        }
+        const rows = classData.classTeachers.filter((r) => r && typeof r === 'object');
+        if (!rows.length) {
+            if (classData.classTeachers.length) {
+                classData.classTeachers = [];
+                report.changed = true;
+            }
+            return report;
+        }
+        const first = rows[0];
+        rows.slice(1).forEach((r) => {
+            const label = normalizeStr(r.name) || normalizeStr(r.userId);
+            if (label) report.droppedTeachers.push(label);
+        });
+
+        const hasClassPlacements = Array.isArray(classData.placements) && classData.placements.length > 0;
+        if (!hasClassPlacements) {
+            const own = teacherRowOwnPlacements(classData, first);
+            if (own.length) {
+                classData.placements = own;
+                const days = [...new Set(own.map((p) => p.dow))].sort((a, b) => a - b);
+                classData.meetingDays = days;
+                const byWd = {};
+                own.forEach((p) => {
+                    if (byWd[String(p.dow)] === undefined) byWd[String(p.dow)] = p.period;
+                });
+                classData.periodByWeekday = byWd;
+                classData.period = own[0].period;
+                report.changed = true;
+            }
+        }
+
+        const rowCurriculum = normalizeStr(first.curriculumId);
+        const classCurriculum = normalizeStr(classData.curriculumId);
+        if (rowCurriculum && !classCurriculum) {
+            classData.curriculumId = rowCurriculum;
+            report.changed = true;
+        } else if (rowCurriculum && rowCurriculum !== classCurriculum) {
+            report.curriculumConflict = rowCurriculum;
+        }
+
+        const slim = {
+            id: normalizeStr(first.id),
+            userId: normalizeStr(first.userId),
+            name: normalizeStr(first.name),
+            category: normalizeStr(first.category)
+        };
+        const extraKeys = Object.keys(first).filter((k) => !Object.prototype.hasOwnProperty.call(slim, k));
+        if (rows.length !== 1 || classData.classTeachers.length !== 1 || extraKeys.length
+            || Object.keys(slim).some((k) => first[k] !== slim[k])) {
+            classData.classTeachers = [slim];
+            report.changed = true;
+        }
+        return report;
     }
 
     function removeTeacherFromClass(classData, selector) {
@@ -2100,6 +2178,8 @@
         getTeacherPeriodNumber,
         classHasTeacherAssignment,
         addTeacherRowToClass,
+        tidyClassToOneTeacher,
+        teacherRowOwnPlacements,
         removeTeacherFromClass,
         cohortHasHomeroom,
         setCohortHomeroom,

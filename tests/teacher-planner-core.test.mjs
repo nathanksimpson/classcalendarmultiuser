@@ -447,3 +447,40 @@ await import(pathToFileURL(path.join(root, 'js', 'timetable-periods.js')).href);
     assert(rooms === '1:r1 3:r2 5:-', `rooms after reopen: ${rooms}`);
     console.log('room round-trip tests passed');
 }
+
+/* One teacher per class: Apply writes one teacher row (who only) and the times on the class,
+   two periods on one day included; reopening reads them back from the class. */
+{
+    const data = {
+        cohorts: [{ id: 'c', name: 'C', meetingDays: [2, 4], level: 'Garam', levelPreset: 'Garam', scheduleBlock: 'secondary' }],
+        classes: [{
+            id: 'k', name: 'K', cohortIds: ['c'], weeklyFrequency: 3, curriculumId: 'cur', scheduleBlock: 'secondary',
+            classTeachers: [
+                { id: 'ct-old', userId: 'u-old', name: 'Old', meetingDays: [2], period: 1, placements: [{ dow: 2, period: 1 }] },
+                { id: 'ct-2', userId: 'u-2', name: 'Second' }
+            ]
+        }],
+        teacherProfiles: [{ id: 't', name: 'T', userId: 'u-t' }]
+    };
+    api.ensurePlannerFields(data);
+    const draft = { id: 'd', assignments: [], issues: [], metrics: {} };
+    api.placePeriod(data, draft, 'demand:k', { dow: 2, period: '5', teacherProfileId: 't' });
+    api.placePeriod(data, draft, 'demand:k', { dow: 2, period: '6' });
+    api.placePeriod(data, draft, 'demand:k', { dow: 4, period: '5' });
+    api.applyDraftToAppData(data, draft, { allowMissingUserId: true, replaceFirstTeacher: true });
+    const cls = data.classes[0];
+    assert(cls.classTeachers.length === 1, 'one teacher row after Apply');
+    const row = cls.classTeachers[0];
+    assert(row.userId === 'u-t' && row.name === 'T', 'the planned teacher');
+    assert(!('curriculumId' in row) && !('scheduleBlock' in row) && !('placements' in row) && !('meetingDays' in row),
+        'teacher row carries no copied settings or times');
+    const pl = cls.placements.map((p) => `${p.dow}:${p.period}`).sort().join(' ');
+    assert(pl === '2:5 2:6 4:5', `class placements: ${pl}`);
+    const again = api.seedDraftFromCalendar(data, {});
+    const back = again.assignments[0].meetings.map((m) => `${m.dow}:${m.period}`).sort().join(' ');
+    assert(back === '2:5 2:6 4:5', `reopened from the class: ${back}`);
+    const tt = globalThis.CCPTeacherTimetable.getTeacherTimetablePlacements(cls, row, data)
+        .map((p) => `${p.dow}:${p.period}`).sort().join(' ');
+    assert(tt === '2:5 2:6 4:5', `timetable reads class placements: ${tt}`);
+    console.log('one-teacher class tests passed');
+}
