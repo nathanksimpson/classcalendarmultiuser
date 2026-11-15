@@ -2942,6 +2942,8 @@
         spTeacherTypeNeeded: '선생님 유형',
         spInPlanLong: '이 계획에 포함',
         spEditClassFull: '전체 수업 편집기 열기 ↗',
+        spUndoTip: '실행 취소 (Ctrl+Z)',
+        spRedoTip: '다시 실행 (Ctrl+Y)',
         spIssuesNone: '고칠 것이 없습니다. 보드를 확인한 뒤 캘린더에 적용을 누르세요.',
         spHintOwnCohort: '원래 반 열({name})에 들어갑니다',
         spHintSwap: '{name}와(과) 자리 바꾸기',

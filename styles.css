@@ -26751,3 +26751,26 @@ body.sp-holding-tile .sp-tray {
 .sp-tray:has(.sp-inspector.is-editing) .sp-search {
     display: none;
 }
+
+/* ---- Schedule planner: Undo / Redo as icons ---- */
+.sp-undo-group {
+    display: inline-flex;
+    gap: 2px;
+}
+
+.sp-icon-only {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    padding-left: var(--space-2);
+    padding-right: var(--space-2);
+}
+
+.sp-icon-only svg {
+    display: block;
+}
+
+.sp-icon-only:disabled svg {
+    opacity: 0.45;
+}

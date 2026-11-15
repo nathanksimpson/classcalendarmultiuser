@@ -2943,6 +2943,8 @@
         spTeacherTypeNeeded: 'Teacher type',
         spInPlanLong: 'Include in this plan',
         spEditClassFull: 'Open the full class editor ↗',
+        spUndoTip: 'Undo (Ctrl+Z)',
+        spRedoTip: 'Redo (Ctrl+Y)',
         spIssuesNone: 'Nothing to fix. Check the board, then press Apply to calendar.',
         spHintOwnCohort: 'Goes in its own column ({name})',
         spHintSwap: 'Swap with {name}',

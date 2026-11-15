@@ -96,8 +96,10 @@
                 </select>
                 <button type="button" id="spCompactBtn" class="sp-seg-btn sp-compact-btn" data-act="toggle-compact" aria-pressed="false" data-i18n="spCompact" data-i18n-title="spCompactTitle" title="Fit the whole day on screen: rooms go on the class tiles" hidden>Compact</button>
                 <div class="sp-topbar-actions">
-                    <button type="button" id="spUndoBtn" class="btn btn-outline btn-small" data-act="undo" data-i18n="spUndo" disabled>Undo</button>
-                    <button type="button" id="spRedoBtn" class="btn btn-outline btn-small" data-act="redo" data-i18n="spRedo" disabled>Redo</button>
+                    <div class="sp-undo-group" role="group">
+                        <button type="button" id="spUndoBtn" class="btn btn-outline btn-small sp-icon-only" data-act="undo" data-i18n-aria-label="spUndoTip" data-i18n-title="spUndoTip" aria-label="Undo (Ctrl+Z)" title="Undo (Ctrl+Z)" disabled><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+                        <button type="button" id="spRedoBtn" class="btn btn-outline btn-small sp-icon-only" data-act="redo" data-i18n-aria-label="spRedoTip" data-i18n-title="spRedoTip" aria-label="Redo (Ctrl+Y)" title="Redo (Ctrl+Y)" disabled><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+                    </div>
                     <button type="button" class="btn btn-outline btn-small" data-act="open-setup" data-i18n="spSetup">Setup</button>
                     <button type="button" id="spAutoBtn" class="btn btn-secondary btn-small" data-act="auto" data-i18n="spAuto">Auto-schedule</button>
                     <div class="sp-menu-wrap">
