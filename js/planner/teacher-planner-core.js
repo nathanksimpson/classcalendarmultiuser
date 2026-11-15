@@ -1214,7 +1214,16 @@
      * and room sheets a class can be given a time before it has a teacher.
      * ------------------------------------------------------------------ */
 
-    const FORBIDDEN = ['teacher_double_booked', 'cohort_double_booked', 'room_double_booked', 'outside_cohort_days'];
+    // Teacher type is a hard rule too: a class asking for a Korean or native teacher never gets the other
+    // type, and a teacher set to "own type only" never takes a class not marked for their type.
+    const FORBIDDEN = ['teacher_double_booked', 'cohort_double_booked', 'room_double_booked', 'outside_cohort_days',
+        'wrong_teacher_type', 'teacher_own_type_only'];
+
+    /** Teacher-type reason this teacher may never take this class (null = fine). */
+    function teacherTypeBlock(teacher, demand) {
+        const why = teacherLimitReason(teacher, demand);
+        return why === 'wrong_teacher_type' || why === 'teacher_own_type_only' ? why : null;
+    }
 
     /** A class that keeps its room when its time changes gives the room up if it is taken then. */
     function releaseTakenRooms(draft, asg) {
@@ -1306,7 +1315,7 @@
         }
         soft = [...new Set(soft)];
         // Never allowed, by hand or by auto-schedule: two classes for one teacher, cohort or room
-        // at the same time, and a room that cannot seat the class.
+        // at the same time, the wrong teacher type, and a room that cannot seat the class.
         // An off-day can be overridden by hand (target.allowOffDay), after the user confirms; it then stays a warning.
         const forbidden = soft.filter((r) => FORBIDDEN.includes(r)
             && !(r === 'outside_cohort_days' && tg.allowOffDay));
@@ -1529,6 +1538,10 @@
             ? (appData.teacherProfiles || []).find((t) => t.id === teacherProfileId)
             : null;
         if (teacherProfileId && !teacher) return { ok: false, reason: 'missing_context' };
+        if (teacher) {
+            const typeWhy = teacherTypeBlock(defaultTeacherProfile(teacher), demand);
+            if (typeWhy) return { ok: false, reason: typeWhy };
+        }
         let asg = draft.assignments.find((a) => a.demandId === demandId);
         if (teacher && asg) {
             const occ = occupancyMap((draft.assignments || []).filter((a) => a !== asg));
@@ -1654,7 +1667,18 @@
                 }
             }
             const limitWhy = teacher ? teacherLimitReason(teacher, demand) : null;
-            if (limitWhy === 'teacher_own_type_only' || limitWhy === 'class_type_not_allowed') {
+            if (limitWhy === 'teacher_own_type_only') {
+                issues.push(createIssue({
+                    severity: 'hard',
+                    code: 'wrong_teacher_type',
+                    reason: limitWhy,
+                    message: `${demand.name}: ${teacher.name} only takes classes for their teacher type.`,
+                    assignmentId: asg.assignmentId,
+                    demandId: demand.demandId,
+                    teacherProfileId: teacher.id
+                }));
+            }
+            if (limitWhy === 'class_type_not_allowed') {
                 issues.push(createIssue({
                     severity: 'soft',
                     code: 'teacher_limit',

@@ -329,6 +329,24 @@ assert(
     'metrics emit soft wrong_teacher issue'
 );
 
+// Teacher type is a hard rule on the board: refused, not a warning
+{
+    const d2 = { id: 'draft-type', assignments: [], issues: [], metrics: {} };
+    const typeCheck = api.checkSlot(appData, d2, mwf.demandId, { dow: 1, period: '2', teacherProfileId: 'tp-n1' });
+    assert(!typeCheck.ok && typeCheck.reasons.includes('wrong_teacher_type'), 'wrong teacher type is refused');
+    const typeSet = api.setClassTeacher(appData, d2, mwf.demandId, 'tp-n1');
+    assert(!typeSet.ok && typeSet.reason === 'wrong_teacher_type', 'setClassTeacher refuses the wrong type');
+    const native = appData.teacherProfiles.find((p) => p.id === 'tp-n1');
+    const cls = appData.classes.find((c) => c.id === mwf.classId);
+    const before = cls && cls.teacherRequirementType;
+    if (cls) cls.teacherRequirementType = 'either';
+    native.limits = Object.assign({}, native.limits, { ownTypeOnly: true });
+    const own = api.checkSlot(appData, d2, mwf.demandId, { dow: 1, period: '2', teacherProfileId: 'tp-n1' });
+    assert(!own.ok && own.reasons.includes('teacher_own_type_only'), 'own-type-only teacher is refused for an any-teacher class');
+    native.limits.ownTypeOnly = false;
+    if (cls) cls.teacherRequirementType = before;
+}
+
 // Default lock is OFF
 const freshState = api.defaultPlannerState();
 assert(freshState.lockToCohortDays === false, 'lockToCohortDays defaults OFF');

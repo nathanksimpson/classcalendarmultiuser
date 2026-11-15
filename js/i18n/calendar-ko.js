@@ -2933,6 +2933,8 @@
         spHoldTile: '{name} 이동 중. 옮길 칸을 누르거나, 목록을 눌러 보드에서 빼세요.',
         spHoldCard: '{name} 배치 중 ({n}개 남음). 칸을 누르세요.',
         spHoldDone: '완료',
+        spIssueOwnTypeOnly: '{name}: {teacher} 선생님은 본인 유형의 수업만 맡습니다',
+        spWrongTypeShort: '선생님 유형 불일치',
         spIssuesNone: '고칠 것이 없습니다. 보드를 확인한 뒤 캘린더에 적용을 누르세요.',
         spHintOwnCohort: '원래 반 열({name})에 들어갑니다',
         spHintSwap: '{name}와(과) 자리 바꾸기',

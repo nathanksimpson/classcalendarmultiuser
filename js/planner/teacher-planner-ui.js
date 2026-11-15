@@ -533,7 +533,9 @@
         case 'outside_cohort_days':
             return t('spIssueOffDay', '{name} is on a day its cohort does not come ({when})', { name, when });
         case 'wrong_teacher_type':
-            return t('spIssueTeacherType', '{name}: {teacher} is not the teacher type it asks for', { name, teacher });
+            return issue.reason === 'teacher_own_type_only'
+                ? t('spIssueOwnTypeOnly', '{name}: {teacher} only takes classes for their teacher type', { name, teacher })
+                : t('spIssueTeacherType', '{name}: {teacher} is not the teacher type it asks for', { name, teacher });
         case 'wrong_junior_senior_band':
             return t('spIssueTeacherBand', '{name}: {teacher} is not set to teach this level', { name, teacher });
         case 'over_load':
@@ -562,9 +564,9 @@
     }
 
     const ISSUE_GROUPS = [
-        { id: 'clash', codes: ['teacher_double_booked', 'cohort_double_booked', 'room_conflict'] },
+        { id: 'clash', codes: ['teacher_double_booked', 'cohort_double_booked', 'room_conflict', 'wrong_teacher_type'] },
         { id: 'todo', codes: ['no_teacher', 'incomplete_placements', 'no_common_day'] },
-        { id: 'warn', codes: ['outside_band_block', 'outside_cohort_days', 'teacher_unavailable', 'wrong_teacher_type', 'wrong_junior_senior_band', 'over_load', 'max_periods_per_day', 'long_run', 'teacher_limit', 'duplicate_weekday_2x'] },
+        { id: 'warn', codes: ['outside_band_block', 'outside_cohort_days', 'teacher_unavailable', 'wrong_junior_senior_band', 'over_load', 'max_periods_per_day', 'long_run', 'teacher_limit', 'duplicate_weekday_2x'] },
         { id: 'room', codes: ['room_unresolved', 'room_too_small'] }
     ];
 
@@ -750,7 +752,12 @@ ${!clashes && !warns && total && done === total ? `<span class="sp-pill sp-pill-
   <span>${esc(t('spTeacher', 'Teacher'))}</span>
   <select class="field-select" data-change="class-teacher">
     <option value="">${esc(t('spNoTeacher', 'No teacher'))}</option>
-    ${M.teachers.map((p) => `<option value="${esc(p.id)}"${asg && asg.teacherProfileId === p.id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}
+    ${M.teachers.map((p) => {
+        // Wrong teacher type is never allowed, so those teachers can't be picked.
+        const why = api().teacherLimitReason(p, demand);
+        const blocked = (why === 'wrong_teacher_type' || why === 'teacher_own_type_only') && !(asg && asg.teacherProfileId === p.id);
+        return `<option value="${esc(p.id)}"${asg && asg.teacherProfileId === p.id ? ' selected' : ''}${blocked ? ' disabled' : ''}>${esc(p.name)}${blocked ? ` · ${esc(t('spWrongTypeShort', 'wrong teacher type'))}` : ''}</option>`;
+    }).join('')}
   </select>
 </label>
 ${asg ? `<label class="sp-chip sp-lock"><input type="checkbox" data-change="class-lock"${asg.locked ? ' checked' : ''}><span>${esc(t('spLock', 'Lock in place (suggestions will not move it)'))}</span></label>` : ''}

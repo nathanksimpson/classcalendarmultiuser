@@ -2934,6 +2934,8 @@
         spHoldTile: 'Moving {name}. Tap a slot to move it, or tap the list to take it off.',
         spHoldCard: 'Placing {name} ({n} left). Tap a slot.',
         spHoldDone: 'Done',
+        spIssueOwnTypeOnly: '{name}: {teacher} only takes classes for their teacher type',
+        spWrongTypeShort: 'wrong teacher type',
         spIssuesNone: 'Nothing to fix. Check the board, then press Apply to calendar.',
         spHintOwnCohort: 'Goes in its own column ({name})',
         spHintSwap: 'Swap with {name}',
