@@ -88,7 +88,8 @@ meeting     { meetingId, dow 1-5, period '1'..'8', roomId? ('' = no room, overri
 ```
 
 - Meetings are per period; a class can have different periods on different days.
-- **Apply** writes `meetingDays`, `period`/`periodByWeekday`, `classTeachers` (the planner owns the first teacher row), `roomId`, and `roomIdByWeekday` when rooms differ by day. Reopening the planner reads them back; keep that round trip working (there's a test).
+- **Apply** writes the class's `placements` (every period, two on one day included), `meetingDays`, `period`/`periodByWeekday`, `weeklyFrequency`, `roomId`, `roomIdByWeekday` when rooms differ by day, and `classTeachers` as **one** row `{ id, userId, name, category }` (one teacher per class; nothing else is copied onto it). Reopening the planner reads the class's `placements` first, then older teacher-row times. Keep that round trip working (tests: room round-trip, one-teacher class).
+- **The class editor uses these same rules.** It loads this file (`CCPTabScripts.ensureTabScripts('classEditor')`), builds a draft with `seedDraftFromCalendar` on a copy of the calendar with the edited class swapped in, and shows that class's issues: clash codes red, warning codes amber (`CLASS_FORM_CLASH_CODES` / `CLASS_FORM_WARN_CODES` in app.js). A rule change here shows up there too; a new issue code needs adding to one of those sets.
 - `teacherProfiles[]` hold limits (`maxPeriodsPerWeek` default 22, `maxPeriodsPerDay`, `juniorAllowed`/`middleAllowed`/`seniorAllowed`, `ownTypeOnly`, `onlyClassTypeIds`), availability (`workStart` / `workEnd` = clock-in / clock-out, `unavailableSlots`), `color` and `userId`.
 - `plannerState` holds `cohortBlocks`, `maxConsecutive`, `previousCalendarId`, `blockouts` and `teacherBoard.panelOrder`.
 - `SCHEMA.md` documents all fields. **Update it when you add one.**

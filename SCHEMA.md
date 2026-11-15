@@ -242,7 +242,7 @@ Initialized as empty arrays on migrate. Reserved for points, tests, portfolio, S
 
 **Setup workflow:** Create cohorts on the **Cohorts** tab (Setup group), generate subject classes from the schedule matrix, then assign teachers on the **Teachers** tab. A class may be saved **without** a cohort (`cohortId` / `cohortIds` empty); link later via the Cohorts board drag-and-drop pool or the cohort class catalog (Apply). Warnings in the class editor are informational — only class name is required to save.
 
-**Homeroom (담임) vs teaching:** Homeroom is an **administrative cohort role** (student contact, retests). It is **not** a teaching subject and must **not** appear in `classTeachers[].category`. A teacher who is 담임 and also teaches must still be listed in `classTeachers[]` on each class they teach, with the appropriate subject category (Debate, RC, etc.) and curriculum.
+**Homeroom (담임) vs teaching:** Homeroom is an **administrative cohort role** (student contact, retests). It is **not** a teaching subject and must **not** appear in `classTeachers[].category`. A teacher who is 담임 and also teaches must still be the teacher (`classTeachers[0]`) of each class they teach, with the appropriate subject category (Debate, RC, etc.).
 
 ### `timetableTimeSlots[]` (optional)
 
@@ -371,13 +371,18 @@ The app has **two different filter semantics**. Do not mix them.
 | `cohortId` | string | Primary cohort link (first in `cohortIds`; kept for older clients). Optional at create time. Drives homeroom display in the class editor. |
 | `cohortIds` | string[] | Optional; all cohorts sharing this class (**combined groups / 합반**). Migrated from `cohortId` on load. One calendar, one syllabus, one timetable cell — link every cohort that meets together. Example: cohorts `grade3-m` and `grade3-t` both list the same Debate class id in `cohortIds`; each cohort’s `classIds` includes that class after sync. |
 | `generatedFromCohort` | boolean | Optional; set when class is created by Cohort tab **Generate subjects** |
-| `classTeachers` | array | Teachers who **teach** this class: `{ id, userId?, name?, category?, curriculumId?, classTypeId?, book?, meetingDays?, period?, periodByWeekday?, placements?, scheduleBlock?, timeSlotId? }[]` — `userId` is the team account id from Accounts management (same as login); each row’s curriculum drives that teacher’s calendar/syllabus/homework view. `category` = **subject taught** in this class (Debate, RC, …), never “Homeroom”. Optional per-teacher schedule: `meetingDays` (0=Sun…6=Sat), `period`, `periodByWeekday`, `placements: [{ dow, period }]`, `scheduleBlock` (`primary` / `secondary`). Empty `classTeachers` clears legacy `assignedTeacher*` fields on save. 담임 for the student group is set on `cohorts[]`, not here. |
+| `classTeachers` | array | **One teacher per class** (Nov 2026): `[{ id, userId, name, category }]` — who teaches it, nothing else. `userId` is the team account id from Accounts management; `category` = **subject taught** (Debate, RC, …), never “Homeroom”. Times, curriculum and block are the class's own fields. A substitute is added for a date, not as a second teacher. Older rows with extra teachers or their own `meetingDays` / `period` / `periodByWeekday` / `placements` / `curriculumId` are tidied on load (`CCPClassOneTeacher.tidyClassToOneTeacher` in `js/class-one-teacher.js`): the first teacher stays, its own times move to the class, and removed teachers or a differing teacher curriculum are listed once. Empty `classTeachers` clears legacy `assignedTeacher*` fields on save. 담임 for the student group is set on `cohorts[]`, not here. |
+| `placements` | array | The class's periods: `[{ dow, period }]` (0=Sun…6=Sat). Two periods on one day are two entries. Written by the class editor, the Schedule Planner's Apply and timetable import; read first by the planner and the Timetable. `meetingDays`, `period` and `periodByWeekday` (first period per day) are kept in step for older readers. |
+| `roomId`, `roomIdByWeekday` | string, object | Class room, and per-weekday rooms where they differ (`''` = no room that day). Set in the class editor's day rows or by the planner. |
+| `teacherRequirementType` | string | Optional `korean` / `native`; absent = any teacher. A teacher of the other type is a clash (red), not refused. |
+| `weeklyFrequency` | number | Periods a week the planner plans for; the class editor sets it to the number of placements. |
+| `plannerExcluded` | boolean | `true` = left out of the Schedule Planner (class editor → More options). |
 | `assignedTeacherUserId` | string | Legacy: first teacher id (kept in sync with `classTeachers[0]`) |
 | `assignedTeacherName` | string | Legacy: first teacher name |
 | `teacherCategory` | string | Legacy: first teacher category |
 | `homeroomTeacherUserId` | string | Optional class-level HR override (usually use cohort 담임) |
 | `homeroomTeacherName` | string | Optional HR display name override |
-| `scheduleBlock` | string | `primary` (main grid) or `secondary` (Conversation / IPE / MS block) |
+| `scheduleBlock` | string | `primary` (main grid) or `secondary` (Conversation / IPE / MS block). Follows the class's primary cohort: the class editor copies it on save (no picker). |
 | `timeSlotId` | string | Optional override linking to `timetableTimeSlots[].id` |
 
 ### `syllabusUnits[]` (optional)

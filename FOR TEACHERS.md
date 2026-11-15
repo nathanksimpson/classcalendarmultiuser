@@ -63,7 +63,16 @@ When two student cohorts meet together for the same subject (합반), use **one 
 3. Remove or delete the extra class that was generated for the second cohort (otherwise the **Timetable** tab may show a red “conflict” even though students are combined).
 4. On **Schedule → Timetable**, you should see one lesson block with both cohort names.
 
-Homeroom (담임) stays on each cohort; the shared class only needs teachers listed under **Classes**.
+Homeroom (담임) stays on each cohort; the shared class has one teacher, set in its class editor.
+
+## The class editor
+
+Each class has **one teacher** and **one curriculum**. In the class editor:
+
+- **Cohorts** are chips. The starred (★) cohort is the main one: it sets the homeroom and the class's block. Use **+ Add cohort** for a combined class.
+- **Days and periods:** tick the days, then give each day its period (use **+ period** for a second one that day) and room. Red lines are clashes (double-booking, wrong teacher type, room too small, a day the cohort doesn't come); amber lines are warnings. You can still save.
+- The **term** is one line; click **Edit** to change the dates or the number of lessons.
+- Rarely needed settings (debate book periods, skip or merge lessons, hand-picked dates, notes) are under **More options** in the full editor.
 
 ## Sync from TMS
 

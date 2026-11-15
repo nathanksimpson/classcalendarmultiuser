@@ -287,9 +287,14 @@ One movable form per entity (`#classForm`, `#holidayForm`): cloned once, mounted
 | Workspace | `workspace.html` | Redirect stub → `/?zone=…&contentExpanded=1` (homework or curriculum in main app) |
 | Day notes app | `notes.html` | Mobile journal |
 
-**Class field order** (same DOM in popout and full; popout hides full-only groups):
+**Class field order** (same DOM in popout and full; popout hides More options):
 
-name → colors → curriculum → term dates → period/level/grade → total lessons → meeting days → *(full only)* teacher & cohort, books, notes, custom schedule, compression.
+1. **Essentials:** name + colour swatch → cohort chips (★ = main cohort; sets homeroom and block, shown as a line under the chips; + Add cohort) → level · curriculum book (picking the book fills defaults; no Apply button) → teacher (one) · teacher type → days and periods (day chips + presets, then one row per day: period(s), + period, room).
+2. **Clashes and warnings** under the day rows, from the Schedule Planner's rules: red = clash, amber = warning. Saving is never blocked.
+3. **Term:** one summary line (dates · months · lessons · periods a week) with Edit.
+4. **More options** *(full only, closed; its summary lists what is in use):* custom level name, grade, include in planner, debate schedule (debate only: manual book periods), skip or merge lessons, hand-picked dates, notes.
+
+Not in the form: schedule block (follows the main cohort), default book (books come from the curriculum), per-teacher schedule or curriculum (one teacher, one curriculum per class). Controls the save code still reads live in a hidden `.class-form-legacy-fields` block in `templates/class-form.html`.
 
 **Event field order:** name → colors → date range → dates → event type → applies to → *(full only)* notes.
 
