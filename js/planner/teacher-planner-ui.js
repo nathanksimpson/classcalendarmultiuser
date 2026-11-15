@@ -39,6 +39,7 @@
         openBlockGrid: null, // teacher profile id or 'everyone'
         openTypes: null, // teacher profile id
         cohortSel: new Set(), // cohort ids ticked for batch edit in Setup
+        editClass: null, // demandId whose class settings are open in the side panel
         menu: null
     };
     let undoStack = [];
@@ -743,6 +744,7 @@ ${!clashes && !warns && total && done === total ? `<span class="sp-pill sp-pill-
         const roomOpts = (cur) => `<option value="">${esc(t('spNoRoom', 'No room'))}</option>`
             + M.rooms.map((r) => `<option value="${esc(r.id)}"${r.id === cur ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
         el.hidden = false;
+        el.classList.toggle('is-editing', state.editClass === demand.demandId);
         el.innerHTML = `
 <div class="sp-insp-head" style="--c:${esc(demandColor(M, demand))}">
   <strong>${esc(classLabel(M, demand))}</strong>
@@ -770,7 +772,87 @@ ${asg && asg.auto && asg.auto.count && asg.teacherProfileId ? `<p class="sp-hint
       ${M.rooms.length ? `<select class="field-select sp-room-select" data-change="meeting-room" data-dow="${m.dow}" data-period="${esc(m.period)}" aria-label="${esc(t('spRoom', 'Room'))}">${roomOpts(api().meetingRoomId(asg, m))}</select>` : ''}
       <button type="button" class="sp-icon-btn" data-act="remove-period" data-asg="${esc(asg.assignmentId)}" data-dow="${m.dow}" data-period="${esc(m.period)}" aria-label="${esc(t('spRemovePeriod', 'Take off the board'))}">×</button>
     </li>`).join('')}</ul>` : `<p class="sp-empty">${esc(t('spInspDragHint', 'Drag this class onto the board to give it a time.'))}</p>`}
+</div>
+${classEditHtml(demand)}`;
+    }
+
+    /**
+     * "Edit class": the class settings that decide warnings (which cohorts, teacher type, periods a week),
+     * changed right here. They save to the class straight away, not on Apply. Everything else is in the
+     * full class editor, opened in a new tab on the same calendar.
+     */
+    function classEditHtml(demand) {
+        const cls = (M.data.classes || []).find((c) => c.id === demand.classId);
+        if (!cls) return '';
+        const fullHref = `/?tab=classes&classId=${encodeURIComponent(cls.id)}`;
+        const open = state.editClass === demand.demandId;
+        const ro = readOnly();
+        if (!open) {
+            return `<div class="sp-insp-edit-row">
+  <button type="button" class="btn btn-outline btn-small" data-act="edit-class"${ro ? ' disabled' : ''}>${esc(t('spEditClass', 'Edit class'))}</button>
 </div>`;
+        }
+        const mine = api().getClassCohortIds(cls);
+        const need = cls.teacherRequirementType === 'korean' || cls.teacherRequirementType === 'native' ? cls.teacherRequirementType : 'either';
+        return `<section class="sp-insp-edit" data-class="${esc(cls.id)}" aria-label="${esc(t('spEditClass', 'Edit class'))}">
+  <div class="sp-insp-edit-head">
+    <strong>${esc(t('spEditClass', 'Edit class'))}</strong>
+    <button type="button" class="sp-link" data-act="edit-class-close">${esc(t('spHoldDone', 'Done'))}</button>
+  </div>
+  <p class="sp-hint">${esc(t('spEditClassHint', 'Saves to the class straight away, not on Apply.'))}</p>
+  <label class="sp-field"><span>${esc(t('spClassName', 'Class name'))}</span>
+    <input type="text" class="field-input" data-change="edit-class-name" value="${esc(cls.name || '')}" maxlength="120">
+  </label>
+  <div class="sp-field"><span>${esc(t('spClassCohorts', 'Cohorts (tick more than one for a combined class)'))}</span>
+    <span class="sp-chips sp-chips--wrap">${M.cohorts.slice().sort((x, y) => Number(mine.includes(y.id)) - Number(mine.includes(x.id))).map((c) => `<label class="sp-chip"><input type="checkbox" data-change="edit-class-cohort" data-cohort-id="${esc(c.id)}"${mine.includes(c.id) ? ' checked' : ''}><span>${esc(c.name)}</span></label>`).join('')}</span>
+  </div>
+  <label class="sp-field"><span>${esc(t('spTeacherTypeNeeded', 'Teacher type'))}</span>
+    <select class="field-select" data-change="edit-class-type">
+      <option value="either"${need === 'either' ? ' selected' : ''}>${esc(t('spTypeEither', 'Any teacher'))}</option>
+      <option value="korean"${need === 'korean' ? ' selected' : ''}>${esc(t('spRoleKoreanFull', 'Korean teacher'))}</option>
+      <option value="native"${need === 'native' ? ' selected' : ''}>${esc(t('spRoleNativeFull', 'Native teacher'))}</option>
+    </select>
+  </label>
+  <label class="sp-field"><span>${esc(t('spPerWeek', 'Periods / week'))}</span>
+    <input type="number" class="field-input sp-in-small" min="1" max="10" data-change="edit-class-freq" value="${demandNeed(demand)}">
+  </label>
+  <label class="sp-chip"><input type="checkbox" data-change="edit-class-include"${cls.plannerExcluded === true ? '' : ' checked'}><span>${esc(t('spInPlanLong', 'Include in this plan'))}</span></label>
+  <a class="sp-link sp-insp-full" href="${esc(fullHref)}" target="_blank" rel="noopener">${esc(t('spEditClassFull', 'Open the full class editor ↗'))}</a>
+</section>`;
+    }
+
+    /** Change one class setting from the side panel, then redraw (warnings update at once). */
+    function editClassField(el, kind) {
+        const box = el.closest('[data-class]');
+        if (!box || readOnly()) return;
+        const id = box.getAttribute('data-class');
+        setupEdit((data) => {
+            const cls = (data.classes || []).find((c) => c.id === id);
+            if (!cls) return;
+            if (kind === 'edit-class-name') {
+                const v = String(el.value || '').trim();
+                if (v) cls.name = v;
+            } else if (kind === 'edit-class-type') {
+                if (el.value === 'either') delete cls.teacherRequirementType;
+                else cls.teacherRequirementType = el.value;
+            } else if (kind === 'edit-class-freq') {
+                const n = Math.round(Number(el.value));
+                if (n >= 1 && n <= 10) cls.weeklyFrequency = n;
+            } else if (kind === 'edit-class-include') {
+                if (el.checked) delete cls.plannerExcluded;
+                else cls.plannerExcluded = true;
+            } else if (kind === 'edit-class-cohort') {
+                const ticked = Array.from(box.querySelectorAll('[data-change="edit-class-cohort"]'))
+                    .filter((x) => x.checked).map((x) => x.getAttribute('data-cohort-id'));
+                if (!ticked.length) {
+                    el.checked = true; // a class keeps at least one cohort
+                    return;
+                }
+                cls.cohortIds = ticked;
+                cls.cohortId = ticked[0];
+            }
+        });
+        render();
     }
 
     function colHeader(m, col) {
@@ -2607,7 +2689,16 @@ ${by.get(cid).map((d) => `
             break;
         case 'deselect':
             state.selected = null;
+            state.editClass = null;
             render();
+            break;
+        case 'edit-class':
+            state.editClass = state.selected;
+            renderInspector();
+            break;
+        case 'edit-class-close':
+            state.editClass = null;
+            renderInspector();
             break;
         case 'jump-issue': jumpToIssue(el.getAttribute('data-issue')); break;
         case 'jump-slot': showSlot(state.selected, Number(el.getAttribute('data-dow')), el.getAttribute('data-period')); break;
@@ -2724,7 +2815,9 @@ ${by.get(cid).map((d) => `
         const kind = el.getAttribute('data-change');
         if (!kind || !M) return;
         const row = el.closest('[data-teacher], [data-room], [data-class]');
-        if (kind === 'class-teacher') {
+        if (kind.startsWith('edit-class-')) {
+            editClassField(el, kind);
+        } else if (kind === 'class-teacher') {
             const demandId = state.selected;
             mutate((data, draft) => api().setClassTeacher(data, draft, demandId, el.value || null));
         } else if (kind === 'meeting-room') {

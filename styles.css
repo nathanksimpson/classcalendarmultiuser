@@ -26709,3 +26709,45 @@ body.sp-holding-tile .sp-tray {
 @media print {
     .sp-holdbar { display: none !important; }
 }
+
+/* ---- Schedule planner: Edit class in the side panel ---- */
+.sp-insp-edit-row {
+    margin-top: var(--space-2);
+}
+
+.sp-insp-edit {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border-color);
+}
+
+.sp-insp-edit-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    font-size: 0.875rem;
+}
+
+.sp-insp-edit .sp-hint {
+    margin: 0;
+}
+
+.sp-insp-full {
+    font-size: 0.8125rem;
+}
+
+/* While a class is being edited, the panel takes the whole sidebar. */
+.sp-inspector.is-editing {
+    flex: 1 1 auto;
+    max-height: none;
+}
+
+.sp-tray:has(.sp-inspector.is-editing) .sp-tray-list,
+.sp-tray:has(.sp-inspector.is-editing) .sp-tray-hint,
+.sp-tray:has(.sp-inspector.is-editing) .sp-search {
+    display: none;
+}
