@@ -28,14 +28,13 @@ Also follow `AGENTS.md`, `DEVELOPER.md` and `UI_STYLE_GUIDE.md`. The rules from 
 | `js/planner/teacher-planner-core.js` | `CCPTeacherPlanner` | **All rules and data operations. No DOM.** Demands (one per class), drafts, placement checks, issues, apply-to-calendar, cohort blocks, teacher limits, rooms. |
 | `js/planner/teacher-planner-auto.js` | `CCPPlannerAuto` | Auto-schedule, previous-term analysis, plan options, clash fixing. No DOM. |
 | `js/planner/teacher-planner-ui.js` | `CCPTeacherPlannerUi` | **DOM only**: board, tray, To fix list, drag engine, Setup, dialogs, print. |
-| `js/planner/teacher-planner-page.js` | | Page bootstrap: loads the calendar, sync, read-only state. |
-| `planner.html` | | Page shell: Schedule sub-tab row, top bar, dialogs (`spSetup`, `spAuto`, `spFix`, `spConfirm`), print area. |
+| `index.html` `#panel-planner` | | The planner's markup inside the main app: top bar, tray, board, dialogs (`spSetup`, `spAuto`, `spFix`, `spConfirm`), print area. `planner.html` only redirects old links. |
 | `js/schedule-matrix-data.js` | `CCPScheduleMatrixData` | Subjects per level and MWF/TT (Red–Mirinae). **No middle school yet.** |
 | `js/level-profile.js` | `CCPLevelProfile` | Levels; `defaultScheduleBlockForLevel`, `schedulingGroupForLevel`. |
 | `tests/teacher-planner-core.test.mjs`, `tests/planner-auto.test.mjs` | | Rule and algorithm tests (plain Node). |
 | `scripts/make-sample-calendars.mjs` | | Rebuilds the two sample calendars in `Example Calendars/`. |
 
-Entry points: Schedule → **Planner** sub-tab, Data → Class scheduler, avatar menu. All open `/planner.html`.
+The planner is the Schedule → **Planner** tab of the main app (`/?zone=schedule&segment=planner`), with the app's normal top bar. Its scripts load on first visit (`planner` in `js/app-tab-scripts.js`); app.js calls `CCPTeacherPlannerUi.mountPage()` when the tab opens and `refresh()` when calendar data changes. The UI only reacts to events inside the planner (`inPlanner` / `plannerVisible`), because `data-act` and Ctrl+Z are used elsewhere in the app. Planner CSS is scoped to `body.planner-page`, which app.js sets while the tab is open. Print moves `#plannerPrintArea` into `<body>` and sets `body.sp-printing` until `afterprint`. Data → Class scheduler and other buttons go to the tab.
 
 ## 3. Rules (Nathan's decisions)
 

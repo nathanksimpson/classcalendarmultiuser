@@ -1,5 +1,5 @@
 /**
- * Schedule planner screen (planner.html) — rebuilt Nov 2026.
+ * Schedule planner screen (Schedule › Planner tab of index.html) — rebuilt Nov 2026.
  *
  * One workspace instead of wizard steps:
  *   top bar   – what you are looking at (sheet, day, level), then actions
@@ -2796,6 +2796,15 @@ ${by.get(cid).map((d) => `
         // Print straight from the tap: iPad Safari may ignore print() called later. Reading a size
         // forces layout first. The sheet stays in place (hidden on screen), because on iPad print()
         // returns before the page is captured.
+        // Print only the sheet: it must sit directly in <body> (it lives in the planner tab), and
+        // body.sp-printing hides everything else until printing is over.
+        if (area.parentElement !== document.body) document.body.appendChild(area);
+        document.body.classList.add('sp-printing');
+        const done = () => {
+            document.body.classList.remove('sp-printing');
+            global.removeEventListener('afterprint', done);
+        };
+        global.addEventListener('afterprint', done);
         void area.offsetHeight;
         global.print();
     }
@@ -3323,15 +3332,37 @@ ${by.get(cid).map((d) => `
         }
     }
 
+    // The planner lives in a tab of the main app: only react to events inside it, so its
+    // data-act buttons and shortcuts never catch clicks, typing or Ctrl+Z meant for other tabs.
+    const PLANNER_AREAS = '#plannerPageRoot, #spSetup, #spAuto, #spFix, #spConfirm, #spHoldBar';
+
+    function inPlanner(target) {
+        return !!(target && target.closest && target.closest(PLANNER_AREAS));
+    }
+
+    function plannerVisible() {
+        const root = $('plannerPageRoot');
+        return !!root && !root.hidden && root.offsetParent !== null;
+    }
+
     function bindEvents() {
         if (bound) return;
         bound = true;
         loadPrefs();
-        document.addEventListener('click', onClick);
-        document.addEventListener('change', onChange);
-        document.addEventListener('input', onInput);
-        document.addEventListener('keydown', onKeyDown);
-        document.addEventListener('pointerdown', onPointerDown);
+        document.addEventListener('click', (e) => {
+            if (inPlanner(e.target)) {
+                onClick(e);
+                return;
+            }
+            // A click elsewhere closes an open planner menu.
+            document.querySelectorAll('.sp-menu').forEach((mEl) => { mEl.hidden = true; });
+        });
+        document.addEventListener('change', (e) => { if (inPlanner(e.target)) onChange(e); });
+        document.addEventListener('input', (e) => { if (inPlanner(e.target)) onInput(e); });
+        document.addEventListener('keydown', (e) => {
+            if (plannerVisible() && (inPlanner(e.target) || e.target === document.body || e.target === document.documentElement)) onKeyDown(e);
+        });
+        document.addEventListener('pointerdown', (e) => { if (inPlanner(e.target)) onPointerDown(e); });
         document.addEventListener('pointermove', onPointerMove, { passive: false });
         document.addEventListener('pointerup', onPointerUp);
         document.addEventListener('pointercancel', onPointerUp);
@@ -3349,8 +3380,19 @@ ${by.get(cid).map((d) => `
     }
 
     function mountPage() {
+        bindEvents();
         const root = $('plannerPageRoot');
         if (root) root.hidden = false;
+        render();
+    }
+
+    /** Calendar data changed (another device, another tab of the app): redraw, but not mid-drag. */
+    function refresh() {
+        if (!plannerVisible()) return;
+        if (drag || pending || sort) {
+            renderQueued = true;
+            return;
+        }
         render();
     }
 
@@ -3358,6 +3400,7 @@ ${by.get(cid).map((d) => `
         init,
         mountPage,
         render,
+        refresh,
         ensureData,
         openSetup,
         // for tests

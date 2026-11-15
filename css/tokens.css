@@ -40,7 +40,7 @@ html.ccp-auth-boot body {
     
     --text-primary: #1c2430;
     --text-secondary: #5a6a80;
-    --text-muted: #8893a3;
+    --text-muted: #636e80; /* 4.5:1 or better on white, --bg-main and --bg-hover */
     --control-disabled-fg: #64748b;
     --text-on-primary: #f8fafc;
     --text-on-danger: #f8fafc;

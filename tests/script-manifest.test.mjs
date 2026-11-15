@@ -154,7 +154,7 @@ assert(parseSrc(indexScripts[levelProfileIdx]).version, 'js/level-profile.js nee
 assert(levelProfileIdx > indexPaths.indexOf('js/debate-periods.js'), 'level-profile after debate-periods');
 assert(levelProfileIdx < indexPaths.indexOf('js/classroom-domain.js'), 'level-profile before classroom-domain');
 assert(levelProfileIdx < indexPaths.indexOf('app.js'), 'level-profile before app.js');
-['notes.html', 'planner.html'].forEach((page) => {
+['notes.html'].forEach((page) => {
     const paths = [...read(page).matchAll(/<script[^>]+src=["']([^"']+)["']/g)].map((m) => parseSrc(m[1]).path);
     const idx = paths.indexOf('js/level-profile.js');
     assert(idx >= 0 && idx < paths.indexOf('app.js'), `${page} loads js/level-profile.js before app.js`);

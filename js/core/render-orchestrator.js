@@ -81,7 +81,7 @@
 
             const type = action.type || '';
             if (type === 'classes/upsert' || type === 'classes/remove') {
-                requestMany(['calendar', 'classList', 'syllabus', 'timetable', 'cohorts', 'homework', 'setupBoard']);
+                requestMany(['calendar', 'classList', 'syllabus', 'timetable', 'planner', 'cohorts', 'homework', 'setupBoard']);
                 return;
             }
             if (type === 'events/upsert' || type === 'events/remove') {
@@ -100,6 +100,7 @@
                     'classNotes',
                     'syllabus',
                     'timetable',
+                    'planner',
                     'cohorts',
                     'homework',
                     'setupBoard'

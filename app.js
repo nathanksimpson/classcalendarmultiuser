@@ -834,6 +834,11 @@ function initAppStoreAndRenderOrchestrator() {
             renderTimetableView();
         }
     });
+    CCPRenderOrchestrator.register('planner', () => {
+        if (typeof CCPTeacherPlannerUi !== 'undefined' && getActiveTab() === 'planner') {
+            CCPTeacherPlannerUi.refresh();
+        }
+    });
     CCPRenderOrchestrator.register('cohorts', () => {
         if (typeof refreshCohortsSetupBoard === 'function') {
             refreshCohortsSetupBoard();
@@ -6305,7 +6310,7 @@ function updateTermSummaryStrip() {
     }
     const activeZone = document.body.dataset.activeZone || '';
     const activeTab = typeof getActiveTab === 'function' ? getActiveTab() : '';
-    const onSchedule = activeZone === 'schedule' || ['calendar', 'events', 'homework', 'timetable', 'command-center'].includes(activeTab);
+    const onSchedule = activeZone === 'schedule' || ['calendar', 'events', 'homework', 'timetable', 'planner', 'command-center'].includes(activeTab);
     if (!onSchedule) {
         strip.hidden = true;
         return;
@@ -11979,12 +11984,12 @@ async function openPlannerPage(options = {}) {
             }
         }
     }
-    const url = '/planner.html';
+    // The planner is a Schedule tab now (it used to be planner.html).
     if (options.sameTab === false) {
-        window.open(url, '_blank', 'noopener');
+        window.open('/?zone=schedule&segment=planner', '_blank', 'noopener');
         return;
     }
-    location.href = url;
+    navigateToZone(APP_ZONE_SCHEDULE, 'planner');
 }
 
 async function reloadPlannerCalendar() {
@@ -14730,6 +14735,7 @@ const APP_TEACHING_ONLY_TAB_IDS = [
     'homework',
     'notes',
     'timetable',
+    'planner',
     'command-center',
     'events',
     'briefing',
@@ -14776,7 +14782,7 @@ const DIRECT_ZONE_TAB = {
 };
 
 const ZONE_SEGMENT_TO_TAB = {
-    schedule: { calendar: 'calendar', events: 'events', homework: 'homework', timetable: 'timetable' },
+    schedule: { calendar: 'calendar', events: 'events', homework: 'homework', timetable: 'timetable', planner: 'planner' },
     classes: {
         classes: 'classes',
         cohorts: 'cohorts',
@@ -15332,6 +15338,7 @@ const TAB_TO_ZONE_SEGMENT = (() => {
 const LEGACY_TAB_ZONE_REDIRECT = {
     calendar: { zone: APP_ZONE_SCHEDULE, segment: 'calendar' },
     timetable: { zone: APP_ZONE_SCHEDULE, segment: 'timetable' },
+    planner: { zone: APP_ZONE_SCHEDULE, segment: 'planner' },
     classes: { zone: APP_ZONE_CLASSES, segment: 'classes' },
     cohorts: { zone: APP_ZONE_CLASSES, segment: 'cohorts' },
     homework: { zone: APP_ZONE_SCHEDULE, segment: 'homework' },
@@ -16877,6 +16884,8 @@ async function navigateToTabBody(tabId, options = {}) {
         await leavingModule.flushBeforeLeave();
     }
     document.body.dataset.activeTab = tabId;
+    // Schedule planner styles are scoped to body.planner-page (it used to be its own page).
+    document.body.classList.toggle('planner-page', tabId === 'planner');
     if (tabId !== 'calendar' && isLessonFilterPopoverOpen()) {
         closeLessonFilterPopover();
     }
@@ -16987,6 +16996,10 @@ async function navigateToTabBody(tabId, options = {}) {
             });
     } else if (tabId === 'timetable') {
         initTimetableTabControls(options);
+    } else if (tabId === 'planner') {
+        if (typeof CCPTeacherPlannerUi !== 'undefined') {
+            CCPTeacherPlannerUi.mountPage();
+        }
     } else if (tabId === 'cohorts') {
         tabInitPromise = initCohortsTabControls(options);
     } else if (
@@ -38555,6 +38568,7 @@ function showSavedTabPanelsOnly(tabId) {
         hostId = appData.ui.activeHostTab;
     }
     document.body.dataset.activeTab = tabId;
+    document.body.classList.toggle('planner-page', tabId === 'planner');
     syncHostSubTabNav(hostId, tabId);
     APP_TAB_IDS.forEach((id) => {
         const panel = document.getElementById(`panel-${id}`);

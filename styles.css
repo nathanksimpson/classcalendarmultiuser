@@ -22415,18 +22415,18 @@ th[data-cohort-col] {
     opacity: 0.9;
 }
 
-/* Only when printing planner.html (has #plannerPrintArea). Do not blank popup print windows. */
+/* Only while a planner sheet is printing (body.sp-printing). Do not blank other print paths. */
 @media print {
-    body:has(#plannerPrintArea) > *:not(#plannerPrintArea) {
+    body.sp-printing > *:not(#plannerPrintArea) {
         display: none !important;
     }
-    body:has(#plannerPrintArea) #plannerPrintArea {
+    body.sp-printing #plannerPrintArea {
         display: block !important;
     }
-    body:has(#plannerPrintArea) .planner-print-page {
+    body.sp-printing .planner-print-page {
         page-break-after: always;
     }
-    body:has(#plannerPrintArea) .planner-print-page:last-child {
+    body.sp-printing .planner-print-page:last-child {
         page-break-after: auto;
     }
 }
@@ -26464,13 +26464,13 @@ a.app-zone-segment-btn {
 /* Planner print sheets: always dark ink on white (also from the dark theme), colours kept,
    blocks and rows not split across pages, wide sheets squeezed to fit (iPad prints portrait). */
 @media print {
-    body:has(#plannerPrintArea),
-    body:has(#plannerPrintArea) #plannerPrintArea {
+    body.sp-printing,
+    body.sp-printing #plannerPrintArea {
         background: #fff !important;
         color: #1c2430 !important;
         -webkit-text-size-adjust: 100%;
     }
-    body:has(#plannerPrintArea) #plannerPrintArea {
+    body.sp-printing #plannerPrintArea {
         position: static !important;
         width: 100% !important;
         margin: 0 !important;
@@ -27179,4 +27179,22 @@ body.sp-dragging .sp-cell[data-drop="clash"] {
 .sp-danger {
     color: var(--danger);
     border-color: color-mix(in srgb, var(--danger) 45%, var(--border-color));
+}
+
+
+/* ---- Schedule planner as a tab of the main app (Schedule > Planner) ---- */
+#panel-planner .sp-root {
+    padding: 0;
+}
+
+#panel-planner .sp-topbar {
+    top: var(--app-header-h, 0px);
+    margin-left: 0;
+    margin-right: 0;
+    border-radius: var(--radius-card, 10px);
+}
+
+/* The "Moving …" bar belongs to the planner tab only. */
+body:not(.planner-page) #spHoldBar {
+    display: none !important;
 }

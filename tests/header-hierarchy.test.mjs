@@ -139,6 +139,7 @@ function block(id) {
         'homework',
         'homework-tracking',
         'ledger',
+        'planner',
         'points',
         'portfolio',
         'speaking-test',

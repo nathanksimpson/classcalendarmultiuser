@@ -27,6 +27,12 @@
             'js/setup-board.js?v=20261113-cohort-links',
             'js/cohorts-class-detail.js?v=20261113-cohort-links'
         ],
+        planner: [
+            SCRIPT_TEACHER_TIMETABLE,
+            SCRIPT_PLANNER_CORE,
+            'js/planner/teacher-planner-auto.js?v=20261115-planner-tab',
+            'js/planner/teacher-planner-ui.js?v=20261115-planner-tab'
+        ],
         timetable: [
             SCRIPT_TEACHER_TIMETABLE,
             'js/timetable-export.js?v=20260602-tab-fast'

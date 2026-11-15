@@ -151,7 +151,6 @@ const MINIFY_JS = [
     'js/planner/teacher-planner-core.js',
     'js/planner/teacher-planner-auto.js',
     'js/planner/teacher-planner-ui.js',
-    'js/planner/teacher-planner-page.js',
     'js/core/app-state.js'
 ];
 

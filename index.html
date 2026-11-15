@@ -224,7 +224,7 @@
                             <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="command-center" data-tab="command-center" data-i18n="tabCommandCenter" hidden>Command Center</button>
                             <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="homework" data-tab="homework" data-i18n="tabHomework">Homework copy</button>
                             <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="timetable" data-tab="timetable" data-i18n="tabTimetable">Timetable</button>
-                            <a href="/planner.html" id="scheduleOpenPlannerSeg" class="app-zone-segment-btn app-zone-segment-link" data-i18n="tabPlanner">Planner</a>
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="planner" data-tab="planner" data-i18n="tabPlanner">Planner</button>
                         </div>
                         <div id="zoneSegments-classes" class="app-zone-segment-panel" data-zone="classes" hidden role="presentation">
                             <button type="button" class="app-zone-segment-btn is-active" role="tab" aria-selected="true" data-segment="classes" data-tab="classes" data-i18n="zoneSegmentAllClasses">All classes</button>
@@ -1302,7 +1302,7 @@
             <section id="panel-timetable" class="app-tab-panel" data-tab="timetable" role="tabpanel" aria-labelledby="tabBtn-timetable" hidden>
                 <div class="print-data-section timetable-view-section">
                 <div class="module-toolbar timetable-tab-toolbar">
-                    <a href="/planner.html" id="timetableOpenPlannerBtn" class="btn btn-outline btn-small" data-i18n="plannerOpenLink">Open schedule planner</a>
+                    <a href="/?zone=schedule&amp;segment=planner" id="timetableOpenPlannerBtn" class="btn btn-outline btn-small" data-i18n="plannerOpenLink">Open schedule planner</a>
                     <button type="button" id="timetablePeriodScheduleBtn" class="btn btn-outline btn-small" data-i18n="timetablePeriodSchedule">Period schedule</button>
                     <button type="button" id="timetableMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="timetableMySchedule">My schedule</button>
                     <button type="button" id="timetableImportXlsBtn" class="btn btn-outline btn-small" data-i18n="timetableImportExcel">Import Excel</button>
@@ -1343,6 +1343,114 @@
                     </div>
                 </div>
                 </div>
+            </section>
+
+            <section id="panel-planner" class="app-tab-panel planner-panel" data-tab="planner" role="tabpanel" aria-labelledby="zoneBtn-schedule" hidden>
+                <!-- Schedule planner (js/planner/*). Scripts load on first visit (js/app-tab-scripts.js). -->
+            <div id="plannerPageRoot" class="sp-root" hidden>
+                <div class="sp-topbar">
+                    <div class="sp-topbar-row">
+                        <div class="sp-seg" role="group" data-i18n-aria-label="spViewLabel" aria-label="Sheet">
+                            <button type="button" class="sp-seg-btn" data-sp-view="teachers" data-i18n="spViewTeachers">Teachers</button>
+                            <button type="button" class="sp-seg-btn" data-sp-view="cohorts" data-i18n="spViewCohorts">Cohorts</button>
+                            <button type="button" class="sp-seg-btn" data-sp-view="rooms" data-i18n="spViewRooms">Rooms</button>
+                        </div>
+                        <div id="spDays" class="sp-days" role="group" aria-label="Day"></div>
+                        <select id="spBand" class="field-select sp-band" data-i18n-aria-label="spBandLabel" aria-label="Level">
+                            <option value="all" data-i18n="spBandAll">All levels</option>
+                            <option value="junior" data-i18n="plannerJunior">Junior</option>
+                            <option value="middle" data-i18n="plannerMiddle">Middle</option>
+                            <option value="senior" data-i18n="plannerSenior">Senior</option>
+                        </select>
+                        <button type="button" id="spCompactBtn" class="sp-seg-btn sp-compact-btn" data-act="toggle-compact" aria-pressed="false" data-i18n="spCompact" data-i18n-title="spCompactTitle" title="Fit the whole day on screen: rooms go on the class tiles" hidden>Compact</button>
+                        <div class="sp-topbar-actions">
+                            <div class="sp-undo-group" role="group">
+                                <button type="button" id="spUndoBtn" class="btn btn-outline btn-small sp-icon-only" data-act="undo" data-i18n-aria-label="spUndoTip" data-i18n-title="spUndoTip" aria-label="Undo (Ctrl+Z)" title="Undo (Ctrl+Z)" disabled><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+                                <button type="button" id="spRedoBtn" class="btn btn-outline btn-small sp-icon-only" data-act="redo" data-i18n-aria-label="spRedoTip" data-i18n-title="spRedoTip" aria-label="Redo (Ctrl+Y)" title="Redo (Ctrl+Y)" disabled><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+                            </div>
+                            <button type="button" class="btn btn-outline btn-small" data-act="open-setup" data-i18n="spSetup">Setup</button>
+                            <button type="button" id="spAutoBtn" class="btn btn-secondary btn-small" data-act="auto" data-i18n="spAuto">Auto-schedule</button>
+                            <div class="sp-menu-wrap">
+                                <button type="button" class="btn btn-outline btn-small" data-menu="spToolsMenu" aria-haspopup="true" aria-expanded="false" data-i18n="spTools">Tools ▾</button>
+                                <div id="spToolsMenu" class="sp-menu" hidden>
+                                    <button type="button" data-act="load-calendar" data-i18n="spToolLoad">Load from calendar</button>
+                                    <button type="button" data-act="clear-board" data-i18n="spToolClear">Clear the board</button>
+                                </div>
+                            </div>
+                            <div class="sp-menu-wrap">
+                                <button type="button" class="btn btn-outline btn-small" data-menu="spPrintMenu" aria-haspopup="true" aria-expanded="false" data-i18n="spPrint">Print ▾</button>
+                                <div id="spPrintMenu" class="sp-menu" hidden>
+                                    <button type="button" data-act="print" data-kind="teachers" data-i18n="spPrintTeachers">Teacher timetables</button>
+                                    <button type="button" data-act="print" data-kind="rooms" data-i18n="spPrintRoomSchedule">Room schedule (one page per day)</button>
+                                    <button type="button" data-act="print" data-kind="cohorts" data-i18n="spPrintCohorts">Cohort timetables</button>
+                                    <button type="button" data-act="print" data-kind="byroom" data-i18n="spPrintRooms">Room timetables</button>
+                                </div>
+                            </div>
+                            <button type="button" id="plannerApplyBtn" class="btn btn-primary btn-small" data-act="apply" data-i18n="plannerApply">Apply to calendar</button>
+                        </div>
+                    </div>
+                    <div id="spSummary" class="sp-summary" role="status"></div>
+                </div>
+
+                <div class="sp-layout">
+                    <aside id="spTray" class="sp-tray" data-i18n-aria-label="spTrayLabel" aria-label="Classes">
+                        <input type="search" id="spSearch" class="module-list-search sp-search" autocomplete="off" spellcheck="false" data-i18n-placeholder="plannerBinSearchPlaceholder" placeholder="Search classes…">
+                        <p class="sp-hint sp-tray-hint" data-i18n="spTrayHint">Drag a class onto the board. Drag it back here to take it off.</p>
+                        <div id="spTrayList" class="sp-tray-list"></div>
+                        <div id="spInspector" class="sp-inspector" hidden></div>
+                    </aside>
+                    <section id="spBoard" class="sp-board" data-i18n-aria-label="spBoardLabel" aria-label="Timetable board"></section>
+                    <aside id="spIssues" class="sp-issues" data-i18n-aria-label="spIssuesTitle" aria-label="To fix"></aside>
+                </div>
+            </div>
+
+            <div id="spSetup" class="sp-overlay" hidden>
+                <div class="sp-dialog" role="dialog" aria-modal="true" aria-labelledby="spSetupTitle">
+                    <header class="sp-dialog-head">
+                        <h2 id="spSetupTitle" data-i18n="spSetupTitle">Planner setup</h2>
+                        <div class="sp-seg" role="tablist">
+                            <button type="button" role="tab" class="sp-seg-btn" data-setup-tab="cohorts" data-i18n="spViewCohorts">Cohorts</button>
+                            <button type="button" role="tab" class="sp-seg-btn" data-setup-tab="teachers" data-i18n="spViewTeachers">Teachers</button>
+                            <button type="button" role="tab" class="sp-seg-btn" data-setup-tab="rooms" data-i18n="spViewRooms">Rooms</button>
+                            <button type="button" role="tab" class="sp-seg-btn" data-setup-tab="classes" data-i18n="spSetupClasses">Classes</button>
+                        </div>
+                        <button type="button" class="btn btn-primary btn-small" data-act="close-setup" data-i18n="spDone">Done</button>
+                    </header>
+                    <div id="spSetupBody" class="sp-dialog-body"></div>
+                </div>
+            </div>
+
+            <div id="spAuto" class="sp-overlay" hidden>
+                <div class="sp-dialog sp-dialog--auto" role="dialog" aria-modal="true" aria-labelledby="spAutoTitle">
+                    <header class="sp-dialog-head">
+                        <h2 id="spAutoTitle" data-i18n="spAutoTitle">Auto-schedule</h2>
+                        <button type="button" class="btn btn-outline btn-small" data-act="close-auto" data-i18n="spClose">Close</button>
+                    </header>
+                    <div id="spAutoBody" class="sp-dialog-body"></div>
+                </div>
+            </div>
+
+            <div id="spFix" class="sp-overlay" hidden>
+                <div class="sp-dialog sp-dialog--auto" role="dialog" aria-modal="true" aria-labelledby="spFixTitle">
+                    <header class="sp-dialog-head">
+                        <h2 id="spFixTitle" data-i18n="spFixTitle">Ways to fix the clashes</h2>
+                        <button type="button" class="btn btn-outline btn-small" data-act="close-fix" data-i18n="spFixByHand">I’ll fix it by hand</button>
+                    </header>
+                    <div id="spFixBody" class="sp-dialog-body"></div>
+                </div>
+            </div>
+
+            <div id="spConfirm" class="sp-overlay sp-overlay--confirm" hidden>
+                <div class="sp-dialog sp-dialog--small" role="alertdialog" aria-modal="true" aria-describedby="spConfirmText">
+                    <p id="spConfirmText" class="sp-confirm-text"></p>
+                    <div class="sp-confirm-actions">
+                        <button type="button" class="btn btn-outline btn-small" data-confirm="cancel" data-i18n="spCancel">Cancel</button>
+                        <button type="button" id="spConfirmOk" class="btn btn-primary btn-small" data-confirm="ok">OK</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="plannerPrintArea" class="planner-print-area" aria-hidden="true"></div>
             </section>
 
             <section id="panel-cohorts" class="app-tab-panel" data-tab="cohorts" role="tabpanel" aria-labelledby="zoneBtn-classes" hidden>
@@ -1417,7 +1525,7 @@
                     <h2 class="teachers-placeholder-title" data-i18n="teachersPlaceholderTitle">Teachers</h2>
                     <p class="teachers-placeholder-body" data-i18n="teachersPlaceholderBody">Planned future features will live here.</p>
                     <div class="teachers-placeholder-actions">
-                        <a href="/planner.html" id="teachersPlaceholderOpenPlannerBtn" class="btn btn-primary btn-small" data-i18n="plannerOpenLink">Open schedule planner</a>
+                        <a href="/?zone=schedule&amp;segment=planner" id="teachersPlaceholderOpenPlannerBtn" class="btn btn-primary btn-small" data-i18n="plannerOpenLink">Open schedule planner</a>
                         <button type="button" id="teachersPlaceholderOpenTimetableBtn" class="btn btn-outline btn-small" data-i18n="teachersTabOpenTimetable">Open in Timetable</button>
                         <button type="button" id="teachersPlaceholderOpenCohortsBtn" class="btn btn-outline btn-small" data-i18n="teachersTabManageCohorts">Open Cohorts board</button>
                     </div>
@@ -1447,7 +1555,7 @@
                         <h2 class="module-section-title" data-i18n="dataPlannerHeading">Class scheduler</h2>
                         <p class="section-hint" data-i18n="dataPlannerHint">Plan the term&rsquo;s timetable: drag classes onto teachers, cohorts and rooms, or let auto-schedule suggest plans. Nothing changes on the calendar until you apply it.</p>
                         <div class="print-data-actions">
-                            <a href="/planner.html" id="dataOpenPlannerBtn" class="btn btn-primary btn-small" data-i18n="dataPlannerOpen">Open class scheduler</a>
+                            <a href="/?zone=schedule&amp;segment=planner" id="dataOpenPlannerBtn" class="btn btn-primary btn-small" data-i18n="dataPlannerOpen">Open class scheduler</a>
                         </div>
                     </div>
                     <div class="print-data-section print-data-section--import-export">
@@ -3193,7 +3301,7 @@
         <hr class="header-dropdown-divider" aria-hidden="true">
         <button type="button" id="accountMyTimetableBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" hidden data-i18n="accountMyTimetable">My timetable</button>
         <button type="button" id="openNotesAppHeaderBtn" class="btn btn-outline btn-small btn-notes-app header-dropdown-item" data-i18n="notesOpenMobile" data-i18n-title="notesOpenMobileTitle">Mobile day notes</button>
-        <a href="/planner.html" id="openPlannerAppHeaderBtn" class="btn btn-outline btn-small header-dropdown-item" data-i18n="plannerOpenLink" data-i18n-title="plannerOpenLinkTitle">Schedule planner</a>
+        <a href="/?zone=schedule&amp;segment=planner" id="openPlannerAppHeaderBtn" class="btn btn-outline btn-small header-dropdown-item" data-i18n="plannerOpenLink" data-i18n-title="plannerOpenLinkTitle">Schedule planner</a>
         <hr class="header-dropdown-divider" aria-hidden="true">
         <button type="button" id="accountPrintItem" class="btn btn-outline btn-small header-dropdown-item account-print-item" role="menuitem" data-i18n="printBtn">Print</button>
         <a href="help.html" id="helpLink" class="btn btn-outline btn-small btn-help header-dropdown-item" role="menuitem" data-i18n="accountHelpTutorial" data-i18n-title="howToBtnTitle">Help &amp; tutorial</a>
