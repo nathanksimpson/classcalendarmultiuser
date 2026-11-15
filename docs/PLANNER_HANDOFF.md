@@ -64,7 +64,7 @@ A rule change usually touches four places: the check, the issue, the text (`reas
   4. Purple: any period, no warning (its block is only a preference for auto-schedule, `outsideStudentHours(..., { byBlock: true })`);
   5. an elementary cohort on the secondary block → senior periods (middle school keeps its own);
   6. level defaults: junior (lower elementary) periods 1–3 on Mon/Wed/Fri and 1–4 on Tue/Thu (runs to 18:00 on Tue/Thu); senior (upper elementary) periods 4–7 from 17:00; middle school and pre-middle periods 5–8, the latest.
-- **Day length:** a cohort is usually in for 2 periods on Mon/Wed/Fri and 3 on Tue/Thu (`usualCohortPeriods`). Auto-schedule avoids going past that and avoids empty periods between a cohort's classes; by hand it is not checked. Special classes outside this framework are not handled yet.
+- **Day length:** a cohort is usually in for 2 periods on Mon/Wed/Fri and 3 on Tue/Thu (`usualCohortPeriods`). Auto-schedule never goes past it (first class to last, `cohort_day_too_long`); by hand it is only a warning, under "Worth a look". Special classes outside this framework are not handled yet.
 
   The function is `outsideStudentHours(appData, demand, period, dow)`. Always pass `dow`.
 - **Schedule blocks:** Red–Navy use primary; Purple and above, and all middle and pre-middle, use secondary. **Pre-middle counts as middle** for scheduling. Existing Purple cohorts were left as they were (one-time retcon, marker `cohort.blockDefaultV`).
