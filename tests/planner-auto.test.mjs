@@ -400,3 +400,42 @@ console.log('planner-auto tests passed');
     assert(!fresh.issues.some((i) => i.code === 'cohort_day_too_long'), 'auto-schedule keeps cohort days short');
     console.log('cohort day length tests passed');
 }
+
+/* Special classes: no cohort, placed by hand only, room size from their own number, load only between their dates. */
+{
+    const d = {
+        termStart: '2026-12-01',
+        termEnd: '2027-02-28',
+        cohorts: [{ id: 'g', name: 'Garam M', levelPreset: 'Garam', meetingDays: [1, 3, 5] }],
+        classes: [
+            { id: 'r1', name: 'Garam M Debate', cohortIds: ['g'], weeklyFrequency: 1 },
+            { id: 'sp', name: 'Speech prep', plannerSpecial: true, cohortIds: [], weeklyFrequency: 1, plannerStudents: 14, startDate: '2026-12-01', endDate: '2026-12-31' },
+            { id: 'later', name: 'Winter camp', plannerSpecial: true, cohortIds: [], weeklyFrequency: 1, startDate: '2027-02-01', endDate: '2027-02-20' }
+        ],
+        teacherProfiles: [{ id: 'k', name: 'K', limits: { maxPeriodsPerWeek: 2 } }, { id: 'j', name: 'J' }],
+        rooms: [{ id: 'small', name: 'Small', capacity: 8 }, { id: 'big', name: 'Big', capacity: 16 }]
+    };
+    api.ensurePlannerFields(d);
+    const dm = (id) => api.buildDemandsFromAppData(d).find((x) => x.classId === id);
+    assert(dm('sp').special && api.classSizeOf(d, dm('sp')) === 14, 'special: size from its own number');
+    assert(api.roomTooSmall(d, dm('sp'), 'small') && !api.roomTooSmall(d, dm('sp'), 'big'), 'special: room size check');
+    assert(!api.outsideStudentHours(d, dm('sp'), 1, 1) && !api.outsideStudentHours(d, dm('sp'), 8, 2), 'special: no student hours');
+    const dr = { id: 's', assignments: [], issues: [], metrics: {} };
+    const res = auto.autoSchedule(d, dr, {});
+    assert(!dr.assignments.some((a) => a.classId === 'sp' && (a.meetings || []).length), 'auto-schedule does not place special classes');
+    assert(dr.issues.some((i) => i.code === 'incomplete_placements' && i.demandId === 'demand:sp') || dr.issues.some((i) => i.demandId === 'demand:sp'), 'unplaced special is still listed');
+    void res;
+    // Placed by hand with K; the later one (Feb) does not count towards K's load before February.
+    assert(api.placePeriod(d, dr, 'demand:sp', { dow: 1, period: '6', teacherProfileId: 'k' }).ok, 'special placed by hand');
+    assert(api.placePeriod(d, dr, 'demand:later', { dow: 2, period: '6', teacherProfileId: 'k' }).ok, 'later special placed by hand');
+    api.recomputeDraftMetrics(d, dr);
+    const ref = api.loadReferenceDate(d);
+    assert(api.countsForLoad(dm('sp'), '2026-12-10') && !api.countsForLoad(dm('later'), '2026-12-10'), 'counts only between its dates');
+    if (ref < '2027-02-01') assert(!dr.issues.some((i) => i.code === 'over_load'), 'future special does not push K over the limit');
+    // Suggest fixes never moves a special class: make a teacher clash with the regular class.
+    assert(api.placePeriod(d, dr, 'demand:r1', { dow: 1, period: '6', teacherProfileId: 'k' }).ok, 'clash made by hand');
+    const before = JSON.stringify(dr.assignments.find((a) => a.classId === 'sp').meetings.map((m) => [m.dow, m.period]));
+    auto.resolveClashes(d, dr, {});
+    assert(JSON.stringify(dr.assignments.find((a) => a.classId === 'sp').meetings.map((m) => [m.dow, m.period])) === before, 'special class stays where it was put');
+    console.log('special class tests passed');
+}

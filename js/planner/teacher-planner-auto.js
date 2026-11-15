@@ -231,12 +231,17 @@
             });
             if (roomId) roomBusy.add(`${roomId}|${dow}|${n}`);
         };
+        const loadRef = api.loadReferenceDate(appData);
         const rebuild = () => {
             [teacherBusy, cohortBusy, roomBusy, teacherDay, cohortDay, load].forEach((x) => x.clear());
             draft.assignments.forEach((asg) => {
                 const demand = demandById.get(asg.demandId);
                 if (!demand) return;
                 (asg.meetings || []).forEach((m) => occupy(demand, asg.teacherProfileId, Number(m.dow), m.period, api.meetingRoomId(asg, m)));
+                // A special class outside its dates does not count towards the weekly limit.
+                if (asg.teacherProfileId && !api.countsForLoad(demand, loadRef)) {
+                    load.set(asg.teacherProfileId, (load.get(asg.teacherProfileId) || 0) - (asg.meetings || []).length);
+                }
             });
         };
         rebuild();
@@ -379,6 +384,7 @@
             }
         }
         const todo = order
+            .filter((d) => !d.special) // special classes are placed by hand only
             .filter((d) => !only || only.has(d.demandId))
             .filter((d) => missingOf(d) > 0 || !(asgOf(d) && asgOf(d).teacherProfileId))
             .map((d) => {
@@ -635,13 +641,15 @@
         });
         // options.keep: 'recent' (default) keeps the class moved last; 'earlier' keeps the ones that were there first.
         const sign = opts.keep === 'earlier' ? -1 : 1;
-        const rank = (e) => (e.asg.locked ? 1e15 : 0) + sign * (Number(e.m.movedAt) || 0);
+        // Locked and special classes always stay (special classes are placed by hand only).
+        const fixed = (e) => e.asg.locked || !!(e.demand || demandById.get(e.asg.demandId) || {}).special;
+        const rank = (e) => (fixed(e) ? 1e15 : 0) + sign * (Number(e.m.movedAt) || 0);
         const losers = new Map(); // meeting -> entry
         groups.forEach((list) => {
             const distinct = list.filter((e, i) => list.findIndex((x) => x.m === e.m) === i);
             if (distinct.length < 2) return;
             const sorted = distinct.slice().sort((a, b) => rank(b) - rank(a));
-            sorted.slice(1).forEach((e) => { if (!e.asg.locked) losers.set(e.m, e); });
+            sorted.slice(1).forEach((e) => { if (!fixed(e)) losers.set(e.m, e); });
         });
 
         const byDemand = new Map();

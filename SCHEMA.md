@@ -377,6 +377,8 @@ The app has **two different filter semantics**. Do not mix them.
 | `teacherRequirementType` | string | Optional `korean` / `native`; absent = any teacher. A teacher of the other type is a clash (red), not refused. |
 | `weeklyFrequency` | number | Periods a week the planner plans for; the class editor sets it to the number of placements. |
 | `plannerExcluded` | boolean | `true` = left out of the Schedule Planner (class editor → More options). |
+| `plannerSpecial` | boolean | `true` = special / temporary class added in the Schedule Planner (+ Add class). No cohort needed, one slot a week (`weeklyFrequency: 1`), placed by hand only (auto-schedule and Suggest fixes never move it), runs between `startDate` and `endDate` and only counts towards weekly teacher loads then. Deletable from the planner. |
+| `plannerStudents` | number | Student count of a class with no cohort (special classes), used for room size. |
 | `assignedTeacherUserId` | string | Legacy: first teacher id (kept in sync with `classTeachers[0]`) |
 | `assignedTeacherName` | string | Legacy: first teacher name |
 | `teacherCategory` | string | Legacy: first teacher category |

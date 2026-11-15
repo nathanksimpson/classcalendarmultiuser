@@ -340,6 +340,8 @@
 
     function outsideStudentHours(appData, demand, period, dow, options) {
         const cohorts = Array.isArray(appData && appData.cohorts) ? appData.cohorts : [];
+        // No cohort (e.g. a special class): no student hours to be outside of.
+        if (!((demand && demand.cohortIds) || []).length) return false;
         const clock = periodClock(appData, period);
         const windows = [];
         ((demand && demand.cohortIds) || []).forEach((cid) => {
@@ -403,6 +405,8 @@
 
     /** Students in a class (all of its cohorts, each student once). */
     function classSizeOf(appData, demand) {
+        // A class with no cohort (e.g. a special class) uses the student number typed in for it.
+        if (!((demand && demand.cohortIds) || []).length) return (demand && demand.studentCount) || 0;
         const seen = new Set();
         ((demand && demand.cohortIds) || []).forEach((cid) => {
             const c = ((appData && appData.cohorts) || []).find((x) => x && x.id === cid);
@@ -895,6 +899,12 @@
                     : 'either',
                 preferredRoomId: normalizeStr(cls.roomId) || null,
                 includedInDraft: cls.plannerExcluded === true ? false : true,
+                // Special / temporary class added in the planner: no cohort needed, one slot a week,
+                // placed by hand only, runs between its own dates.
+                special: cls.plannerSpecial === true,
+                studentCount: Number(cls.plannerStudents) > 0 ? Number(cls.plannerStudents) : 0,
+                startDate: normalizeStr(cls.startDate),
+                endDate: normalizeStr(cls.endDate),
                 readiness: meetings.length && cadence ? 'ready' : readiness,
                 meetings,
                 linkGroupId: `demand:${cls.id}`
@@ -941,6 +951,22 @@
             });
         });
         return map;
+    }
+
+    /** The day weekly loads are measured on: today, or the first day of term if it has not started. */
+    function loadReferenceDate(appData) {
+        const d = new Date();
+        const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const start = normalizeStr(appData && appData.termStart);
+        return /^\d{4}-\d{2}-\d{2}$/.test(start) && start > today ? start : today;
+    }
+
+    /** A special class only counts towards weekly loads while it runs (between its dates). */
+    function countsForLoad(demand, refIso) {
+        if (!demand || !demand.special) return true;
+        if (demand.startDate && refIso < demand.startDate) return false;
+        if (demand.endDate && refIso > demand.endDate) return false;
+        return true;
     }
 
     function countTeacherLoad(assignments, teacherProfileId) {
@@ -1917,8 +1943,10 @@
             }
         });
 
+        const loadRef = loadReferenceDate(appData);
+        const loadAssignments = (draft.assignments || []).filter((a) => countsForLoad(demandById.get(a.demandId), loadRef));
         teachers.forEach((t) => {
-            const assigned = countTeacherLoad(draft.assignments, t.id);
+            const assigned = countTeacherLoad(loadAssignments, t.id);
             if (assigned > (t.limits.maxPeriodsPerWeek || 0)) {
                 issues.push(createIssue({
                     severity: 'soft',
@@ -2050,7 +2078,7 @@
 
         const teacherLoads = {};
         teachers.forEach((t) => {
-            const assigned = countTeacherLoad(draft.assignments, t.id);
+            const assigned = countTeacherLoad(loadAssignments, t.id);
             teacherLoads[t.id] = {
                 assigned,
                 min: t.limits.minPeriodsPerWeek,
@@ -2854,6 +2882,8 @@
         recomputeDraftMetrics,
         outsideStudentHours,
         usualCohortPeriods,
+        loadReferenceDate,
+        countsForLoad,
         periodSpan,
         isPurpleCohort,
         cohortBlock,

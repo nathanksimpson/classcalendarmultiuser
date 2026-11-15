@@ -18,6 +18,7 @@
  */
 (function (global) {
     const NONE = '__none__';
+    const SPECIAL = '__special__';
     const DAYS = [1, 2, 3, 4, 5];
     const VIEWS = ['teachers', 'cohorts', 'rooms'];
     const PREF_KEY = 'ccpPlannerView2';
@@ -41,6 +42,7 @@
         cohortSel: new Set(), // cohort ids ticked for batch edit in Setup
         cohortFilter: { level: 'all', days: 'all', block: 'all', hours: 'all' }, // Setup > Cohorts list filters
         editClass: null, // demandId whose class settings are open in the side panel
+        addSpecial: false, // the "Add class" (special class) form is open in the side panel
         menu: null
     };
     let undoStack = [];
@@ -690,6 +692,7 @@ ${!clashes && !warns && total && done === total ? `<span class="sp-pill sp-pill-
   <span class="sp-card-name">${esc(demand.name)}</span>
   <span class="sp-badge${complete ? ' is-done' : ''}">${placed}/${need}</span>
   <span class="sp-card-sub${teacher ? '' : ' is-missing'}">${esc(teacher || t('spNoTeacher', 'No teacher'))}</span>
+  ${demand.special ? specialTagHtml(demand) : ''}
 </div>`;
     }
 
@@ -711,21 +714,21 @@ ${!clashes && !warns && total && done === total ? `<span class="sp-pill sp-pill-
         const group = (items) => {
             const by = new Map();
             items.forEach((d) => {
-                const cid = (d.cohortIds || []).find((id) => M.cohortById.has(id)) || NONE;
+                const cid = d.special ? SPECIAL : (d.cohortIds || []).find((id) => M.cohortById.has(id)) || NONE;
                 if (!by.has(cid)) by.set(cid, []);
                 by.get(cid).push(d);
             });
-            const ids = M.cohorts.map((c) => c.id).filter((id) => by.has(id));
+            const ids = (by.has(SPECIAL) ? [SPECIAL] : []).concat(M.cohorts.map((c) => c.id).filter((id) => by.has(id)));
             if (by.has(NONE)) ids.push(NONE);
             return ids.map((cid) => `
 <div class="sp-tray-group">
-  <div class="sp-tray-group-title">${esc(cid === NONE ? t('spNoCohort', 'No cohort') : M.cohortById.get(cid).name)}</div>
+  <div class="sp-tray-group-title">${esc(cid === SPECIAL ? t('spSpecialGroup', 'Special') : cid === NONE ? t('spNoCohort', 'No cohort') : M.cohortById.get(cid).name)}</div>
   ${by.get(cid).map((d) => trayCard(M, d)).join('')}
 </div>`).join('');
         };
-        let html = '';
+        let html = readOnly() ? '' : `<button type="button" class="btn btn-outline btn-small sp-add-class" data-act="add-special">${esc(t('spAddSpecial', '+ Add class'))}</button>`;
         if (!M.demands.length) {
-            html = `<p class="sp-empty">${esc(t('spTrayEmpty', 'No classes yet. Add classes on the calendar first, or open Setup to bring left-out classes back.'))}</p>`;
+            html += `<p class="sp-empty">${esc(t('spTrayEmpty', 'No classes yet. Add classes on the calendar first, or open Setup to bring left-out classes back.'))}</p>`;
         } else {
             html += `<div class="sp-tray-section-title">${esc(t('spTrayTodo', 'To place'))} <span class="sp-count">${todo.length}</span></div>`;
             html += todo.length ? group(todo)
@@ -744,10 +747,19 @@ ${!clashes && !warns && total && done === total ? `<span class="sp-pill sp-pill-
     function renderInspector() {
         const el = $('spInspector');
         if (!el) return;
+        if (state.addSpecial) {
+            el.hidden = false;
+            el.classList.add('is-editing');
+            el.innerHTML = specialFormHtml();
+            const first = el.querySelector('[data-special="name"]');
+            if (first && !first.value) first.focus();
+            return;
+        }
         const demand = state.selected ? M.demandById.get(state.selected) : null;
         if (!demand) {
             el.hidden = true;
             el.innerHTML = '';
+            el.classList.remove('is-editing');
             return;
         }
         const asg = M.asgByDemand.get(demand.demandId);
@@ -787,6 +799,172 @@ ${asg && asg.auto && asg.auto.count && asg.teacherProfileId ? `<p class="sp-hint
 ${classEditHtml(demand)}`;
     }
 
+    /** "Special · Nov 20 – Dec 18" tag on a special class's card and tiles. */
+    function specialTagHtml(demand) {
+        const fmt = (iso) => {
+            const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+            if (!m) return '';
+            try {
+                return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+                    .toLocaleDateString(global.calendarCurrentLanguage === 'ko' ? 'ko-KR' : 'en-US', { month: 'short', day: 'numeric' });
+            } catch (_) {
+                return iso.slice(5);
+            }
+        };
+        const range = [fmt(demand.startDate), fmt(demand.endDate)].filter(Boolean).join(' – ');
+        return `<span class="sp-special-tag">${esc(t('spSpecialTag', 'Special'))}${range ? ` · ${esc(range)}` : ''}</span>`;
+    }
+
+    function termDates() {
+        const ok = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : '');
+        return { start: ok(M.data.termStart), end: ok(M.data.termEnd) };
+    }
+
+    /** The "Add class" form: a special or temporary class, no cohort needed, one slot a week. */
+    function specialFormHtml() {
+        const term = termDates();
+        return `<section class="sp-insp-edit sp-special-form" aria-label="${esc(t('spAddSpecialTitle', 'Add a special class'))}">
+  <div class="sp-insp-edit-head">
+    <strong>${esc(t('spAddSpecialTitle', 'Add a special class'))}</strong>
+    <button type="button" class="sp-link" data-act="add-special-cancel">${esc(t('spCancel', 'Cancel'))}</button>
+  </div>
+  <p class="sp-hint">${esc(t('spAddSpecialHint', 'One time slot a week, placed by hand. For another day or time, add it again or use Duplicate.'))}</p>
+  <label class="sp-field"><span>${esc(t('spClassName', 'Class name'))}</span>
+    <input type="text" class="field-input" data-special="name" maxlength="120" placeholder="${esc(t('spSpecialNameExample', 'e.g. Speech contest prep'))}">
+  </label>
+  <label class="sp-field"><span>${esc(t('spTeacherTypeNeeded', 'Teacher type'))}</span>
+    <select class="field-select" data-special="type">
+      <option value="either">${esc(t('spTypeEither', 'Any teacher'))}</option>
+      <option value="korean">${esc(t('spRoleKoreanFull', 'Korean teacher'))}</option>
+      <option value="native">${esc(t('spRoleNativeFull', 'Native teacher'))}</option>
+    </select>
+  </label>
+  <label class="sp-field"><span>${esc(t('spSpecialStudents', 'Students (optional, for room size)'))}</span>
+    <input type="number" class="field-input sp-in-small" min="0" max="200" data-special="students">
+  </label>
+  <div class="sp-field"><span>${esc(t('spSpecialCohorts', 'Cohorts (optional)'))}</span>
+    <span class="sp-chips sp-chips--wrap">${M.cohorts.map((c) => `<label class="sp-chip"><input type="checkbox" data-special-cohort="${esc(c.id)}"><span>${esc(c.name)}</span></label>`).join('')}</span>
+  </div>
+  <div class="sp-field-row">
+    <label class="sp-field"><span>${esc(t('spSpecialStart', 'Starts'))}</span><input type="date" class="field-input" data-special="start" value="${esc(term.start)}"></label>
+    <label class="sp-field"><span>${esc(t('spSpecialEnd', 'Ends'))}</span><input type="date" class="field-input" data-special="end" value="${esc(term.end)}"></label>
+  </div>
+  <button type="button" class="btn btn-primary btn-small" data-act="add-special-save">${esc(t('spAddSpecialSave', 'Add class'))}</button>
+</section>`;
+    }
+
+    function newClassId() {
+        return `cl-sp-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    }
+
+    /** Create a special class on the calendar (saved straight away) and select it. */
+    function saveSpecialClass(form) {
+        const val = (k) => {
+            const x = form.querySelector(`[data-special="${k}"]`);
+            return x ? String(x.value || '').trim() : '';
+        };
+        const name = val('name');
+        if (!name) {
+            notice(t('spSpecialNeedName', 'Give the class a name first.'), 'error');
+            return;
+        }
+        const start = val('start');
+        const end = val('end');
+        if (start && end && end < start) {
+            notice(t('spSpecialBadDates', 'The end date is before the start date.'), 'error');
+            return;
+        }
+        const cohortIds = Array.from(form.querySelectorAll('[data-special-cohort]')).filter((x) => x.checked)
+            .map((x) => x.getAttribute('data-special-cohort'));
+        const students = Math.round(Number(val('students')));
+        const type = val('type');
+        const id = newClassId();
+        setupEdit((data) => {
+            data.classes = data.classes || [];
+            data.classes.push(specialClassRecord({ id, name, type, students, cohortIds, start, end }));
+            cohortIds.forEach((cid) => {
+                const c = (data.cohorts || []).find((x) => x.id === cid);
+                if (c && Array.isArray(c.classIds) && !c.classIds.includes(id)) c.classIds.push(id);
+            });
+        });
+        state.addSpecial = false;
+        state.selected = `demand:${id}`;
+        state.editClass = null;
+        render();
+    }
+
+    function specialClassRecord(o) {
+        return {
+            id: o.id,
+            name: o.name,
+            plannerSpecial: true,
+            levelPreset: '',
+            level: '',
+            grade: '',
+            cohortId: (o.cohortIds || [])[0] || '',
+            cohortIds: o.cohortIds || [],
+            classTypeId: '',
+            scheduleBlock: '',
+            meetingDays: [],
+            weeklyFrequency: 1,
+            teacherRequirementType: o.type === 'korean' || o.type === 'native' ? o.type : undefined,
+            plannerStudents: o.students > 0 ? o.students : undefined,
+            classTeachers: [],
+            color: '#64748b',
+            textColor: '#ffffff',
+            startDate: o.start || '',
+            endDate: o.end || '',
+            useAutoTermEnd: false,
+            notes: ''
+        };
+    }
+
+    /** Duplicate a special class (for another day or time); the copy is not placed yet. */
+    function duplicateSpecial(classId) {
+        const src = (M.data.classes || []).find((c) => c.id === classId);
+        if (!src) return;
+        const id = newClassId();
+        setupEdit((data) => {
+            data.classes.push(specialClassRecord({
+                id,
+                name: src.name,
+                type: src.teacherRequirementType,
+                students: Number(src.plannerStudents) || 0,
+                cohortIds: api().getClassCohortIds(src),
+                start: src.startDate,
+                end: src.endDate
+            }));
+            api().getClassCohortIds(src).forEach((cid) => {
+                const c = (data.cohorts || []).find((x) => x.id === cid);
+                if (c && Array.isArray(c.classIds) && !c.classIds.includes(id)) c.classIds.push(id);
+            });
+        });
+        state.selected = `demand:${id}`;
+        state.editClass = null;
+        notice(t('spSpecialDuplicated', 'Copy made. Place it on the board for its other time.'), 'info');
+        render();
+    }
+
+    /** Delete a special class (only special ones can be deleted here). */
+    function deleteSpecial(classId) {
+        const cls = (M.data.classes || []).find((c) => c.id === classId);
+        if (!cls || cls.plannerSpecial !== true) return;
+        confirmBox(t('spSpecialDeleteConfirm', 'Delete {name}? It is removed from the calendar too.', { name: cls.name }), t('spDelete', 'Delete')).then((yes) => {
+            if (!yes) return;
+            const draft = M.draft;
+            setupEdit((data) => {
+                data.classes = (data.classes || []).filter((c) => c.id !== classId);
+                (data.cohorts || []).forEach((c) => {
+                    if (Array.isArray(c.classIds)) c.classIds = c.classIds.filter((x) => x !== classId);
+                });
+                if (draft) draft.assignments = (draft.assignments || []).filter((a) => a.classId !== classId && a.demandId !== `demand:${classId}`);
+            });
+            state.selected = null;
+            state.editClass = null;
+            render();
+        });
+    }
+
     /**
      * "Edit class": the class settings that decide warnings (which cohorts, teacher type, periods a week),
      * changed right here. They save to the class straight away, not on Apply. Everything else is in the
@@ -824,10 +1002,22 @@ ${classEditHtml(demand)}`;
       <option value="native"${need === 'native' ? ' selected' : ''}>${esc(t('spRoleNativeFull', 'Native teacher'))}</option>
     </select>
   </label>
+  ${demand.special ? `
+  <label class="sp-field"><span>${esc(t('spSpecialStudents', 'Students (optional, for room size)'))}</span>
+    <input type="number" class="field-input sp-in-small" min="0" max="200" data-change="edit-class-students" value="${Number(cls.plannerStudents) > 0 ? Number(cls.plannerStudents) : ''}">
+  </label>
+  <div class="sp-field-row">
+    <label class="sp-field"><span>${esc(t('spSpecialStart', 'Starts'))}</span><input type="date" class="field-input" data-change="edit-class-start" value="${esc(cls.startDate || '')}"></label>
+    <label class="sp-field"><span>${esc(t('spSpecialEnd', 'Ends'))}</span><input type="date" class="field-input" data-change="edit-class-end" value="${esc(cls.endDate || '')}"></label>
+  </div>` : `
   <label class="sp-field"><span>${esc(t('spPerWeek', 'Periods / week'))}</span>
     <input type="number" class="field-input sp-in-small" min="1" max="10" data-change="edit-class-freq" value="${demandNeed(demand)}">
-  </label>
+  </label>`}
   <label class="sp-chip"><input type="checkbox" data-change="edit-class-include"${cls.plannerExcluded === true ? '' : ' checked'}><span>${esc(t('spInPlanLong', 'Include in this plan'))}</span></label>
+  ${demand.special ? `<div class="sp-insp-edit-actions">
+    <button type="button" class="btn btn-outline btn-small" data-act="special-duplicate">${esc(t('spDuplicate', 'Duplicate'))}</button>
+    <button type="button" class="btn btn-outline btn-small sp-danger" data-act="special-delete">${esc(t('spDeleteClass', 'Delete class'))}</button>
+  </div>` : ''}
   <a class="sp-link sp-insp-full" href="${esc(fullHref)}" target="_blank" rel="noopener">${esc(t('spEditClassFull', 'Open the full class editor ↗'))}</a>
 </section>`;
     }
@@ -849,14 +1039,27 @@ ${classEditHtml(demand)}`;
             } else if (kind === 'edit-class-freq') {
                 const n = Math.round(Number(el.value));
                 if (n >= 1 && n <= 10) cls.weeklyFrequency = n;
+            } else if (kind === 'edit-class-students') {
+                const n = Math.round(Number(el.value));
+                if (n > 0) cls.plannerStudents = n;
+                else delete cls.plannerStudents;
+            } else if (kind === 'edit-class-start' || kind === 'edit-class-end') {
+                const v = String(el.value || '');
+                const other = kind === 'edit-class-start' ? cls.endDate : cls.startDate;
+                if (v && other && (kind === 'edit-class-start' ? v > other : v < other)) {
+                    notice(t('spSpecialBadDates', 'The end date is before the start date.'), 'error');
+                    return;
+                }
+                if (kind === 'edit-class-start') cls.startDate = v;
+                else cls.endDate = v;
             } else if (kind === 'edit-class-include') {
                 if (el.checked) delete cls.plannerExcluded;
                 else cls.plannerExcluded = true;
             } else if (kind === 'edit-class-cohort') {
                 const ticked = Array.from(box.querySelectorAll('[data-change="edit-class-cohort"]'))
                     .filter((x) => x.checked).map((x) => x.getAttribute('data-cohort-id'));
-                if (!ticked.length) {
-                    el.checked = true; // a class keeps at least one cohort
+                if (!ticked.length && cls.plannerSpecial !== true) {
+                    el.checked = true; // a class keeps at least one cohort (special classes may have none)
                     return;
                 }
                 cls.cohortIds = ticked;
@@ -936,6 +1139,7 @@ ${classEditHtml(demand)}`;
   style="--c:${esc(colorByTeacher() ? teacherColor(m, asg.teacherProfileId) : demandColor(m, demand))}"${why.length ? ` title="${esc(why.join(' · '))}"` : ''}>
   <span class="sp-tile-name">${asg.locked ? '<span class="sp-tile-lock" aria-hidden="true">🔒</span>' : ''}${why.length ? '<span class="sp-tile-flag" aria-hidden="true">!</span>' : ''}${esc(state.view === 'cohorts' ? subjectOnly(m, demand) : demand.name)}</span>
   ${bits.length ? `<span class="sp-tile-sub">${esc(bits.join(' · '))}</span>` : ''}
+  ${demand.special ? specialTagHtml(demand) : ''}
   ${compactCohorts() ? tileRoomChip(m, tile) : ''}
   <button type="button" class="sp-tile-x" data-act="remove-period" data-asg="${esc(asg.assignmentId)}" data-dow="${Number(meeting.dow)}" data-period="${esc(meeting.period)}" aria-label="${esc(t('spRemovePeriod', 'Take off the board'))}">×</button>
 </div>`;
@@ -2676,6 +2880,7 @@ ${by.get(cid).map((d) => `
         if (held && tapWhileHeld(e)) return;
         const pick = e.target.closest('.sp-tile, .sp-card');
         if (pick && !e.target.closest('select, input, label')) {
+            state.addSpecial = false;
             if (lastPointer === 'touch' && !readOnly()) {
                 // Touch: one tap picks the class up; then tap where it goes.
                 pickUp(pick);
@@ -2781,6 +2986,28 @@ ${by.get(cid).map((d) => `
             state.editClass = null;
             render();
             break;
+        case 'add-special':
+            state.addSpecial = true;
+            state.editClass = null;
+            renderInspector();
+            break;
+        case 'add-special-cancel':
+            state.addSpecial = false;
+            renderInspector();
+            break;
+        case 'add-special-save':
+            saveSpecialClass(el.closest('.sp-special-form'));
+            break;
+        case 'special-duplicate': {
+            const d = M.demandById.get(state.selected);
+            if (d) duplicateSpecial(d.classId);
+            break;
+        }
+        case 'special-delete': {
+            const d = M.demandById.get(state.selected);
+            if (d) deleteSpecial(d.classId);
+            break;
+        }
         case 'edit-class':
             state.editClass = state.selected;
             renderInspector();

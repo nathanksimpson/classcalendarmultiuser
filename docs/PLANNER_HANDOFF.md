@@ -58,6 +58,7 @@ A rule change usually touches four places: the check, the issue, the text (`reas
 
 ### Other decisions
 - **Combined classes (합반):** one class can belong to several cohorts. Its size is every student of all its cohorts, counted once (`classSizeOf`). It needs a time free for all of them, a day all of them come (`classAllowedDays`; no common day means it can't be placed automatically), and a room that seats the total.
+- **Special classes (`plannerSpecial`):** added from "+ Add class" in the To place list. No cohort needed (so no student-hours warnings; room size from `plannerStudents`), one slot a week (Duplicate for another time), placed by hand only: `autoSchedule` skips them and `resolveClashes` treats them as fixed. They count towards weekly load only between their `startDate`/`endDate` (`countsForLoad`, measured on `loadReferenceDate` = today or term start). Edit class shows their dates and Delete.
 - **Student hours,** in priority order:
   1. the planner's unsaved copy (`plannerState.cohortBlocks`);
   2. `cohort.blockStart`/`blockEnd`;

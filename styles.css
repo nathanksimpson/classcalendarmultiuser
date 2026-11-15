@@ -27140,3 +27140,43 @@ body.sp-dragging .sp-cell[data-drop="clash"] {
     align-items: center;
     margin: 0 0 0 auto;
 }
+
+/* ---- Schedule planner: special / temporary classes ---- */
+.sp-add-class {
+    width: 100%;
+    margin-bottom: var(--space-2);
+}
+
+.sp-special-tag {
+    display: inline-block;
+    margin-top: 2px;
+    padding: 0 6px;
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+    color: var(--text-secondary);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.sp-field-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.sp-field-row .sp-field {
+    flex: 1 1 120px;
+    min-width: 0;
+}
+
+.sp-insp-edit-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.sp-danger {
+    color: var(--danger);
+    border-color: color-mix(in srgb, var(--danger) 45%, var(--border-color));
+}
