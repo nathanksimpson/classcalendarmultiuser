@@ -161,7 +161,7 @@ const dataTabs = new Set(Array.from(indexHtml.matchAll(/data-tab="([^"]+)"/g)).m
         .filter((r) => r.mode === 'run')
         .map((r) => r.code)
         .sort();
-    const expected = ['E1', 'E2', 'E3', 'E4', 'E5', 'I1', 'I13', 'I2', 'tms-sync'].sort();
+    const expected = ['E1', 'E2', 'E3', 'E4', 'E5', 'E8', 'I1', 'I13', 'I2', 'I6', 'I7', 'I8', 'tms-sync'].sort();
     assert(JSON.stringify(runSet) === JSON.stringify(expected), `Run set is ${expected.join(',')} (got ${runSet.join(',')})`);
     assert(dt.HIGHLIGHT_CLASS === 'data-io-highlight', 'highlight class');
 }
