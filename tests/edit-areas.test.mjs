@@ -14,12 +14,14 @@ function assert(cond, msg) {
     }
 }
 
-// Role defaults: teachers edit everything except curriculum; head teachers everything.
+// Role defaults: teachers edit classes and events; curriculum and the schedule planner are
+// for management (admins, head teachers); head teachers edit everything.
 {
     const teacher = { role: 'teacher', permissions: null };
     const head = { role: 'head_teacher', permissions: null };
     assert(!Auth.hasEditArea(teacher, 'edit_curriculum'), 'teacher: no curriculum by default');
-    for (const a of ['edit_classes', 'edit_events', 'edit_planner']) {
+    assert(!Auth.hasEditArea(teacher, 'edit_planner'), 'teacher: no schedule planner by default');
+    for (const a of ['edit_classes', 'edit_events']) {
         assert(Auth.hasEditArea(teacher, a), 'teacher default ' + a);
     }
     for (const a of Auth.EDIT_AREA_PERMS) {

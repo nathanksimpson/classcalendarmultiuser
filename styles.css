@@ -27198,3 +27198,24 @@ body.sp-dragging .sp-cell[data-drop="clash"] {
 body:not(.planner-page) #spHoldBar {
     display: none !important;
 }
+
+/* ---- Timetable for teachers: read-only, their own timetable only (management uses the Planner) ---- */
+body.timetable-mine-only #timetableOpenPlannerBtn,
+body.timetable-mine-only #timetablePeriodScheduleBtn,
+body.timetable-mine-only #timetableMyScheduleBtn,
+body.timetable-mine-only #timetableImportXlsBtn,
+body.timetable-mine-only #timetableExportXlsBtn,
+body.timetable-mine-only #timetableConflictBadge,
+body.timetable-mine-only .timetable-sidebar {
+    display: none !important;
+}
+
+body.timetable-mine-only .timetable-layout {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.sp-menu-sep {
+    margin: 4px 0;
+    border: 0;
+    border-top: 1px solid var(--border-color);
+}

@@ -15456,6 +15456,10 @@ function canAccessZoneSegment(zoneId, segmentId) {
     if (segmentId === 'data') {
         return canAccessSetupHost();
     }
+    if (segmentId === 'planner') {
+        // Only management changes the schedule.
+        return isScheduleManager();
+    }
     return true;
 }
 
@@ -15508,6 +15512,15 @@ function syncZoneNavPermissions() {
     if (cohortsSeg) {
         cohortsSeg.hidden = !canAccessTeachersTab();
     }
+    // Management plans in Planner (the Timetable tab stays reachable from "My timetable");
+    // teachers get Timetable with only their own classes.
+    const manager = isScheduleManager();
+    document.querySelectorAll('.app-zone-segment-btn[data-segment="planner"]').forEach((el) => {
+        el.hidden = !manager;
+    });
+    document.querySelectorAll('.app-zone-segment-btn[data-segment="timetable"]').forEach((el) => {
+        el.hidden = manager;
+    });
     const commandCenterSeg = document.querySelector('.app-zone-segment-btn[data-segment="command-center"]');
     if (commandCenterSeg) {
         commandCenterSeg.hidden = true;
@@ -24159,6 +24172,58 @@ function syncAllClassCohortLinksInData(data) {
     (target.cohorts || []).forEach((cohort) => syncClassCohortLinks(cohort));
 }
 
+/** Management (schedule planner editors) plan in the Planner tab; everyone else only sees their own timetable. */
+function isScheduleManager() {
+    return canEditArea('edit_planner');
+}
+
+/** The current account as a timetable selector (their own timetable). */
+function myTimetableSelector() {
+    const me = typeof TeamAuth !== 'undefined' && TeamAuth.getUser ? TeamAuth.getUser() : null;
+    if (!me || !me.id) {
+        return null;
+    }
+    const row = listTimetableTeachers().find((r) => r.userId === me.id);
+    return { userId: me.id, displayName: (row && row.displayName) || me.displayName || me.email || me.id };
+}
+
+// Restored: this was dropped by mistake on 13 Nov, which broke opening the Timetable tab
+// (the error surfaced as "Syllabus module did not load").
+async function initTimetableTabControls(options) {
+    await ensureTeamTeacherAccountsLoaded();
+    initTimetableTabListeners();
+    renderTimetableCohortsList();
+    const mineOnly = !isScheduleManager();
+    document.body.classList.toggle('timetable-mine-only', mineOnly);
+    if (mineOnly) {
+        // Teachers: read-only, their own timetable only.
+        const mine = myTimetableSelector();
+        if (mine) {
+            selectTimetableTeacher(mine);
+        } else {
+            renderTimetableView(null);
+        }
+        return;
+    }
+    if (options && options.teacherUserId) {
+        const teachers = listTimetableTeachers();
+        const match = teachers.find((row) => row.userId === options.teacherUserId);
+        if (match) {
+            selectTimetableTeacher({ userId: match.userId, displayName: match.displayName });
+            return;
+        }
+    }
+    const saved = getTimetableTeacherSelectorFromUi();
+    renderTimetableTeacherList();
+    if (saved) {
+        renderTimetableClassList(saved);
+        renderTimetableView(saved);
+    } else {
+        renderTimetableClassList(null);
+        renderTimetableView(null);
+    }
+}
+
 function initTimetablePeriodSchedule() {
     const openBtn = document.getElementById('timetablePeriodScheduleBtn');
     const modal = document.getElementById('timetablePeriodModal');
@@ -24470,6 +24535,69 @@ function initTimetableExport() {
             btn.disabled = false;
         }
     });
+}
+
+/**
+ * Timetable tools used outside the Timetable tab: the planner's Tools menu (Excel import/export)
+ * and Data > Rarely used (PDF / photo import). Loads what they need first.
+ * kind: 'import-excel' | 'import-pdf' | 'import-photo' | 'export-all'
+ */
+async function openTimetableTool(kind) {
+    try {
+        if (typeof CCPTabScripts !== 'undefined' && CCPTabScripts.ensureTabScripts) {
+            await CCPTabScripts.ensureTabScripts('timetable');
+        }
+    } catch (err) {
+        console.error(err);
+        showSyncToast(t('timetableToolLoadFailed'), true);
+        return;
+    }
+    initTimetableImport();
+    if (kind === 'export-all') {
+        await exportAllTeacherTimetables();
+        return;
+    }
+    const btnId = {
+        'import-excel': 'timetableImportXlsBtn',
+        'import-pdf': 'timetableImportPdfBtn',
+        'import-photo': 'timetableImportPhotoBtn'
+    }[kind];
+    const btn = btnId ? document.getElementById(btnId) : null;
+    if (btn) {
+        btn.click();
+    }
+}
+window.openTimetableTool = openTimetableTool;
+document.addEventListener('click', (e) => {
+    const btn = e.target && e.target.closest ? e.target.closest('[data-timetable-tool]') : null;
+    if (btn && !btn.disabled) {
+        void openTimetableTool(btn.getAttribute('data-timetable-tool'));
+    }
+});
+
+/** Every teacher's timetable (as it is on the calendar) in one Excel workbook. */
+async function exportAllTeacherTimetables() {
+    const api = getTimetableApi();
+    const exportApi = typeof CCPTimetableExport !== 'undefined' ? CCPTimetableExport : null;
+    if (!api || !exportApi || !exportApi.exportTeachersWorkbookXlsx) {
+        alert(t('timetableExportExcelFailed'));
+        return;
+    }
+    const lang = currentLanguage === 'ko' ? 'ko' : 'en';
+    const grids = listTimetableTeachers()
+        .map((row) => api.buildTeacherWeeklyGrid(appData, { userId: row.userId, displayName: row.displayName }, { lang }))
+        .filter((g) => g && (g.blocks || []).some((b) => (b.rows || []).some((r) => (r.cells || []).some((c) => c.entries && c.entries.length))));
+    try {
+        await exportApi.exportTeachersWorkbookXlsx(grids, {
+            lang,
+            filename: `${appData.calendarName || 'timetables'} - teachers`,
+            timeHeader: t('timetableTimeHeader'),
+            homeroomLineLabel: t('timetableHomeroomLabel')
+        });
+    } catch (err) {
+        console.error('Timetable export failed:', err);
+        alert(t('timetableExportExcelFailed'));
+    }
 }
 
 function initTimetableTabListeners() {

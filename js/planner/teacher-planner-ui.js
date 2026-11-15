@@ -2039,6 +2039,101 @@ ${open ? `<div class="sp-issues-body">${total ? groups.filter((g) => g.items.len
 </div>`;
     }
 
+    /* ------------------------------------------------- Setup > Periods (clock times) */
+
+    function periodsApi() {
+        return global.CCPTimetablePeriods || null;
+    }
+
+    /** The period table: number, start, end. Saved straight away (the whole app uses these times). */
+    function periodsSetupHtml() {
+        const tp = periodsApi();
+        if (!tp) return `<p class="sp-empty">${esc(t('spPeriodsUnavailable', 'Period times are not available here.'))}</p>`;
+        const slots = tp.getSortedTimeSlots(M.data);
+        const map = Object.assign({}, M.data.periodSlotMap || tp.getDefaultMap());
+        const nums = tp.getPeriodNumbers(map);
+        const ro = readOnly();
+        return `<p class="sp-hint">${esc(t('spSetupPeriodsHint', 'Clock times for each period. The board, warnings and printouts use these, and so does the rest of the app. Changes save straight away.'))}</p>
+<table class="sp-table sp-periods"><thead><tr><th>${esc(t('timetablePeriodColPeriod', 'Period'))}</th><th>${esc(t('timetablePeriodColStart', 'Start'))}</th><th>${esc(t('timetablePeriodColEnd', 'End'))}</th><th></th></tr></thead><tbody>
+${nums.map((n) => {
+        const slot = slots.find((x) => x.id === map[String(n)]) || {};
+        return `<tr data-period-row="${esc(String(n))}">
+  <td><strong>P${esc(String(n))}</strong></td>
+  <td><input type="time" class="field-input" data-change="period-start" value="${esc(slot.start || '')}"${ro ? ' disabled' : ''} aria-label="${esc(t('timetablePeriodColStart', 'Start'))}"></td>
+  <td><input type="time" class="field-input" data-change="period-end" value="${esc(slot.end || '')}"${ro ? ' disabled' : ''} aria-label="${esc(t('timetablePeriodColEnd', 'End'))}"></td>
+  <td><button type="button" class="sp-icon-btn" data-act="period-remove"${ro ? ' disabled' : ''} aria-label="${esc(t('timetablePeriodRemove', 'Remove'))}">×</button></td>
+</tr>`;
+    }).join('')}
+</tbody></table>
+<div class="sp-setup-actions">
+  <button type="button" class="btn btn-outline btn-small" data-act="period-add"${ro ? ' disabled' : ''}>${esc(t('timetablePeriodAdd', '+ Add period'))}</button>
+  <button type="button" class="btn btn-outline btn-small" data-act="period-reset"${ro ? ' disabled' : ''}>${esc(t('timetablePeriodResetDefaults', 'Reset to defaults'))}</button>
+</div>`;
+    }
+
+    /** Save a new period schedule after checking it; false (with a message) when it is not valid. */
+    function savePeriods(slots, map) {
+        const tp = periodsApi();
+        const v = tp.validatePeriodSchedule(slots, map);
+        if (!v.ok) {
+            notice(t('spPeriodsInvalid', 'Each period must end after it starts.'), 'error');
+            renderSetup();
+            return false;
+        }
+        setupEdit((data) => {
+            data.timetableTimeSlots = v.slots;
+            data.periodSlotMap = tp.normalizePeriodSlotMap(map, v.slots);
+        });
+        render();
+        return true;
+    }
+
+    function currentPeriods() {
+        const tp = periodsApi();
+        return {
+            slots: tp.getSortedTimeSlots(M.data).map((x) => Object.assign({}, x)),
+            map: Object.assign({}, M.data.periodSlotMap || tp.getDefaultMap())
+        };
+    }
+
+    function editPeriodTime(el, which) {
+        const tp = periodsApi();
+        const row = el.closest('[data-period-row]');
+        if (!tp || !row || readOnly()) return;
+        const cur = currentPeriods();
+        const slot = cur.slots.find((x) => x.id === cur.map[row.getAttribute('data-period-row')]);
+        if (!slot) return;
+        slot[which] = el.value;
+        const dur = tp.computeDurationMin(slot.start, slot.end);
+        if (dur != null) slot.durationMin = dur;
+        savePeriods(cur.slots, cur.map);
+    }
+
+    function periodAction(act, el) {
+        const tp = periodsApi();
+        if (!tp || readOnly()) return;
+        const cur = currentPeriods();
+        if (act === 'period-add') {
+            const r = tp.addPeriod(cur.slots, cur.map);
+            if (r.ok) savePeriods(r.slots, r.map);
+        } else if (act === 'period-remove') {
+            const n = el.closest('[data-period-row]').getAttribute('data-period-row');
+            const used = tp.findClassesUsingPeriod(M.data, n);
+            if (used.length) {
+                notice(t('timetablePeriodInUse', 'Period {period} is used by: {classes}').replace('{period}', n).replace('{classes}', used.map((c) => c.name || c.id).join(', ')), 'error');
+                return;
+            }
+            const r = tp.removePeriod(cur.slots, cur.map, n);
+            if (r.ok) savePeriods(r.slots, r.map);
+        } else if (act === 'period-reset') {
+            confirmBox(t('timetablePeriodResetDefaults', 'Reset to defaults') + '?', t('spOk', 'OK')).then((yes) => {
+                if (!yes) return;
+                const d = tp.resetToDefaultSchedule();
+                savePeriods(d.slots, d.map);
+            });
+        }
+    }
+
     function renderSetup() {
         const body = $('spSetupBody');
         if (!body || !M) return;
@@ -2141,6 +2236,8 @@ ${state.openBlockGrid === 'everyone' ? blockGrid(M, 'everyone') : ''}`;
   <button type="button" class="btn btn-primary btn-small" data-act="save-cohort-blocks"${pending.length ? '' : ' disabled'}>${esc(t('spSaveCohorts', 'Save to cohorts ({n})', { n: pending.length }))}</button>
   <button type="button" class="btn btn-outline btn-small" data-act="discard-cohort-blocks"${pending.length ? '' : ' disabled'}>${esc(t('spDiscardCohorts', 'Discard changes'))}</button>
 </div>` : `<p class="sp-empty">${esc(t('spEmptyCohorts', 'No cohorts on this calendar yet. Create them on the Cohorts tab of the calendar.'))}</p>`;
+        } else if (state.setupTab === 'periods') {
+            html += periodsSetupHtml();
         } else if (state.setupTab === 'rooms') {
             html += `<p class="sp-hint">${esc(t('spSetupRoomsHint', 'Rooms are optional. Once you add them, drag classes into rooms on the Rooms sheet.'))}</p>`;
             html += `<div class="sp-rows" data-sort-list="rooms">${M.rooms.map((r) => `
@@ -3006,6 +3103,19 @@ ${by.get(cid).map((d) => `
             state.editClass = null;
             render();
             break;
+        case 'tt-import-excel':
+        case 'tt-export-excel':
+            // Shared with the rest of the app (app.js): the Excel import writes classes on the calendar,
+            // the export is what is on the calendar (Apply first to include this plan).
+            if (typeof global.openTimetableTool === 'function') {
+                global.openTimetableTool(act === 'tt-import-excel' ? 'import-excel' : 'export-all');
+            }
+            break;
+        case 'period-add':
+        case 'period-remove':
+        case 'period-reset':
+            periodAction(act, el);
+            break;
         case 'add-special':
             state.addSpecial = true;
             state.editClass = null;
@@ -3151,7 +3261,9 @@ ${by.get(cid).map((d) => `
         const kind = el.getAttribute('data-change');
         if (!kind || !M) return;
         const row = el.closest('[data-teacher], [data-room], [data-class]');
-        if (kind.startsWith('edit-class-')) {
+        if (kind === 'period-start' || kind === 'period-end') {
+            editPeriodTime(el, kind === 'period-start' ? 'start' : 'end');
+        } else if (kind.startsWith('edit-class-')) {
             editClassField(el, kind);
         } else if (kind === 'class-teacher') {
             const demandId = state.selected;

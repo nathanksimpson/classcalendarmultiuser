@@ -1306,8 +1306,9 @@
                     <button type="button" id="timetablePeriodScheduleBtn" class="btn btn-outline btn-small" data-i18n="timetablePeriodSchedule">Period schedule</button>
                     <button type="button" id="timetableMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="timetableMySchedule">My schedule</button>
                     <button type="button" id="timetableImportXlsBtn" class="btn btn-outline btn-small" data-i18n="timetableImportExcel">Import Excel</button>
-                    <button type="button" id="timetableImportPdfBtn" class="btn btn-outline btn-small" data-i18n="timetableImportPdf">Import PDF</button>
-                    <button type="button" id="timetableImportPhotoBtn" class="btn btn-outline btn-small" data-i18n="timetableImportPhoto">Import photo</button>
+                    <!-- PDF / photo import live in Data › Rarely used now; these stay as their (hidden) triggers. -->
+                    <button type="button" id="timetableImportPdfBtn" class="btn btn-outline btn-small" data-i18n="timetableImportPdf" hidden>Import PDF</button>
+                    <button type="button" id="timetableImportPhotoBtn" class="btn btn-outline btn-small" data-i18n="timetableImportPhoto" hidden>Import photo</button>
                     <input type="file" id="timetableImportFileInput" class="visually-hidden" hidden aria-hidden="true" />
                     <button type="button" id="timetableExportXlsBtn" class="btn btn-outline btn-small" data-i18n="timetableExportExcel">Export Excel</button>
                     <button type="button" id="timetablePrintBtn" class="btn btn-outline btn-small" data-i18n="timetablePrint">Print timetable</button>
@@ -1375,6 +1376,9 @@
                                 <div id="spToolsMenu" class="sp-menu" hidden>
                                     <button type="button" data-act="load-calendar" data-i18n="spToolLoad">Load from calendar</button>
                                     <button type="button" data-act="clear-board" data-i18n="spToolClear">Clear the board</button>
+                                    <hr class="sp-menu-sep">
+                                    <button type="button" data-act="tt-import-excel" data-i18n="spToolImportExcel">Import timetable (Excel)</button>
+                                    <button type="button" data-act="tt-export-excel" data-i18n="spToolExportExcel">Export teacher timetables (Excel)</button>
                                 </div>
                             </div>
                             <div class="sp-menu-wrap">
@@ -1412,6 +1416,7 @@
                             <button type="button" role="tab" class="sp-seg-btn" data-setup-tab="cohorts" data-i18n="spViewCohorts">Cohorts</button>
                             <button type="button" role="tab" class="sp-seg-btn" data-setup-tab="teachers" data-i18n="spViewTeachers">Teachers</button>
                             <button type="button" role="tab" class="sp-seg-btn" data-setup-tab="rooms" data-i18n="spViewRooms">Rooms</button>
+                            <button type="button" role="tab" class="sp-seg-btn" data-setup-tab="periods" data-i18n="spSetupPeriods">Periods</button>
                             <button type="button" role="tab" class="sp-seg-btn" data-setup-tab="classes" data-i18n="spSetupClasses">Classes</button>
                         </div>
                         <button type="button" class="btn btn-primary btn-small" data-act="close-setup" data-i18n="spDone">Done</button>
@@ -1624,6 +1629,14 @@
                         <p class="section-hint" data-i18n="dataTermMigrateHint">Pull TMS rosters, keep student IDs, set homeroom, and carry forward or rebuild your classes.</p>
                         <div class="print-data-actions">
                             <button type="button" id="dataTermMigrateBtn" class="btn btn-outline btn-small" data-i18n="dataTermMigrateOpen">Migrate to next term&hellip;</button>
+                        </div>
+                    </div>
+                    <div class="print-data-section print-data-section--legacy">
+                        <h2 class="module-section-title" data-i18n="dataLegacyHeading">Rarely used</h2>
+                        <p class="section-hint" data-i18n="dataLegacyHint">Older tools kept for the odd occasion.</p>
+                        <div class="print-data-actions">
+                            <button type="button" id="dataLegacyTtPdfBtn" class="btn btn-outline btn-small" data-timetable-tool="import-pdf" data-i18n="dataLegacyTtPdf">Import timetable from PDF</button>
+                            <button type="button" id="dataLegacyTtPhotoBtn" class="btn btn-outline btn-small" data-timetable-tool="import-photo" data-i18n="dataLegacyTtPhoto">Import timetable from a photo</button>
                         </div>
                     </div>
                     <div class="print-data-section print-data-section--danger">

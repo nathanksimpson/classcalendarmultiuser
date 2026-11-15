@@ -489,9 +489,9 @@
         { code: 'I3', direction: 'import', group: 'students', labelKey: 'rosterImportBtn', mode: 'jump', zone: 'classroom', segment: 'students', targetId: 'classroomRosterImportBtn' },
         { code: 'I4', direction: 'import', group: 'students', labelKey: 'essayTrackerImportBtn', mode: 'jump', zone: 'classroom', segment: 'students', targetId: 'classroomRosterEssayTrackerImportBtn' },
         { code: 'I5', direction: 'import', group: 'students', labelKey: 'rosterPasteBtn', mode: 'jump', zone: 'classroom', segment: 'students', targetId: 'classroomRosterPasteBtn' },
-        { code: 'I6', direction: 'import', group: 'timetable', labelKey: 'timetableImportExcel', mode: 'jump', zone: 'schedule', segment: 'timetable', targetId: 'timetableImportXlsBtn' },
-        { code: 'I7', direction: 'import', group: 'timetable', labelKey: 'timetableImportPdf', mode: 'jump', zone: 'schedule', segment: 'timetable', targetId: 'timetableImportPdfBtn' },
-        { code: 'I8', direction: 'import', group: 'timetable', labelKey: 'timetableImportPhoto', mode: 'jump', zone: 'schedule', segment: 'timetable', targetId: 'timetableImportPhotoBtn' },
+        { code: 'I6', direction: 'import', group: 'timetable', labelKey: 'timetableImportExcel', mode: 'run', zone: '', segment: '', runKind: 'timetable-tool', toolKind: 'import-excel' },
+        { code: 'I7', direction: 'import', group: 'timetable', labelKey: 'timetableImportPdf', mode: 'run', zone: '', segment: '', runKind: 'timetable-tool', toolKind: 'import-pdf' },
+        { code: 'I8', direction: 'import', group: 'timetable', labelKey: 'timetableImportPhoto', mode: 'run', zone: '', segment: '', runKind: 'timetable-tool', toolKind: 'import-photo' },
         { code: 'I9', direction: 'import', group: 'debate', labelKey: 'classroomDebateImportBackup', mode: 'jump', zone: 'tools', segment: 'debate-teams', targetId: 'debateV2ImportFile' },
         { code: 'I10', direction: 'import', group: 'tools', labelKey: 'speakingTestLocalImport', mode: 'jump', zone: 'tools', segment: 'speaking-test', targetId: 'speakingTestLocalImportBtn' },
         { code: 'I11', direction: 'import', group: 'classes', labelKey: 'cohortsImportFromClasses', mode: 'jump', zone: 'classes', segment: 'cohorts', targetId: 'cohortsImportBtn' },
@@ -505,7 +505,7 @@
         { code: 'E5', direction: 'export', group: 'classroom', labelKey: 'dataExportHomework', mode: 'run', zone: 'more', segment: 'data', targetId: 'dataExportHomeworkBtn' },
         { code: 'E6', direction: 'export', group: 'students', labelKey: 'rosterExportAllBtn', mode: 'jump', zone: 'classroom', segment: 'students', targetId: 'classroomRosterExportAllBtn' },
         { code: 'E7', direction: 'export', group: 'students', labelKey: 'rosterExportSelectedBtn', mode: 'jump', zone: 'classroom', segment: 'students', targetId: 'classroomRosterExportSelectedBtn' },
-        { code: 'E8', direction: 'export', group: 'timetable', labelKey: 'timetableExportExcel', mode: 'jump', zone: 'schedule', segment: 'timetable', targetId: 'timetableExportXlsBtn' },
+        { code: 'E8', direction: 'export', group: 'timetable', labelKey: 'spToolExportExcel', mode: 'run', zone: '', segment: '', runKind: 'timetable-tool', toolKind: 'export-all' },
         { code: 'E9', direction: 'export', group: 'debate', labelKey: 'classroomDebateScoresDownloadWord', mode: 'jump', zone: 'tools', segment: 'debate-scores', targetId: 'classroomDebateScoresWordBtn' },
         { code: 'E10', direction: 'export', group: 'debate', labelKey: 'classroomDebateScoresDownloadPdf', mode: 'jump', zone: 'tools', segment: 'debate-scores', targetId: 'classroomDebateScoresPdfBtn' },
         { code: 'E11', direction: 'export', group: 'debate', labelKey: 'classroomDebateExportBackup', mode: 'jump', zone: 'tools', segment: 'debate-teams', targetId: 'debateV2ExportJson' },
@@ -556,6 +556,13 @@
             if (row.runKind === 'sync-center') {
                 if (typeof hooks.openSyncCenter === 'function') {
                     hooks.openSyncCenter();
+                }
+                return;
+            }
+            if (row.runKind === 'timetable-tool') {
+                // Timetable import/export run from anywhere now (app.js openTimetableTool).
+                if (typeof global.openTimetableTool === 'function') {
+                    global.openTimetableTool(row.toolKind);
                 }
                 return;
             }

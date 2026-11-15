@@ -72,9 +72,10 @@ const ROLE_PRESETS = {
         ...EDIT_AREA_PERMS
     ],
     settings_admin: [PERMS.MANAGE_SETTINGS, PERMS.ACCESS_ADMIN_PAGE],
-    // Teachers edit classes, events/timetable/term and the planner; curriculum and default
-    // syllabi are for admins and head teachers unless an admin allows it.
-    teacher: [PERMS.VIEW_CALENDARS, PERMS.CREATE_CALENDARS, PERMS.EDIT_CLASSES, PERMS.EDIT_EVENTS, PERMS.EDIT_PLANNER],
+    // Teachers edit classes and events/term. The timetable is management's job (Nov 2026): the
+    // schedule planner (edit_planner) is for admins and head teachers unless an admin allows it;
+    // teachers see only their own timetable. Curriculum and default syllabi likewise.
+    teacher: [PERMS.VIEW_CALENDARS, PERMS.CREATE_CALENDARS, PERMS.EDIT_CLASSES, PERMS.EDIT_EVENTS],
     viewer: [PERMS.VIEW_CALENDARS]
 };
 

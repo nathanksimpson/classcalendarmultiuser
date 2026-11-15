@@ -180,8 +180,56 @@
         });
     }
 
+    /**
+     * Every teacher in one workbook: one sheet per teacher (two when they teach in both blocks).
+     * @param {object[]} grids - buildTeacherWeeklyGrid results
+     */
+    function exportTeachersWorkbookXlsx(grids, meta) {
+        meta = meta || {};
+        return ensureXlsx().then((XLSX) => {
+            const wb = XLSX.utils.book_new();
+            const used = new Set();
+            const sheetName = (base) => {
+                const clean = String(base || 'Sheet').replace(/[\\/?*[\]:]/g, ' ').slice(0, 28) || 'Sheet';
+                let name = clean;
+                let n = 2;
+                while (used.has(name)) {
+                    name = `${clean.slice(0, 26)} ${n}`;
+                    n += 1;
+                }
+                used.add(name);
+                return name;
+            };
+            (grids || []).forEach((grid) => {
+                const blocks = (grid && grid.blocks) || [];
+                blocks.forEach((block, i) => {
+                    const aoa = buildSheetAoA(block, {
+                        teacherName: grid.teacherName,
+                        homeroomLabels: grid.homeroomLabels,
+                        lang: meta.lang,
+                        timeHeader: meta.timeHeader,
+                        homeroomLineLabel: meta.homeroomLineLabel
+                    });
+                    const ws = XLSX.utils.aoa_to_sheet(aoa);
+                    ws['!cols'] = [{ wch: 14 }].concat(block.columns.map(() => ({ wch: 18 })));
+                    try {
+                        applySheetStyles(ws, block, XLSX);
+                    } catch (_) {
+                        /* styling optional */
+                    }
+                    XLSX.utils.book_append_sheet(wb, ws, sheetName(blocks.length > 1 ? `${grid.teacherName} ${i + 1}` : grid.teacherName));
+                });
+            });
+            if (!wb.SheetNames.length) {
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['No classes assigned']]), 'Timetable');
+            }
+            XLSX.writeFile(wb, `${sanitizeFilename(meta.filename || 'timetables')}.xlsx`);
+        });
+    }
+
     global.CCPTimetableExport = {
         exportTeacherTimetableXlsx,
+        exportTeachersWorkbookXlsx,
         ensureXlsx
     };
 })(typeof window !== 'undefined' ? window : globalThis);

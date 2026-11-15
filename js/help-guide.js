@@ -133,7 +133,7 @@
         "manage_settings",
         "access_admin_page"
     ],
-    "teacher": ["view_calendars", "create_calendars", "edit_classes", "edit_events", "edit_planner"],
+    "teacher": ["view_calendars", "create_calendars", "edit_classes", "edit_events"],
     "viewer": ["view_calendars"]
 };
 
