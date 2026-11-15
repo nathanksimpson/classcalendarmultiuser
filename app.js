@@ -2018,6 +2018,8 @@ function renderPeriodByDayRow(container, meetingDays) {
 }
 
 function syncPeriodByDayUi() {
+    // Meeting days changed (chips, presets, curriculum defaults): redraw the day rows.
+    renderClassTimesEditor();
     const wrap = document.getElementById('classPeriodByDayWrap');
     const variesCb = document.getElementById('classPeriodVariesByDay');
     const row = document.getElementById('classPeriodByDayRow');
@@ -2740,6 +2742,44 @@ function syncLinkedCurriculumFromMainMenu() {
     }
 }
 
+/**
+ * Picking a curriculum book fills the class's defaults from it straight away (lessons, class type,
+ * level), without the confirm steps of the old Apply button. A saved class keeps its own days and
+ * periods; Save then updates the syllabus from the new book (it asks first).
+ */
+function applyCurriculumBookQuietly() {
+    const editor = window.CCPBooksEditor;
+    const bookSel = document.getElementById('classCurriculumBook');
+    const curriculumId = (bookSel && bookSel.value || '').trim();
+    if (!editor || !curriculumId || editor.isNoCurriculum(curriculumId)) {
+        return;
+    }
+    const level = getClassFormCurriculumLevel();
+    const eligibility = editor.getCurriculumApplyEligibility(level, curriculumId, appData);
+    if (!eligibility || !eligibility.ok || !eligibility.presetId) {
+        return; // the preview line under the picker says why
+    }
+    const isEdit = !!(elements.classId && elements.classId.value);
+    const keepDays = isEdit ? readMeetingDaysFromFormScope('#classForm', MEETING_DAY_INPUT_CLASS) : null;
+    applyCurriculumClassDefaultsToForm(curriculumId, eligibility.presetId, level);
+    if (keepDays) {
+        writeMeetingDaysInFormScope('#classForm', MEETING_DAY_INPUT_CLASS, keepDays);
+        updateMeetingDayChipLabels();
+    }
+    syncLinkedCurriculumFromMainMenu();
+    const link = resolveClassCurriculumLinkFromForm({ includeTeacherFields: false });
+    const hidden = document.getElementById('classTypeIdHidden');
+    if (hidden) {
+        hidden.value = link.classTypeId;
+    }
+    if (elements.classTypeSelect) {
+        elements.classTypeSelect.value = link.classTypeId;
+    }
+    updateCompressionUiForScheduleModel();
+    renderClassTimesEditor();
+    refreshClassTermSummary();
+}
+
 function handleApplyCurriculumToClass() {
     const level = getClassFormCurriculumLevel();
     const curriculumId = (document.getElementById('classCurriculumBook')?.value || '').trim();
@@ -3015,6 +3055,7 @@ function setupClassCurriculumControls() {
         bookSel.addEventListener('change', () => {
             syncClassCurriculumApplyState();
             syncLinkedCurriculumFromMainMenu();
+            applyCurriculumBookQuietly();
         });
     }
     if (applyBtn && applyBtn.dataset.bound !== '1') {
@@ -3417,6 +3458,7 @@ function updateCompressionUiForScheduleModel() {
     renderScheduleAdjustmentSummaryBlock(effective || draft, 'classForm');
     renderScheduleGapWarning(draft, 'classForm');
     initScheduleAdjustmentDetailsToggle('classForm');
+    syncClassFormDebateUi();
 }
 
 function syncCompressionSectionsForMode(surface, classData, options) {
@@ -14083,8 +14125,10 @@ function applyClassTermEndUiState() {
         return;
     }
     const auto = elements.classUseAutoTermEnd.checked;
-    elements.classEndDate.readOnly = auto;
-    elements.classEndDate.classList.toggle('input-readonly', auto);
+    // The end date can always be typed; typing it turns the automatic end off (see the class form).
+    elements.classEndDate.readOnly = false;
+    elements.classEndDate.classList.remove('input-readonly');
+    elements.classEndDate.classList.toggle('is-auto', auto);
     const modeWrap = document.getElementById('classTermEndModeWrap');
     if (modeWrap) {
         modeWrap.hidden = !auto;
@@ -14107,18 +14151,10 @@ function refreshBookRowsForTermRange() {
         ? collectCompressionPeriodMetaFromForm('classForm').concat(oldPeriods)
         : ((existingClass && existingClass.debateBookPeriods) || oldPeriods);
 
+    // Debate is scheduled by hand: keep the book periods that fall in the term, never invent new ones.
     const existing = oldPeriods.filter(p => p.startDate >= start && p.startDate <= end);
-    if (existing.length > 0) {
+    if (existing.length !== oldPeriods.length) {
         renderDebateBookPeriodRows(existing);
-    } else if (oldPeriods.length > 0) {
-        const debateApi = getCCPDebatePeriods();
-        if (debateApi) {
-            renderDebateBookPeriodRows(
-                debateApi.suggestPeriodsFromCalendarMonths(start, end, elements.classBook.value || '')
-            );
-        } else {
-            renderDebateBookPeriodRows([]);
-        }
     }
     const newPeriods = collectDebateBookPeriodsFromForm();
     const remapped = remapCompressionMergesByPeriodForUi(mergeSource, mergeSourcePeriods, newPeriods);
@@ -20404,133 +20440,6 @@ function readTeacherRowMeetingDays(rowEl) {
     );
 }
 
-function syncTeacherRowDaysUi(rowEl) {
-    const mode = rowEl.querySelector('.class-teacher-days-mode');
-    const wrap = rowEl.querySelector('.class-teacher-days-wrap');
-    if (!mode || !wrap) {
-        return;
-    }
-    wrap.hidden = mode.value !== 'custom';
-}
-
-function syncTeacherRowPeriodUi(rowEl) {
-    const mode = rowEl.querySelector('.class-teacher-period-mode');
-    const wrap = rowEl.querySelector('.class-teacher-period-wrap');
-    if (!mode || !wrap) {
-        return;
-    }
-    wrap.hidden = mode.value !== 'custom';
-}
-
-function addTeacherPlacementRow(rowEl, placement) {
-    const list = rowEl.querySelector('.class-teacher-placements-list');
-    if (!list) {
-        return;
-    }
-    const p = placement || { dow: 1, period: 1 };
-    const line = document.createElement('div');
-    line.className = 'class-teacher-placement-row form-row';
-    const dowSel = document.createElement('select');
-    dowSel.className = 'class-teacher-placement-dow field-select field-control--compact';
-    const short = t('dayNamesShort');
-    for (let d = 1; d <= 5; d += 1) {
-        const opt = document.createElement('option');
-        opt.value = String(d);
-        opt.textContent = short[d] != null ? short[d] : String(d);
-        dowSel.appendChild(opt);
-    }
-    dowSel.value = String(p.dow || 1);
-    const periodSel = document.createElement('select');
-    periodSel.className = 'class-teacher-placement-period field-select field-control--compact';
-    periodSel.innerHTML = buildClassPeriodSelectInnerHtml(p.period || 1);
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'btn btn-outline btn-small';
-    removeBtn.textContent = '×';
-    removeBtn.addEventListener('click', () => line.remove());
-    line.appendChild(dowSel);
-    line.appendChild(periodSel);
-    line.appendChild(removeBtn);
-    list.appendChild(line);
-}
-
-function applyTeacherRowScheduleToForm(rowEl, data) {
-    const row = data || {};
-    const daysMode = rowEl.querySelector('.class-teacher-days-mode');
-    const periodMode = rowEl.querySelector('.class-teacher-period-mode');
-    const daysWrap = rowEl.querySelector('.class-teacher-days-wrap');
-    const periodWrap = rowEl.querySelector('.class-teacher-period-wrap');
-    const periodSel = rowEl.querySelector('.class-teacher-row-period');
-    const blockSel = rowEl.querySelector('.class-teacher-schedule-block');
-    const placementsList = rowEl.querySelector('.class-teacher-placements-list');
-    const hasCustomDays = Array.isArray(row.meetingDays) && row.meetingDays.length > 0;
-    const hasPlacements = Array.isArray(row.placements) && row.placements.length > 0;
-    const hasCustomPeriod = row.period != null && row.period !== ''
-        || hasPlacements
-        || (row.periodByWeekday && Object.keys(row.periodByWeekday).length);
-    if (daysMode) {
-        daysMode.value = hasCustomDays ? 'custom' : 'inherit';
-    }
-    if (periodMode) {
-        periodMode.value = hasCustomPeriod ? 'custom' : 'inherit';
-    }
-    if (daysWrap) {
-        buildTeacherRowMeetingDayCheckboxes(daysWrap, hasCustomDays ? row.meetingDays : []);
-    }
-    if (placementsList) {
-        placementsList.innerHTML = '';
-        if (hasPlacements) {
-            row.placements.forEach((p) => addTeacherPlacementRow(rowEl, p));
-        }
-    }
-    if (periodSel) {
-        periodSel.innerHTML = buildClassPeriodSelectInnerHtml(row.period || CLASS_PERIOD_MIN);
-    }
-    if (blockSel) {
-        blockSel.value = row.scheduleBlock === 'secondary' ? 'secondary' : (row.scheduleBlock === 'primary' ? 'primary' : '');
-    }
-    syncTeacherRowDaysUi(rowEl);
-    syncTeacherRowPeriodUi(rowEl);
-}
-
-function collectTeacherRowScheduleFields(rowEl) {
-    const out = {
-        meetingDays: [],
-        period: null,
-        periodByWeekday: null,
-        placements: [],
-        scheduleBlock: ''
-    };
-    const daysMode = rowEl.querySelector('.class-teacher-days-mode');
-    if (daysMode && daysMode.value === 'custom') {
-        out.meetingDays = readTeacherRowMeetingDays(rowEl);
-    }
-    const periodMode = rowEl.querySelector('.class-teacher-period-mode');
-    if (periodMode && periodMode.value === 'custom') {
-        const placementRows = rowEl.querySelectorAll('.class-teacher-placement-row');
-        if (placementRows.length) {
-            placementRows.forEach((pr) => {
-                const dow = parseInt(pr.querySelector('.class-teacher-placement-dow')?.value, 10);
-                const period = parseClassPeriodFromInput(pr.querySelector('.class-teacher-placement-period'));
-                if (!Number.isNaN(dow) && period != null) {
-                    out.placements.push({ dow, period });
-                }
-            });
-        } else {
-            const periodSel = rowEl.querySelector('.class-teacher-row-period');
-            const p = periodSel ? parseClassPeriodFromInput(periodSel) : null;
-            if (p != null) {
-                out.period = p;
-            }
-        }
-    }
-    const blockSel = rowEl.querySelector('.class-teacher-schedule-block');
-    if (blockSel && blockSel.value) {
-        out.scheduleBlock = blockSel.value;
-    }
-    return out;
-}
-
 function sortCohortsForClassSelect(cohorts) {
     return (Array.isArray(cohorts) ? cohorts : [])
         .filter((c) => c && c.id)
@@ -20578,6 +20487,10 @@ function populateClassCohortSelect(selectedId) {
     }
 }
 
+/**
+ * Linked cohorts as chips (the first is the primary: it sets homeroom and the class's block),
+ * plus an "Add cohort" picker. ★ makes a cohort the primary; × unlinks it.
+ */
 function renderClassCohortMultiChips(classData) {
     const mount = document.getElementById('classCohortMulti');
     if (!mount) {
@@ -20585,37 +20498,104 @@ function renderClassCohortMultiChips(classData) {
     }
     const admin = canAccessTeachersTab();
     const api = getTimetableApi();
-    const linked = classData && api
+    let linked = classData && api
         ? api.getClassCohortIds(classData)
-        : (classData && normalizeStr(classData.cohortId) ? [classData.cohortId] : []);
-    const linkedSet = new Set(linked);
-    mount.innerHTML = '';
-    const cohorts = sortCohortsForClassSelect(appData.cohorts);
-    if (!cohorts.length) {
+        : (classData && Array.isArray(classData.cohortIds) && classData.cohortIds.length
+            ? classData.cohortIds.slice()
+            : (classData && normalizeStr(classData.cohortId) ? [classData.cohortId] : []));
+    const primary = (classData && normalizeStr(classData.cohortId)) || linked[0] || '';
+    if (primary && linked.includes(primary)) {
+        linked = [primary].concat(linked.filter((id) => id !== primary));
+    }
+    renderClassCohortChipList(linked, admin);
+    const cohortSel = document.getElementById('classCohort');
+    if (cohortSel) {
+        cohortSel.value = linked[0] || '';
+    }
+    refreshClassBlockSummary();
+}
+
+function renderClassCohortChipList(linkedIds, admin) {
+    const mount = document.getElementById('classCohortMulti');
+    if (!mount) {
         return;
     }
-    cohorts.forEach((cohort) => {
-        const chip = document.createElement('label');
-        chip.className = 'checkbox-label selection-chip class-cohort-multi-chip';
-        const checked = linkedSet.has(cohort.id);
-        chip.innerHTML = `<input type="checkbox" data-cohort-id="${escapeHtml(cohort.id)}" ${checked ? 'checked' : ''} ${admin ? '' : 'disabled'}>
-            <span>${escapeHtml(formatCohortOptionLabel(cohort))}</span>`;
-        const cb = chip.querySelector('input');
-        cb.addEventListener('change', () => {
-            const cohortSel = document.getElementById('classCohort');
-            if (cb.checked && cohortSel && !cohortSel.value) {
-                cohortSel.value = cohort.id;
-            }
-            if (!cb.checked && cohortSel && cohortSel.value === cohort.id) {
-                const firstChecked = mount.querySelector('input[data-cohort-id]:checked');
-                cohortSel.value = firstChecked ? firstChecked.getAttribute('data-cohort-id') : '';
-            }
-            updateClassHomeroomLabelDisplay();
-            updateClassCohortAlsoLinkedFromForm();
-            refreshClassFormScheduleSuggestion();
-        });
+    const cohorts = sortCohortsForClassSelect(appData.cohorts || []);
+    const byId = new Map(cohorts.map((c) => [c.id, c]));
+    const linked = linkedIds.filter((id) => byId.has(id));
+    mount.innerHTML = '';
+    linked.forEach((cid, idx) => {
+        const cohort = byId.get(cid);
+        const chip = document.createElement('span');
+        chip.className = 'class-cohort-chip' + (idx === 0 ? ' is-primary' : '');
+        chip.innerHTML = `<input type="checkbox" class="visually-hidden" data-cohort-id="${escapeAttr(cid)}" checked tabindex="-1" aria-hidden="true">
+            <button type="button" class="class-cohort-chip-star" data-act="primary" aria-pressed="${idx === 0 ? 'true' : 'false'}"
+                title="${escapeAttr(t('classCohortMakePrimary'))}" aria-label="${escapeAttr(t('classCohortMakePrimary'))}"${admin ? '' : ' disabled'}>${idx === 0 ? '★' : '☆'}</button>
+            <span class="class-cohort-chip-name">${escapeHtml(formatCohortOptionLabel(cohort))}</span>
+            <button type="button" class="class-cohort-chip-remove" data-act="remove"
+                aria-label="${escapeAttr(t('classCohortRemove').replace('{name}', cohort.name || cid))}"${admin ? '' : ' disabled'}>×</button>`;
+        chip.dataset.cohortId = cid;
         mount.appendChild(chip);
     });
+    const rest = cohorts.filter((c) => !linked.includes(c.id));
+    if (rest.length && admin) {
+        const add = document.createElement('select');
+        add.className = 'field-select class-cohort-add';
+        add.setAttribute('aria-label', t('classCohortAdd'));
+        add.innerHTML = `<option value="">${escapeHtml(linked.length ? t('classCohortAddAnother') : t('classCohortAdd'))}</option>`
+            + rest.map((c) => `<option value="${escapeAttr(c.id)}">${escapeHtml(formatCohortOptionLabel(c))}</option>`).join('');
+        mount.appendChild(add);
+    } else if (!linked.length) {
+        const none = document.createElement('span');
+        none.className = 'section-hint';
+        none.textContent = t('classCohortNone');
+        mount.appendChild(none);
+    }
+    if (mount.dataset.chipsBound !== '1') {
+        mount.dataset.chipsBound = '1';
+        mount.addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-act]');
+            const chip = btn && btn.closest('.class-cohort-chip');
+            if (!chip || btn.disabled) {
+                return;
+            }
+            e.preventDefault();
+            const ids = getClassCohortIdsFromChips();
+            const cid = chip.dataset.cohortId;
+            const next = btn.dataset.act === 'primary'
+                ? [cid].concat(ids.filter((id) => id !== cid))
+                : ids.filter((id) => id !== cid);
+            onClassFormCohortsChanged(next);
+        });
+        mount.addEventListener('change', (e) => {
+            const sel = e.target.closest('select.class-cohort-add');
+            if (!sel || !sel.value) {
+                return;
+            }
+            const ids = getClassCohortIdsFromChips();
+            onClassFormCohortsChanged(ids.concat([sel.value]));
+        });
+    }
+}
+
+function getClassCohortIdsFromChips() {
+    const mount = document.getElementById('classCohortMulti');
+    return mount
+        ? Array.from(mount.querySelectorAll('input[data-cohort-id]')).map((cb) => cb.getAttribute('data-cohort-id')).filter(Boolean)
+        : [];
+}
+
+function onClassFormCohortsChanged(ids) {
+    renderClassCohortChipList(ids, canAccessTeachersTab());
+    const cohortSel = document.getElementById('classCohort');
+    if (cohortSel) {
+        cohortSel.value = ids[0] || '';
+    }
+    updateClassHomeroomLabelDisplay();
+    updateClassCohortAlsoLinkedFromForm();
+    refreshClassFormScheduleSuggestion();
+    refreshClassBlockSummary();
+    scheduleClassFormChecks();
 }
 
 function getClassCohortIdsFromForm() {
@@ -20631,6 +20611,9 @@ function getClassCohortIdsFromForm() {
     }
     const primary = (document.getElementById('classCohort')?.value || '').trim();
     if (primary && !ids.includes(primary)) {
+        ids.unshift(primary);
+    } else if (primary && ids[0] !== primary) {
+        ids.splice(ids.indexOf(primary), 1);
         ids.unshift(primary);
     }
     return ids;
@@ -20752,46 +20735,6 @@ function fillTeacherRowCurriculumSelect(sel, curriculumId) {
     }
 }
 
-function enrichTeacherRowForSave(row) {
-    const level = getClassFormCurriculumLevel()
-        || (row.levelPreset || row.level || '');
-    const out = { ...row };
-    if (!out.id) {
-        out.id = generateId();
-    }
-    if (!out.curriculumId || !window.CCPBooksEditor) {
-        return out;
-    }
-    if (window.CCPBooksEditor.isNoCurriculum(out.curriculumId)) {
-        out.curriculumId = window.CCPBooksEditor.NONE_CURRICULUM_ID;
-        return out;
-    }
-    const presetId = window.CCPBooksEditor.resolvePresetFromLevelAndBook(
-        level,
-        out.curriculumId,
-        appData
-    );
-    if (presetId) {
-        out.classTypeId = presetId;
-    }
-    const merged = window.CCPBooksEditor.buildMergedClassDefaults(
-        out.curriculumId,
-        presetId || out.classTypeId,
-        appData,
-        level
-    );
-    if (merged.defaultBook) {
-        out.book = merged.defaultBook;
-    }
-    if (!out.category && merged.defaultBook) {
-        const def = getClassTypeDefinitionById(presetId || out.classTypeId);
-        if (def && def.name) {
-            out.category = def.name;
-        }
-    }
-    return out;
-}
-
 function getClassTeachersForForm(classData) {
     const api = getTimetableApi();
     if (api && classData) {
@@ -20900,6 +20843,10 @@ function createClassTeacherCategorySelect(selected) {
     return categorySel;
 }
 
+/**
+ * The class's one teacher: account picker + subject category. Times, curriculum and block are the
+ * class's own (see "Days and periods"), so the row has nothing else.
+ */
 function addClassTeacherRow(rowData) {
     const mount = document.getElementById('classTeachersRows');
     if (!mount) {
@@ -20907,175 +20854,35 @@ function addClassTeacherRow(rowData) {
         console.error('addClassTeacherRow: #classTeachersRows not found');
         return;
     }
-    const data = rowData || {
-        id: '',
-        userId: '',
-        name: '',
-        category: '',
-        curriculumId: '',
-        classTypeId: '',
-        book: ''
-    };
+    const data = rowData || { id: '', userId: '', name: '', category: '' };
+    mount.innerHTML = '';
     const row = document.createElement('div');
-    row.className = 'class-teacher-row';
-    row.setAttribute('role', 'listitem');
+    row.className = 'class-teacher-row class-teacher-row--one';
     if (data.id) {
         row.dataset.rowId = data.id;
     }
 
-    const teacherLabel = document.createElement('label');
-    teacherLabel.textContent = t('classAssignedTeacher');
     const teacherSel = document.createElement('select');
     teacherSel.className = 'class-teacher-row-select field-select';
+    teacherSel.setAttribute('aria-label', t('classTeacherOne'));
     fillTeacherSelectElement(teacherSel, data.userId, data.name);
-    teacherSel.addEventListener('change', () => syncClassTeacherRowNameFromSelect(row));
-    teacherLabel.appendChild(teacherSel);
+    teacherSel.addEventListener('change', () => {
+        syncClassTeacherRowNameFromSelect(row);
+        scheduleClassFormChecks();
+    });
 
-    const nameLabel = document.createElement('label');
-    nameLabel.textContent = t('classAssignedTeacherName');
     const nameInput = document.createElement('input');
-    nameInput.type = 'text';
-    nameInput.className = 'class-teacher-row-name field-input';
-    nameInput.autocomplete = 'off';
+    nameInput.type = 'hidden';
+    nameInput.className = 'class-teacher-row-name';
     nameInput.value = data.name || '';
-    nameLabel.appendChild(nameInput);
 
-    const categoryLabel = document.createElement('label');
-    categoryLabel.textContent = t('classTeacherCategory');
     const categorySel = createClassTeacherCategorySelect(data.category || '');
-    categoryLabel.appendChild(categorySel);
+    categorySel.setAttribute('aria-label', t('classTeacherCategory'));
 
-    const curriculumLabel = document.createElement('label');
-    curriculumLabel.textContent = t('classTeacherCurriculum');
-    const curriculumSel = document.createElement('select');
-    curriculumSel.className = 'class-teacher-row-curriculum field-select';
-    fillTeacherRowCurriculumSelect(curriculumSel, data.curriculumId || '');
-    curriculumLabel.appendChild(curriculumSel);
-
-    const applyRowBtn = document.createElement('button');
-    applyRowBtn.type = 'button';
-    applyRowBtn.className = 'btn btn-outline btn-small class-teacher-row-apply';
-    applyRowBtn.textContent = t('classApplyCurriculumToTeacher');
-    applyRowBtn.addEventListener('click', () => {
-        const cid = curriculumSel.value;
-        const editor = window.CCPBooksEditor;
-        if (!cid || !editor) {
-            return;
-        }
-        const level = getClassFormCurriculumLevel();
-        const eligibility = editor.getCurriculumApplyEligibility(level, cid, appData);
-        if (!confirmCurriculumApplyEligibility(eligibility, level, cid)) {
-            return;
-        }
-        const presetId = eligibility.presetId;
-        const merged = editor.buildMergedClassDefaults(cid, presetId, appData, level);
-        if (merged.defaultBook && categorySel && !categorySel.value) {
-            const def = getClassTypeDefinitionById(presetId);
-            if (def && def.name) {
-                categorySel.value = def.name;
-            }
-        }
-        if (!eligibility.hasSyllabusTemplates) {
-            alert(t('applyCurriculumNoSyllabusPages'));
-        }
-        setAppStatusMessage(t('classApplyCurriculumToTeacher') + ': ' + editor.getCurriculumDisplayName(cid, appData), false);
-    });
-
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'btn btn-outline btn-small class-teacher-row-remove';
-    removeBtn.textContent = t('classRemoveTeacher');
-    removeBtn.addEventListener('click', () => {
-        row.remove();
-        if (!mount.querySelector('.class-teacher-row')) {
-            addClassTeacherRow(null);
-        }
-    });
-
-    const scheduleWrap = document.createElement('div');
-    scheduleWrap.className = 'class-teacher-schedule form-group--full-only';
-
-    const daysLabel = document.createElement('label');
-    daysLabel.textContent = t('meetingDays');
-    const daysMode = document.createElement('select');
-    daysMode.className = 'class-teacher-days-mode field-select';
-    const daysInherit = document.createElement('option');
-    daysInherit.value = 'inherit';
-    daysInherit.textContent = t('classTeacherDaysInherit');
-    const daysCustom = document.createElement('option');
-    daysCustom.value = 'custom';
-    daysCustom.textContent = t('classTeacherDaysCustom');
-    daysMode.appendChild(daysInherit);
-    daysMode.appendChild(daysCustom);
-    daysMode.addEventListener('change', () => syncTeacherRowDaysUi(row));
-    daysLabel.appendChild(daysMode);
-
-    const daysWrap = document.createElement('div');
-    daysWrap.className = 'class-teacher-days-wrap meeting-days-checkbox-row';
-    daysWrap.hidden = true;
-
-    const periodLabel = document.createElement('label');
-    periodLabel.textContent = t('classPeriod');
-    const periodMode = document.createElement('select');
-    periodMode.className = 'class-teacher-period-mode field-select';
-    const periodInherit = document.createElement('option');
-    periodInherit.value = 'inherit';
-    periodInherit.textContent = t('classTeacherPeriodInherit');
-    const periodCustom = document.createElement('option');
-    periodCustom.value = 'custom';
-    periodCustom.textContent = t('classTeacherPeriodCustom');
-    periodMode.appendChild(periodInherit);
-    periodMode.appendChild(periodCustom);
-    periodMode.addEventListener('change', () => syncTeacherRowPeriodUi(row));
-    periodLabel.appendChild(periodMode);
-
-    const periodWrap = document.createElement('div');
-    periodWrap.className = 'class-teacher-period-wrap';
-    periodWrap.hidden = true;
-    const periodSel = document.createElement('select');
-    periodSel.className = 'class-teacher-row-period field-select';
-    periodSel.innerHTML = buildClassPeriodSelectInnerHtml(CLASS_PERIOD_MIN);
-    periodWrap.appendChild(periodSel);
-    const placementsList = document.createElement('div');
-    placementsList.className = 'class-teacher-placements-list';
-    periodWrap.appendChild(placementsList);
-    const addSlotBtn = document.createElement('button');
-    addSlotBtn.type = 'button';
-    addSlotBtn.className = 'btn btn-outline btn-small';
-    addSlotBtn.textContent = t('classTeacherAddTimeSlot');
-    addSlotBtn.addEventListener('click', () => addTeacherPlacementRow(row, null));
-    periodWrap.appendChild(addSlotBtn);
-
-    const blockLabel = document.createElement('label');
-    blockLabel.textContent = t('classTeacherScheduleBlock');
-    const blockSel = document.createElement('select');
-    blockSel.className = 'class-teacher-schedule-block field-select';
-    const bp = document.createElement('option');
-    bp.value = '';
-    bp.textContent = t('classScheduleBlockPrimary');
-    const bs = document.createElement('option');
-    bs.value = 'secondary';
-    bs.textContent = t('classScheduleBlockSecondary');
-    blockSel.appendChild(bp);
-    blockSel.appendChild(bs);
-    blockLabel.appendChild(blockSel);
-
-    scheduleWrap.appendChild(daysLabel);
-    scheduleWrap.appendChild(daysWrap);
-    scheduleWrap.appendChild(periodLabel);
-    scheduleWrap.appendChild(periodWrap);
-    scheduleWrap.appendChild(blockLabel);
-
-    row.appendChild(teacherLabel);
-    row.appendChild(nameLabel);
-    row.appendChild(categoryLabel);
-    row.appendChild(curriculumLabel);
-    row.appendChild(applyRowBtn);
-    row.appendChild(scheduleWrap);
-    row.appendChild(removeBtn);
+    row.appendChild(teacherSel);
+    row.appendChild(nameInput);
+    row.appendChild(categorySel);
     mount.appendChild(row);
-    applyTeacherRowScheduleToForm(row, data);
-    row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
 function setupClassTeachersFormDelegation() {
@@ -21120,19 +20927,7 @@ function renderClassTeachersRows(classData) {
     }
     mount.innerHTML = '';
     const teachers = getClassTeachersForForm(classData);
-    if (!teachers.length) {
-        addClassTeacherRow(null);
-    } else {
-        teachers.forEach((row) => addClassTeacherRow(row));
-    }
-    let hint = document.getElementById('classRemoveTeacherHint');
-    if (!hint && mount.parentElement) {
-        hint = document.createElement('p');
-        hint.id = 'classRemoveTeacherHint';
-        hint.className = 'section-hint';
-        hint.textContent = t('classRemoveTeacherHint');
-        mount.parentElement.insertBefore(hint, mount.nextSibling);
-    }
+    addClassTeacherRow(teachers[0] || null);
 }
 
 function updateClassCohortAlsoLinked(classData) {
@@ -21238,57 +21033,36 @@ function applyClassTeacherFieldsToForm(classData) {
     }
 }
 
+/** The class's one teacher from the form: { id, userId, name, category }, or none. */
 function collectClassTeachersFromForm() {
     const mount = document.getElementById('classTeachersRows');
-    const rows = [];
-    if (!mount) {
-        return rows;
+    const rowEl = mount && mount.querySelector('.class-teacher-row');
+    if (!rowEl) {
+        return [];
     }
-    mount.querySelectorAll('.class-teacher-row').forEach((rowEl) => {
-        const sel = rowEl.querySelector('.class-teacher-row-select');
-        const nameInput = rowEl.querySelector('.class-teacher-row-name');
-        const categorySel = rowEl.querySelector('.class-teacher-row-category');
-        let userId = '';
-        let name = (nameInput && nameInput.value ? nameInput.value : '').trim();
-        if (sel && sel.value) {
-            const parsed = parseTeacherPickerValue(sel.value);
-            userId = parsed.userId;
-            if (!name && parsed.displayName) {
-                name = parsed.displayName;
-            }
+    const sel = rowEl.querySelector('.class-teacher-row-select');
+    const nameInput = rowEl.querySelector('.class-teacher-row-name');
+    const categorySel = rowEl.querySelector('.class-teacher-row-category');
+    let userId = '';
+    let name = (nameInput && nameInput.value ? nameInput.value : '').trim();
+    if (sel && sel.value) {
+        const parsed = parseTeacherPickerValue(sel.value);
+        userId = parsed.userId;
+        if (!name && parsed.displayName) {
+            name = parsed.displayName;
         }
-        const category = categorySel ? (categorySel.value || '').trim() : '';
-        const mainBookSel = document.getElementById('classCurriculumBook');
-        const curriculumId = mainBookSel
-            ? (mainBookSel.value || '').trim()
-            : '';
-        if (!userId && !name && !curriculumId) {
-            return;
-        }
-        if ((name || curriculumId) && !userId) {
-            return;
-        }
-        const rowId = rowEl.dataset.rowId || generateId();
-        rowEl.dataset.rowId = rowId;
-        const scheduleFields = collectTeacherRowScheduleFields(rowEl);
-        const enriched = enrichTeacherRowForSave({
-            id: rowId,
-            userId,
-            name,
-            category,
-            curriculumId,
-            meetingDays: scheduleFields.meetingDays,
-            period: scheduleFields.period,
-            periodByWeekday: scheduleFields.periodByWeekday,
-            placements: scheduleFields.placements,
-            scheduleBlock: scheduleFields.scheduleBlock
-        });
-        if (elements.classBook) {
-            enriched.book = elements.classBook.value || '';
-        }
-        rows.push(enriched);
-    });
-    return rows;
+    }
+    if (!userId) {
+        return [];
+    }
+    const rowId = rowEl.dataset.rowId || generateId();
+    rowEl.dataset.rowId = rowId;
+    return [{
+        id: rowId,
+        userId,
+        name,
+        category: categorySel ? (categorySel.value || '').trim() : ''
+    }];
 }
 
 function collectClassTeacherFieldsForSave() {
@@ -29797,7 +29571,7 @@ function populateClassForm(classData = null, options = {}) {
         elements.classTotalLessons.value = 4;
         elements.customScheduleEnabled.checked = false;
         elements.customScheduleSection.style.display = 'none';
-        document.getElementById('compressionModeAuto').checked = true;
+        document.getElementById('compressionModeManualPerMonth').checked = true;
         elements.classTermMonths.value = SCHEDULE_CONFIG.defaultTermCalendarMonths;
         elements.classUseAutoTermEnd.checked = true;
         applyClassTermEndUiState();
@@ -29874,6 +29648,7 @@ function populateClassForm(classData = null, options = {}) {
     }
     refreshClassColorPaletteUi();
     finishClassFormLevelDefaults(classData);
+    populateClassFormSimpleParts(classData);
 }
 
 /**
@@ -30109,6 +29884,7 @@ function refreshClassColorPaletteUi(selectedHex) {
         markClassFormLevelFieldFromHand('colors');
     });
     CCPClassColorPalette.renderPreviewRow(preview, hex, name || 'Preview');
+    refreshClassColorSwatch();
 }
 
 // ============================================
@@ -30380,6 +30156,686 @@ function updateSelectedSuggestion(items) {
 }
 
 // ============================================
+// Simple class form (Nov 2026)
+// One teacher, cohort chips (first = primary), days with their own periods and rooms, the
+// planner's own clash / warning rules, a one-line term summary and a "More options" status.
+// ============================================
+
+/** Mon … Sat, then Sun: the order day rows are listed in. */
+const CLASS_FORM_DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+/** "{n} lessons" with its singular key ("…One") for 1. */
+function classFormCount(key, n) {
+    return n === 1 ? t(key + 'One') : t(key).replace('{n}', String(n));
+}
+/** Per weekday while the form is open: { periods: number[], roomId: string }. */
+let classTimesDraft = {};
+let classTimesHasRoomFields = false;
+let classFormChecksTimer = null;
+let classFormChecksScriptsAsked = false;
+
+function classFormRooms() {
+    return (Array.isArray(appData && appData.rooms) ? appData.rooms : []).filter((r) => r && r.id);
+}
+
+function classRoomForDay(classData, dow) {
+    const byWd = classData && classData.roomIdByWeekday && typeof classData.roomIdByWeekday === 'object'
+        ? classData.roomIdByWeekday
+        : null;
+    if (byWd && Object.prototype.hasOwnProperty.call(byWd, String(dow))) {
+        return normalizeStr(byWd[String(dow)]);
+    }
+    return normalizeStr(classData && classData.roomId);
+}
+
+/** The class's times: its own placements; older data: the teacher row's; else days + period. */
+function getClassPlacementsForForm(classData) {
+    if (!classData) {
+        return [];
+    }
+    let list = Array.isArray(classData.placements) ? classData.placements : [];
+    if (!list.length && typeof CCPClassOneTeacher !== 'undefined'
+        && Array.isArray(classData.classTeachers) && classData.classTeachers[0]) {
+        list = CCPClassOneTeacher.teacherRowOwnPlacements(classData, classData.classTeachers[0]);
+    }
+    if (!list.length) {
+        list = getMeetingDaysFromClass(classData).map((dow) => ({ dow, period: getClassPeriodNumber(classData, dow) }));
+    }
+    return list;
+}
+
+function seedClassTimesDraft(classData) {
+    classTimesDraft = {};
+    classTimesHasRoomFields = !!(classData && (normalizeStr(classData.roomId) || classData.roomIdByWeekday));
+    getClassPlacementsForForm(classData).forEach((p) => {
+        const dow = parseInt(p && p.dow, 10);
+        const period = parseInt(p && p.period, 10);
+        if (Number.isNaN(dow) || dow < 0 || dow > 6) {
+            return;
+        }
+        if (!classTimesDraft[dow]) {
+            classTimesDraft[dow] = { periods: [], roomId: classRoomForDay(classData, dow) };
+        }
+        if (!Number.isNaN(period) && period >= 1 && !classTimesDraft[dow].periods.includes(period)) {
+            classTimesDraft[dow].periods.push(period);
+        }
+    });
+}
+
+function classTimesFirstKnownPeriod() {
+    for (const dow of CLASS_FORM_DAY_ORDER) {
+        const e = classTimesDraft[dow];
+        if (e && e.periods.length) {
+            return e.periods[0];
+        }
+    }
+    return null;
+}
+
+function classTimesDefaultRoom() {
+    for (const dow of CLASS_FORM_DAY_ORDER) {
+        const e = classTimesDraft[dow];
+        if (e && e.roomId) {
+            return e.roomId;
+        }
+    }
+    return '';
+}
+
+function classFormSelectedDays() {
+    const custom = elements.customScheduleEnabled && elements.customScheduleEnabled.checked;
+    if (custom) {
+        return [];
+    }
+    const days = readMeetingDaysFromFormScope('#classForm', MEETING_DAY_INPUT_CLASS);
+    return CLASS_FORM_DAY_ORDER.filter((d) => days.includes(d));
+}
+
+/** One row per meeting day: its period(s) and, when the calendar has rooms, its room. */
+function renderClassTimesEditor() {
+    const mount = document.getElementById('classTimesRows');
+    if (!mount) {
+        return;
+    }
+    bindClassTimesEditor(mount);
+    const days = classFormSelectedDays();
+    const hiddenPeriod = elements.classPeriod ? parseClassPeriodFromInput(elements.classPeriod) : null;
+    days.forEach((dow) => {
+        if (!classTimesDraft[dow]) {
+            const p = classTimesFirstKnownPeriod() ?? hiddenPeriod;
+            classTimesDraft[dow] = { periods: p != null ? [p] : [], roomId: classTimesDefaultRoom() };
+        }
+    });
+    mount.hidden = !days.length;
+    const short = t('dayNamesShort');
+    const rooms = classFormRooms();
+    const maxP = getClassPeriodMax();
+    mount.innerHTML = days.map((dow) => {
+        const e = classTimesDraft[dow];
+        const periods = e.periods.length ? e.periods : [null];
+        const periodHtml = periods.map((p, idx) => `<span class="class-times-period">
+                <select class="field-select class-times-period-select" data-dow="${dow}" data-idx="${idx}"
+                    aria-label="${escapeAttr(t('classTimesPeriodAria').replace('{day}', short[dow] || String(dow)))}">${buildClassPeriodSelectInnerHtml(p)}</select>${idx > 0
+                ? `<button type="button" class="class-times-remove" data-act="remove-period" data-dow="${dow}" data-idx="${idx}" aria-label="${escapeAttr(t('classTimesRemovePeriod'))}">×</button>`
+                : ''}</span>`).join('');
+        const canAdd = periods.length < 3 && (periods[periods.length - 1] == null || periods[periods.length - 1] < maxP);
+        const addHtml = canAdd
+            ? `<button type="button" class="sp-link class-times-add" data-act="add-period" data-dow="${dow}">${escapeHtml(t('classTimesAddPeriod'))}</button>`
+            : '';
+        const roomHtml = rooms.length
+            ? `<label class="class-times-room"><span>${escapeHtml(t('classTimesRoom'))}</span>
+                <select class="field-select class-times-room-select" data-dow="${dow}">
+                    <option value="">${escapeHtml(t('classTimesNoRoom'))}</option>
+                    ${rooms.map((r) => `<option value="${escapeAttr(r.id)}"${r.id === e.roomId ? ' selected' : ''}>${escapeHtml(r.name || r.id)}${r.capacity ? ` (${r.capacity})` : ''}</option>`).join('')}
+                </select></label>`
+            : '';
+        return `<div class="class-times-row" role="listitem" data-dow="${dow}">
+            <span class="class-times-day">${escapeHtml(short[dow] != null ? short[dow] : String(dow))}</span>
+            <span class="class-times-label">${escapeHtml(t('classPeriod'))}</span>
+            <span class="class-times-periods">${periodHtml}${addHtml}</span>
+            ${roomHtml}
+        </div>`;
+    }).join('');
+    syncHiddenPeriodFromClassTimes();
+    refreshClassTermSummary();
+    scheduleClassFormChecks();
+}
+
+function bindClassTimesEditor(mount) {
+    if (mount.dataset.bound === '1') {
+        return;
+    }
+    mount.dataset.bound = '1';
+    mount.addEventListener('change', (e) => {
+        const sel = e.target;
+        const dow = parseInt(sel.dataset && sel.dataset.dow, 10);
+        if (Number.isNaN(dow) || !classTimesDraft[dow]) {
+            return;
+        }
+        if (sel.classList.contains('class-times-period-select')) {
+            const idx = parseInt(sel.dataset.idx, 10) || 0;
+            const p = parseClassPeriodFromInput(sel);
+            const list = classTimesDraft[dow].periods;
+            if (p == null) {
+                list.splice(idx, 1);
+            } else {
+                list[idx] = p;
+            }
+            classTimesDraft[dow].periods = [...new Set(list.filter((x) => x != null))];
+            renderClassTimesEditor();
+        } else if (sel.classList.contains('class-times-room-select')) {
+            classTimesDraft[dow].roomId = sel.value || '';
+            classTimesHasRoomFields = true;
+            scheduleClassFormChecks();
+        }
+    });
+    mount.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-act]');
+        if (!btn) {
+            return;
+        }
+        e.preventDefault();
+        const dow = parseInt(btn.dataset.dow, 10);
+        const entry = classTimesDraft[dow];
+        if (!entry) {
+            return;
+        }
+        if (btn.dataset.act === 'add-period') {
+            const last = entry.periods[entry.periods.length - 1];
+            const next = last != null ? Math.min(last + 1, getClassPeriodMax()) : (classTimesFirstKnownPeriod() || 1);
+            if (!entry.periods.includes(next)) {
+                entry.periods.push(next);
+            }
+        } else if (btn.dataset.act === 'remove-period') {
+            entry.periods.splice(parseInt(btn.dataset.idx, 10) || 0, 1);
+        }
+        renderClassTimesEditor();
+    });
+}
+
+function syncHiddenPeriodFromClassTimes() {
+    const p = classFormSelectedDays().map((d) => (classTimesDraft[d] || {}).periods || []).find((list) => list.length);
+    if (elements.classPeriod && p) {
+        elements.classPeriod.value = String(p[0]);
+    }
+}
+
+/**
+ * Times for save: placements (one per period), first period per day, rooms.
+ * `rooms` is null when the form shows no room pickers (the class's room fields are left alone).
+ */
+function readClassTimesForSave() {
+    const days = classFormSelectedDays();
+    const placements = [];
+    const periodByWeekday = {};
+    days.forEach((dow) => {
+        const periods = ((classTimesDraft[dow] || {}).periods || []).filter((p) => p != null);
+        periods.forEach((p) => placements.push({ dow, period: p }));
+        if (periods.length) {
+            periodByWeekday[String(dow)] = periods[0];
+        }
+    });
+    let rooms = null;
+    if (classFormRooms().length && (classTimesHasRoomFields || days.some((d) => (classTimesDraft[d] || {}).roomId))) {
+        const counts = new Map();
+        days.forEach((d) => {
+            const r = (classTimesDraft[d] || {}).roomId || '';
+            if (r) {
+                counts.set(r, (counts.get(r) || 0) + 1);
+            }
+        });
+        const roomId = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+        const byWd = {};
+        days.forEach((d) => {
+            const r = (classTimesDraft[d] || {}).roomId || '';
+            if (r !== roomId) {
+                byWd[String(d)] = r;
+            }
+        });
+        rooms = { roomId, roomIdByWeekday: Object.keys(byWd).length ? byWd : null };
+    }
+    return {
+        placements,
+        periodByWeekday: Object.keys(periodByWeekday).length ? periodByWeekday : null,
+        period: placements.length ? placements[0].period : null,
+        rooms
+    };
+}
+
+/** Write the form's times onto a class object (save, and the checks' draft copy). */
+function applyClassTimesToClassObject(classData) {
+    const isCustom = elements.customScheduleEnabled && elements.customScheduleEnabled.checked;
+    if (isCustom) {
+        delete classData.placements;
+        return;
+    }
+    const times = readClassTimesForSave();
+    if (times.placements.length) {
+        classData.placements = times.placements;
+        classData.periodByWeekday = times.periodByWeekday;
+        classData.period = times.period;
+        classData.weeklyFrequency = times.placements.length;
+    } else {
+        delete classData.placements;
+    }
+    if (times.rooms) {
+        if (times.rooms.roomId) {
+            classData.roomId = times.rooms.roomId;
+        } else {
+            delete classData.roomId;
+        }
+        if (times.rooms.roomIdByWeekday) {
+            classData.roomIdByWeekday = times.rooms.roomIdByWeekday;
+        } else {
+            delete classData.roomIdByWeekday;
+        }
+    }
+}
+
+function classFormPrimaryCohort() {
+    const id = (document.getElementById('classCohort')?.value || '').trim() || getClassCohortIdsFromForm()[0] || '';
+    return id ? (appData.cohorts || []).find((c) => c && c.id === id) || null : null;
+}
+
+/** "Block (from Red M): Primary · Mon/Wed/Fri 14:00–17:00". The class's block always follows it. */
+function refreshClassBlockSummary() {
+    const el = document.getElementById('classBlockSummary');
+    const blockSel = document.getElementById('classScheduleBlock');
+    const cohort = classFormPrimaryCohort();
+    if (blockSel && cohort) {
+        blockSel.value = normalizeStr(cohort.scheduleBlock).toLowerCase() === 'secondary' ? 'secondary' : 'primary';
+    }
+    if (!el) {
+        return;
+    }
+    if (!cohort) {
+        el.hidden = true;
+        el.textContent = '';
+        return;
+    }
+    const P = window.CCPTeacherPlanner;
+    const block = P && P.cohortBlock ? P.cohortBlock(appData, cohort) : {
+        days: Array.isArray(cohort.meetingDays) ? cohort.meetingDays : [],
+        start: cohort.blockStart || cohort.tmsBlockStart || '',
+        end: cohort.blockEnd || cohort.tmsBlockEnd || ''
+    };
+    const short = t('dayNamesShort');
+    const days = (block.days || []).map((d) => short[d] || String(d)).join('/');
+    const blockName = normalizeStr(cohort.scheduleBlock).toLowerCase() === 'secondary'
+        ? t('classBlockSecondary')
+        : t('classBlockPrimary');
+    const hours = block.start && block.end ? `${block.start}–${block.end}` : t('classBlockUsualHours');
+    el.textContent = t('classBlockFromCohort')
+        .replace('{cohort}', cohort.name || cohort.id)
+        .replace('{block}', blockName)
+        .replace('{days}', days || '—')
+        .replace('{hours}', hours);
+    el.hidden = false;
+}
+
+function refreshClassTermSummary() {
+    const el = document.getElementById('classTermSummaryText');
+    if (!el) {
+        return;
+    }
+    const start = elements.classStartDate ? elements.classStartDate.value : '';
+    const end = elements.classEndDate ? elements.classEndDate.value : '';
+    const months = elements.classTermMonths ? parseInt(elements.classTermMonths.value, 10) : NaN;
+    const lessons = elements.classTotalLessons ? parseInt(elements.classTotalLessons.value, 10) : NaN;
+    const perWeek = readClassTimesForSave().placements.length;
+    const parts = [];
+    if (start || end) {
+        parts.push(`${start ? formatDateDisplay(start) : '—'} – ${end ? formatDateDisplay(end) : '—'}`);
+    }
+    if (months > 0) {
+        parts.push(classFormCount('classTermMonthsCount', months));
+    }
+    if (lessons > 0) {
+        parts.push(classFormCount('classTermLessonsCount', lessons));
+    }
+    if (perWeek > 0) {
+        parts.push(classFormCount('classTermPerWeek', perWeek));
+    }
+    el.textContent = parts.join(' · ') || t('classTermNotSet');
+    const autoBtn = document.getElementById('classEndDateAutoBtn');
+    if (autoBtn && elements.classUseAutoTermEnd) {
+        autoBtn.hidden = elements.classUseAutoTermEnd.checked;
+    }
+}
+
+/** Short status on the closed "More options" summary, so nothing in use is hidden. */
+function refreshClassMoreOptionsStatus() {
+    const out = [];
+    const debate = classUsesDebateCompressionFromForm();
+    const periodRows = debate && elements.debateBookPeriodRows
+        ? readDebateBookPeriodRowsFromForm().filter((p) => p.startDate).length
+        : 0;
+    if (periodRows) {
+        out.push(classFormCount('classMoreBookPeriods', periodRows));
+    }
+    const merges = document.querySelectorAll('#classForm #classCompressionDetails input[type="checkbox"]:checked').length;
+    if (merges) {
+        out.push(classFormCount('classMoreMerges', merges));
+    }
+    if (elements.customScheduleEnabled && elements.customScheduleEnabled.checked) {
+        out.push(t('classMoreCustomDates'));
+    }
+    const plannerCb = document.getElementById('classPlannerIncluded');
+    if (plannerCb && !plannerCb.checked) {
+        out.push(t('classMoreNotInPlanner'));
+    }
+    if (elements.classLevelCustom && elements.classLevelCustom.value.trim()) {
+        out.push(t('classMoreCustomLevel'));
+    }
+    if (elements.classNotes && elements.classNotes.value.trim()) {
+        out.push(t('classMoreNotes'));
+    }
+    const el = document.getElementById('classMoreOptionsStatus');
+    if (el) {
+        el.textContent = out.join(' · ');
+    }
+    const debateStatus = document.getElementById('classDebateScheduleStatus');
+    if (debateStatus) {
+        debateStatus.textContent = periodRows ? classFormCount('classMoreBookPeriods', periodRows) : '';
+    }
+    const customStatus = document.getElementById('classCustomScheduleStatus');
+    if (customStatus) {
+        customStatus.textContent = elements.customScheduleEnabled && elements.customScheduleEnabled.checked
+            ? t('classMoreOn')
+            : '';
+    }
+}
+
+/**
+ * Debate is scheduled by hand: book periods are rows you fill in, merges are chosen per period.
+ * "Auto compress" is only offered to a class already saved with it.
+ */
+function syncClassFormDebateUi(classData) {
+    const debate = classUsesDebateCompressionFromForm();
+    const details = document.getElementById('classBookPeriodsDetails');
+    if (details) {
+        details.hidden = !debate;
+    }
+    const autoLabel = document.getElementById('compressionModeAutoLabel');
+    const saved = classData !== undefined
+        ? classData
+        : (elements.classId && elements.classId.value
+            ? appData.classes.find((c) => c.id === elements.classId.value)
+            : null);
+    const savedAuto = !!(saved && classUsesDebateCompression(saved)
+        && (saved.compressionMode || 'autoWhenNeeded') === 'autoWhenNeeded');
+    if (autoLabel) {
+        autoLabel.hidden = !savedAuto;
+    }
+    const autoRadio = document.getElementById('compressionModeAuto');
+    const perPeriod = document.getElementById('compressionModeManualPerMonth');
+    if (debate && !savedAuto && autoRadio && autoRadio.checked && perPeriod) {
+        perPeriod.checked = true;
+        syncCompressionSectionsForMode('classForm');
+    }
+    refreshClassMoreOptionsStatus();
+}
+
+function scheduleClassFormChecks() {
+    clearTimeout(classFormChecksTimer);
+    classFormChecksTimer = setTimeout(renderClassFormChecks, 150);
+}
+
+/** The class as the form currently has it, for the planner's checks (nothing is saved). */
+function buildClassFormCheckDraft() {
+    const id = (elements.classId && elements.classId.value) || '__class-form-draft__';
+    const existing = (appData.classes || []).find((c) => c && c.id === id) || {};
+    const draft = Object.assign({}, existing, {
+        id,
+        name: elements.className ? elements.className.value : existing.name,
+        levelPreset: elements.classLevel ? elements.classLevel.value : existing.levelPreset,
+        classTeachers: collectClassTeachersFromForm(),
+        cohortIds: getClassCohortIdsFromForm(),
+        meetingDays: classFormSelectedDays(),
+        plannerExcluded: false
+    });
+    draft.cohortId = draft.cohortIds[0] || '';
+    const type = (document.getElementById('classTeacherRequirementType')?.value || '').trim();
+    if (type) {
+        draft.teacherRequirementType = type;
+    } else {
+        delete draft.teacherRequirementType;
+    }
+    const cohort = classFormPrimaryCohort();
+    if (cohort) {
+        draft.scheduleBlock = normalizeStr(cohort.scheduleBlock).toLowerCase() === 'secondary' ? 'secondary' : 'primary';
+    }
+    applyClassTimesToClassObject(draft);
+    if (!draft.placements) {
+        draft.placements = [];
+    }
+    return draft;
+}
+
+const CLASS_FORM_CLASH_CODES = new Set(['teacher_double_booked', 'cohort_double_booked', 'room_conflict',
+    'wrong_teacher_type', 'outside_cohort_days', 'room_too_small', 'teacher_own_type_only']);
+const CLASS_FORM_WARN_CODES = new Set(['outside_band_block', 'cohort_day_too_long', 'teacher_unavailable',
+    'teacher_limit', 'wrong_junior_senior_band', 'max_periods_per_day', 'long_run']);
+
+/** Clashes (red) and warnings (amber) for this class, from the Schedule Planner's own rules. */
+function computeClassFormChecks() {
+    const P = window.CCPTeacherPlanner;
+    if (!P || !P.seedDraftFromCalendar) {
+        return null;
+    }
+    const mine = buildClassFormCheckDraft();
+    if (!mine.placements.length) {
+        return [];
+    }
+    const clone = (v) => (v == null ? v : JSON.parse(JSON.stringify(v)));
+    const copy = Object.assign({}, appData, {
+        classes: (appData.classes || []).filter((c) => c && c.id !== mine.id).concat([mine]),
+        plannerDrafts: [],
+        plannerState: clone(appData.plannerState),
+        rooms: clone(appData.rooms),
+        teacherProfiles: clone(appData.teacherProfiles),
+        teacherTeachingProfiles: clone(appData.teacherTeachingProfiles)
+    });
+    let draft;
+    try {
+        draft = P.seedDraftFromCalendar(copy, { filters: {} });
+    } catch (err) {
+        console.warn('class form checks', err);
+        return null;
+    }
+    const demandId = `demand:${mine.id}`;
+    const asg = (draft.assignments || []).find((a) => a.demandId === demandId);
+    const seen = new Set();
+    const out = [];
+    (draft.issues || []).forEach((issue) => {
+        if (issue.demandId !== demandId && !(asg && issue.assignmentId === asg.assignmentId)) {
+            return;
+        }
+        const level = CLASS_FORM_CLASH_CODES.has(issue.code) ? 'clash'
+            : (CLASS_FORM_WARN_CODES.has(issue.code) ? 'warn' : '');
+        if (!level) {
+            return;
+        }
+        const key = `${issue.code}|${issue.dow ?? ''}|${issue.period ?? ''}`;
+        if (seen.has(key)) {
+            return;
+        }
+        seen.add(key);
+        out.push({ level, code: issue.code, dow: issue.dow, period: issue.period, issue });
+    });
+    return out.sort((a, b) => (a.level === b.level ? 0 : (a.level === 'clash' ? -1 : 1)));
+}
+
+function classFormCheckText(item) {
+    const need = (document.getElementById('classTeacherRequirementType')?.value || '').trim();
+    switch (item.code) {
+    case 'teacher_double_booked':
+        return t('spWhyTeacherBusy');
+    case 'cohort_double_booked':
+        return t('spWhyCohortBusy');
+    case 'room_conflict':
+        return t('spWhyRoomBusy');
+    case 'room_too_small':
+        return t('spWhyRoomSmall');
+    case 'outside_cohort_days':
+        return t('spWhyOffDay');
+    case 'wrong_teacher_type':
+        return need === 'native' ? t('spWhyNeedsNative') : t('spWhyNeedsKorean');
+    case 'teacher_own_type_only':
+        return t('spWhyOwnTypeOnly');
+    case 'outside_band_block':
+        return t('spWhyOutOfBlock');
+    case 'cohort_day_too_long':
+        return t('spWhyCohortDay');
+    case 'teacher_unavailable':
+        return t('spWhyTeacherOff');
+    case 'teacher_limit':
+        return t('spWhyClassType');
+    case 'wrong_junior_senior_band':
+        return t('spWhyBand');
+    case 'max_periods_per_day':
+        return t('spWhyDayLimit');
+    case 'long_run':
+        return t('classCheckLongRun');
+    default:
+        return item.code;
+    }
+}
+
+function renderClassFormChecks() {
+    const list = document.getElementById('classTimesChecks');
+    if (!list) {
+        return;
+    }
+    if (!window.CCPTeacherPlanner) {
+        if (!classFormChecksScriptsAsked && window.CCPTabScripts && window.CCPTabScripts.ensureTabScripts) {
+            classFormChecksScriptsAsked = true;
+            window.CCPTabScripts.ensureTabScripts('classEditor')
+                .then(() => {
+                    refreshClassBlockSummary();
+                    renderClassFormChecks();
+                })
+                .catch(() => {});
+        }
+        list.hidden = true;
+        return;
+    }
+    const items = computeClassFormChecks() || [];
+    const short = t('dayNamesShort');
+    list.innerHTML = items.map((item) => {
+        const day = item.dow != null && item.dow !== '' ? (short[Number(item.dow)] || String(item.dow)) : '';
+        const where = day
+            ? (item.period != null && item.period !== ''
+                ? t('classCheckWhere').replace('{day}', day).replace('{period}', String(item.period))
+                : day) + ' · '
+            : '';
+        return `<li class="class-times-check class-times-check--${item.level}">
+            <span class="class-times-check-tag">${escapeHtml(item.level === 'clash' ? t('classCheckClash') : t('classCheckWarn'))}</span>
+            ${escapeHtml(where + classFormCheckText(item))}</li>`;
+    }).join('');
+    list.hidden = !items.length;
+}
+
+/** Fills the new parts of the form from a class (or a blank new class). */
+function populateClassFormSimpleParts(classData) {
+    seedClassTimesDraft(classData);
+    const typeSel = document.getElementById('classTeacherRequirementType');
+    if (typeSel) {
+        const need = classData && (classData.teacherRequirementType === 'korean' || classData.teacherRequirementType === 'native')
+            ? classData.teacherRequirementType
+            : '';
+        typeSel.value = need;
+        if (typeSel.dataset.bound !== '1') {
+            typeSel.dataset.bound = '1';
+            typeSel.addEventListener('change', scheduleClassFormChecks);
+        }
+    }
+    const plannerCb = document.getElementById('classPlannerIncluded');
+    if (plannerCb) {
+        plannerCb.checked = !(classData && classData.plannerExcluded === true);
+    }
+    bindClassFormSimpleListeners();
+    renderClassTimesEditor();
+    refreshClassBlockSummary();
+    refreshClassTermSummary();
+    syncClassFormDebateUi(classData || null);
+    refreshClassColorSwatch();
+    const more = document.getElementById('classMoreOptions');
+    if (more) {
+        more.open = false;
+    }
+    const term = document.getElementById('classTermDetails');
+    if (term) {
+        term.open = !classData;
+    }
+}
+
+function refreshClassColorSwatch() {
+    const sw = document.getElementById('classColorSwatch');
+    if (sw && elements.classColor) {
+        sw.style.background = elements.classColor.value || '';
+    }
+}
+
+function bindClassFormSimpleListeners() {
+    const form = document.getElementById('classForm');
+    if (!form || form.dataset.simpleBound === '1') {
+        return;
+    }
+    form.dataset.simpleBound = '1';
+    ['classStartDate', 'classTermMonths', 'classTotalLessons'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('change', () => setTimeout(refreshClassTermSummary, 0));
+            el.addEventListener('input', refreshClassTermSummary);
+        }
+    });
+    if (elements.classEndDate) {
+        // Typing an end date switches off the automatic end; "Back to automatic" switches it on again.
+        elements.classEndDate.addEventListener('input', () => {
+            if (elements.classUseAutoTermEnd && elements.classUseAutoTermEnd.checked) {
+                elements.classUseAutoTermEnd.checked = false;
+                applyClassTermEndUiState();
+            }
+            refreshClassTermSummary();
+        });
+        elements.classEndDate.addEventListener('change', refreshClassTermSummary);
+    }
+    const autoBtn = document.getElementById('classEndDateAutoBtn');
+    if (autoBtn) {
+        autoBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (elements.classUseAutoTermEnd) {
+                elements.classUseAutoTermEnd.checked = true;
+                applyClassTermEndUiState();
+                syncClassTermEndAndBooks();
+            }
+            refreshClassTermSummary();
+        });
+    }
+    form.addEventListener('change', (e) => {
+        if (e.target.closest('#classMoreOptions') || e.target === elements.customScheduleEnabled) {
+            refreshClassMoreOptionsStatus();
+        }
+        if (e.target === elements.customScheduleEnabled) {
+            renderClassTimesEditor();
+        }
+        if (e.target === elements.classColor) {
+            refreshClassColorSwatch();
+        }
+    });
+    form.addEventListener('input', (e) => {
+        if (e.target === elements.classNotes || e.target === elements.classLevelCustom) {
+            refreshClassMoreOptionsStatus();
+        }
+    });
+    const palette = document.getElementById('classColorPaletteGrid');
+    if (palette) {
+        palette.addEventListener('click', () => setTimeout(refreshClassColorSwatch, 0));
+    }
+}
+
+// ============================================
 // Class Management
 // ============================================
 function validateClassTeacherAccountsBeforeSave() {
@@ -30509,7 +30965,10 @@ function handleClassSubmit(e) {
     const compressionMergesFinal = draftForConfirm.compressionMerges ?? compressionFields.compressionMerges;
     const skippedLessonsFinal = draftForConfirm.skippedLessons ?? compressionFields.skippedLessons;
 
+    // Start from the saved class so fields this form does not show (planner room and settings,
+    // TMS links, …) are kept, then write everything the form owns on top.
     const classData = {
+        ...(existingClass || {}),
         id: elements.classId.value || generateId(),
         name: elements.className.value,
         period: period,
@@ -30563,11 +31022,27 @@ function handleClassSubmit(e) {
     const levelMarkers = buildClassLevelMarkersForSave(classData, existingClass);
     if (levelMarkers.levelOverrides) {
         classData.levelOverrides = levelMarkers.levelOverrides;
+    } else {
+        delete classData.levelOverrides;
     }
     if (levelMarkers.levelProfileMigrated) {
         classData.levelProfileMigrated = levelMarkers.levelProfileMigrated;
     }
-    
+    // Days and periods (with rooms) are the class's own; one teacher, one curriculum.
+    applyClassTimesToClassObject(classData);
+    const teacherType = (document.getElementById('classTeacherRequirementType')?.value || '').trim();
+    if (teacherType === 'korean' || teacherType === 'native') {
+        classData.teacherRequirementType = teacherType;
+    } else {
+        delete classData.teacherRequirementType;
+    }
+    const plannerCb = document.getElementById('classPlannerIncluded');
+    if (plannerCb && !plannerCb.checked) {
+        classData.plannerExcluded = true;
+    } else {
+        delete classData.plannerExcluded;
+    }
+
     applyClassCohortLinksFromForm(classData, existingClass);
 
     if (curriculumLinkChanged) {
@@ -40827,8 +41302,8 @@ function migrateData(data) {
             }
             // One teacher and one curriculum per class: keep the first teacher, move its own
             // days and periods onto the class, and note anything dropped (shown once below).
-            const tidyApi = getTimetableApi();
-            if (tidyApi && tidyApi.tidyClassToOneTeacher) {
+            const tidyApi = typeof CCPClassOneTeacher !== 'undefined' ? CCPClassOneTeacher : null;
+            if (tidyApi) {
                 const tidy = tidyApi.tidyClassToOneTeacher(classData);
                 if (tidy.changed) {
                     migrated = true;

@@ -9,7 +9,8 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 await import(pathToFileURL(path.join(root, 'js', 'teacher-timetable.js')).href);
-const TT = globalThis.CCPTeacherTimetable;
+await import(pathToFileURL(path.join(root, 'js', 'class-one-teacher.js')).href);
+const TT = Object.assign({}, globalThis.CCPTeacherTimetable, globalThis.CCPClassOneTeacher);
 
 function assert(cond, msg) {
     if (!cond) throw new Error(msg);

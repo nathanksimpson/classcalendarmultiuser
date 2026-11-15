@@ -26832,3 +26832,311 @@ body.sp-dragging .sp-cell[data-drop="clash"] {
     background: var(--primary);
     color: var(--text-on-primary, #fff);
 }
+
+/* Simple class form (Nov 2026): essentials, term line, more options. */
+.class-form-simple .form-section {
+    margin-bottom: var(--space-3);
+}
+
+.class-form-name-row {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-2);
+}
+
+.class-form-name-row .class-modal-name-field {
+    flex: 1 1 auto;
+    margin-bottom: 0;
+}
+
+.class-color-popover {
+    position: relative;
+    flex: 0 0 auto;
+}
+
+.class-color-swatch-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    cursor: pointer;
+    list-style: none;
+}
+
+.class-color-swatch-btn::-webkit-details-marker {
+    display: none;
+}
+
+.class-color-swatch {
+    width: 22px;
+    height: 22px;
+    border-radius: var(--radius-full);
+    background: var(--primary);
+}
+
+.class-color-popover-panel {
+    position: absolute;
+    right: 0;
+    z-index: 30;
+    width: min(320px, 80vw);
+    margin-top: var(--space-1);
+    padding: var(--space-3);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-card, var(--radius-lg));
+    background: var(--bg-card);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+}
+
+.class-cohort-multi-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.class-cohort-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px var(--space-1) 2px 2px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    background: var(--chip-bg, var(--bg-secondary));
+    font-size: var(--text-body-sm, 0.875rem);
+}
+
+.class-cohort-chip.is-primary {
+    border-color: var(--primary);
+}
+
+.class-cohort-chip-star,
+.class-cohort-chip-remove {
+    padding: 0 4px;
+    border: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    line-height: 1.4;
+    cursor: pointer;
+}
+
+.class-cohort-chip.is-primary .class-cohort-chip-star {
+    color: var(--primary);
+}
+
+.class-cohort-chip-remove:hover:not(:disabled) {
+    color: var(--danger);
+}
+
+.class-cohort-add {
+    width: auto;
+    min-width: 12rem;
+    max-width: 100%;
+}
+
+.class-block-summary {
+    margin-top: var(--space-1);
+}
+
+.class-teacher-row--one {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.class-teacher-row--one .class-teacher-row-select {
+    flex: 1 1 12rem;
+}
+
+.class-teacher-row--one .class-teacher-row-category {
+    flex: 0 1 10rem;
+}
+
+.class-times-rows {
+    display: grid;
+    gap: var(--space-1);
+    margin-top: var(--space-2);
+}
+
+.class-times-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+}
+
+.class-times-day {
+    min-width: 2.5rem;
+    font-weight: 600;
+}
+
+.class-times-label {
+    color: var(--text-secondary);
+    font-size: var(--text-body-sm, 0.875rem);
+}
+
+.class-times-periods {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.class-times-period {
+    display: inline-flex;
+    align-items: center;
+}
+
+.class-times-period-select {
+    width: auto;
+    min-width: 4.5rem;
+}
+
+.class-times-remove {
+    padding: 0 4px;
+    border: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.class-times-room {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-left: auto;
+    font-size: var(--text-body-sm, 0.875rem);
+}
+
+.class-times-room-select {
+    width: auto;
+    min-width: 8rem;
+}
+
+.class-times-checks {
+    display: grid;
+    gap: 4px;
+    margin: var(--space-2) 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--text-body-sm, 0.875rem);
+}
+
+.class-times-check {
+    padding: 4px var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.class-times-check--clash {
+    background: var(--status-error-bg, #fef2f2);
+    color: var(--danger);
+}
+
+.class-times-check--warn {
+    background: var(--banner-warn-bg, #fef3c7);
+    color: var(--warning-text, #92400e);
+}
+
+.class-times-check-tag {
+    margin-right: var(--space-1);
+    font-weight: 700;
+}
+
+.class-term-summary,
+.class-form-more-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-2);
+    padding: var(--space-2) 0;
+    cursor: pointer;
+}
+
+.class-term-summary-text {
+    font-weight: 600;
+}
+
+.class-term-summary-edit {
+    color: var(--primary-dark, var(--primary));
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.class-term-details[open] .class-term-summary-edit {
+    visibility: hidden;
+}
+
+.class-end-auto-btn {
+    margin-top: 4px;
+}
+
+.class-form-more {
+    border-top: 1px solid var(--border-color);
+}
+
+.class-form-more-summary {
+    font-weight: 600;
+}
+
+.class-form-more-status,
+.class-more-part-status {
+    color: var(--text-secondary);
+    font-size: var(--text-body-sm, 0.875rem);
+    font-weight: 400;
+}
+
+.class-more-part {
+    margin: var(--space-2) 0;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+
+.class-more-part > summary {
+    display: flex;
+    gap: var(--space-2);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.class-form-level-book .form-group:has(.class-curriculum-warning:not([hidden])) .class-curriculum-preview {
+    display: none;
+}
+
+.class-form-simple .class-teachers-rows {
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.class-times-room > span {
+    display: inline;
+    margin: 0;
+    font-weight: 500;
+}
+
+.class-form-simple .class-homeroom-label-display {
+    margin-top: 4px;
+}
+
+.class-form-simple .class-teacher-row.class-teacher-row--one {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.class-form-simple .class-times-row .class-times-room {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    margin: 0 0 0 auto;
+}
