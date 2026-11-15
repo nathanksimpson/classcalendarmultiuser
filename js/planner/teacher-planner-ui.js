@@ -47,6 +47,9 @@
     let bound = false;
     let drag = null;
     let pending = null;
+    // Touch screens: a tapped class is "held" until a slot is tapped (no dragging needed).
+    let held = null;
+    let lastPointer = 'mouse';
     let sort = null;
     let flash = null;
     let renderQueued = false;
@@ -996,6 +999,7 @@ ${asg && asg.auto && asg.auto.count && asg.teacherProfileId ? `<p class="sp-hint
         }
         if (colorByTeacher()) html = teacherLegend(M) + html;
         html = startCardHtml(M) + html;
+        queueMicrotask(markHeld);
         el.classList.toggle('sp-by-teacher', colorByTeacher());
         el.classList.toggle('is-compact', compactCohorts());
         el.innerHTML = html;
@@ -1233,13 +1237,14 @@ ${open ? `<div class="sp-issues-body">${total ? groups.filter((g) => g.items.len
         };
     }
 
-    function markTargets() {
-        if (!drag) return;
-        drag.cache = new Map();
+    function markTargets(src) {
+        const d = src || drag;
+        if (!d) return;
+        d.cache = new Map();
         document.querySelectorAll('#spBoard [data-cell]').forEach((cell) => {
             const info = cellInfo(cell);
-            const res = evaluateDrop(drag, info);
-            drag.cache.set(`${info.col}|${info.dow}|${info.period}`, res);
+            const res = evaluateDrop(d, info);
+            d.cache.set(`${info.col}|${info.dow}|${info.period}`, res);
             cell.setAttribute('data-drop', res.level);
         });
     }
@@ -1391,40 +1396,145 @@ ${open ? `<div class="sp-issues-body">${total ? groups.filter((g) => g.items.len
         clearTargets();
         document.body.classList.remove('sp-dragging', 'sp-dragging-tile');
         document.querySelectorAll('.is-drag-source').forEach((x) => x.classList.remove('is-drag-source'));
-        if (action && action.confirm) {
+        if (action) runDrop(action, d);
+        else if (renderQueued) render();
+    }
+
+    /** Carry out a drop (from a drag or a touch tap). done(true) when something changed. */
+    function runDrop(action, d, done) {
+        const finish = (ok) => { if (done) done(ok); };
+        if (action.confirm) {
             // Off-day override: nothing happens unless the user says yes.
             const pendingAction = Object.assign({}, action, { confirm: '' });
             confirmBox(action.confirm, t('spPlaceAnyway', 'Place anyway')).then((yes) => {
                 if (!yes) {
                     render();
+                    finish(false);
                     return;
                 }
                 const res = mutate(pendingAction.run);
                 const id = (res && res.assignmentId) || d.assignmentId;
-                if (res && res.ok !== false && id) {
-                    flashTile(id, pendingAction.landing.dow, pendingAction.landing.period);
-                    render();
-                }
+                if (res && res.ok !== false && id) flashTile(id, pendingAction.landing.dow, pendingAction.landing.period);
+                finish(!(res && res.ok === false));
+                render();
             });
-        } else if (action) {
-            if (action.landing) {
-                const asg = d.assignmentId ? { assignmentId: d.assignmentId } : null;
-                const clashesBefore = clashCount();
-                const res = mutate(action.run);
-                if (res && res.ok !== false && clashCount() > clashesBefore) {
-                    notice(t('spClashMade', 'That made a clash. Press “Suggest fixes” to see ways to move the other classes, or fix it by hand.'), 'info');
-                }
-                const id = (res && res.assignmentId) || (asg && asg.assignmentId);
-                if (res && res.ok !== false && id) {
-                    flashTile(id, action.landing.dow, action.landing.period);
-                    render();
-                }
-            } else {
-                mutate(action.run);
-            }
-        } else if (renderQueued) {
-            render();
+            return;
         }
+        if (action.landing) {
+            const clashesBefore = clashCount();
+            const res = mutate(action.run);
+            if (res && res.ok !== false && clashCount() > clashesBefore) {
+                notice(t('spClashMade', 'That made a clash. Press “Suggest fixes” to see ways to move the other classes, or fix it by hand.'), 'info');
+            }
+            const id = (res && res.assignmentId) || d.assignmentId;
+            if (res && res.ok !== false && id) flashTile(id, action.landing.dow, action.landing.period);
+            finish(!(res && res.ok === false));
+            render();
+        } else {
+            mutate(action.run);
+            finish(true);
+        }
+    }
+
+    /* ---------------------------------------------------- touch: tap to place */
+
+    function holdFrom(el) {
+        const kind = el.getAttribute('data-drag');
+        return {
+            kind,
+            demandId: el.getAttribute('data-demand'),
+            assignmentId: el.getAttribute('data-asg') || null,
+            dow: kind === 'tile' ? Number(el.getAttribute('data-dow')) : null,
+            period: kind === 'tile' ? el.getAttribute('data-period') : null
+        };
+    }
+
+    function heldEl() {
+        if (!held) return null;
+        if (held.kind === 'tile') {
+            return document.querySelector(`.sp-tile[data-asg="${CSS.escape(held.assignmentId)}"][data-dow="${held.dow}"][data-period="${CSS.escape(String(held.period))}"]`);
+        }
+        return document.querySelector(`.sp-card[data-demand="${CSS.escape(held.demandId)}"]`);
+    }
+
+    function pickUp(el) {
+        held = holdFrom(el);
+        state.selected = held.demandId;
+        render();
+    }
+
+    function letGo() {
+        if (!held) return;
+        held = null;
+        clearTargets();
+        render();
+    }
+
+    /** After every render: colour the slots for the held class and show the bar. */
+    function markHeld() {
+        document.querySelectorAll('.is-held').forEach((x) => x.classList.remove('is-held'));
+        document.body.classList.toggle('sp-holding', !!held);
+        document.body.classList.toggle('sp-holding-tile', !!held && held.kind === 'tile');
+        let bar = $('spHoldBar');
+        if (!held) {
+            if (bar) bar.hidden = true;
+            return;
+        }
+        const demand = M.demandById.get(held.demandId);
+        if (!demand) {
+            held = null;
+            if (bar) bar.hidden = true;
+            return;
+        }
+        const el = heldEl();
+        if (el) el.classList.add('is-held');
+        markTargets(held);
+        if (!bar) {
+            bar = document.createElement('div');
+            bar.id = 'spHoldBar';
+            bar.className = 'sp-holdbar';
+            bar.setAttribute('role', 'status');
+            document.body.appendChild(bar);
+        }
+        const left = held.kind !== 'tile' ? demandNeed(demand) - placedCount(M, demand) : 0;
+        const msg = held.kind === 'tile'
+            ? t('spHoldTile', 'Moving {name}. Tap a slot to move it, or tap the list to take it off.', { name: demand.name })
+            : t('spHoldCard', 'Placing {name} ({n} left). Tap a slot.', { name: demand.name, n: left });
+        bar.hidden = false;
+        bar.innerHTML = `<span class="sp-holdbar-text">${esc(msg)}</span><button type="button" class="btn btn-outline btn-small" data-act="let-go">${esc(t('spHoldDone', 'Done'))}</button>`;
+    }
+
+    /** A tap while a class is held. Returns true when the tap was used. */
+    function tapWhileHeld(e) {
+        if (!held) return false;
+        const cell = e.target.closest('#spBoard [data-cell]');
+        if (cell) {
+            const res = evaluateDrop(held, cellInfo(cell));
+            if (res.same) {
+                letGo();
+                return true;
+            }
+            if (!res.ok) {
+                if (res.hint) notice(res.hint, 'error');
+                return true;
+            }
+            const d = held;
+            runDrop(res, d, (ok) => {
+                if (!ok || !held) return;
+                // A class from the list stays in hand until all its periods are on the board.
+                const demand = M.demandById.get(d.demandId);
+                if (d.kind !== 'tile' && demand && placedCount(M, demand) < demandNeed(demand)) markHeld();
+                else letGo();
+            });
+            return true;
+        }
+        if (held.kind === 'tile' && e.target.closest('#spTray') && !e.target.closest('.sp-card')) {
+            const d = held;
+            held = null;
+            mutate((data, draft) => api().removePeriod(data, draft, d.assignmentId, d.dow, d.period));
+            return true;
+        }
+        return false;
     }
 
     /* ------------------------------------------------- drag to reorder (setup) */
@@ -1508,6 +1618,7 @@ ${open ? `<div class="sp-issues-body">${total ? groups.filter((g) => g.items.len
     /* ---------------------------------------------------------- pointer wiring */
 
     function onPointerDown(e) {
+        lastPointer = e.pointerType || 'mouse';
         if (e.button != null && e.button !== 0) return;
         const handle = e.target.closest && e.target.closest('[data-sort-handle]');
         if (handle) {
@@ -1521,6 +1632,7 @@ ${open ? `<div class="sp-issues-body">${total ? groups.filter((g) => g.items.len
         if (readOnly()) return;
         pending = { src, x: e.clientX, y: e.clientY, id: e.pointerId, touch: e.pointerType === 'touch' };
         if (pending.touch) {
+            if (held) letGo(); // a long-press drag replaces a held class
             pending.timer = setTimeout(() => {
                 if (pending && pending.src === src) beginDrag({ clientX: pending.x, clientY: pending.y });
             }, 180);
@@ -2385,8 +2497,14 @@ ${by.get(cid).map((d) => `
             runAction(actEl.getAttribute('data-act'), actEl);
             return;
         }
+        if (held && tapWhileHeld(e)) return;
         const pick = e.target.closest('.sp-tile, .sp-card');
         if (pick && !e.target.closest('select, input, label')) {
+            if (lastPointer === 'touch' && !readOnly()) {
+                // Touch: one tap picks the class up; then tap where it goes.
+                pickUp(pick);
+                return;
+            }
             const id = pick.getAttribute('data-demand');
             state.selected = state.selected === id ? null : id;
             render();
@@ -2475,6 +2593,7 @@ ${by.get(cid).map((d) => `
             savePrefs();
             render();
             break;
+        case 'let-go': letGo(); break;
         case 'toggle-done':
             state.doneOpen = !state.doneOpen;
             renderTray();
@@ -2741,6 +2860,10 @@ ${by.get(cid).map((d) => `
         if (e.key === 'Escape') {
             if (drag) {
                 endDrag(null, true);
+                return;
+            }
+            if (held) {
+                letGo();
                 return;
             }
             if (state.menu) {
