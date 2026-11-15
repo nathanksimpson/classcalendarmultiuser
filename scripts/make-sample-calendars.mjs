@@ -223,11 +223,23 @@ const fall = baseCalendar('Sample · Fall 2026 (scheduled)', fallTerm, fallCohor
 P.ensurePlannerFields(fall);
 
 const empty = { id: 'draft-fall', label: 'Fall plan', assignments: [], issues: [], metrics: {} };
+// Every cohort is in all its periods (2 a day MWF, 3 Tue/Thu), so the timetable is tight. If the
+// greedy plan misses a class, try again with the classes in another order (ties are broken by order).
 let best = null;
-A.buildOptions(fall, empty, undefined).forEach((o) => {
-    const score = o.result.unplaced.length * 1000 + o.stats.holes;
-    if (!best || score < best.score) best = { o, score };
-});
+const classOrder = new Map(fall.classes.map((c, i) => [c.id, i]));
+for (let attempt = 0; attempt < 60 && !(best && best.o.result.unplaced.length === 0); attempt += 1) {
+    if (attempt) {
+        for (let i = fall.classes.length - 1; i > 0; i -= 1) {
+            const j = Math.floor(rand() * (i + 1));
+            [fall.classes[i], fall.classes[j]] = [fall.classes[j], fall.classes[i]];
+        }
+    }
+    A.buildOptions(fall, { ...empty, assignments: [] }, undefined).forEach((o) => {
+        const score = o.result.unplaced.length * 1000 + o.stats.holes;
+        if (!best || score < best.score) best = { o, score };
+    });
+}
+fall.classes.sort((x, y) => classOrder.get(x.id) - classOrder.get(y.id));
 const plan = best.o;
 if (plan.result.unplaced.length) {
     console.error('Fall could not be fully placed:', plan.result.unplaced.map((u) => fallClasses.find((c) => 'demand:' + c.id === u.demandId).name));

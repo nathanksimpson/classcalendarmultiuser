@@ -7,20 +7,44 @@
  "termMonthCount": 3,
  "classes": [
   {
-   "id": "cl-00e1",
+   "id": "cl-00e0",
    "name": "Red M · Phonics",
    "levelPreset": "Red",
    "level": "Red",
    "grade": "",
-   "cohortId": "co-009z",
+   "cohortId": "co-00a0",
    "cohortIds": [
-    "co-009z"
+    "co-00a0"
    ],
    "classTypeId": "",
    "scheduleBlock": "primary",
    "meetingDays": [],
    "weeklyFrequency": 3,
    "teacherRequirementType": "korean",
+   "classTeachers": [],
+   "color": "#e5484d",
+   "textColor": "#ffffff",
+   "startDate": "2026-12-01",
+   "endDate": "2027-02-28",
+   "useAutoTermEnd": false,
+   "generatedFromCohort": true,
+   "notes": ""
+  },
+  {
+   "id": "cl-00e1",
+   "name": "Red M · Speaking & Writing",
+   "levelPreset": "Red",
+   "level": "Red",
+   "grade": "",
+   "cohortId": "co-00a0",
+   "cohortIds": [
+    "co-00a0"
+   ],
+   "classTypeId": "builtin-wr-sp",
+   "scheduleBlock": "primary",
+   "meetingDays": [],
+   "weeklyFrequency": 2,
+   "teacherRequirementType": "native",
    "classTeachers": [],
    "color": "#e5484d",
    "textColor": "#ffffff",
@@ -32,37 +56,13 @@
   },
   {
    "id": "cl-00e2",
-   "name": "Red M · Speaking & Writing",
-   "levelPreset": "Red",
-   "level": "Red",
-   "grade": "",
-   "cohortId": "co-009z",
-   "cohortIds": [
-    "co-009z"
-   ],
-   "classTypeId": "builtin-wr-sp",
-   "scheduleBlock": "primary",
-   "meetingDays": [],
-   "weeklyFrequency": 2,
-   "teacherRequirementType": "native",
-   "classTeachers": [],
-   "color": "#e5484d",
-   "textColor": "#ffffff",
-   "startDate": "2026-12-01",
-   "endDate": "2027-02-28",
-   "useAutoTermEnd": false,
-   "generatedFromCohort": true,
-   "notes": ""
-  },
-  {
-   "id": "cl-00e3",
    "name": "Red M · Animation",
    "levelPreset": "Red",
    "level": "Red",
    "grade": "",
-   "cohortId": "co-009z",
+   "cohortId": "co-00a0",
    "cohortIds": [
-    "co-009z"
+    "co-00a0"
    ],
    "classTypeId": "",
    "scheduleBlock": "primary",
@@ -79,14 +79,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00e4",
+   "id": "cl-00e3",
    "name": "Orange M · Phonics",
    "levelPreset": "Orange",
    "level": "Orange",
    "grade": "",
-   "cohortId": "co-00a6",
+   "cohortId": "co-00a8",
    "cohortIds": [
-    "co-00a6"
+    "co-00a8"
    ],
    "classTypeId": "",
    "scheduleBlock": "primary",
@@ -103,14 +103,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00e5",
+   "id": "cl-00e4",
    "name": "Orange M · Speaking & Writing",
    "levelPreset": "Orange",
    "level": "Orange",
    "grade": "",
-   "cohortId": "co-00a6",
+   "cohortId": "co-00a8",
    "cohortIds": [
-    "co-00a6"
+    "co-00a8"
    ],
    "classTypeId": "builtin-wr-sp",
    "scheduleBlock": "primary",
@@ -127,14 +127,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00e6",
+   "id": "cl-00e5",
    "name": "Orange M · Animation",
    "levelPreset": "Orange",
    "level": "Orange",
    "grade": "",
-   "cohortId": "co-00a6",
+   "cohortId": "co-00a8",
    "cohortIds": [
-    "co-00a6"
+    "co-00a8"
    ],
    "classTypeId": "",
    "scheduleBlock": "primary",
@@ -151,7 +151,7 @@
    "notes": ""
   },
   {
-   "id": "cl-00e7",
+   "id": "cl-00e6",
    "name": "Yellow T · Phonics",
    "levelPreset": "Yellow",
    "level": "Yellow",
@@ -175,7 +175,7 @@
    "notes": ""
   },
   {
-   "id": "cl-00e8",
+   "id": "cl-00e7",
    "name": "Yellow T · Speaking & Writing",
    "levelPreset": "Yellow",
    "level": "Yellow",
@@ -199,7 +199,7 @@
    "notes": ""
   },
   {
-   "id": "cl-00e9",
+   "id": "cl-00e8",
    "name": "Yellow T · Animation",
    "levelPreset": "Yellow",
    "level": "Yellow",
@@ -223,20 +223,44 @@
    "notes": ""
   },
   {
-   "id": "cl-00ea",
+   "id": "cl-00e9",
    "name": "Green M · Reading",
    "levelPreset": "Green",
    "level": "Green",
    "grade": "",
-   "cohortId": "co-00ao",
+   "cohortId": "co-00am",
    "cohortIds": [
-    "co-00ao"
+    "co-00am"
    ],
    "classTypeId": "",
    "scheduleBlock": "primary",
    "meetingDays": [],
    "weeklyFrequency": 2,
    "teacherRequirementType": "korean",
+   "classTeachers": [],
+   "color": "#30a46c",
+   "textColor": "#ffffff",
+   "startDate": "2026-12-01",
+   "endDate": "2027-02-28",
+   "useAutoTermEnd": false,
+   "generatedFromCohort": true,
+   "notes": ""
+  },
+  {
+   "id": "cl-00ea",
+   "name": "Green M · Speaking & Writing",
+   "levelPreset": "Green",
+   "level": "Green",
+   "grade": "",
+   "cohortId": "co-00am",
+   "cohortIds": [
+    "co-00am"
+   ],
+   "classTypeId": "builtin-wr-sp",
+   "scheduleBlock": "primary",
+   "meetingDays": [],
+   "weeklyFrequency": 2,
+   "teacherRequirementType": "native",
    "classTeachers": [],
    "color": "#30a46c",
    "textColor": "#ffffff",
@@ -248,19 +272,19 @@
   },
   {
    "id": "cl-00eb",
-   "name": "Green M · Speaking & Writing",
+   "name": "Green M · Animation",
    "levelPreset": "Green",
    "level": "Green",
    "grade": "",
-   "cohortId": "co-00ao",
+   "cohortId": "co-00am",
    "cohortIds": [
-    "co-00ao"
+    "co-00am"
    ],
-   "classTypeId": "builtin-wr-sp",
+   "classTypeId": "",
    "scheduleBlock": "primary",
    "meetingDays": [],
    "weeklyFrequency": 2,
-   "teacherRequirementType": "native",
+   "teacherRequirementType": "either",
    "classTeachers": [],
    "color": "#30a46c",
    "textColor": "#ffffff",
@@ -272,37 +296,13 @@
   },
   {
    "id": "cl-00ec",
-   "name": "Green M · Animation",
-   "levelPreset": "Green",
-   "level": "Green",
-   "grade": "",
-   "cohortId": "co-00ao",
-   "cohortIds": [
-    "co-00ao"
-   ],
-   "classTypeId": "",
-   "scheduleBlock": "primary",
-   "meetingDays": [],
-   "weeklyFrequency": 2,
-   "teacherRequirementType": "either",
-   "classTeachers": [],
-   "color": "#30a46c",
-   "textColor": "#ffffff",
-   "startDate": "2026-12-01",
-   "endDate": "2027-02-28",
-   "useAutoTermEnd": false,
-   "generatedFromCohort": true,
-   "notes": ""
-  },
-  {
-   "id": "cl-00ed",
    "name": "Blue T · Reading",
    "levelPreset": "Blue",
    "level": "Blue",
    "grade": "",
-   "cohortId": "co-00ay",
+   "cohortId": "co-00au",
    "cohortIds": [
-    "co-00ay"
+    "co-00au"
    ],
    "classTypeId": "",
    "scheduleBlock": "primary",
@@ -319,14 +319,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00ee",
+   "id": "cl-00ed",
    "name": "Blue T · Speaking & Writing",
    "levelPreset": "Blue",
    "level": "Blue",
    "grade": "",
-   "cohortId": "co-00ay",
+   "cohortId": "co-00au",
    "cohortIds": [
-    "co-00ay"
+    "co-00au"
    ],
    "classTypeId": "builtin-wr-sp",
    "scheduleBlock": "primary",
@@ -343,14 +343,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00ef",
+   "id": "cl-00ee",
    "name": "Blue T · Animation",
    "levelPreset": "Blue",
    "level": "Blue",
    "grade": "",
-   "cohortId": "co-00ay",
+   "cohortId": "co-00au",
    "cohortIds": [
-    "co-00ay"
+    "co-00au"
    ],
    "classTypeId": "",
    "scheduleBlock": "primary",
@@ -367,20 +367,44 @@
    "notes": ""
   },
   {
-   "id": "cl-00eg",
+   "id": "cl-00ef",
    "name": "Purple M · IPK V",
    "levelPreset": "Purple",
    "level": "Purple",
    "grade": "",
-   "cohortId": "co-00b7",
+   "cohortId": "co-00b2",
    "cohortIds": [
-    "co-00b7"
+    "co-00b2"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
    "meetingDays": [],
    "weeklyFrequency": 2,
    "teacherRequirementType": "korean",
+   "classTeachers": [],
+   "color": "#8e4ec6",
+   "textColor": "#ffffff",
+   "startDate": "2026-12-01",
+   "endDate": "2027-02-28",
+   "useAutoTermEnd": false,
+   "generatedFromCohort": true,
+   "notes": ""
+  },
+  {
+   "id": "cl-00eg",
+   "name": "Purple M · News",
+   "levelPreset": "Purple",
+   "level": "Purple",
+   "grade": "",
+   "cohortId": "co-00b2",
+   "cohortIds": [
+    "co-00b2"
+   ],
+   "classTypeId": "",
+   "scheduleBlock": "secondary",
+   "meetingDays": [],
+   "weeklyFrequency": 2,
+   "teacherRequirementType": "either",
    "classTeachers": [],
    "color": "#8e4ec6",
    "textColor": "#ffffff",
@@ -392,19 +416,19 @@
   },
   {
    "id": "cl-00eh",
-   "name": "Purple M · News",
+   "name": "Purple M · IPE",
    "levelPreset": "Purple",
    "level": "Purple",
    "grade": "",
-   "cohortId": "co-00b7",
+   "cohortId": "co-00b2",
    "cohortIds": [
-    "co-00b7"
+    "co-00b2"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
    "meetingDays": [],
-   "weeklyFrequency": 2,
-   "teacherRequirementType": "either",
+   "weeklyFrequency": 1,
+   "teacherRequirementType": "native",
    "classTeachers": [],
    "color": "#8e4ec6",
    "textColor": "#ffffff",
@@ -416,19 +440,19 @@
   },
   {
    "id": "cl-00ei",
-   "name": "Purple M · IPE",
+   "name": "Purple M · Grammar",
    "levelPreset": "Purple",
    "level": "Purple",
    "grade": "",
-   "cohortId": "co-00b7",
+   "cohortId": "co-00b2",
    "cohortIds": [
-    "co-00b7"
+    "co-00b2"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
    "meetingDays": [],
    "weeklyFrequency": 1,
-   "teacherRequirementType": "native",
+   "teacherRequirementType": "korean",
    "classTeachers": [],
    "color": "#8e4ec6",
    "textColor": "#ffffff",
@@ -440,22 +464,22 @@
   },
   {
    "id": "cl-00ej",
-   "name": "Purple M · Grammar",
-   "levelPreset": "Purple",
-   "level": "Purple",
+   "name": "Yeoul M · News",
+   "levelPreset": "Yeoul",
+   "level": "Yeoul",
    "grade": "",
-   "cohortId": "co-00b7",
+   "cohortId": "co-00bd",
    "cohortIds": [
-    "co-00b7"
+    "co-00bd"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
    "meetingDays": [],
-   "weeklyFrequency": 1,
-   "teacherRequirementType": "korean",
+   "weeklyFrequency": 3,
+   "teacherRequirementType": "either",
    "classTeachers": [],
-   "color": "#8e4ec6",
-   "textColor": "#ffffff",
+   "color": "#fb923c",
+   "textColor": "#1c2430",
    "startDate": "2026-12-01",
    "endDate": "2027-02-28",
    "useAutoTermEnd": false,
@@ -464,19 +488,19 @@
   },
   {
    "id": "cl-00ek",
-   "name": "Yeoul M · News",
+   "name": "Yeoul M · IPK V",
    "levelPreset": "Yeoul",
    "level": "Yeoul",
    "grade": "",
-   "cohortId": "co-00be",
+   "cohortId": "co-00bd",
    "cohortIds": [
-    "co-00be"
+    "co-00bd"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
    "meetingDays": [],
-   "weeklyFrequency": 3,
-   "teacherRequirementType": "either",
+   "weeklyFrequency": 2,
+   "teacherRequirementType": "korean",
    "classTeachers": [],
    "color": "#fb923c",
    "textColor": "#1c2430",
@@ -488,37 +512,13 @@
   },
   {
    "id": "cl-00el",
-   "name": "Yeoul M · IPK V",
-   "levelPreset": "Yeoul",
-   "level": "Yeoul",
-   "grade": "",
-   "cohortId": "co-00be",
-   "cohortIds": [
-    "co-00be"
-   ],
-   "classTypeId": "",
-   "scheduleBlock": "secondary",
-   "meetingDays": [],
-   "weeklyFrequency": 2,
-   "teacherRequirementType": "korean",
-   "classTeachers": [],
-   "color": "#fb923c",
-   "textColor": "#1c2430",
-   "startDate": "2026-12-01",
-   "endDate": "2027-02-28",
-   "useAutoTermEnd": false,
-   "generatedFromCohort": true,
-   "notes": ""
-  },
-  {
-   "id": "cl-00em",
    "name": "Yeoul M · IPE",
    "levelPreset": "Yeoul",
    "level": "Yeoul",
    "grade": "",
-   "cohortId": "co-00be",
+   "cohortId": "co-00bd",
    "cohortIds": [
-    "co-00be"
+    "co-00bd"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
@@ -535,14 +535,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00en",
+   "id": "cl-00em",
    "name": "Saemmul M · News",
    "levelPreset": "Saemmul",
    "level": "Saemmul",
    "grade": "",
-   "cohortId": "co-00bm",
+   "cohortId": "co-00bo",
    "cohortIds": [
-    "co-00bm"
+    "co-00bo"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
@@ -559,14 +559,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00eo",
+   "id": "cl-00en",
    "name": "Saemmul M · IPK V",
    "levelPreset": "Saemmul",
    "level": "Saemmul",
    "grade": "",
-   "cohortId": "co-00bm",
+   "cohortId": "co-00bo",
    "cohortIds": [
-    "co-00bm"
+    "co-00bo"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
@@ -583,14 +583,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00ep",
+   "id": "cl-00eo",
    "name": "Saemmul M · IPE",
    "levelPreset": "Saemmul",
    "level": "Saemmul",
    "grade": "",
-   "cohortId": "co-00bm",
+   "cohortId": "co-00bo",
    "cohortIds": [
-    "co-00bm"
+    "co-00bo"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
@@ -607,14 +607,38 @@
    "notes": ""
   },
   {
-   "id": "cl-00eq",
+   "id": "cl-00ep",
    "name": "Garam M · News LC",
    "levelPreset": "Garam",
    "level": "Garam",
    "grade": "",
-   "cohortId": "co-00bu",
+   "cohortId": "co-00by",
    "cohortIds": [
-    "co-00bu"
+    "co-00by"
+   ],
+   "classTypeId": "",
+   "scheduleBlock": "secondary",
+   "meetingDays": [],
+   "weeklyFrequency": 1,
+   "teacherRequirementType": "either",
+   "classTeachers": [],
+   "color": "#16a34a",
+   "textColor": "#ffffff",
+   "startDate": "2026-12-01",
+   "endDate": "2027-02-28",
+   "useAutoTermEnd": false,
+   "generatedFromCohort": true,
+   "notes": ""
+  },
+  {
+   "id": "cl-00eq",
+   "name": "Garam M · News",
+   "levelPreset": "Garam",
+   "level": "Garam",
+   "grade": "",
+   "cohortId": "co-00by",
+   "cohortIds": [
+    "co-00by"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
@@ -632,38 +656,14 @@
   },
   {
    "id": "cl-00er",
-   "name": "Garam M · News",
-   "levelPreset": "Garam",
-   "level": "Garam",
-   "grade": "",
-   "cohortId": "co-00bu",
-   "cohortIds": [
-    "co-00bu"
-   ],
-   "classTypeId": "",
-   "scheduleBlock": "secondary",
-   "meetingDays": [],
-   "weeklyFrequency": 1,
-   "teacherRequirementType": "either",
-   "classTeachers": [],
-   "color": "#16a34a",
-   "textColor": "#ffffff",
-   "startDate": "2026-12-01",
-   "endDate": "2027-02-28",
-   "useAutoTermEnd": false,
-   "generatedFromCohort": true,
-   "notes": ""
-  },
-  {
-   "id": "cl-00es",
    "name": "Garam M + Bada M · Debate",
    "levelPreset": "Garam",
    "level": "Garam",
    "grade": "",
-   "cohortId": "co-00bu",
+   "cohortId": "co-00by",
    "cohortIds": [
-    "co-00bu",
-    "co-00c4"
+    "co-00by",
+    "co-00c5"
    ],
    "classTypeId": "builtin-debate",
    "scheduleBlock": "secondary",
@@ -680,19 +680,43 @@
    "notes": ""
   },
   {
-   "id": "cl-00et",
+   "id": "cl-00es",
    "name": "Garam M · IPK V",
    "levelPreset": "Garam",
    "level": "Garam",
    "grade": "",
-   "cohortId": "co-00bu",
+   "cohortId": "co-00by",
    "cohortIds": [
-    "co-00bu"
+    "co-00by"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
    "meetingDays": [],
    "weeklyFrequency": 2,
+   "teacherRequirementType": "korean",
+   "classTeachers": [],
+   "color": "#16a34a",
+   "textColor": "#ffffff",
+   "startDate": "2026-12-01",
+   "endDate": "2027-02-28",
+   "useAutoTermEnd": false,
+   "generatedFromCohort": true,
+   "notes": ""
+  },
+  {
+   "id": "cl-00et",
+   "name": "Garam M · Grammar",
+   "levelPreset": "Garam",
+   "level": "Garam",
+   "grade": "",
+   "cohortId": "co-00by",
+   "cohortIds": [
+    "co-00by"
+   ],
+   "classTypeId": "",
+   "scheduleBlock": "secondary",
+   "meetingDays": [],
+   "weeklyFrequency": 1,
    "teacherRequirementType": "korean",
    "classTeachers": [],
    "color": "#16a34a",
@@ -705,21 +729,21 @@
   },
   {
    "id": "cl-00eu",
-   "name": "Garam M · Grammar",
-   "levelPreset": "Garam",
-   "level": "Garam",
+   "name": "Bada M · News LC",
+   "levelPreset": "Bada",
+   "level": "Bada",
    "grade": "",
-   "cohortId": "co-00bu",
+   "cohortId": "co-00c5",
    "cohortIds": [
-    "co-00bu"
+    "co-00c5"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
    "meetingDays": [],
    "weeklyFrequency": 1,
-   "teacherRequirementType": "korean",
+   "teacherRequirementType": "either",
    "classTeachers": [],
-   "color": "#16a34a",
+   "color": "#15803d",
    "textColor": "#ffffff",
    "startDate": "2026-12-01",
    "endDate": "2027-02-28",
@@ -729,37 +753,13 @@
   },
   {
    "id": "cl-00ev",
-   "name": "Bada M · News LC",
-   "levelPreset": "Bada",
-   "level": "Bada",
-   "grade": "",
-   "cohortId": "co-00c4",
-   "cohortIds": [
-    "co-00c4"
-   ],
-   "classTypeId": "",
-   "scheduleBlock": "secondary",
-   "meetingDays": [],
-   "weeklyFrequency": 1,
-   "teacherRequirementType": "either",
-   "classTeachers": [],
-   "color": "#15803d",
-   "textColor": "#ffffff",
-   "startDate": "2026-12-01",
-   "endDate": "2027-02-28",
-   "useAutoTermEnd": false,
-   "generatedFromCohort": true,
-   "notes": ""
-  },
-  {
-   "id": "cl-00ew",
    "name": "Bada M · News",
    "levelPreset": "Bada",
    "level": "Bada",
    "grade": "",
-   "cohortId": "co-00c4",
+   "cohortId": "co-00c5",
    "cohortIds": [
-    "co-00c4"
+    "co-00c5"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
@@ -776,14 +776,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00ey",
+   "id": "cl-00ex",
    "name": "Bada M · IPK V",
    "levelPreset": "Bada",
    "level": "Bada",
    "grade": "",
-   "cohortId": "co-00c4",
+   "cohortId": "co-00c5",
    "cohortIds": [
-    "co-00c4"
+    "co-00c5"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
@@ -800,14 +800,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00ez",
+   "id": "cl-00ey",
    "name": "Bada M · Grammar",
    "levelPreset": "Bada",
    "level": "Bada",
    "grade": "",
-   "cohortId": "co-00c4",
+   "cohortId": "co-00c5",
    "cohortIds": [
-    "co-00c4"
+    "co-00c5"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
@@ -824,15 +824,15 @@
    "notes": ""
   },
   {
-   "id": "cl-00f0",
+   "id": "cl-00ez",
    "name": "Byeolmaru M + Mirinae M · News LC",
    "levelPreset": "Byeolmaru",
    "level": "Byeolmaru",
    "grade": "",
-   "cohortId": "co-00cc",
+   "cohortId": "co-00cf",
    "cohortIds": [
-    "co-00cc",
-    "co-00cl"
+    "co-00cf",
+    "co-00cp"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
@@ -849,14 +849,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00f1",
+   "id": "cl-00f0",
    "name": "Byeolmaru M · Debate",
    "levelPreset": "Byeolmaru",
    "level": "Byeolmaru",
    "grade": "",
-   "cohortId": "co-00cc",
+   "cohortId": "co-00cf",
    "cohortIds": [
-    "co-00cc"
+    "co-00cf"
    ],
    "classTypeId": "builtin-debate",
    "scheduleBlock": "secondary",
@@ -873,14 +873,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00f2",
+   "id": "cl-00f1",
    "name": "Byeolmaru M · TOEFL RC",
    "levelPreset": "Byeolmaru",
    "level": "Byeolmaru",
    "grade": "",
-   "cohortId": "co-00cc",
+   "cohortId": "co-00cf",
    "cohortIds": [
-    "co-00cc"
+    "co-00cf"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
@@ -897,14 +897,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00f3",
+   "id": "cl-00f2",
    "name": "Byeolmaru M · Grammar",
    "levelPreset": "Byeolmaru",
    "level": "Byeolmaru",
    "grade": "",
-   "cohortId": "co-00cc",
+   "cohortId": "co-00cf",
    "cohortIds": [
-    "co-00cc"
+    "co-00cf"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
@@ -921,14 +921,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00f5",
+   "id": "cl-00f4",
    "name": "Mirinae M · Debate",
    "levelPreset": "Mirinae",
    "level": "Mirinae",
    "grade": "",
-   "cohortId": "co-00cl",
+   "cohortId": "co-00cp",
    "cohortIds": [
-    "co-00cl"
+    "co-00cp"
    ],
    "classTypeId": "builtin-debate",
    "scheduleBlock": "secondary",
@@ -945,14 +945,38 @@
    "notes": ""
   },
   {
-   "id": "cl-00f6",
+   "id": "cl-00f5",
    "name": "Mirinae M · TOEFL RC",
    "levelPreset": "Mirinae",
    "level": "Mirinae",
    "grade": "",
-   "cohortId": "co-00cl",
+   "cohortId": "co-00cp",
    "cohortIds": [
-    "co-00cl"
+    "co-00cp"
+   ],
+   "classTypeId": "",
+   "scheduleBlock": "secondary",
+   "meetingDays": [],
+   "weeklyFrequency": 2,
+   "teacherRequirementType": "korean",
+   "classTeachers": [],
+   "color": "#115e59",
+   "textColor": "#ffffff",
+   "startDate": "2026-12-01",
+   "endDate": "2027-02-28",
+   "useAutoTermEnd": false,
+   "generatedFromCohort": true,
+   "notes": ""
+  },
+  {
+   "id": "cl-00f6",
+   "name": "Mirinae M · Grammar",
+   "levelPreset": "Mirinae",
+   "level": "Mirinae",
+   "grade": "",
+   "cohortId": "co-00cp",
+   "cohortIds": [
+    "co-00cp"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
@@ -970,22 +994,22 @@
   },
   {
    "id": "cl-00f7",
-   "name": "Mirinae M · Grammar",
-   "levelPreset": "Mirinae",
-   "level": "Mirinae",
+   "name": "Yeoul T · News",
+   "levelPreset": "Yeoul",
+   "level": "Yeoul",
    "grade": "",
-   "cohortId": "co-00cl",
+   "cohortId": "co-00cx",
    "cohortIds": [
-    "co-00cl"
+    "co-00cx"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
    "meetingDays": [],
    "weeklyFrequency": 2,
-   "teacherRequirementType": "korean",
+   "teacherRequirementType": "either",
    "classTeachers": [],
-   "color": "#115e59",
-   "textColor": "#ffffff",
+   "color": "#fb923c",
+   "textColor": "#1c2430",
    "startDate": "2026-12-01",
    "endDate": "2027-02-28",
    "useAutoTermEnd": false,
@@ -994,19 +1018,19 @@
   },
   {
    "id": "cl-00f8",
-   "name": "Yeoul T · News",
+   "name": "Yeoul T · IPK V",
    "levelPreset": "Yeoul",
    "level": "Yeoul",
    "grade": "",
-   "cohortId": "co-00cs",
+   "cohortId": "co-00cx",
    "cohortIds": [
-    "co-00cs"
+    "co-00cx"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
    "meetingDays": [],
    "weeklyFrequency": 2,
-   "teacherRequirementType": "either",
+   "teacherRequirementType": "korean",
    "classTeachers": [],
    "color": "#fb923c",
    "textColor": "#1c2430",
@@ -1018,37 +1042,13 @@
   },
   {
    "id": "cl-00f9",
-   "name": "Yeoul T · IPK V",
-   "levelPreset": "Yeoul",
-   "level": "Yeoul",
-   "grade": "",
-   "cohortId": "co-00cs",
-   "cohortIds": [
-    "co-00cs"
-   ],
-   "classTypeId": "",
-   "scheduleBlock": "secondary",
-   "meetingDays": [],
-   "weeklyFrequency": 2,
-   "teacherRequirementType": "korean",
-   "classTeachers": [],
-   "color": "#fb923c",
-   "textColor": "#1c2430",
-   "startDate": "2026-12-01",
-   "endDate": "2027-02-28",
-   "useAutoTermEnd": false,
-   "generatedFromCohort": true,
-   "notes": ""
-  },
-  {
-   "id": "cl-00fa",
    "name": "Yeoul T · IPE",
    "levelPreset": "Yeoul",
    "level": "Yeoul",
    "grade": "",
-   "cohortId": "co-00cs",
+   "cohortId": "co-00cx",
    "cohortIds": [
-    "co-00cs"
+    "co-00cx"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
@@ -1065,14 +1065,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00fb",
+   "id": "cl-00fa",
    "name": "Yeoul T · Grammar",
    "levelPreset": "Yeoul",
    "level": "Yeoul",
    "grade": "",
-   "cohortId": "co-00cs",
+   "cohortId": "co-00cx",
    "cohortIds": [
-    "co-00cs"
+    "co-00cx"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
@@ -1089,14 +1089,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00fc",
+   "id": "cl-00fb",
    "name": "Saemmul T · News",
    "levelPreset": "Saemmul",
    "level": "Saemmul",
    "grade": "",
-   "cohortId": "co-00d2",
+   "cohortId": "co-00d5",
    "cohortIds": [
-    "co-00d2"
+    "co-00d5"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
@@ -1113,14 +1113,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00fd",
+   "id": "cl-00fc",
    "name": "Saemmul T · IPK V",
    "levelPreset": "Saemmul",
    "level": "Saemmul",
    "grade": "",
-   "cohortId": "co-00d2",
+   "cohortId": "co-00d5",
    "cohortIds": [
-    "co-00d2"
+    "co-00d5"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
@@ -1137,14 +1137,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00fe",
+   "id": "cl-00fd",
    "name": "Saemmul T · IPE",
    "levelPreset": "Saemmul",
    "level": "Saemmul",
    "grade": "",
-   "cohortId": "co-00d2",
+   "cohortId": "co-00d5",
    "cohortIds": [
-    "co-00d2"
+    "co-00d5"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
@@ -1161,14 +1161,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00ff",
+   "id": "cl-00fe",
    "name": "Saemmul T · Grammar",
    "levelPreset": "Saemmul",
    "level": "Saemmul",
    "grade": "",
-   "cohortId": "co-00d2",
+   "cohortId": "co-00d5",
    "cohortIds": [
-    "co-00d2"
+    "co-00d5"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
@@ -1185,14 +1185,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00fg",
+   "id": "cl-00ff",
    "name": "Garam T · News LC",
    "levelPreset": "Garam",
    "level": "Garam",
    "grade": "",
-   "cohortId": "co-00da",
+   "cohortId": "co-00dd",
    "cohortIds": [
-    "co-00da"
+    "co-00dd"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
@@ -1209,14 +1209,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00fh",
+   "id": "cl-00fg",
    "name": "Garam T · Debate",
    "levelPreset": "Garam",
    "level": "Garam",
    "grade": "",
-   "cohortId": "co-00da",
+   "cohortId": "co-00dd",
    "cohortIds": [
-    "co-00da"
+    "co-00dd"
    ],
    "classTypeId": "builtin-debate",
    "scheduleBlock": "secondary",
@@ -1233,19 +1233,43 @@
    "notes": ""
   },
   {
-   "id": "cl-00fi",
+   "id": "cl-00fh",
    "name": "Garam T · IPK V",
    "levelPreset": "Garam",
    "level": "Garam",
    "grade": "",
-   "cohortId": "co-00da",
+   "cohortId": "co-00dd",
    "cohortIds": [
-    "co-00da"
+    "co-00dd"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
    "meetingDays": [],
    "weeklyFrequency": 2,
+   "teacherRequirementType": "korean",
+   "classTeachers": [],
+   "color": "#16a34a",
+   "textColor": "#ffffff",
+   "startDate": "2026-12-01",
+   "endDate": "2027-02-28",
+   "useAutoTermEnd": false,
+   "generatedFromCohort": true,
+   "notes": ""
+  },
+  {
+   "id": "cl-00fi",
+   "name": "Garam T · Grammar",
+   "levelPreset": "Garam",
+   "level": "Garam",
+   "grade": "",
+   "cohortId": "co-00dd",
+   "cohortIds": [
+    "co-00dd"
+   ],
+   "classTypeId": "",
+   "scheduleBlock": "secondary",
+   "meetingDays": [],
+   "weeklyFrequency": 1,
    "teacherRequirementType": "korean",
    "classTeachers": [],
    "color": "#16a34a",
@@ -1258,37 +1282,13 @@
   },
   {
    "id": "cl-00fj",
-   "name": "Garam T · Grammar",
-   "levelPreset": "Garam",
-   "level": "Garam",
-   "grade": "",
-   "cohortId": "co-00da",
-   "cohortIds": [
-    "co-00da"
-   ],
-   "classTypeId": "",
-   "scheduleBlock": "secondary",
-   "meetingDays": [],
-   "weeklyFrequency": 1,
-   "teacherRequirementType": "korean",
-   "classTeachers": [],
-   "color": "#16a34a",
-   "textColor": "#ffffff",
-   "startDate": "2026-12-01",
-   "endDate": "2027-02-28",
-   "useAutoTermEnd": false,
-   "generatedFromCohort": true,
-   "notes": ""
-  },
-  {
-   "id": "cl-00fk",
    "name": "Bada T · News LC",
    "levelPreset": "Bada",
    "level": "Bada",
    "grade": "",
-   "cohortId": "co-00dj",
+   "cohortId": "co-00dl",
    "cohortIds": [
-    "co-00dj"
+    "co-00dl"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
@@ -1305,14 +1305,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00fl",
+   "id": "cl-00fk",
    "name": "Bada T · Debate",
    "levelPreset": "Bada",
    "level": "Bada",
    "grade": "",
-   "cohortId": "co-00dj",
+   "cohortId": "co-00dl",
    "cohortIds": [
-    "co-00dj"
+    "co-00dl"
    ],
    "classTypeId": "builtin-debate",
    "scheduleBlock": "secondary",
@@ -1329,14 +1329,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00fm",
+   "id": "cl-00fl",
    "name": "Bada T · IPK V",
    "levelPreset": "Bada",
    "level": "Bada",
    "grade": "",
-   "cohortId": "co-00dj",
+   "cohortId": "co-00dl",
    "cohortIds": [
-    "co-00dj"
+    "co-00dl"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
@@ -1353,14 +1353,14 @@
    "notes": ""
   },
   {
-   "id": "cl-00fn",
+   "id": "cl-00fm",
    "name": "Bada T · Grammar",
    "levelPreset": "Bada",
    "level": "Bada",
    "grade": "",
-   "cohortId": "co-00dj",
+   "cohortId": "co-00dl",
    "cohortIds": [
-    "co-00dj"
+    "co-00dl"
    ],
    "classTypeId": "",
    "scheduleBlock": "secondary",
@@ -1377,7 +1377,7 @@
    "notes": ""
   },
   {
-   "id": "cl-00fo",
+   "id": "cl-00fn",
    "name": "Mirinae T · News LC",
    "levelPreset": "Mirinae",
    "level": "Mirinae",
@@ -1401,7 +1401,7 @@
    "notes": ""
   },
   {
-   "id": "cl-00fp",
+   "id": "cl-00fo",
    "name": "Mirinae T · Debate",
    "levelPreset": "Mirinae",
    "level": "Mirinae",
@@ -1425,7 +1425,7 @@
    "notes": ""
   },
   {
-   "id": "cl-00fq",
+   "id": "cl-00fp",
    "name": "Mirinae T · TOEFL RC",
    "levelPreset": "Mirinae",
    "level": "Mirinae",
@@ -1449,7 +1449,7 @@
    "notes": ""
   },
   {
-   "id": "cl-00fr",
+   "id": "cl-00fq",
    "name": "Mirinae T · Grammar",
    "levelPreset": "Mirinae",
    "level": "Mirinae",
@@ -1476,7 +1476,7 @@
  "events": [],
  "cohorts": [
   {
-   "id": "co-009z",
+   "id": "co-00a0",
    "name": "Red M",
    "level": "Red",
    "levelPreset": "Red",
@@ -1493,14 +1493,14 @@
    "homeroomTeacherName": "",
    "homeroomDaySuffix": "M",
    "classIds": [
+    "cl-00e0",
     "cl-00e1",
-    "cl-00e2",
-    "cl-00e3"
+    "cl-00e2"
    ],
    "subjectSlots": [],
    "students": [
     {
-     "id": "st-00a0",
+     "id": "st-00a1",
      "name": "한테카",
      "nameEn": "Stufa",
      "tmsMpidx": "900130",
@@ -1510,7 +1510,7 @@
      "sortOrder": 0
     },
     {
-     "id": "st-00a1",
+     "id": "st-00a2",
      "name": "오테카",
      "nameEn": "Stufb",
      "tmsMpidx": "900131",
@@ -1520,7 +1520,7 @@
      "sortOrder": 1
     },
     {
-     "id": "st-00a2",
+     "id": "st-00a3",
      "name": "김테타",
      "nameEn": "Stufc",
      "tmsMpidx": "900132",
@@ -1530,7 +1530,7 @@
      "sortOrder": 2
     },
     {
-     "id": "st-00a3",
+     "id": "st-00a4",
      "name": "이테타",
      "nameEn": "Stufd",
      "tmsMpidx": "900133",
@@ -1540,7 +1540,7 @@
      "sortOrder": 3
     },
     {
-     "id": "st-00a4",
+     "id": "st-00a5",
      "name": "박테타",
      "nameEn": "Stufe",
      "tmsMpidx": "900134",
@@ -1550,7 +1550,7 @@
      "sortOrder": 4
     },
     {
-     "id": "st-00a5",
+     "id": "st-00a6",
      "name": "최테타",
      "nameEn": "Stuff",
      "tmsMpidx": "900135",
@@ -1558,11 +1558,21 @@
      "tags": [],
      "memo": "",
      "sortOrder": 5
+    },
+    {
+     "id": "st-00a7",
+     "name": "정테타",
+     "nameEn": "Stufg",
+     "tmsMpidx": "900136",
+     "active": true,
+     "tags": [],
+     "memo": "",
+     "sortOrder": 6
     }
    ]
   },
   {
-   "id": "co-00a6",
+   "id": "co-00a8",
    "name": "Orange M",
    "level": "Orange",
    "levelPreset": "Orange",
@@ -1579,22 +1589,12 @@
    "homeroomTeacherName": "",
    "homeroomDaySuffix": "M",
    "classIds": [
+    "cl-00e3",
     "cl-00e4",
-    "cl-00e5",
-    "cl-00e6"
+    "cl-00e5"
    ],
    "subjectSlots": [],
    "students": [
-    {
-     "name": "김테가",
-     "nameEn": "Stuaa",
-     "tmsMpidx": "900000",
-     "active": true,
-     "tags": [],
-     "memo": "",
-     "id": "st-00a7",
-     "sortOrder": 0
-    },
     {
      "name": "이테가",
      "nameEn": "Stuab",
@@ -1602,8 +1602,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00a8",
-     "sortOrder": 1
+     "id": "st-00a9",
+     "sortOrder": 0
     },
     {
      "name": "박테가",
@@ -1612,8 +1612,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00a9",
-     "sortOrder": 2
+     "id": "st-00aa",
+     "sortOrder": 1
     },
     {
      "name": "최테가",
@@ -1622,8 +1622,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00aa",
-     "sortOrder": 3
+     "id": "st-00ab",
+     "sortOrder": 2
     },
     {
      "name": "정테가",
@@ -1632,18 +1632,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00ab",
-     "sortOrder": 4
-    },
-    {
-     "name": "강테가",
-     "nameEn": "Stuaf",
-     "tmsMpidx": "900005",
-     "active": true,
-     "tags": [],
-     "memo": "",
      "id": "st-00ac",
-     "sortOrder": 5
+     "sortOrder": 3
     },
     {
      "name": "조테가",
@@ -1653,7 +1643,17 @@
      "tags": [],
      "memo": "",
      "id": "st-00ad",
-     "sortOrder": 6
+     "sortOrder": 4
+    },
+    {
+     "name": "윤테가",
+     "nameEn": "Stuah",
+     "tmsMpidx": "900007",
+     "active": true,
+     "tags": [],
+     "memo": "",
+     "id": "st-00ae",
+     "sortOrder": 5
     }
    ]
   },
@@ -1674,16 +1674,16 @@
    "homeroomTeacherName": "",
    "homeroomDaySuffix": "T",
    "classIds": [
+    "cl-00e6",
     "cl-00e7",
-    "cl-00e8",
-    "cl-00e9"
+    "cl-00e8"
    ],
    "subjectSlots": [],
    "students": [
     {
-     "name": "임테가",
-     "nameEn": "Stuaj",
-     "tmsMpidx": "900009",
+     "name": "장테가",
+     "nameEn": "Stuai",
+     "tmsMpidx": "900008",
      "active": true,
      "tags": [],
      "memo": "",
@@ -1691,9 +1691,9 @@
      "sortOrder": 0
     },
     {
-     "name": "한테가",
-     "nameEn": "Stuak",
-     "tmsMpidx": "900010",
+     "name": "임테가",
+     "nameEn": "Stuaj",
+     "tmsMpidx": "900009",
      "active": true,
      "tags": [],
      "memo": "",
@@ -1701,9 +1701,9 @@
      "sortOrder": 1
     },
     {
-     "name": "오테가",
-     "nameEn": "Stual",
-     "tmsMpidx": "900011",
+     "name": "한테가",
+     "nameEn": "Stuak",
+     "tmsMpidx": "900010",
      "active": true,
      "tags": [],
      "memo": "",
@@ -1739,21 +1739,11 @@
      "memo": "",
      "id": "st-00al",
      "sortOrder": 5
-    },
-    {
-     "id": "st-00am",
-     "name": "정테타",
-     "nameEn": "Stufg",
-     "tmsMpidx": "900136",
-     "active": true,
-     "tags": [],
-     "memo": "",
-     "sortOrder": 6
     }
    ]
   },
   {
-   "id": "co-00ao",
+   "id": "co-00am",
    "name": "Green M",
    "level": "Green",
    "levelPreset": "Green",
@@ -1770,9 +1760,9 @@
    "homeroomTeacherName": "",
    "homeroomDaySuffix": "M",
    "classIds": [
+    "cl-00e9",
     "cl-00ea",
-    "cl-00eb",
-    "cl-00ec"
+    "cl-00eb"
    ],
    "subjectSlots": [],
    "students": [
@@ -1783,7 +1773,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00ap",
+     "id": "st-00an",
      "sortOrder": 0
     },
     {
@@ -1793,7 +1783,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00aq",
+     "id": "st-00ao",
      "sortOrder": 1
     },
     {
@@ -1803,8 +1793,18 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00ar",
+     "id": "st-00ap",
      "sortOrder": 2
+    },
+    {
+     "name": "조테나",
+     "nameEn": "Stuas",
+     "tmsMpidx": "900018",
+     "active": true,
+     "tags": [],
+     "memo": "",
+     "id": "st-00aq",
+     "sortOrder": 3
     },
     {
      "name": "윤테나",
@@ -1813,17 +1813,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00as",
-     "sortOrder": 3
-    },
-    {
-     "name": "장테나",
-     "nameEn": "Stuau",
-     "tmsMpidx": "900020",
-     "active": true,
-     "tags": [],
-     "memo": "",
-     "id": "st-00at",
+     "id": "st-00ar",
      "sortOrder": 4
     },
     {
@@ -1833,7 +1823,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00au",
+     "id": "st-00as",
      "sortOrder": 5
     },
     {
@@ -1843,23 +1833,13 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00av",
+     "id": "st-00at",
      "sortOrder": 6
-    },
-    {
-     "id": "st-00aw",
-     "name": "강테타",
-     "nameEn": "Stufh",
-     "tmsMpidx": "900137",
-     "active": true,
-     "tags": [],
-     "memo": "",
-     "sortOrder": 7
     }
    ]
   },
   {
-   "id": "co-00ay",
+   "id": "co-00au",
    "name": "Blue T",
    "level": "Blue",
    "levelPreset": "Blue",
@@ -1875,9 +1855,9 @@
    "homeroomTeacherName": "",
    "homeroomDaySuffix": "T",
    "classIds": [
+    "cl-00ec",
     "cl-00ed",
-    "cl-00ee",
-    "cl-00ef"
+    "cl-00ee"
    ],
    "subjectSlots": [],
    "students": [
@@ -1888,18 +1868,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00az",
+     "id": "st-00av",
      "sortOrder": 0
-    },
-    {
-     "name": "김테다",
-     "nameEn": "Stuay",
-     "tmsMpidx": "900024",
-     "active": true,
-     "tags": [],
-     "memo": "",
-     "id": "st-00b0",
-     "sortOrder": 1
     },
     {
      "name": "이테다",
@@ -1908,8 +1878,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00b1",
-     "sortOrder": 2
+     "id": "st-00aw",
+     "sortOrder": 1
     },
     {
      "name": "박테다",
@@ -1918,8 +1888,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00b2",
-     "sortOrder": 3
+     "id": "st-00ax",
+     "sortOrder": 2
     },
     {
      "name": "최테다",
@@ -1928,7 +1898,17 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00b3",
+     "id": "st-00ay",
+     "sortOrder": 3
+    },
+    {
+     "name": "정테다",
+     "nameEn": "Stubc",
+     "tmsMpidx": "900028",
+     "active": true,
+     "tags": [],
+     "memo": "",
+     "id": "st-00az",
      "sortOrder": 4
     },
     {
@@ -1938,23 +1918,13 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00b4",
+     "id": "st-00b0",
      "sortOrder": 5
-    },
-    {
-     "id": "st-00b5",
-     "name": "조테타",
-     "nameEn": "Stufi",
-     "tmsMpidx": "900138",
-     "active": true,
-     "tags": [],
-     "memo": "",
-     "sortOrder": 6
     }
    ]
   },
   {
-   "id": "co-00b7",
+   "id": "co-00b2",
    "name": "Purple M",
    "level": "Purple",
    "levelPreset": "Purple",
@@ -1971,13 +1941,23 @@
    "homeroomTeacherName": "",
    "homeroomDaySuffix": "M",
    "classIds": [
+    "cl-00ef",
     "cl-00eg",
     "cl-00eh",
-    "cl-00ei",
-    "cl-00ej"
+    "cl-00ei"
    ],
    "subjectSlots": [],
    "students": [
+    {
+     "name": "조테다",
+     "nameEn": "Stube",
+     "tmsMpidx": "900030",
+     "active": true,
+     "tags": [],
+     "memo": "",
+     "id": "st-00b3",
+     "sortOrder": 0
+    },
     {
      "name": "윤테다",
      "nameEn": "Stubf",
@@ -1985,8 +1965,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00b8",
-     "sortOrder": 0
+     "id": "st-00b4",
+     "sortOrder": 1
     },
     {
      "name": "장테다",
@@ -1995,8 +1975,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00b9",
-     "sortOrder": 1
+     "id": "st-00b5",
+     "sortOrder": 2
     },
     {
      "name": "임테다",
@@ -2005,8 +1985,18 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00ba",
-     "sortOrder": 2
+     "id": "st-00b6",
+     "sortOrder": 3
+    },
+    {
+     "name": "한테다",
+     "nameEn": "Stubi",
+     "tmsMpidx": "900034",
+     "active": true,
+     "tags": [],
+     "memo": "",
+     "id": "st-00b7",
+     "sortOrder": 4
     },
     {
      "name": "오테다",
@@ -2015,8 +2005,18 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00bb",
-     "sortOrder": 3
+     "id": "st-00b8",
+     "sortOrder": 5
+    },
+    {
+     "name": "김테라",
+     "nameEn": "Stubk",
+     "tmsMpidx": "900036",
+     "active": true,
+     "tags": [],
+     "memo": "",
+     "id": "st-00b9",
+     "sortOrder": 6
     },
     {
      "name": "이테라",
@@ -2025,23 +2025,23 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00bc",
-     "sortOrder": 4
+     "id": "st-00ba",
+     "sortOrder": 7
     },
     {
-     "id": "st-00bd",
-     "name": "윤테타",
-     "nameEn": "Stufj",
-     "tmsMpidx": "900139",
+     "id": "st-00bb",
+     "name": "강테타",
+     "nameEn": "Stufh",
+     "tmsMpidx": "900137",
      "active": true,
      "tags": [],
      "memo": "",
-     "sortOrder": 5
+     "sortOrder": 8
     }
    ]
   },
   {
-   "id": "co-00be",
+   "id": "co-00bd",
    "name": "Yeoul M",
    "level": "Yeoul",
    "levelPreset": "Yeoul",
@@ -2058,9 +2058,9 @@
    "homeroomTeacherName": "",
    "homeroomDaySuffix": "M",
    "classIds": [
+    "cl-00ej",
     "cl-00ek",
-    "cl-00el",
-    "cl-00em"
+    "cl-00el"
    ],
    "subjectSlots": [],
    "students": [
@@ -2071,7 +2071,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00bf",
+     "id": "st-00be",
      "sortOrder": 0
     },
     {
@@ -2081,7 +2081,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00bg",
+     "id": "st-00bf",
      "sortOrder": 1
     },
     {
@@ -2091,7 +2091,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00bh",
+     "id": "st-00bg",
      "sortOrder": 2
     },
     {
@@ -2101,7 +2101,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00bi",
+     "id": "st-00bh",
      "sortOrder": 3
     },
     {
@@ -2111,8 +2111,18 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00bj",
+     "id": "st-00bi",
      "sortOrder": 4
+    },
+    {
+     "name": "윤테라",
+     "nameEn": "Stubr",
+     "tmsMpidx": "900043",
+     "active": true,
+     "tags": [],
+     "memo": "",
+     "id": "st-00bj",
+     "sortOrder": 5
     },
     {
      "name": "장테라",
@@ -2122,7 +2132,7 @@
      "tags": [],
      "memo": "",
      "id": "st-00bk",
-     "sortOrder": 5
+     "sortOrder": 6
     },
     {
      "name": "임테라",
@@ -2132,12 +2142,22 @@
      "tags": [],
      "memo": "",
      "id": "st-00bl",
-     "sortOrder": 6
+     "sortOrder": 7
+    },
+    {
+     "id": "st-00bm",
+     "name": "조테타",
+     "nameEn": "Stufi",
+     "tmsMpidx": "900138",
+     "active": true,
+     "tags": [],
+     "memo": "",
+     "sortOrder": 8
     }
    ]
   },
   {
-   "id": "co-00bm",
+   "id": "co-00bo",
    "name": "Saemmul M",
    "level": "Saemmul",
    "levelPreset": "Saemmul",
@@ -2154,12 +2174,22 @@
    "homeroomTeacherName": "",
    "homeroomDaySuffix": "M",
    "classIds": [
+    "cl-00em",
     "cl-00en",
-    "cl-00eo",
-    "cl-00ep"
+    "cl-00eo"
    ],
    "subjectSlots": [],
    "students": [
+    {
+     "name": "한테라",
+     "nameEn": "Stubu",
+     "tmsMpidx": "900046",
+     "active": true,
+     "tags": [],
+     "memo": "",
+     "id": "st-00bp",
+     "sortOrder": 0
+    },
     {
      "name": "오테라",
      "nameEn": "Stubv",
@@ -2167,8 +2197,18 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00bn",
-     "sortOrder": 0
+     "id": "st-00bq",
+     "sortOrder": 1
+    },
+    {
+     "name": "김테마",
+     "nameEn": "Stubw",
+     "tmsMpidx": "900048",
+     "active": true,
+     "tags": [],
+     "memo": "",
+     "id": "st-00br",
+     "sortOrder": 2
     },
     {
      "name": "이테마",
@@ -2177,8 +2217,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00bo",
-     "sortOrder": 1
+     "id": "st-00bs",
+     "sortOrder": 3
     },
     {
      "name": "박테마",
@@ -2187,8 +2227,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00bp",
-     "sortOrder": 2
+     "id": "st-00bt",
+     "sortOrder": 4
     },
     {
      "name": "최테마",
@@ -2197,8 +2237,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00bq",
-     "sortOrder": 3
+     "id": "st-00bu",
+     "sortOrder": 5
     },
     {
      "name": "정테마",
@@ -2207,8 +2247,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00br",
-     "sortOrder": 4
+     "id": "st-00bv",
+     "sortOrder": 6
     },
     {
      "name": "강테마",
@@ -2217,13 +2257,23 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00bs",
-     "sortOrder": 5
+     "id": "st-00bw",
+     "sortOrder": 7
+    },
+    {
+     "id": "st-00bx",
+     "name": "윤테타",
+     "nameEn": "Stufj",
+     "tmsMpidx": "900139",
+     "active": true,
+     "tags": [],
+     "memo": "",
+     "sortOrder": 8
     }
    ]
   },
   {
-   "id": "co-00bu",
+   "id": "co-00by",
    "name": "Garam M",
    "level": "Garam",
    "levelPreset": "Garam",
@@ -2240,11 +2290,11 @@
    "homeroomTeacherName": "",
    "homeroomDaySuffix": "M",
    "classIds": [
+    "cl-00ep",
     "cl-00eq",
     "cl-00er",
     "cl-00es",
-    "cl-00et",
-    "cl-00eu"
+    "cl-00et"
    ],
    "subjectSlots": [],
    "students": [
@@ -2255,18 +2305,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00bv",
+     "id": "st-00bz",
      "sortOrder": 0
-    },
-    {
-     "name": "윤테마",
-     "nameEn": "Stucd",
-     "tmsMpidx": "900055",
-     "active": true,
-     "tags": [],
-     "memo": "",
-     "id": "st-00bw",
-     "sortOrder": 1
     },
     {
      "name": "장테마",
@@ -2275,18 +2315,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00bx",
-     "sortOrder": 2
-    },
-    {
-     "name": "임테마",
-     "nameEn": "Stucf",
-     "tmsMpidx": "900057",
-     "active": true,
-     "tags": [],
-     "memo": "",
-     "id": "st-00by",
-     "sortOrder": 3
+     "id": "st-00c0",
+     "sortOrder": 1
     },
     {
      "name": "한테마",
@@ -2295,8 +2325,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00bz",
-     "sortOrder": 4
+     "id": "st-00c1",
+     "sortOrder": 2
     },
     {
      "name": "오테마",
@@ -2305,8 +2335,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00c0",
-     "sortOrder": 5
+     "id": "st-00c2",
+     "sortOrder": 3
     },
     {
      "name": "김테바",
@@ -2315,23 +2345,13 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00c1",
-     "sortOrder": 6
-    },
-    {
-     "id": "st-00c2",
-     "name": "장테타",
-     "nameEn": "Stufk",
-     "tmsMpidx": "900140",
-     "active": true,
-     "tags": [],
-     "memo": "",
-     "sortOrder": 7
+     "id": "st-00c3",
+     "sortOrder": 4
     }
    ]
   },
   {
-   "id": "co-00c4",
+   "id": "co-00c5",
    "name": "Bada M",
    "level": "Bada",
    "levelPreset": "Bada",
@@ -2348,11 +2368,11 @@
    "homeroomTeacherName": "",
    "homeroomDaySuffix": "M",
    "classIds": [
+    "cl-00eu",
     "cl-00ev",
-    "cl-00ew",
+    "cl-00ex",
     "cl-00ey",
-    "cl-00ez",
-    "cl-00es"
+    "cl-00er"
    ],
    "subjectSlots": [],
    "students": [
@@ -2363,8 +2383,18 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00c5",
+     "id": "st-00c6",
      "sortOrder": 0
+    },
+    {
+     "name": "박테바",
+     "nameEn": "Stuck",
+     "tmsMpidx": "900062",
+     "active": true,
+     "tags": [],
+     "memo": "",
+     "id": "st-00c7",
+     "sortOrder": 1
     },
     {
      "name": "최테바",
@@ -2373,8 +2403,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00c6",
-     "sortOrder": 1
+     "id": "st-00c8",
+     "sortOrder": 2
     },
     {
      "name": "정테바",
@@ -2383,17 +2413,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00c7",
-     "sortOrder": 2
-    },
-    {
-     "name": "강테바",
-     "nameEn": "Stucn",
-     "tmsMpidx": "900065",
-     "active": true,
-     "tags": [],
-     "memo": "",
-     "id": "st-00c8",
+     "id": "st-00c9",
      "sortOrder": 3
     },
     {
@@ -2403,7 +2423,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00c9",
+     "id": "st-00ca",
      "sortOrder": 4
     },
     {
@@ -2413,23 +2433,33 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00ca",
+     "id": "st-00cb",
      "sortOrder": 5
     },
     {
-     "id": "st-00cb",
-     "name": "임테타",
-     "nameEn": "Stufl",
-     "tmsMpidx": "900141",
+     "name": "장테바",
+     "nameEn": "Stucq",
+     "tmsMpidx": "900068",
      "active": true,
      "tags": [],
      "memo": "",
+     "id": "st-00cc",
      "sortOrder": 6
+    },
+    {
+     "id": "st-00cd",
+     "name": "장테타",
+     "nameEn": "Stufk",
+     "tmsMpidx": "900140",
+     "active": true,
+     "tags": [],
+     "memo": "",
+     "sortOrder": 7
     }
    ]
   },
   {
-   "id": "co-00cc",
+   "id": "co-00cf",
    "name": "Byeolmaru M",
    "level": "Byeolmaru",
    "levelPreset": "Byeolmaru",
@@ -2446,10 +2476,10 @@
    "homeroomTeacherName": "",
    "homeroomDaySuffix": "M",
    "classIds": [
+    "cl-00ez",
     "cl-00f0",
     "cl-00f1",
-    "cl-00f2",
-    "cl-00f3"
+    "cl-00f2"
    ],
    "subjectSlots": [],
    "students": [
@@ -2460,7 +2490,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00cd",
+     "id": "st-00cg",
      "sortOrder": 0
     },
     {
@@ -2470,7 +2500,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00ce",
+     "id": "st-00ch",
      "sortOrder": 1
     },
     {
@@ -2480,7 +2510,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00cf",
+     "id": "st-00ci",
      "sortOrder": 2
     },
     {
@@ -2490,7 +2520,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00cg",
+     "id": "st-00cj",
      "sortOrder": 3
     },
     {
@@ -2500,7 +2530,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00ch",
+     "id": "st-00ck",
      "sortOrder": 4
     },
     {
@@ -2510,18 +2540,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00ci",
+     "id": "st-00cl",
      "sortOrder": 5
-    },
-    {
-     "name": "최테사",
-     "nameEn": "Stucx",
-     "tmsMpidx": "900075",
-     "active": true,
-     "tags": [],
-     "memo": "",
-     "id": "st-00cj",
-     "sortOrder": 6
     },
     {
      "name": "정테사",
@@ -2530,13 +2550,23 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00ck",
+     "id": "st-00cm",
+     "sortOrder": 6
+    },
+    {
+     "id": "st-00cn",
+     "name": "임테타",
+     "nameEn": "Stufl",
+     "tmsMpidx": "900141",
+     "active": true,
+     "tags": [],
+     "memo": "",
      "sortOrder": 7
     }
    ]
   },
   {
-   "id": "co-00cl",
+   "id": "co-00cp",
    "name": "Mirinae M",
    "level": "Mirinae",
    "levelPreset": "Mirinae",
@@ -2553,23 +2583,13 @@
    "homeroomTeacherName": "",
    "homeroomDaySuffix": "M",
    "classIds": [
+    "cl-00f4",
     "cl-00f5",
     "cl-00f6",
-    "cl-00f7",
-    "cl-00f0"
+    "cl-00ez"
    ],
    "subjectSlots": [],
    "students": [
-    {
-     "name": "강테사",
-     "nameEn": "Stucz",
-     "tmsMpidx": "900077",
-     "active": true,
-     "tags": [],
-     "memo": "",
-     "id": "st-00cm",
-     "sortOrder": 0
-    },
     {
      "name": "조테사",
      "nameEn": "Studa",
@@ -2577,7 +2597,17 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00cn",
+     "id": "st-00cq",
+     "sortOrder": 0
+    },
+    {
+     "name": "윤테사",
+     "nameEn": "Studb",
+     "tmsMpidx": "900079",
+     "active": true,
+     "tags": [],
+     "memo": "",
+     "id": "st-00cr",
      "sortOrder": 1
     },
     {
@@ -2587,7 +2617,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00co",
+     "id": "st-00cs",
      "sortOrder": 2
     },
     {
@@ -2597,7 +2627,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00cp",
+     "id": "st-00ct",
      "sortOrder": 3
     },
     {
@@ -2607,23 +2637,23 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00cq",
+     "id": "st-00cu",
      "sortOrder": 4
     },
     {
-     "name": "오테사",
-     "nameEn": "Studf",
-     "tmsMpidx": "900083",
+     "id": "st-00cv",
+     "name": "한테타",
+     "nameEn": "Stufm",
+     "tmsMpidx": "900142",
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00cr",
      "sortOrder": 5
     }
    ]
   },
   {
-   "id": "co-00cs",
+   "id": "co-00cx",
    "name": "Yeoul T",
    "level": "Yeoul",
    "levelPreset": "Yeoul",
@@ -2639,23 +2669,13 @@
    "homeroomTeacherName": "",
    "homeroomDaySuffix": "T",
    "classIds": [
+    "cl-00f7",
     "cl-00f8",
     "cl-00f9",
-    "cl-00fa",
-    "cl-00fb"
+    "cl-00fa"
    ],
    "subjectSlots": [],
    "students": [
-    {
-     "name": "윤테아",
-     "nameEn": "Studn",
-     "tmsMpidx": "900091",
-     "active": true,
-     "tags": [],
-     "memo": "",
-     "id": "st-00ct",
-     "sortOrder": 0
-    },
     {
      "name": "장테아",
      "nameEn": "Studo",
@@ -2663,18 +2683,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00cu",
-     "sortOrder": 1
-    },
-    {
-     "name": "임테아",
-     "nameEn": "Studp",
-     "tmsMpidx": "900093",
-     "active": true,
-     "tags": [],
-     "memo": "",
-     "id": "st-00cv",
-     "sortOrder": 2
+     "id": "st-00cy",
+     "sortOrder": 0
     },
     {
      "name": "한테아",
@@ -2683,8 +2693,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00cw",
-     "sortOrder": 3
+     "id": "st-00cz",
+     "sortOrder": 1
     },
     {
      "name": "오테아",
@@ -2693,8 +2703,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00cx",
-     "sortOrder": 4
+     "id": "st-00d0",
+     "sortOrder": 2
     },
     {
      "name": "김테자",
@@ -2703,8 +2713,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00cy",
-     "sortOrder": 5
+     "id": "st-00d1",
+     "sortOrder": 3
     },
     {
      "name": "이테자",
@@ -2713,8 +2723,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00cz",
-     "sortOrder": 6
+     "id": "st-00d2",
+     "sortOrder": 4
     },
     {
      "name": "박테자",
@@ -2723,13 +2733,23 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00d0",
-     "sortOrder": 7
+     "id": "st-00d3",
+     "sortOrder": 5
+    },
+    {
+     "id": "st-00d4",
+     "name": "오테타",
+     "nameEn": "Stufn",
+     "tmsMpidx": "900143",
+     "active": true,
+     "tags": [],
+     "memo": "",
+     "sortOrder": 6
     }
    ]
   },
   {
-   "id": "co-00d2",
+   "id": "co-00d5",
    "name": "Saemmul T",
    "level": "Saemmul",
    "levelPreset": "Saemmul",
@@ -2745,10 +2765,10 @@
    "homeroomTeacherName": "",
    "homeroomDaySuffix": "T",
    "classIds": [
+    "cl-00fb",
     "cl-00fc",
     "cl-00fd",
-    "cl-00fe",
-    "cl-00ff"
+    "cl-00fe"
    ],
    "subjectSlots": [],
    "students": [
@@ -2759,7 +2779,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00d3",
+     "id": "st-00d6",
      "sortOrder": 0
     },
     {
@@ -2769,7 +2789,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00d4",
+     "id": "st-00d7",
      "sortOrder": 1
     },
     {
@@ -2779,8 +2799,18 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00d5",
+     "id": "st-00d8",
      "sortOrder": 2
+    },
+    {
+     "name": "조테자",
+     "nameEn": "Study",
+     "tmsMpidx": "900102",
+     "active": true,
+     "tags": [],
+     "memo": "",
+     "id": "st-00d9",
+     "sortOrder": 3
     },
     {
      "name": "윤테자",
@@ -2789,8 +2819,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00d6",
-     "sortOrder": 3
+     "id": "st-00da",
+     "sortOrder": 4
     },
     {
      "name": "장테자",
@@ -2799,8 +2829,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00d7",
-     "sortOrder": 4
+     "id": "st-00db",
+     "sortOrder": 5
     },
     {
      "name": "임테자",
@@ -2809,23 +2839,13 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00d8",
-     "sortOrder": 5
-    },
-    {
-     "id": "st-00d9",
-     "name": "한테타",
-     "nameEn": "Stufm",
-     "tmsMpidx": "900142",
-     "active": true,
-     "tags": [],
-     "memo": "",
+     "id": "st-00dc",
      "sortOrder": 6
     }
    ]
   },
   {
-   "id": "co-00da",
+   "id": "co-00dd",
    "name": "Garam T",
    "level": "Garam",
    "levelPreset": "Garam",
@@ -2841,10 +2861,10 @@
    "homeroomTeacherName": "",
    "homeroomDaySuffix": "T",
    "classIds": [
+    "cl-00ff",
     "cl-00fg",
     "cl-00fh",
-    "cl-00fi",
-    "cl-00fj"
+    "cl-00fi"
    ],
    "subjectSlots": [],
    "students": [
@@ -2855,7 +2875,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00db",
+     "id": "st-00de",
      "sortOrder": 0
     },
     {
@@ -2865,8 +2885,18 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00dc",
+     "id": "st-00df",
      "sortOrder": 1
+    },
+    {
+     "name": "김테차",
+     "nameEn": "Stuee",
+     "tmsMpidx": "900108",
+     "active": true,
+     "tags": [],
+     "memo": "",
+     "id": "st-00dg",
+     "sortOrder": 2
     },
     {
      "name": "이테차",
@@ -2875,8 +2905,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00dd",
-     "sortOrder": 2
+     "id": "st-00dh",
+     "sortOrder": 3
     },
     {
      "name": "박테차",
@@ -2885,17 +2915,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00de",
-     "sortOrder": 3
-    },
-    {
-     "name": "최테차",
-     "nameEn": "Stueh",
-     "tmsMpidx": "900111",
-     "active": true,
-     "tags": [],
-     "memo": "",
-     "id": "st-00df",
+     "id": "st-00di",
      "sortOrder": 4
     },
     {
@@ -2905,7 +2925,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00dg",
+     "id": "st-00dj",
      "sortOrder": 5
     },
     {
@@ -2915,13 +2935,13 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00dh",
+     "id": "st-00dk",
      "sortOrder": 6
     }
    ]
   },
   {
-   "id": "co-00dj",
+   "id": "co-00dl",
    "name": "Bada T",
    "level": "Bada",
    "levelPreset": "Bada",
@@ -2937,10 +2957,10 @@
    "homeroomTeacherName": "",
    "homeroomDaySuffix": "T",
    "classIds": [
+    "cl-00fj",
     "cl-00fk",
     "cl-00fl",
-    "cl-00fm",
-    "cl-00fn"
+    "cl-00fm"
    ],
    "subjectSlots": [],
    "students": [
@@ -2951,7 +2971,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00dk",
+     "id": "st-00dm",
      "sortOrder": 0
     },
     {
@@ -2961,7 +2981,7 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00dl",
+     "id": "st-00dn",
      "sortOrder": 1
     },
     {
@@ -2971,18 +2991,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00dm",
+     "id": "st-00do",
      "sortOrder": 2
-    },
-    {
-     "name": "임테차",
-     "nameEn": "Stuen",
-     "tmsMpidx": "900117",
-     "active": true,
-     "tags": [],
-     "memo": "",
-     "id": "st-00dn",
-     "sortOrder": 3
     },
     {
      "name": "한테차",
@@ -2991,8 +3001,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00do",
-     "sortOrder": 4
+     "id": "st-00dp",
+     "sortOrder": 3
     },
     {
      "name": "오테차",
@@ -3001,8 +3011,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00dp",
-     "sortOrder": 5
+     "id": "st-00dq",
+     "sortOrder": 4
     },
     {
      "name": "김테카",
@@ -3011,8 +3021,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00dq",
-     "sortOrder": 6
+     "id": "st-00dr",
+     "sortOrder": 5
     },
     {
      "name": "이테카",
@@ -3021,18 +3031,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00dr",
-     "sortOrder": 7
-    },
-    {
      "id": "st-00ds",
-     "name": "오테타",
-     "nameEn": "Stufn",
-     "tmsMpidx": "900143",
-     "active": true,
-     "tags": [],
-     "memo": "",
-     "sortOrder": 8
+     "sortOrder": 6
     }
    ]
   },
@@ -3053,10 +3053,10 @@
    "homeroomTeacherName": "",
    "homeroomDaySuffix": "T",
    "classIds": [
+    "cl-00fn",
     "cl-00fo",
     "cl-00fp",
-    "cl-00fq",
-    "cl-00fr"
+    "cl-00fq"
    ],
    "subjectSlots": [],
    "students": [
@@ -3071,34 +3071,14 @@
      "sortOrder": 0
     },
     {
-     "name": "최테카",
-     "nameEn": "Stuet",
-     "tmsMpidx": "900123",
-     "active": true,
-     "tags": [],
-     "memo": "",
-     "id": "st-00dv",
-     "sortOrder": 1
-    },
-    {
-     "name": "정테카",
-     "nameEn": "Stueu",
-     "tmsMpidx": "900124",
-     "active": true,
-     "tags": [],
-     "memo": "",
-     "id": "st-00dw",
-     "sortOrder": 2
-    },
-    {
      "name": "강테카",
      "nameEn": "Stuev",
      "tmsMpidx": "900125",
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00dx",
-     "sortOrder": 3
+     "id": "st-00dv",
+     "sortOrder": 1
     },
     {
      "name": "조테카",
@@ -3107,8 +3087,18 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00dy",
-     "sortOrder": 4
+     "id": "st-00dw",
+     "sortOrder": 2
+    },
+    {
+     "name": "윤테카",
+     "nameEn": "Stuex",
+     "tmsMpidx": "900127",
+     "active": true,
+     "tags": [],
+     "memo": "",
+     "id": "st-00dx",
+     "sortOrder": 3
     },
     {
      "name": "장테카",
@@ -3117,8 +3107,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00dz",
-     "sortOrder": 5
+     "id": "st-00dy",
+     "sortOrder": 4
     },
     {
      "name": "임테카",
@@ -3127,8 +3117,8 @@
      "active": true,
      "tags": [],
      "memo": "",
-     "id": "st-00e0",
-     "sortOrder": 6
+     "id": "st-00dz",
+     "sortOrder": 5
     }
    ]
   }
@@ -3249,9 +3239,9 @@
   {
    "id": "tp-0001",
    "userId": "sample-teacher-1",
+   "color": "",
    "name": "김테하",
    "role": "korean",
-   "color": "",
    "limits": {
     "maxPeriodsPerWeek": 22,
     "maxPeriodsPerDay": 6,
@@ -3308,9 +3298,9 @@
   {
    "id": "tp-0002",
    "userId": "sample-teacher-2",
+   "color": "",
    "name": "박테라",
    "role": "korean",
-   "color": "",
    "limits": {
     "maxPeriodsPerWeek": 22,
     "maxPeriodsPerDay": 6,
@@ -3367,9 +3357,9 @@
   {
    "id": "tp-0003",
    "userId": "sample-teacher-3",
+   "color": "",
    "name": "이테소",
    "role": "korean",
-   "color": "",
    "limits": {
     "maxPeriodsPerWeek": 22,
     "maxPeriodsPerDay": 6,
@@ -3426,9 +3416,9 @@
   {
    "id": "tp-0004",
    "userId": "sample-teacher-4",
+   "color": "",
    "name": "최테나",
    "role": "korean",
-   "color": "",
    "limits": {
     "maxPeriodsPerWeek": 22,
     "maxPeriodsPerDay": 6,
@@ -3485,9 +3475,9 @@
   {
    "id": "tp-0005",
    "userId": "sample-teacher-5",
+   "color": "",
    "name": "Ava Testa",
    "role": "native",
-   "color": "",
    "limits": {
     "maxPeriodsPerWeek": 22,
     "maxPeriodsPerDay": 6,

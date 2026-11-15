@@ -2944,6 +2944,8 @@
         spEditClassFull: '전체 수업 편집기 열기 ↗',
         spUndoTip: '실행 취소 (Ctrl+Z)',
         spRedoTip: '다시 실행 (Ctrl+Y)',
+        spWhyCohortDay: '학생들은 월수금 2교시, 화목 3교시만 학원에 있습니다',
+        spIssueCohortDay: '{cohort} 반이 {day}에 {span}교시 동안 학원에 있습니다 (최대 {limit}교시)',
         spIssuesNone: '고칠 것이 없습니다. 보드를 확인한 뒤 캘린더에 적용을 누르세요.',
         spHintOwnCohort: '원래 반 열({name})에 들어갑니다',
         spHintSwap: '{name}와(과) 자리 바꾸기',

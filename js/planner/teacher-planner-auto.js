@@ -319,6 +319,9 @@
                         if (picked.some((x) => x.dow === dow && x.n === n)) return;
                         if ((demand.cohortIds || []).some((cid) => cohortBusy.has(`${cid}|${dow}|${n}`))) return;
                         if (api.outsideStudentHours(appData, demand, n, dow)) return;
+                        // Hard: a cohort is only in 2 periods on MWF and 3 on Tue/Thu, first class to last.
+                        if ((demand.cohortIds || []).some((cid) => api.periodSpan((cohortDay.get(`${cid}|${dow}`) || [])
+                            .concat(picked.filter((x) => x.dow === dow).map((x) => x.n), [n])) > api.usualCohortPeriods(dow))) return;
                         const mine = tDay(dow);
                         if (!teacherCanTake(teacher, dow, n, mine)) return;
                         // Prefer times when a room that seats the class is free (a room is never shared or overfilled).
@@ -334,8 +337,6 @@
                             if (!theirs.length) return;
                             const dist = Math.min(...theirs.map((x) => Math.abs(x - n)));
                             score += dist === 1 ? 6 : -6 * (dist - 1);
-                            // Usually 2 periods a day on MWF and 3 on Tue/Thu: more than that is not liked.
-                            if (theirs.length >= api.usualCohortPeriods(dow)) score -= 8;
                         });
                         if (teacher) {
                             score += w.breaks * (dayShapeScore(mine.concat([n]), runLimit) - dayShapeScore(mine, runLimit));
@@ -363,7 +364,21 @@
         };
 
         const only = Array.isArray(opts.onlyDemandIds) ? new Set(opts.onlyDemandIds) : null;
-        const todo = demands
+        // opts.seed: break ties between equally hard classes in another order (used to retry a tight term).
+        let order = demands;
+        if (opts.seed) {
+            let x = Number(opts.seed) || 1;
+            const rnd = () => {
+                x = (x * 1103515245 + 12345) % 2147483648;
+                return x / 2147483648;
+            };
+            order = demands.slice();
+            for (let i = order.length - 1; i > 0; i -= 1) {
+                const j = Math.floor(rnd() * (i + 1));
+                [order[i], order[j]] = [order[j], order[i]];
+            }
+        }
+        const todo = order
             .filter((d) => !only || only.has(d.demandId))
             .filter((d) => missingOf(d) > 0 || !(asgOf(d) && asgOf(d).teacherProfileId))
             .map((d) => {
@@ -385,6 +400,7 @@
                 || api.weeklyNeed(b.d) - api.weeklyNeed(a.d));
 
         const result = { placed: 0, teachersSet: 0, unplaced: [] };
+        const teacherPickedNow = new Set(); // assignments whose teacher this run chose
 
         todo.forEach(({ d: demand }) => {
             let asg = asgOf(demand);
@@ -449,6 +465,7 @@
                     ? { count: best.kept.count, total: (analysis.byDemand.get(demand.demandId) || {}).total || 0, sameSubject: best.kept.sameSubject }
                     : {};
                 result.teachersSet += 1;
+                teacherPickedNow.add(asg);
                 (asg.meetings || []).forEach((m) => {
                     teacherBusy.add(`${best.teacher.id}|${Number(m.dow)}|${Number(m.period)}`);
                     push(teacherDay, `${best.teacher.id}|${Number(m.dow)}`, Number(m.period));
@@ -471,6 +488,10 @@
          * home. If they cannot all be re-homed the try is undone. Nothing placed before this run moves.
          */
         const teacherOf = (asg) => (asg.teacherProfileId ? teachers.find((t) => t.id === asg.teacherProfileId) || null : null);
+        // Would this period make a cohort of the class stay longer than allowed that day? (classes at
+        // the same time are about to be moved away, so the span is counted without that period twice)
+        const spanTooLong = (demand, dow, n) => (demand.cohortIds || []).some((cid) =>
+            api.periodSpan((cohortDay.get(`${cid}|${dow}`) || []).concat([n])) > api.usualCohortPeriods(dow));
         const tryEject = (demand, asg) => {
             const teacher = teacherOf(asg);
             const days = classDays(demand);
@@ -482,6 +503,7 @@
                     const n = periods[pi];
                     if ((asg.meetings || []).some((m) => Number(m.dow) === dow && Number(m.period) === n)) continue;
                     if (api.outsideStudentHours(appData, demand, n, dow)) continue;
+                    if (spanTooLong(demand, dow, n, asg)) continue;
                     const inTheWay = [];
                     let fixedInTheWay = false;
                     draft.assignments.forEach((other) => {
@@ -497,7 +519,14 @@
                             else inTheWay.push({ asg: other, m, demand: od });
                         });
                     });
-                    if (fixedInTheWay || !inTheWay.length || inTheWay.length > 2) continue;
+                    if (fixedInTheWay || inTheWay.length > 2) continue;
+                    if (!inTheWay.length) {
+                        // Free for the cohort and the teacher (e.g. after trying another teacher): just take it.
+                        const mineFree = teacher ? (teacherDay.get(`${teacher.id}|${dow}`) || []) : [];
+                        if (!teacherCanTake(teacher, dow, n, mineFree)) continue;
+                        addMeeting(asg, demand, dow, n);
+                        return true;
+                    }
                     const saved = [[asg, asg.meetings]].concat(inTheWay.map((o) => [o.asg, o.asg.meetings]));
                     const undo = () => {
                         saved.forEach(([a, list]) => { a.meetings = list; });
@@ -533,7 +562,23 @@
                 const demand = demandById.get(u.demandId);
                 const asg = demand && asgOf(demand);
                 if (!asg) return;
-                if (tryEject(demand, asg)) {
+                let ok = tryEject(demand, asg);
+                if (!ok && teacherPickedNow.has(asg) && !(asg.meetings || []).length) {
+                    // Nothing placed yet and the teacher was only this run's guess: try the other teachers who may take it.
+                    const first = asg.teacherProfileId;
+                    ok = eligible(demand).filter((tc) => tc.id !== first).some((tc) => {
+                        asg.teacherProfileId = tc.id;
+                        asg.userId = tc.userId || null;
+                        if (tryEject(demand, asg)) return true;
+                        return false;
+                    });
+                    if (!ok) {
+                        const back = teachers.find((tc) => tc.id === first);
+                        asg.teacherProfileId = first;
+                        asg.userId = back ? back.userId || null : null;
+                    }
+                }
+                if (ok) {
                     u.missing -= 1;
                     result.placed += 1;
                     result.repaired = (result.repaired || 0) + 1;
@@ -782,8 +827,19 @@
         const seen = new Set();
         const out = [];
         Object.keys(PRIORITIES).forEach((id) => {
-            const copy = JSON.parse(JSON.stringify(draft));
-            const result = autoSchedule(appData, copy, { analysis, priority: id });
+            // A tight term can leave a class out; then try again with ties broken in other orders.
+            let copy = null;
+            let result = null;
+            for (let attempt = 0; attempt < 16; attempt += 1) {
+                const tryDraft = JSON.parse(JSON.stringify(draft));
+                const tryResult = autoSchedule(appData, tryDraft, { analysis, priority: id, seed: attempt ? attempt * 7919 : 0 });
+                const missing = (r) => r.unplaced.reduce((n, u) => n + (u.missing || 0), 0);
+                if (!result || missing(tryResult) < missing(result)) {
+                    copy = tryDraft;
+                    result = tryResult;
+                }
+                if (!missing(result)) break;
+            }
             const sig = signature(copy);
             if (seen.has(sig)) return;
             seen.add(sig);

@@ -2945,6 +2945,8 @@
         spEditClassFull: 'Open the full class editor ↗',
         spUndoTip: 'Undo (Ctrl+Z)',
         spRedoTip: 'Redo (Ctrl+Y)',
+        spWhyCohortDay: 'Students are only here 2 periods on Mon/Wed/Fri and 3 on Tue/Thu',
+        spIssueCohortDay: '{cohort} is at the academy {span} periods on {day} (most is {limit})',
         spIssuesNone: 'Nothing to fix. Check the board, then press Apply to calendar.',
         spHintOwnCohort: 'Goes in its own column ({name})',
         spHintSwap: 'Swap with {name}',

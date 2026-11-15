@@ -178,11 +178,10 @@ console.log('planner-auto tests passed');
             { id: 'o', name: 'Orange', meetingDays: [1, 3, 5], level: 'Orange', students: kids(12, 'o') },
             { id: 'g', name: 'Green', meetingDays: [1, 3, 5], level: 'Green', students: kids(6, 'g') }
         ],
-        // Junior hours are 3 periods a day x 3 days = 9 slots; each cohort needs all 9.
+        // An MWF cohort is in 2 periods a day x 3 days = 6 slots; each cohort needs all 6.
         classes: [].concat(...['o', 'g'].map((c) => [
             { id: `${c}1`, name: `${c} Debate`, cohortIds: [c], weeklyFrequency: 2 },
-            { id: `${c}2`, name: `${c} RC`, cohortIds: [c], weeklyFrequency: 2 },
-            { id: `${c}3`, name: `${c} Grammar`, cohortIds: [c], weeklyFrequency: 2 },
+            { id: `${c}2`, name: `${c} RC`, cohortIds: [c], weeklyFrequency: 1 },
             { id: `${c}4`, name: `${c} Speaking`, cohortIds: [c], weeklyFrequency: 3, teacherRequirementType: 'native' }
         ])),
         teacherProfiles: [
@@ -194,7 +193,7 @@ console.log('planner-auto tests passed');
     api.ensurePlannerFields(d);
     auto.buildOptions(d, { id: 'f', assignments: [], issues: [], metrics: {} }, undefined).forEach((o) => {
         assert(o.result.unplaced.length === 0, `${o.id}: full timetable placed (${JSON.stringify(o.result.unplaced)})`);
-        assert(o.stats.ready === 8 && o.stats.clashes === 0, `${o.id}: all ready, no clashes`);
+        assert(o.stats.ready === 6 && o.stats.clashes === 0, `${o.id}: all ready, no clashes`);
         assert(!o.draft.issues.some((i) => i.code === 'room_too_small'), `${o.id}: rooms fit`);
         assert(!o.draft.issues.some((i) => i.code === 'long_run' || i.code === 'outside_band_block'), `${o.id}: rules kept`);
     });
@@ -294,7 +293,7 @@ console.log('planner-auto tests passed');
             { id: 'bm', name: 'Blue M', levelPreset: 'Blue', scheduleBlock: 'primary', meetingDays: [1, 3, 5] },
             { id: 'gt', name: 'Garam T', levelPreset: 'Garam', scheduleBlock: 'secondary', meetingDays: [2, 4] }
         ],
-        classes: ['Debate', 'RC', 'Grammar', 'Speaking'].map((s, i) => ({ id: `t${i}`, name: `Blue T ${s}`, cohortIds: ['bt'], weeklyFrequency: 2 }))
+        classes: ['Debate', 'RC', 'Grammar'].map((s, i) => ({ id: `t${i}`, name: `Blue T ${s}`, cohortIds: ['bt'], weeklyFrequency: 2 }))
             .concat([{ id: 'm0', name: 'Blue M Debate', cohortIds: ['bm'], weeklyFrequency: 1 }, { id: 'g0', name: 'Garam T Debate', cohortIds: ['gt'], weeklyFrequency: 1 }]),
         teacherProfiles: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'c', name: 'C' }]
     };
@@ -305,7 +304,7 @@ console.log('planner-auto tests passed');
     assert(!api.outsideStudentHours(d, dm('g0'), 4, 2) && api.outsideStudentHours(d, dm('g0'), 3, 2), 'senior starts 17:00 on Tue/Thu');
     assert(!api.outsideStudentHours(d, dm('g0'), 7, 2) && api.outsideStudentHours(d, dm('g0'), 8, 2), 'upper elementary: periods 4-7');
     assert(api.usualCohortPeriods(1) === 2 && api.usualCohortPeriods(2) === 3, 'usual periods a day: 2 MWF, 3 Tue/Thu');
-    // 4 classes x 2 a week = 8 periods in 2 days x 4 periods: fits only with the longer Tue/Thu block.
+    // 3 classes x 2 a week = 6 periods: 3 a day on Tue/Thu, the most a cohort is in.
     const dr = { id: 'tt', assignments: [], issues: [], metrics: {} };
     const res = auto.autoSchedule(d, dr, {});
     assert(res.unplaced.length === 0, `Tue/Thu cohort fully placed: ${JSON.stringify(res.unplaced)}`);
@@ -356,4 +355,43 @@ console.log('planner-auto tests passed');
         assert(n <= 7, `${tid} has ${n} periods, limit 7`);
     });
     console.log('weekly limit tests passed');
+}
+
+/* A cohort is at the academy at most 2 periods on MWF and 3 on Tue/Thu: auto never breaks it; by hand it warns. */
+{
+    const d = {
+        cohorts: [
+            { id: 'm', name: 'Garam M', levelPreset: 'Garam', meetingDays: [1, 3, 5] },
+            { id: 't', name: 'Garam T', levelPreset: 'Garam', meetingDays: [2, 4] }
+        ],
+        classes: [
+            { id: 'm1', name: 'M Debate', cohortIds: ['m'], weeklyFrequency: 1 },
+            { id: 'm2', name: 'M RC', cohortIds: ['m'], weeklyFrequency: 1 },
+            { id: 'm3', name: 'M News', cohortIds: ['m'], weeklyFrequency: 1 },
+            { id: 't1', name: 'T Debate', cohortIds: ['t'], weeklyFrequency: 1 },
+            { id: 't2', name: 'T RC', cohortIds: ['t'], weeklyFrequency: 1 },
+            { id: 't3', name: 'T News', cohortIds: ['t'], weeklyFrequency: 1 },
+            { id: 't4', name: 'T Grammar', cohortIds: ['t'], weeklyFrequency: 1 }
+        ],
+        teacherProfiles: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'c', name: 'C' }, { id: 'e', name: 'E' }]
+    };
+    api.ensurePlannerFields(d);
+    const dr = { id: 'cd', assignments: [], issues: [], metrics: {} };
+    assert(api.placePeriod(d, dr, 'demand:m1', { dow: 1, period: '4', teacherProfileId: 'a' }).ok, 'MWF first period');
+    assert(api.placePeriod(d, dr, 'demand:m2', { dow: 1, period: '5', teacherProfileId: 'b' }).ok, 'MWF second period');
+    const third = api.checkSlot(d, dr, 'demand:m3', { dow: 1, period: '6', teacherProfileId: 'c' });
+    assert(third.ok && third.softReasons.includes('cohort_day_too_long'), 'MWF: a third period by hand only warns');
+    assert(api.checkSlot(d, dr, 'demand:m3', { dow: 3, period: '6', teacherProfileId: 'c' }).ok, 'another day is fine');
+    const dr2 = { id: 'cd2', assignments: [], issues: [], metrics: {} };
+    assert(api.placePeriod(d, dr2, 'demand:m1', { dow: 1, period: '4', teacherProfileId: 'a' }).ok, 'P4');
+    const gap = api.checkSlot(d, dr2, 'demand:m2', { dow: 1, period: '6', teacherProfileId: 'b' });
+    assert(gap.ok && gap.softReasons.includes('cohort_day_too_long'), 'MWF: P4 and P6 spans 3 periods, warns');
+    ['t1', 't2', 't3'].forEach((id, i) => assert(api.placePeriod(d, dr, `demand:${id}`, { dow: 2, period: String(4 + i), teacherProfileId: 'abc'[i] }).ok, `Tue period ${i + 1}`));
+    const fourth = api.checkSlot(d, dr, 'demand:t4', { dow: 2, period: '7', teacherProfileId: 'e' });
+    assert(fourth.ok && fourth.softReasons.includes('cohort_day_too_long'), 'Tue/Thu: a fourth period warns');
+    // Auto-schedule never breaks it.
+    const fresh = { id: 'cd3', assignments: [], issues: [], metrics: {} };
+    auto.autoSchedule(d, fresh, {});
+    assert(!fresh.issues.some((i) => i.code === 'cohort_day_too_long'), 'auto-schedule keeps cohort days short');
+    console.log('cohort day length tests passed');
 }

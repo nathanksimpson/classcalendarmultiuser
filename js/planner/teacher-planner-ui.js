@@ -466,6 +466,8 @@
             return t('spWhyTeacherBusy', 'The teacher already has a class then');
         case 'cohort_double_booked':
             return t('spWhyCohortBusy', 'The cohort already has a class then');
+        case 'cohort_day_too_long':
+            return t('spWhyCohortDay', 'Students are only here 2 periods on Mon/Wed/Fri and 3 on Tue/Thu');
         case 'room_double_booked':
             return t('spWhyRoomBusy', 'The room is already in use then');
         case 'room_too_small':
@@ -506,6 +508,11 @@
         switch (issue.code) {
         case 'teacher_double_booked':
             return t('spIssueTeacherClash', '{teacher} has two classes at {when}', { teacher: teacher || '?', when });
+        case 'cohort_day_too_long':
+            return t('spIssueCohortDay', '{cohort} is at the academy {span} periods on {day} (most is {limit})', {
+                cohort: (m.cohortById.get(issue.cohortId) || {}).name || name,
+                span: issue.span, limit: issue.limit, day: dayLabel(issue.dow)
+            });
         case 'cohort_double_booked':
             return t('spIssueCohortClash', '{cohort} has two classes at {when}', {
                 cohort: (m.cohortById.get(issue.cohortId) || {}).name || name, when
@@ -567,7 +574,7 @@
     const ISSUE_GROUPS = [
         { id: 'clash', codes: ['teacher_double_booked', 'cohort_double_booked', 'room_conflict', 'wrong_teacher_type'] },
         { id: 'todo', codes: ['no_teacher', 'incomplete_placements', 'no_common_day'] },
-        { id: 'warn', codes: ['outside_band_block', 'outside_cohort_days', 'teacher_unavailable', 'wrong_junior_senior_band', 'over_load', 'max_periods_per_day', 'long_run', 'teacher_limit', 'duplicate_weekday_2x'] },
+        { id: 'warn', codes: ['outside_band_block', 'outside_cohort_days', 'teacher_unavailable', 'cohort_day_too_long', 'wrong_junior_senior_band', 'over_load', 'max_periods_per_day', 'long_run', 'teacher_limit', 'duplicate_weekday_2x'] },
         { id: 'room', codes: ['room_unresolved', 'room_too_small'] }
     ];
 

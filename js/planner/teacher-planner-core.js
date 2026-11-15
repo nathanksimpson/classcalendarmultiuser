@@ -14,10 +14,35 @@
         senior: [4, 5, 6, 7],
         middle: [5, 6, 7, 8]
     };
-    /** Usual periods a cohort is in on one day: 2 on Mon/Wed/Fri, 3 on Tue/Thu. */
+    /**
+     * Longest a cohort is at the academy on one day, in periods: 2 on Mon/Wed/Fri, 3 on Tue/Thu.
+     * Auto-schedule never goes past it (first class of the day to last); by hand it is only a warning.
+     */
     function usualCohortPeriods(dow) {
         const d = Number(dow);
         return d === 2 || d === 4 ? 3 : 2;
+    }
+
+    /** First-to-last span of these period numbers (0 when empty). */
+    function periodSpan(nums) {
+        const list = nums.map(Number).filter((n) => Number.isFinite(n));
+        return list.length ? Math.max(...list) - Math.min(...list) + 1 : 0;
+    }
+
+    /** Would this period make any of the class's cohorts stay longer that day than allowed? */
+    function cohortDayTooLong(assignments, demandById, demand, dow, period) {
+        const limit = usualCohortPeriods(dow);
+        return (demand.cohortIds || []).some((cid) => {
+            const nums = [Number(parsePeriod(period))];
+            (assignments || []).forEach((a) => {
+                const d = demandById.get(a.demandId);
+                if (!d || !(d.cohortIds || []).includes(cid)) return;
+                assignmentMeetings(a).forEach((m) => {
+                    if (Number(m.dow) === Number(dow)) nums.push(Number(parsePeriod(m.period)));
+                });
+            });
+            return periodSpan(nums) > limit;
+        });
     }
 
     /** Purple sits between junior and senior: its classes can go at any period without a warning. */
@@ -1331,6 +1356,8 @@
             const occ = roomOccupancy(view.filter((a) => a.demandId !== demandId));
             if (occ.has(key)) soft.push('room_double_booked');
         }
+        // Students are only at the academy 2 periods on MWF and 3 on Tue/Thu (a warning by hand).
+        if (cohortDayTooLong(view, demandById, demand, tg.dow, tg.period)) soft.push('cohort_day_too_long');
         soft = [...new Set(soft)];
         // Never allowed, by hand or by auto-schedule: two classes for one teacher, cohort or room
         // at the same time, the wrong teacher type, and a room that cannot seat the class.
@@ -1953,6 +1980,35 @@
                     }
                 });
             });
+        });
+
+        // A cohort's day longer than it is at the academy (2 periods MWF, 3 Tue/Thu): auto never does it.
+        const cohortDays = new Map();
+        (draft.assignments || []).forEach((asg) => {
+            const demand = demandById.get(asg.demandId);
+            if (!demand) return;
+            assignmentMeetings(asg).forEach((m) => {
+                (demand.cohortIds || []).forEach((cid) => {
+                    const key = `${cid}|${Number(m.dow)}`;
+                    if (!cohortDays.has(key)) cohortDays.set(key, { cid, dow: Number(m.dow), nums: [], asg, demand });
+                    cohortDays.get(key).nums.push(Number(parsePeriod(m.period)));
+                });
+            });
+        });
+        cohortDays.forEach((x) => {
+            if (periodSpan(x.nums) <= usualCohortPeriods(x.dow)) return;
+            issues.push(createIssue({
+                severity: 'soft',
+                code: 'cohort_day_too_long',
+                message: `Cohort day too long on D${x.dow}.`,
+                cohortId: x.cid,
+                dow: x.dow,
+                period: String(Math.min(...x.nums)),
+                assignmentId: x.asg.assignmentId,
+                demandId: x.demand.demandId,
+                span: periodSpan(x.nums),
+                limit: usualCohortPeriods(x.dow)
+            }));
         });
 
         const teacherLoads = {};
@@ -2775,6 +2831,7 @@
         recomputeDraftMetrics,
         outsideStudentHours,
         usualCohortPeriods,
+        periodSpan,
         isPurpleCohort,
         cohortBlock,
         classAllowedDays,
