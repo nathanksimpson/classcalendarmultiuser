@@ -333,16 +333,18 @@ assert(
 {
     const d2 = { id: 'draft-type', assignments: [], issues: [], metrics: {} };
     const typeCheck = api.checkSlot(appData, d2, mwf.demandId, { dow: 1, period: '2', teacherProfileId: 'tp-n1' });
-    assert(!typeCheck.ok && typeCheck.reasons.includes('wrong_teacher_type'), 'wrong teacher type is refused');
+    assert(typeCheck.ok && typeCheck.clashes.includes('wrong_teacher_type'), 'wrong teacher type: allowed by hand, a clash');
+    const strictType = api.checkSlot(appData, d2, mwf.demandId, { dow: 1, period: '2', teacherProfileId: 'tp-n1', strict: true });
+    assert(!strictType.ok && strictType.reasons.includes('wrong_teacher_type'), 'strict (as auto) refuses it');
     const typeSet = api.setClassTeacher(appData, d2, mwf.demandId, 'tp-n1');
-    assert(!typeSet.ok && typeSet.reason === 'wrong_teacher_type', 'setClassTeacher refuses the wrong type');
+    assert(typeSet.ok && typeSet.clashes.includes('wrong_teacher_type'), 'setClassTeacher allows the wrong type and reports it');
     const native = appData.teacherProfiles.find((p) => p.id === 'tp-n1');
     const cls = appData.classes.find((c) => c.id === mwf.classId);
     const before = cls && cls.teacherRequirementType;
     if (cls) cls.teacherRequirementType = 'either';
     native.limits = Object.assign({}, native.limits, { ownTypeOnly: true });
     const own = api.checkSlot(appData, d2, mwf.demandId, { dow: 1, period: '2', teacherProfileId: 'tp-n1' });
-    assert(!own.ok && own.reasons.includes('teacher_own_type_only'), 'own-type-only teacher is refused for an any-teacher class');
+    assert(own.ok && own.clashes.includes('teacher_own_type_only'), 'own-type-only teacher: a clash by hand');
     native.limits.ownTypeOnly = false;
     if (cls) cls.teacherRequirementType = before;
 }
@@ -402,17 +404,15 @@ await import(pathToFileURL(path.join(root, 'js', 'timetable-periods.js')).href);
     r = api.movePeriodTo(data, draft, asgB.assignmentId, { dow: 1, period: '2' }, { dow: 3, period: '1', teacherProfileId: 't1' });
     assert(r.ok && r.softReasons.includes('teacher_outside_hours'), 'before clock-in is a warning');
     // After the cohort has gone home (P5 18:00, cohort leaves 17:00) and off its days (Tue).
-    // A Mon/Wed/Fri cohort cannot go on Tuesday...
-    r = api.movePeriodTo(data, draft, asgB.assignmentId, { dow: 3, period: '1' }, { dow: 2, period: '5', teacherProfileId: 't2' });
-    assert(!r.ok && r.reason === 'outside_cohort_days', 'off-day refused');
-    // ...unless it is overridden by hand; then it is a warning.
+    // A Mon/Wed/Fri cohort on Tuesday: allowed by hand, reported (strict refuses, as auto would).
+    assert(!api.checkSlot(data, draft, 'demand:b', { dow: 2, period: '5', teacherProfileId: 't2', strict: true,
+        ignore: [{ assignmentId: asgB.assignmentId, dow: 3, period: '1' }] }).ok, 'off-day refused when strict');
     r = api.movePeriodTo(data, draft, asgB.assignmentId, { dow: 3, period: '1' }, { dow: 2, period: '5', teacherProfileId: 't2', allowOffDay: true });
     assert(r.ok && r.warnOutOfBlock && r.softReasons.includes('outside_cohort_days'), 'override: outside student hours and days warn');
     assert(codes().includes('outside_band_block') && codes().includes('outside_cohort_days'), 'both listed');
-    // Double-booking is forbidden: same cohort at the same time, and same teacher at the same time.
-    r = api.placePeriod(data, draft, 'demand:b', { dow: 1, period: '3', teacherProfileId: 't2' });
-    assert(!r.ok && r.reason === 'cohort_double_booked', 'cohort double-booking refused');
-    assert(asgB.meetings.length === 1, 'nothing added');
+    // Double-booking by hand is allowed and reported; strict (as auto-schedule) refuses it.
+    assert(!api.checkSlot(data, draft, 'demand:b', { dow: 1, period: '3', teacherProfileId: 't2', strict: true }).ok, 'strict refuses cohort double-booking');
+    assert(api.checkSlot(data, draft, 'demand:b', { dow: 1, period: '3', teacherProfileId: 't2' }).clashes.includes('cohort_double_booked'), 'by hand: a clash');
     // Rooms per period.
     const asgA = draft.assignments.find((a) => a.demandId === 'demand:a');
     assert(api.setMeetingRoom(data, draft, asgA.assignmentId, 1, '3', 'r1').ok, 'set room');

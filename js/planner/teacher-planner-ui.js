@@ -401,6 +401,8 @@
             render();
             return res;
         }
+        // Allowed by hand, but worth saying (e.g. a room already in use, the wrong teacher type).
+        if (res && res.clashes && res.clashes.length && !opts.quiet) notice(reasonText(res.clashes[0]), 'info');
         if (!opts.noUndo) {
             undoStack.push(snap);
             if (undoStack.length > UNDO_LIMIT) undoStack.shift();
@@ -762,10 +764,10 @@ ${!clashes && !warns && total && done === total ? `<span class="sp-pill sp-pill-
   <select class="field-select" data-change="class-teacher">
     <option value="">${esc(t('spNoTeacher', 'No teacher'))}</option>
     ${M.teachers.map((p) => {
-        // Wrong teacher type is never allowed, so those teachers can't be picked.
+        // Wrong teacher type: still allowed by hand, labelled so it is a choice.
         const why = api().teacherLimitReason(p, demand);
         const blocked = (why === 'wrong_teacher_type' || why === 'teacher_own_type_only') && !(asg && asg.teacherProfileId === p.id);
-        return `<option value="${esc(p.id)}"${asg && asg.teacherProfileId === p.id ? ' selected' : ''}${blocked ? ' disabled' : ''}>${esc(p.name)}${blocked ? ` · ${esc(t('spWrongTypeShort', 'wrong teacher type'))}` : ''}</option>`;
+        return `<option value="${esc(p.id)}"${asg && asg.teacherProfileId === p.id ? ' selected' : ''}>${esc(p.name)}${blocked ? ` · ${esc(t('spWrongTypeShort', 'wrong teacher type'))}` : ''}</option>`;
     }).join('')}
   </select>
 </label>
@@ -981,7 +983,7 @@ ${classEditHtml(demand)}`;
             const small = Number(r.capacity) > 0 && size > Number(r.capacity);
             const note = taken ? t('spRoomInUse', 'in use') : small ? t('spRoomTooSmallShort', 'too small') : '';
             const seats = r.capacity && !extraClass ? ` (${Number(r.capacity)})` : '';
-            return `<option value="${esc(r.id)}"${r.id === x.roomId ? ' selected' : ''}${(taken || small) && r.id !== x.roomId ? ' disabled' : ''}>${esc(r.name)}${seats}${note ? ` · ${esc(note)}` : ''}</option>`;
+            return `<option value="${esc(r.id)}"${r.id === x.roomId ? ' selected' : ''}>${esc(r.name)}${seats}${note ? ` · ${esc(note)}` : ''}</option>`;
         }).join('');
         return `<select class="sp-roomsel${extraClass ? ` ${extraClass}` : ''}" data-change="tile-room" data-asg="${esc(x.asg.assignmentId)}" data-dow="${Number(x.m.dow)}" data-period="${esc(x.m.period)}" aria-label="${esc(t('spRoomFor', 'Room for {name}', { name: x.demand.name }))}"${readOnly() ? ' disabled' : ''}>
     <option value="">${esc(t('spNoRoom', 'No room'))}</option>${opts}
@@ -1309,7 +1311,10 @@ ${open ? `<div class="sp-issues-body">${total ? groups.filter((g) => g.items.len
         if (!check.ok) {
             return { ok: false, level: 'bad', hint: reasonText(check.reasons[0], { need: demand.teacherRequirementType }) };
         }
-        const soft = (check.softReasons || []).filter((r) => r !== 'teacher_reassigned');
+        // Allowed by hand, but a clash (double booking, wrong teacher type, room too small, off-day): red.
+        const clashes = check.clashes || [];
+        const soft = (check.softReasons || []).filter((r) => r !== 'teacher_reassigned')
+            .sort((x, y) => Number(clashes.includes(y)) - Number(clashes.includes(x)));
         const hints = soft.map((r) => reasonText(r, { need: demand.teacherRequirementType }));
         if (check.warnOutOfBlock) hints.push(reasonText('out_of_block'));
         if (offDay) hints.push(t('spHintConfirmFirst', 'you will be asked to confirm'));
@@ -1321,7 +1326,7 @@ ${open ? `<div class="sp-issues-body">${total ? groups.filter((g) => g.items.len
         }
         return {
             ok: true,
-            level: hints.length ? 'warn' : 'ok',
+            level: clashes.length ? 'clash' : hints.length ? 'warn' : 'ok',
             hint: info.concat(hints).join(' · '),
             run,
             confirm: offDay
@@ -1508,7 +1513,7 @@ ${open ? `<div class="sp-issues-body">${total ? groups.filter((g) => g.items.len
                     finish(false);
                     return;
                 }
-                const res = mutate(pendingAction.run);
+                const res = mutate(pendingAction.run, { quiet: true });
                 const id = (res && res.assignmentId) || d.assignmentId;
                 if (res && res.ok !== false && id) flashTile(id, pendingAction.landing.dow, pendingAction.landing.period);
                 finish(!(res && res.ok === false));
@@ -1518,7 +1523,7 @@ ${open ? `<div class="sp-issues-body">${total ? groups.filter((g) => g.items.len
         }
         if (action.landing) {
             const clashesBefore = clashCount();
-            const res = mutate(action.run);
+            const res = mutate(action.run, { quiet: true });
             if (res && res.ok !== false && clashCount() > clashesBefore) {
                 notice(t('spClashMade', 'That made a clash. Press “Suggest fixes” to see ways to move the other classes, or fix it by hand.'), 'info');
             }
@@ -1527,7 +1532,7 @@ ${open ? `<div class="sp-issues-body">${total ? groups.filter((g) => g.items.len
             finish(!(res && res.ok === false));
             render();
         } else {
-            mutate(action.run);
+            mutate(action.run, { quiet: true });
             finish(true);
         }
     }
@@ -1870,7 +1875,7 @@ ${open ? `<div class="sp-issues-body">${total ? groups.filter((g) => g.items.len
 ${state.openBlockGrid === 'everyone' ? blockGrid(M, 'everyone') : ''}`;
         } else if (state.setupTab === 'cohorts') {
             const pending = api().pendingCohortBlocks(M.data);
-            html += `<p class="sp-hint">${esc(t('spSetupCohortsHint', 'When each cohort’s students are at school. The planner uses these straight away for warnings and auto-schedule. The cohorts themselves only change when you press “Save to cohorts”.'))}</p>`;
+            html += `<p class="sp-hint">${esc(t('spSetupCohortsHint', 'When each cohort’s students are at school, by class period (blank = the level’s usual periods). The planner uses these straight away for warnings and auto-schedule. The cohorts themselves only change when you press “Save to cohorts”.'))}</p>`;
             [...state.cohortSel].forEach((id) => { if (!M.cohortById.has(id)) state.cohortSel.delete(id); });
             const selN = state.cohortSel.size;
             const allOn = M.cohorts.length > 0 && selN === M.cohorts.length;
@@ -1887,8 +1892,8 @@ ${state.openBlockGrid === 'everyone' ? blockGrid(M, 'everyone') : ''}`;
   <div class="sp-batch-row">
     <span class="sp-chips">${DAYS.map((d) => `<label class="sp-chip"><input type="checkbox" data-batch-day="${d}"${state.batchDays && state.batchDays.includes(d) ? ' checked' : ''}><span>${esc(dayLabel(d))}</span></label>`).join('')}</span>
     <button type="button" class="btn btn-outline btn-small" data-act="cohort-batch" data-what="days"${selN ? '' : ' disabled'}>${esc(t('spBatchSetDays', 'Set these days'))}</button>
-    <label class="sp-num"><span>${esc(t('spBlockFrom', 'From'))}</span><input type="time" class="field-input" id="spBatchStart" value="${esc(state.batchStart || '')}"></label>
-    <label class="sp-num"><span>${esc(t('spBlockTo', 'To'))}</span><input type="time" class="field-input" id="spBatchEnd" value="${esc(state.batchEnd || '')}"></label>
+    <label class="sp-num"><span>${esc(t('spBlockFrom', 'From'))}</span>${periodSelectHtml('start', state.batchStart || '', 'id="spBatchStart"')}</label>
+    <label class="sp-num"><span>${esc(t('spBlockTo', 'To'))}</span>${periodSelectHtml('end', state.batchEnd || '', 'id="spBatchEnd"')}</label>
     <button type="button" class="btn btn-outline btn-small" data-act="cohort-batch" data-what="hours"${selN ? '' : ' disabled'}>${esc(t('spBatchSetHours', 'Set these hours'))}</button>
   </div>
 </div>
@@ -1897,8 +1902,8 @@ ${state.openBlockGrid === 'everyone' ? blockGrid(M, 'everyone') : ''}`;
   <td><input type="checkbox" data-change="cohort-select"${state.cohortSel.has(c.id) ? ' checked' : ''} aria-label="${esc(c.name)}"></td>
   <td><span class="sp-swatch" style="background:${esc(c.color || '#94a3b8')}"></span>${esc(c.name)} <span class="sp-hint">${esc(bandLabel(c.band))}</span></td>
   <td><span class="sp-chips">${DAYS.map((d) => `<label class="sp-chip"><input type="checkbox" data-change="cohort-day" data-dow="${d}"${c.block.days.includes(d) ? ' checked' : ''}><span>${esc(dayLabel(d))}</span></label>`).join('')}</span></td>
-  <td><input type="time" class="field-input" data-change="cohort-start" value="${esc(c.block.start)}" aria-label="${esc(t('spBlockFrom', 'From'))}"></td>
-  <td><input type="time" class="field-input" data-change="cohort-end" value="${esc(c.block.end)}" aria-label="${esc(t('spBlockTo', 'To'))}"></td>
+  <td>${periodSelectHtml('start', c.block.start, `data-change="cohort-start" aria-label="${esc(t('spBlockFrom', 'From'))}"`)}</td>
+  <td>${periodSelectHtml('end', c.block.end, `data-change="cohort-end" aria-label="${esc(t('spBlockTo', 'To'))}"`)}</td>
   <td>${c.block.staged ? `<span class="sp-pill sp-pill--warn">${esc(t('spNotSaved', 'Not saved to cohort'))}</span>` : (!c.block.start || !c.block.end ? `<span class="sp-hint">${esc(t('spBlockDefault', 'No hours set: uses the usual hours for its level'))}</span>` : '')}</td>
 </tr>`).join('')}</tbody></table>
 <div class="sp-setup-actions">
@@ -1944,6 +1949,29 @@ ${by.get(cid).map((d) => `
         body.innerHTML = html;
         body.scrollTop = keep;
         body.classList.toggle('sp-locked', !!readOnly());
+    }
+
+    /**
+     * Pick student hours by class period, not by typing times. 'start' lists each period's start
+     * ("P4 · 17:00"), 'end' each period's end ("P7 · to 21:00"); the cohort still stores the times.
+     * Blank = the level's usual periods. A saved time that is not a period edge stays as its own choice.
+     */
+    function periodSelectHtml(edge, current, attrs) {
+        const cur = String(current || '');
+        const opts = M.periods.map((row) => {
+            const time = edge === 'start' ? row.start : row.end;
+            if (!time) return null;
+            const label = edge === 'start'
+                ? t('spPeriodFrom', 'P{n} · {time}', { n: row.period, time })
+                : t('spPeriodTo', 'P{n} · to {time}', { n: row.period, time });
+            return { time, label };
+        }).filter(Boolean);
+        const known = !cur || opts.some((o) => o.time === cur);
+        return `<select class="field-select sp-period-select" ${attrs}>
+  <option value="">${esc(t('spLevelDefault', 'Level default'))}</option>
+  ${known ? '' : `<option value="${esc(cur)}" selected>${esc(cur)}</option>`}
+  ${opts.map((o) => `<option value="${esc(o.time)}"${o.time === cur ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}
+</select>`;
     }
 
     /** Remember what is typed in the batch row across re-renders. */
@@ -2635,7 +2663,7 @@ ${by.get(cid).map((d) => `
             keepBatchInputs();
             const what = el.getAttribute('data-what');
             if (what === 'hours' && (!state.batchStart || !state.batchEnd || state.batchStart >= state.batchEnd)) {
-                notice(t('spBatchNeedHours', 'Enter a From time and a later To time first.'), 'error');
+                notice(t('spBatchNeedHours', 'Pick a From period and a later To period first.'), 'error');
                 break;
             }
             if (what === 'days' && !state.batchDays.length) {

@@ -26774,3 +26774,20 @@ body.sp-holding-tile .sp-tray {
 .sp-icon-only:disabled svg {
     opacity: 0.45;
 }
+
+/* ---- Schedule planner: a clash is allowed by hand, shown red ---- */
+body.sp-holding .sp-cell[data-drop="clash"],
+body.sp-dragging .sp-cell[data-drop="clash"] {
+    background-color: color-mix(in srgb, var(--danger) 10%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 55%, transparent);
+}
+
+.sp-cell.is-over[data-drop="clash"] {
+    background-color: color-mix(in srgb, var(--danger) 16%, transparent);
+    box-shadow: inset 0 0 0 2px var(--danger);
+}
+
+.sp-ghost-hint[data-level="clash"] {
+    background: var(--danger);
+    color: #fff;
+}

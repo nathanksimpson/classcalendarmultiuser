@@ -1257,7 +1257,9 @@
      * and room sheets a class can be given a time before it has a teacher.
      * ------------------------------------------------------------------ */
 
-    // Teacher type is a hard rule too: a class asking for a Korean or native teacher never gets the other
+    // Rules auto-schedule never breaks. By hand everything is allowed: these come back as clashes
+    // (shown red, listed under Clashes) instead of refusals. target.strict refuses them, as auto would.
+    // Teacher type is one of them: a class asking for a Korean or native teacher never gets the other
     // type, and a teacher set to "own type only" never takes a class not marked for their type.
     const FORBIDDEN = ['teacher_double_booked', 'cohort_double_booked', 'room_double_booked', 'outside_cohort_days',
         'wrong_teacher_type', 'teacher_own_type_only'];
@@ -1359,13 +1361,15 @@
         // Students are only at the academy 2 periods on MWF and 3 on Tue/Thu (a warning by hand).
         if (cohortDayTooLong(view, demandById, demand, tg.dow, tg.period)) soft.push('cohort_day_too_long');
         soft = [...new Set(soft)];
-        // Never allowed, by hand or by auto-schedule: two classes for one teacher, cohort or room
-        // at the same time, the wrong teacher type, and a room that cannot seat the class.
-        // An off-day can be overridden by hand (target.allowOffDay), after the user confirms; it then stays a warning.
-        const forbidden = soft.filter((r) => FORBIDDEN.includes(r)
-            && !(r === 'outside_cohort_days' && tg.allowOffDay));
-        if (roomId && roomTooSmall(appData, demand, roomId)) forbidden.push('room_too_small');
-        if (forbidden.length) {
+        // Auto-schedule never does these: two classes for one teacher, cohort or room at the same time,
+        // a day the cohort does not come, the wrong teacher type, a room that cannot seat the class.
+        // By hand they are allowed and reported as clashes; target.strict refuses them.
+        const forbidden = soft.filter((r) => FORBIDDEN.includes(r));
+        if (roomId && roomTooSmall(appData, demand, roomId)) {
+            forbidden.push('room_too_small');
+            soft.push('room_too_small');
+        }
+        if (forbidden.length && tg.strict) {
             return { ok: false, reasons: forbidden, hardReasons: forbidden, softReasons: [], warnOutOfBlock: false };
         }
         return {
@@ -1373,6 +1377,7 @@
             reasons: res.ok ? soft : res.reasons,
             hardReasons: res.hardReasons || [],
             softReasons: res.ok ? soft : [],
+            clashes: res.ok ? forbidden : [],
             warnOutOfBlock: !!res.warnOutOfBlock,
             teacherChanges: !!(teacher && existing && existing.teacherProfileId && existing.teacherProfileId !== teacher.id)
         };
@@ -1488,6 +1493,7 @@
             ok: r1.ok && r2.ok,
             reasons: r1.ok && r2.ok ? soft : [...(r1.ok ? [] : r1.reasons), ...(r2.ok ? [] : r2.reasons)],
             softReasons: soft,
+            clashes: [...new Set([...(r1.clashes || []), ...(r2.clashes || [])])],
             warnOutOfBlock: !!(r1.warnOutOfBlock || r2.warnOutOfBlock),
             teacherChanges: mode === 'teachers' && (asgA.teacherProfileId || null) !== (asgB.teacherProfileId || null)
         };
@@ -1547,11 +1553,13 @@
         const m = meetings.find((x) => sameSlot(x, dow, period));
         if (!m) return { ok: false, reason: 'slot_missing' };
         const want = normalizeStr(roomId);
+        // By hand any room can be picked; one that is too small or already in use shows as a problem.
+        const clashes = [];
         if (want) {
             const demand = buildDemandsFromAppData(appData).find((d) => d.demandId === asg.demandId);
-            if (demand && roomTooSmall(appData, demand, want)) return { ok: false, reason: 'room_too_small' };
+            if (demand && roomTooSmall(appData, demand, want)) clashes.push('room_too_small');
             const occ = roomOccupancy((draft.assignments || []).filter((a) => a !== asg));
-            if (occ.has(`${want}|${slotKey(dow, period)}`)) return { ok: false, reason: 'room_double_booked' };
+            if (occ.has(`${want}|${slotKey(dow, period)}`)) clashes.push('room_double_booked');
         }
         if (!asg.roomId && want && meetings.every((x) => !normalizeStr(x.roomId))) {
             asg.roomId = want;
@@ -1572,7 +1580,7 @@
         asg.source = 'manual';
         draft.updatedAt = new Date().toISOString();
         recomputeDraftMetrics(appData, draft);
-        return { ok: true };
+        return { ok: true, clashes };
     }
 
     /** Set or clear the teacher of a class (null clears). Creates the assignment if needed. */
@@ -1583,15 +1591,17 @@
             ? (appData.teacherProfiles || []).find((t) => t.id === teacherProfileId)
             : null;
         if (teacherProfileId && !teacher) return { ok: false, reason: 'missing_context' };
+        // By hand any teacher can be chosen; the wrong type or a double booking shows as a clash.
+        const clashes = [];
         if (teacher) {
             const typeWhy = teacherTypeBlock(defaultTeacherProfile(teacher), demand);
-            if (typeWhy) return { ok: false, reason: typeWhy };
+            if (typeWhy) clashes.push(typeWhy);
         }
         let asg = draft.assignments.find((a) => a.demandId === demandId);
         if (teacher && asg) {
             const occ = occupancyMap((draft.assignments || []).filter((a) => a !== asg));
             if (assignmentMeetings(asg).some((m) => occ.has(`${teacher.id}|${slotKey(m.dow, m.period)}`))) {
-                return { ok: false, reason: 'teacher_double_booked' };
+                clashes.push('teacher_double_booked');
             }
         }
         if (!asg) {
@@ -1605,7 +1615,7 @@
         asg.source = 'manual';
         draft.updatedAt = new Date().toISOString();
         recomputeDraftMetrics(appData, draft);
-        return { ok: true, assignmentId: asg.assignmentId };
+        return { ok: true, assignmentId: asg.assignmentId, clashes };
     }
 
     function setAssignmentTeacher(appData, draft, demandId, teacherProfileId) {

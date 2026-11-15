@@ -132,10 +132,11 @@ console.log('planner-auto tests passed');
         return dr;
     };
     const at = (dr, id) => dr.assignments.find((a) => a.classId === id);
-    // A clash cannot be made by hand any more, but one can arrive from the calendar: B lands on A's time.
+    // A clash made by hand (allowed, reported): B is moved onto A's time.
     const clash = (dr) => {
-        assert(!api.movePeriodTo(d, dr, at(dr, 'b').assignmentId, { dow: 1, period: '2' }, { dow: 1, period: '1' }).ok, 'double-booking refused by hand');
-        Object.assign(at(dr, 'b').meetings[0], { dow: 1, period: '1', movedAt: Date.now() });
+        const r = api.movePeriodTo(d, dr, at(dr, 'b').assignmentId, { dow: 1, period: '2' }, { dow: 1, period: '1' });
+        assert(r.ok, 'double-booking allowed by hand');
+        at(dr, 'b').meetings[0].movedAt = Date.now();
         api.recomputeDraftMetrics(d, dr);
     };
     // B is dragged onto A's time: B (moved last) stays, A moves, Kim keeps both.
@@ -197,22 +198,25 @@ console.log('planner-auto tests passed');
         assert(!o.draft.issues.some((i) => i.code === 'room_too_small'), `${o.id}: rooms fit`);
         assert(!o.draft.issues.some((i) => i.code === 'long_run' || i.code === 'outside_band_block'), `${o.id}: rules kept`);
     });
-    // A room that is too small is refused by hand too; so is a room already in use.
+    // By hand a room that is too small, or already in use, is allowed and reported; strict refuses.
     const dr = { id: 'h', assignments: [], issues: [], metrics: {} };
-    let rr = api.placePeriod(d, dr, 'demand:o1', { dow: 1, period: '1', roomId: 'small' });
-    assert(!rr.ok && rr.reason === 'room_too_small', 'small room refused');
+    assert(!api.checkSlot(d, dr, 'demand:o1', { dow: 1, period: '1', roomId: 'small', strict: true }).ok, 'strict: small room refused');
+    assert(api.checkSlot(d, dr, 'demand:o1', { dow: 1, period: '1', roomId: 'small' }).clashes.includes('room_too_small'), 'by hand: small room is a clash');
     assert(api.placePeriod(d, dr, 'demand:o1', { dow: 1, period: '1', roomId: 'big' }).ok, 'big room fine');
-    rr = api.placePeriod(d, dr, 'demand:g1', { dow: 1, period: '1', roomId: 'big' });
-    assert(!rr.ok && rr.reason === 'room_double_booked', 'room double-booking refused');
+    assert(api.checkSlot(d, dr, 'demand:g1', { dow: 1, period: '1', roomId: 'big' }).clashes.includes('room_double_booked'), 'by hand: room in use is a clash');
+    const sm = api.setMeetingRoom(d, dr, dr.assignments[0].assignmentId, 1, '1', 'small');
+    assert(sm.ok && sm.clashes.includes('room_too_small'), 'setMeetingRoom allows a small room and reports it');
+    api.setMeetingRoom(d, dr, dr.assignments[0].assignmentId, 1, '1', 'big');
     // Moving a class onto a time when its room is taken: the move is fine, the room is given up.
     assert(api.placePeriod(d, dr, 'demand:g1', { dow: 1, period: '2', roomId: 'big' }).ok, 'g1 in big at P2');
     const g1 = dr.assignments.find((a) => a.classId === 'g1');
     assert(api.movePeriodTo(d, dr, g1.assignmentId, { dow: 1, period: '2' }, { dow: 1, period: '1', teacherProfileId: 'k1' }).ok, 'move allowed');
     assert(!api.meetingRoomId(g1, g1.meetings[0]), 'room given up');
     assert(!dr.issues.some((i) => i.code === 'room_conflict'), 'no room clash');
-    // A teacher cannot be given a class at a time they already teach.
+    // A teacher already teaching then can still be chosen by hand; it is reported as a clash.
     const o1 = dr.assignments.find((a) => a.classId === 'o1');
-    assert(!api.setClassTeacher(d, dr, 'demand:o1', 'k1').ok && !o1.teacherProfileId, 'busy teacher refused');
+    const st = api.setClassTeacher(d, dr, 'demand:o1', 'k1');
+    assert(st.ok && st.clashes.includes('teacher_double_booked') && o1.teacherProfileId === 'k1', 'busy teacher: allowed, a clash');
     console.log('repair and room tests passed');
 }
 
@@ -335,7 +339,8 @@ console.log('planner-auto tests passed');
     assert(of('t1').length === 2 && of('t1').every((m) => [2, 4].includes(m.dow)), 'TT class only on TT');
     assert(of('both').length === 0 && res.unplaced.some((u) => u.demandId === 'demand:both'), 'no common day: left unplaced');
     assert(dr.issues.some((i) => i.code === 'no_common_day'), 'and listed');
-    assert(!api.placePeriod(d, dr, 'demand:m1', { dow: 2, period: '3' }).ok, 'by hand: refused');
+    assert(!api.checkSlot(d, dr, 'demand:m1', { dow: 2, period: '3', strict: true }).ok, 'strict: refused');
+    assert(api.checkSlot(d, dr, 'demand:m1', { dow: 2, period: '3' }).clashes.includes('outside_cohort_days'), 'by hand: allowed, a clash');
     assert(api.placePeriod(d, dr, 'demand:both', { dow: 2, period: '3', allowOffDay: true }).ok, 'by hand with override: allowed');
     console.log('cohort day tests passed');
 }

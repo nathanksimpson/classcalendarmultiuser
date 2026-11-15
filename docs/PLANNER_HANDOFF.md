@@ -17,7 +17,7 @@ Also follow `AGENTS.md`, `DEVELOPER.md` and `UI_STYLE_GUIDE.md`. The rules from 
 
 1. **Nathan's explicit rules** (section 3) beat everything below, including "good practice" from scheduling literature.
 2. **Never lose or silently change the user's data.** Nothing is written to the calendar until **Apply to calendar**, and cohort time blocks change only after **Save to cohorts**; both ask for confirmation first. Every board change is one Undo step. Auto-schedule never moves locked classes, and moves hand-placed ones only after the user says yes.
-3. **Freeform first.** The board lets the user do almost anything. A short list of things is refused (section 3, tier 1); everything else is a warning the user can see and fix.
+3. **Freeform first.** By hand the board lets the user do anything; clashes show red and other problems amber (section 3). Hard limits only bind auto-schedule.
 4. **Explain, don't block.** Every warning or refusal says why in plain words: on the dragged tile, on the tile itself, and in the To fix list, which jumps to the spot.
 5. **Simple, predictable code** over clever code: rules in one place (core), algorithm in one place (auto), DOM in one place (ui).
 
@@ -41,17 +41,18 @@ Entry points: Schedule → **Planner** sub-tab, Data → Class scheduler, avatar
 
 ### Rule tiers
 
+**By hand everything is allowed** (Nathan's rule: manual is always free, with warnings). Hard limits bind auto-schedule only.
+
 | Tier | By hand on the board | Auto-schedule and Suggest fixes |
 |---|---|---|
-| **1. Refused** | Teacher, cohort or room double-booked. Room with fewer seats than the class. | Never |
-| **2. Confirm first** | A class on a day its cohort doesn't come (MWF cohorts never on Tue/Thu and the other way round). Allowed after "Place anyway", then shown as a warning. | Never |
-| **3. Warning** | Teacher times off; before clock-in or after clock-out; outside the hours students are at school; teacher limits (native/Korean type, "own type only", levels, class types); over daily or weekly max; more than **4 in a row** (setting `plannerState.maxConsecutive`); two periods on one day; no room | Never broken |
+| **1. Clash (red)** | Teacher, cohort or room double-booked; room with fewer seats than the class; a day the cohort doesn't come (MWF never on Tue/Thu and the other way round); wrong teacher type (class asks for Korean/native, or teacher is "own type only"). Allowed, slot shows red, listed under Clashes. | Never |
+| **2. Warning (amber)** | Teacher times off; before clock-in or after clock-out; outside the hours students are at school; cohort day longer than 2 periods MWF / 3 Tue/Thu (first class to last); other teacher limits (levels, class types); over daily or weekly max; more than **4 in a row** (`plannerState.maxConsecutive`); two periods on one day; no room | Never broken |
 
 Where this lives in code:
-- Tier 1 is `FORBIDDEN` plus the room-size check in `checkSlot`, `setMeetingRoom` and `setClassTeacher`.
-- Tier 2 is `outside_cohort_days` in `FORBIDDEN`, lifted by `target.allowOffDay`; the UI asks first through `evaluateDrop` → `confirm`.
-- Tier 3 reasons come from `isValidPlacement`/`checkSlot` (`softReasons`), and the matching issues are built in `recomputeDraftMetrics`.
-- Auto-schedule enforces tier 3 in `teacherCanTake` and `chooseSlots`.
+- Tier 1 is `FORBIDDEN` plus the room-size check in `checkSlot`; it returns `ok: true` with `clashes: [...]`. `target.strict` refuses them instead (what auto would do). `setMeetingRoom` and `setClassTeacher` also return `clashes`.
+- The UI shows `clashes` as drop level `clash` (red) in `evaluateDrop`, and `mutate` gives a notice.
+- Tier 2 reasons come from `isValidPlacement`/`checkSlot` (`softReasons`), and the matching issues are built in `recomputeDraftMetrics`.
+- Auto-schedule enforces both tiers in `teacherCanTake` and `chooseSlots` (its own checks, not `checkSlot`).
 
 A rule change usually touches four places: the check, the issue, the text (`reasonText`/`issueText` with en+ko keys) and a test.
 
@@ -116,7 +117,7 @@ The approach is a greedy pass with scoring, then local repair. That's the right 
 - **Controls by scope, pinned at the top:** the sheet (Teachers / Cohorts / Rooms), the day or week and the level filter decide what is shown, so they sit first in the sticky top bar. Actions come after them.
 - **Drag for everything:** tray → board places, tile → cell moves, tile → tile swaps, tile → tray removes.
   - It uses pointer events, so it works with touch (press briefly to start).
-  - The held item floats under the pointer, and target cells show OK, warning or refused, with a hint.
+  - The held item floats under the pointer, and target cells show OK, warning or clash, with a hint.
   - Holding over a day or name switches to it.
   - **Reorderable lists use drag only, never up/down arrows,** and the other rows animate out of the way.
 - **The model is rebuilt each render:** `render()` rebuilds from `buildModel()`. Every change goes through `mutate(fn)`, which handles read-only, undo snapshot, `saveData` and re-render. Don't change `appData` from the UI without it, except Setup edits through `setupEdit`.
