@@ -520,3 +520,20 @@ console.log('planner-auto tests passed');
     assert(days('g1').length === 1 && days('g2').length === 1 && days('g1')[0] !== days('g2')[0], `two Grammar classes on one day: ${days('g1')} ${days('g2')}`);
     console.log('same kind of class per day tests passed');
 }
+
+// Rainbow classes (not Purple) land in periods 2-3.
+{
+    const d = {
+        cohorts: [{ id: 'rb', name: 'Blue M', meetingDays: [1, 3, 5], level: 'Blue', schedulePattern: 'mwf', students: [] },
+            { id: 'pu', name: 'Purple M', meetingDays: [1, 3, 5], level: 'Purple', schedulePattern: 'mwf', students: [] }],
+        classes: [{ id: 'b1', name: 'Blue M · Reading', levelPreset: 'Blue', cohortIds: ['rb'], weeklyFrequency: 3, teacherRequirementType: 'korean' },
+            { id: 'b2', name: 'Blue M · Grammar', levelPreset: 'Blue', cohortIds: ['rb'], weeklyFrequency: 3, teacherRequirementType: 'korean' }],
+        teacherProfiles: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }], rooms: []
+    };
+    api.ensurePlannerFields(d);
+    const dr = { id: 'rb1', assignments: [], issues: [], metrics: {} };
+    auto.autoSchedule(d, dr, {});
+    const ps = dr.assignments.flatMap((a) => a.meetings.map((m) => Number(m.period)));
+    assert(ps.length === 6 && ps.every((p) => p === 2 || p === 3), `rainbow periods: ${ps}`);
+    console.log('rainbow period preference tests passed');
+}

@@ -305,6 +305,7 @@
             return allowed || DAYS.slice();
         };
 
+        const RAINBOW = ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Navy'];
         /** What kind of class this is: its class type, else the subject in its name ("Blue M · Grammar" -> grammar). */
         const typeKeyOf = (d) => {
             const type = String(d.classTypeId || '').trim();
@@ -365,6 +366,8 @@
                         // Purple may go anywhere, but its own block (primary early, secondary later) is preferred.
                         if (api.outsideStudentHours(appData, demand, n, dow, { byBlock: true })) score -= 10;
                         if (!roomFree) score -= 40;
+                        // Rainbow classes (Red to Navy, not Purple) prefer periods 2 and 3 (15:20 to 17:00).
+                        if (RAINBOW.includes(String(demand.level || '').trim())) score += (n === 2 || n === 3) ? 8 : -4;
                         // A cohort keeps the same block every day it comes (e.g. Mon, Wed and Fri all at periods 4–5):
                         // reward the periods it already uses on its other days, discourage a different block.
                         (demand.cohortIds || []).forEach((cid) => {
