@@ -63,7 +63,8 @@
         rooms: 'edit_planner',
         teacherProfiles: 'edit_planner',
         plannerDrafts: 'edit_planner',
-        plannerState: 'edit_planner'
+        plannerState: 'edit_planner',
+        plannerSnapshots: 'edit_planner'
     };
 
     function editAreaForField(field) {
