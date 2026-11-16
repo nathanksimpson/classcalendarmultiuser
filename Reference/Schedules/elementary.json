@@ -1,0 +1,806 @@
+{
+  "version": 1,
+  "source": "심슨어학원 초등 커리큘럼 flyer (elementary-curriculum-flyer.jpg), Nov 2026",
+  "notes": [
+    "Same slot shape as js/schedule-matrix-data.js",
+    "Flyer writes both 'Spk & Wr' and 'Wr & Spk'; both stored as spkWr",
+    "(V) = with vocabulary; (LC) = with listening"
+  ],
+  "subjects": {
+    "phonics": "Phonics",
+    "spkWr": "Speaking & Writing",
+    "animation": "Animation (News(Animation) & 앵커되기)",
+    "reading": "Reading",
+    "readingV": "Reading(V) — 심독 토플리딩",
+    "news": "News",
+    "newsLc": "News(LC)",
+    "debate": "Debate",
+    "grammar": "Grammar",
+    "toeflRcV": "TOEFL RC(V)"
+  },
+  "programTracks": {
+    "juniorRainbow": {
+      "label": "Simson Junior Rainbow",
+      "grades": "초등 1~4학년",
+      "writing": "주니어 Writing: 원어민 Writing 수업, 1분 스피치(Navy)"
+    },
+    "seniorWaterflow": {
+      "label": "Simson Senior Waterflow",
+      "grades": "초등 4~6학년",
+      "writing": "시니어 Writing: 뉴스 연계 Essay, 디베이트 연계 Essay, 쓰기 중심 문법"
+    }
+  },
+  "levelGroups": {
+    "redOrangeYellow": {
+      "stage": "Phonics 완성"
+    },
+    "greenBlueNavy": {
+      "stage": "ESL 확산"
+    },
+    "purple": {
+      "stage": "Bridge",
+      "flyerName": "Purple G"
+    },
+    "yeoulSaemmul": {
+      "toeflJuniorScore": {
+        "Saemmul": "680",
+        "Yeoul": "700"
+      }
+    },
+    "badaGaram": {
+      "toeflJuniorScore": {
+        "Garam": "740",
+        "Bada": "780"
+      }
+    },
+    "mirinaeByeolmaru": {
+      "toeflJuniorScore": {
+        "Mirinae": "820 (iBT 80)",
+        "Byeolmaru": "870 이상 (iBT 90)"
+      }
+    }
+  },
+  "slots": [
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "redOrangeYellow",
+      "level": "Red",
+      "patternId": "mwf",
+      "period": 1,
+      "byWeekday": {
+        "1": "phonics",
+        "3": "phonics",
+        "5": "spkWr"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "redOrangeYellow",
+      "level": "Red",
+      "patternId": "mwf",
+      "period": 2,
+      "byWeekday": {
+        "1": "spkWr",
+        "3": "animation",
+        "5": "animation"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "redOrangeYellow",
+      "level": "Red",
+      "patternId": "tth",
+      "period": 1,
+      "byWeekday": {
+        "2": "phonics",
+        "4": "phonics"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "redOrangeYellow",
+      "level": "Red",
+      "patternId": "tth",
+      "period": 2,
+      "byWeekday": {
+        "2": "spkWr",
+        "4": "spkWr"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "redOrangeYellow",
+      "level": "Red",
+      "patternId": "tth",
+      "period": 3,
+      "byWeekday": {
+        "2": "animation",
+        "4": "animation"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "redOrangeYellow",
+      "level": "Orange",
+      "patternId": "mwf",
+      "period": 1,
+      "byWeekday": {
+        "1": "phonics",
+        "3": "phonics",
+        "5": "spkWr"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "redOrangeYellow",
+      "level": "Orange",
+      "patternId": "mwf",
+      "period": 2,
+      "byWeekday": {
+        "1": "spkWr",
+        "3": "animation",
+        "5": "animation"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "redOrangeYellow",
+      "level": "Orange",
+      "patternId": "tth",
+      "period": 1,
+      "byWeekday": {
+        "2": "phonics",
+        "4": "phonics"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "redOrangeYellow",
+      "level": "Orange",
+      "patternId": "tth",
+      "period": 2,
+      "byWeekday": {
+        "2": "spkWr",
+        "4": "spkWr"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "redOrangeYellow",
+      "level": "Orange",
+      "patternId": "tth",
+      "period": 3,
+      "byWeekday": {
+        "2": "animation",
+        "4": "animation"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "redOrangeYellow",
+      "level": "Yellow",
+      "patternId": "mwf",
+      "period": 1,
+      "byWeekday": {
+        "1": "phonics",
+        "3": "phonics",
+        "5": "spkWr"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "redOrangeYellow",
+      "level": "Yellow",
+      "patternId": "mwf",
+      "period": 2,
+      "byWeekday": {
+        "1": "spkWr",
+        "3": "animation",
+        "5": "animation"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "redOrangeYellow",
+      "level": "Yellow",
+      "patternId": "tth",
+      "period": 1,
+      "byWeekday": {
+        "2": "phonics",
+        "4": "phonics"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "redOrangeYellow",
+      "level": "Yellow",
+      "patternId": "tth",
+      "period": 2,
+      "byWeekday": {
+        "2": "spkWr",
+        "4": "spkWr"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "redOrangeYellow",
+      "level": "Yellow",
+      "patternId": "tth",
+      "period": 3,
+      "byWeekday": {
+        "2": "animation",
+        "4": "animation"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "greenBlueNavy",
+      "level": "Green",
+      "patternId": "mwf",
+      "period": 1,
+      "byWeekday": {
+        "1": "reading",
+        "3": "reading",
+        "5": "spkWr"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "greenBlueNavy",
+      "level": "Green",
+      "patternId": "mwf",
+      "period": 2,
+      "byWeekday": {
+        "1": "spkWr",
+        "3": "animation",
+        "5": "animation"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "greenBlueNavy",
+      "level": "Green",
+      "patternId": "tth",
+      "period": 1,
+      "byWeekday": {
+        "2": "reading",
+        "4": "reading"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "greenBlueNavy",
+      "level": "Green",
+      "patternId": "tth",
+      "period": 2,
+      "byWeekday": {
+        "2": "spkWr",
+        "4": "spkWr"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "greenBlueNavy",
+      "level": "Green",
+      "patternId": "tth",
+      "period": 3,
+      "byWeekday": {
+        "2": "animation",
+        "4": "animation"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "greenBlueNavy",
+      "level": "Blue",
+      "patternId": "mwf",
+      "period": 1,
+      "byWeekday": {
+        "1": "reading",
+        "3": "reading",
+        "5": "spkWr"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "greenBlueNavy",
+      "level": "Blue",
+      "patternId": "mwf",
+      "period": 2,
+      "byWeekday": {
+        "1": "spkWr",
+        "3": "animation",
+        "5": "animation"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "greenBlueNavy",
+      "level": "Blue",
+      "patternId": "tth",
+      "period": 1,
+      "byWeekday": {
+        "2": "reading",
+        "4": "reading"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "greenBlueNavy",
+      "level": "Blue",
+      "patternId": "tth",
+      "period": 2,
+      "byWeekday": {
+        "2": "spkWr",
+        "4": "spkWr"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "greenBlueNavy",
+      "level": "Blue",
+      "patternId": "tth",
+      "period": 3,
+      "byWeekday": {
+        "2": "animation",
+        "4": "animation"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "greenBlueNavy",
+      "level": "Navy",
+      "patternId": "mwf",
+      "period": 1,
+      "byWeekday": {
+        "1": "reading",
+        "3": "reading",
+        "5": "spkWr"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "greenBlueNavy",
+      "level": "Navy",
+      "patternId": "mwf",
+      "period": 2,
+      "byWeekday": {
+        "1": "spkWr",
+        "3": "animation",
+        "5": "animation"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "greenBlueNavy",
+      "level": "Navy",
+      "patternId": "tth",
+      "period": 1,
+      "byWeekday": {
+        "2": "reading",
+        "4": "reading"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "greenBlueNavy",
+      "level": "Navy",
+      "patternId": "tth",
+      "period": 2,
+      "byWeekday": {
+        "2": "spkWr",
+        "4": "spkWr"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "greenBlueNavy",
+      "level": "Navy",
+      "patternId": "tth",
+      "period": 3,
+      "byWeekday": {
+        "2": "animation",
+        "4": "animation"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "purple",
+      "level": "Purple",
+      "patternId": "mwf",
+      "period": 1,
+      "byWeekday": {
+        "1": "readingV",
+        "3": "readingV",
+        "5": "news"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "purple",
+      "level": "Purple",
+      "patternId": "mwf",
+      "period": 2,
+      "byWeekday": {
+        "1": "news",
+        "3": "debate",
+        "5": "grammar"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "purple",
+      "level": "Purple",
+      "patternId": "tth",
+      "period": 1,
+      "byWeekday": {
+        "2": "readingV",
+        "4": "readingV"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "purple",
+      "level": "Purple",
+      "patternId": "tth",
+      "period": 2,
+      "byWeekday": {
+        "2": "news",
+        "4": "news"
+      }
+    },
+    {
+      "programTrack": "juniorRainbow",
+      "levelGroup": "purple",
+      "level": "Purple",
+      "patternId": "tth",
+      "period": 3,
+      "byWeekday": {
+        "2": "grammar",
+        "4": "debate"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "yeoulSaemmul",
+      "level": "Saemmul",
+      "patternId": "mwf",
+      "period": 1,
+      "byWeekday": {
+        "1": "news",
+        "3": "news",
+        "5": "readingV"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "yeoulSaemmul",
+      "level": "Saemmul",
+      "patternId": "mwf",
+      "period": 2,
+      "byWeekday": {
+        "1": "readingV",
+        "3": "debate",
+        "5": "grammar"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "yeoulSaemmul",
+      "level": "Saemmul",
+      "patternId": "tth",
+      "period": 1,
+      "byWeekday": {
+        "2": "news",
+        "4": "news"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "yeoulSaemmul",
+      "level": "Saemmul",
+      "patternId": "tth",
+      "period": 2,
+      "byWeekday": {
+        "2": "readingV",
+        "4": "debate"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "yeoulSaemmul",
+      "level": "Saemmul",
+      "patternId": "tth",
+      "period": 3,
+      "byWeekday": {
+        "2": "grammar",
+        "4": "readingV"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "yeoulSaemmul",
+      "level": "Yeoul",
+      "patternId": "mwf",
+      "period": 1,
+      "byWeekday": {
+        "1": "news",
+        "3": "news",
+        "5": "readingV"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "yeoulSaemmul",
+      "level": "Yeoul",
+      "patternId": "mwf",
+      "period": 2,
+      "byWeekday": {
+        "1": "readingV",
+        "3": "debate",
+        "5": "grammar"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "yeoulSaemmul",
+      "level": "Yeoul",
+      "patternId": "tth",
+      "period": 1,
+      "byWeekday": {
+        "2": "news",
+        "4": "news"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "yeoulSaemmul",
+      "level": "Yeoul",
+      "patternId": "tth",
+      "period": 2,
+      "byWeekday": {
+        "2": "readingV",
+        "4": "debate"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "yeoulSaemmul",
+      "level": "Yeoul",
+      "patternId": "tth",
+      "period": 3,
+      "byWeekday": {
+        "2": "grammar",
+        "4": "readingV"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "badaGaram",
+      "level": "Garam",
+      "patternId": "mwf",
+      "period": 1,
+      "byWeekday": {
+        "1": "newsLc",
+        "3": "news",
+        "5": "debate"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "badaGaram",
+      "level": "Garam",
+      "patternId": "mwf",
+      "period": 2,
+      "byWeekday": {
+        "1": "readingV",
+        "3": "grammar",
+        "5": "readingV"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "badaGaram",
+      "level": "Garam",
+      "patternId": "tth",
+      "period": 1,
+      "byWeekday": {
+        "2": "newsLc",
+        "4": "news"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "badaGaram",
+      "level": "Garam",
+      "patternId": "tth",
+      "period": 2,
+      "byWeekday": {
+        "2": "debate",
+        "4": "readingV"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "badaGaram",
+      "level": "Garam",
+      "patternId": "tth",
+      "period": 3,
+      "byWeekday": {
+        "2": "readingV",
+        "4": "grammar"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "badaGaram",
+      "level": "Bada",
+      "patternId": "mwf",
+      "period": 1,
+      "byWeekday": {
+        "1": "newsLc",
+        "3": "news",
+        "5": "debate"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "badaGaram",
+      "level": "Bada",
+      "patternId": "mwf",
+      "period": 2,
+      "byWeekday": {
+        "1": "readingV",
+        "3": "grammar",
+        "5": "readingV"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "badaGaram",
+      "level": "Bada",
+      "patternId": "tth",
+      "period": 1,
+      "byWeekday": {
+        "2": "newsLc",
+        "4": "news"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "badaGaram",
+      "level": "Bada",
+      "patternId": "tth",
+      "period": 2,
+      "byWeekday": {
+        "2": "debate",
+        "4": "readingV"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "badaGaram",
+      "level": "Bada",
+      "patternId": "tth",
+      "period": 3,
+      "byWeekday": {
+        "2": "readingV",
+        "4": "grammar"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "mirinaeByeolmaru",
+      "level": "Mirinae",
+      "patternId": "mwf",
+      "period": 1,
+      "byWeekday": {
+        "1": "newsLc",
+        "3": "debate",
+        "5": "toeflRcV"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "mirinaeByeolmaru",
+      "level": "Mirinae",
+      "patternId": "mwf",
+      "period": 2,
+      "byWeekday": {
+        "1": "grammar",
+        "3": "toeflRcV",
+        "5": "grammar"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "mirinaeByeolmaru",
+      "level": "Mirinae",
+      "patternId": "tth",
+      "period": 1,
+      "byWeekday": {
+        "2": "newsLc",
+        "4": "debate"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "mirinaeByeolmaru",
+      "level": "Mirinae",
+      "patternId": "tth",
+      "period": 2,
+      "byWeekday": {
+        "2": "toeflRcV",
+        "4": "toeflRcV"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "mirinaeByeolmaru",
+      "level": "Mirinae",
+      "patternId": "tth",
+      "period": 3,
+      "byWeekday": {
+        "2": "grammar",
+        "4": "grammar"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "mirinaeByeolmaru",
+      "level": "Byeolmaru",
+      "patternId": "mwf",
+      "period": 1,
+      "byWeekday": {
+        "1": "newsLc",
+        "3": "debate",
+        "5": "toeflRcV"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "mirinaeByeolmaru",
+      "level": "Byeolmaru",
+      "patternId": "mwf",
+      "period": 2,
+      "byWeekday": {
+        "1": "grammar",
+        "3": "toeflRcV",
+        "5": "grammar"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "mirinaeByeolmaru",
+      "level": "Byeolmaru",
+      "patternId": "tth",
+      "period": 1,
+      "byWeekday": {
+        "2": "newsLc",
+        "4": "debate"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "mirinaeByeolmaru",
+      "level": "Byeolmaru",
+      "patternId": "tth",
+      "period": 2,
+      "byWeekday": {
+        "2": "toeflRcV",
+        "4": "toeflRcV"
+      }
+    },
+    {
+      "programTrack": "seniorWaterflow",
+      "levelGroup": "mirinaeByeolmaru",
+      "level": "Byeolmaru",
+      "patternId": "tth",
+      "period": 3,
+      "byWeekday": {
+        "2": "grammar",
+        "4": "grammar"
+      }
+    }
+  ]
+}

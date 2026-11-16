@@ -2,6 +2,7 @@
 
 Source: the academy's printed flyer **심슨어학원 중등 커리큘럼 / Simson Middle School** (photo: [`middle-school-curriculum-flyer.jpg`](middle-school-curriculum-flyer.jpg)), added Nov 2026.
 Machine-readable copy: [`middle-school.json`](middle-school.json).
+Elementary: see [`elementary.md`](elementary.md).
 
 The app has no middle-school subject matrix yet (`js/schedule-matrix-data.js` covers Red–Mirinae only). This file is the reference for adding one.
 
