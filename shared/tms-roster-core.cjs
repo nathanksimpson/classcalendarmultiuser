@@ -3024,8 +3024,56 @@ function parseTeacherGrid(html) {
     return slots;
 }
 
+/** Parse the cmbaca branch/campus selector into {value,name} + the selected id. */
+function parseBranchSelect(html) {
+    const block = extractSelectBlock(html, 'cmbaca');
+    const branches = parseSelectOptions(block).map((o) => ({ aca: o.value, name: o.text }));
+    const selected =
+        (block.match(/<option[^>]*value=["']([^"']*)["'][^>]*selected/i) || [])[1] ||
+        (branches[0] && branches[0].aca) ||
+        '';
+    return { branches, selected };
+}
+
+/**
+ * Switch the cmbaca branch via ASP.NET autopostback when a specific, available
+ * branch is requested. Returns the (possibly updated) page HTML. A single-branch
+ * account, or no `aca`, returns the original HTML unchanged.
+ * NOTE: multi-branch switching is untested — accounts so far see only one campus.
+ */
+async function switchBranchIfNeeded(url, html, jar, aca) {
+    const { branches, selected } = parseBranchSelect(html);
+    const want = String(aca || '').trim();
+    if (!want || want === String(selected)) {
+        return html;
+    }
+    if (!branches.some((b) => String(b.aca) === want)) {
+        return html; // not available to this account
+    }
+    const fields = extractHiddenInputs(html);
+    fields.__EVENTTARGET = 'cmbaca';
+    fields.__EVENTARGUMENT = '';
+    fields.cmbaca = want;
+    try {
+        const posted = await requestFollow(url, {
+            method: 'POST',
+            jar,
+            body: encodeForm(fields),
+            headers: { Referer: url },
+            contentType: 'application/x-www-form-urlencoded'
+        });
+        if (posted.status < 400 && !stillOnLoginPage(posted.text, posted.finalUrl)) {
+            return posted.text;
+        }
+    } catch (_) {
+        /* fall back to the original branch */
+    }
+    return html;
+}
+
 /**
  * Branch-wide cohort catalogue from Nesin.aspx.
+ * options.aca selects a campus (defaults to the account's current branch).
  * @returns {Promise<{current:object[], previous:object[], meta:object}>}
  */
 async function scrapeCohortCatalogue(options) {
@@ -3047,6 +3095,10 @@ async function scrapeCohortCatalogue(options) {
         throw err;
     }
 
+    const { branches, selected } = parseBranchSelect(page.text);
+    const aca = String(cfg.aca || selected || '');
+    const html = await switchBranchIfNeeded(url, page.text, jar, aca);
+
     const dedupe = (arr) => {
         const seen = new Set();
         return arr.filter((c) => {
@@ -3059,10 +3111,10 @@ async function scrapeCohortCatalogue(options) {
     };
 
     const current = dedupe(
-        parseSelectOptions(extractSelectBlock(page.text, 'cmbban')).map(parseNesinCohortOption)
+        parseSelectOptions(extractSelectBlock(html, 'cmbban')).map(parseNesinCohortOption)
     );
     const previous = dedupe(
-        parseSelectOptions(extractSelectBlock(page.text, 'cmboldban')).map(parseNesinCohortOption)
+        parseSelectOptions(extractSelectBlock(html, 'cmboldban')).map(parseNesinCohortOption)
     );
 
     return {
@@ -3071,6 +3123,8 @@ async function scrapeCohortCatalogue(options) {
         meta: {
             source: 'nesin',
             url,
+            aca,
+            branches,
             currentCount: current.length,
             previousCount: previous.length
         }
@@ -3101,29 +3155,27 @@ async function scrapeTermSchedule(options) {
         throw err;
     }
 
-    // Branch (aca): use the page's own selected value, don't hardcode.
-    const acaBlock = extractSelectBlock(first.text, 'cmbaca');
-    const acaSelected =
-        (acaBlock.match(/<option[^>]*value=["']([^"']*)["'][^>]*selected/i) || [])[1] ||
-        (parseSelectOptions(acaBlock)[0] || {}).value ||
-        String(cfg.aca || '');
+    // Branch (aca): default to the account's current branch; switch if asked.
+    const { branches, selected } = parseBranchSelect(first.text);
+    const acaSelected = String(cfg.aca || selected || '');
+    const page = await switchBranchIfNeeded(url, first.text, jar, acaSelected);
 
     const includePlaceholders = Boolean(cfg.includePlaceholders);
-    const teachers = parseSelectOptions(extractSelectBlock(first.text, 'cmbteacher')).filter(
+    const teachers = parseSelectOptions(extractSelectBlock(page, 'cmbteacher')).filter(
         (t) => t.value && t.text && (includePlaceholders || !/^XXX_/.test(t.text))
     );
 
     // ASP.NET image-button name ("검색"); fallback to imgSearch.
     const imgName =
-        (first.text.match(/<input[^>]*type=["']image["'][^>]*name=["']([^"']+)["']/i) || [])[1] ||
-        (first.text.match(/name=["']([^"']+)["'][^>]*type=["']image["']/i) || [])[1] ||
+        (page.match(/<input[^>]*type=["']image["'][^>]*name=["']([^"']+)["']/i) || [])[1] ||
+        (page.match(/name=["']([^"']+)["'][^>]*type=["']image["']/i) || [])[1] ||
         'imgSearch';
 
     const includeEmpty = Boolean(cfg.includeEmptyTeachers);
     const results = [];
 
     for (const t of teachers) {
-        const fields = extractHiddenInputs(first.text);
+        const fields = extractHiddenInputs(page);
         fields.cmbaca = acaSelected;
         fields.cmbteacher = t.value;
         fields[`${imgName}.x`] = '5';
@@ -3166,11 +3218,14 @@ async function scrapeTermSchedule(options) {
 
     return {
         aca: acaSelected,
+        branches,
         teachers: results,
         placements,
         meta: {
             source: 'teacher-time',
             url,
+            aca: acaSelected,
+            branches,
             teacherCount: teachers.length,
             placementCount: placements.length
         }
