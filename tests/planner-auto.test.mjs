@@ -499,3 +499,24 @@ console.log('planner-auto tests passed');
     assert(!api.outsideStudentHours(d, dm, 5, 2), 'middle school Tue/Thu keep the wider window');
     console.log('teacher type and middle school start tests passed');
 }
+
+// Two classes of the same kind (same subject) for one cohort never share a day.
+{
+    const d = {
+        cohorts: [{ id: 'k', name: 'K M', meetingDays: [1, 3, 5], level: 'Green', students: [], schedulePattern: 'mwf' }],
+        classes: [
+            { id: 'g1', name: 'K M · Grammar', cohortIds: ['k'], weeklyFrequency: 1, teacherRequirementType: 'korean' },
+            { id: 'g2', name: 'K M · Grammar 2', cohortIds: ['k'], weeklyFrequency: 1, teacherRequirementType: 'korean' },
+            { id: 'r1', name: 'K M · RC', cohortIds: ['k'], weeklyFrequency: 3, teacherRequirementType: 'korean' }
+        ],
+        teacherProfiles: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }],
+        rooms: []
+    };
+    api.ensurePlannerFields(d);
+    const dr = { id: 'k1', assignments: [], issues: [], metrics: {} };
+    const r = auto.autoSchedule(d, dr, {});
+    const days = (id) => dr.assignments.filter((a) => a.classId === id).flatMap((a) => a.meetings.map((m) => m.dow));
+    assert(r.unplaced.length === 0, 'same-kind fixture places');
+    assert(days('g1').length === 1 && days('g2').length === 1 && days('g1')[0] !== days('g2')[0], `two Grammar classes on one day: ${days('g1')} ${days('g2')}`);
+    console.log('same kind of class per day tests passed');
+}

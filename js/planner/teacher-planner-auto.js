@@ -305,6 +305,26 @@
             return allowed || DAYS.slice();
         };
 
+        /** What kind of class this is: its class type, else the subject in its name ("Blue M · Grammar" -> grammar). */
+        const typeKeyOf = (d) => {
+            const type = String(d.classTypeId || '').trim();
+            if (type) return `type:${type}`;
+            const name = String(d.name || '');
+            const subject = name.includes('·') ? name.split('·').pop() : name.replace(/^.*?\s/, '');
+            return `name:${subject.toLowerCase().replace(/[\s\d]+/g, '')}`;
+        };
+        /** Does one of this class's cohorts already have another class of the same kind on this day? */
+        const sameKindThatDay = (demand, dow) => {
+            const key = typeKeyOf(demand);
+            return draft.assignments.some((other) => {
+                if (other.demandId === demand.demandId) return false;
+                const od = demandById.get(other.demandId);
+                if (!od || typeKeyOf(od) !== key) return false;
+                if (!(od.cohortIds || []).some((cid) => (demand.cohortIds || []).includes(cid))) return false;
+                return (other.meetings || []).some((m) => Number(m.dow) === dow);
+            });
+        };
+
         /** Choose `count` slots for this class with this teacher (null = no teacher). */
         const chooseSlots = (demand, teacher, count) => {
             const asg = asgOf(demand);
@@ -322,7 +342,9 @@
                 // A class never meets twice on the same day when auto places it (only when it needs more
                 // meetings a week than it has days does it have to double up).
                 const freshDays = days.filter((d) => !usedDays.has(d));
-                const dayPool = freshDays.length ? freshDays : (count + usedDays.size > days.length ? days : []);
+                const dayPool0 = freshDays.length ? freshDays : (count + usedDays.size > days.length ? days : []);
+                // Two classes of the same kind (e.g. two Grammar classes) never share a day for a cohort.
+                const dayPool = dayPool0.filter((dw) => !sameKindThatDay(demand, dw));
                 dayPool.forEach((dow) => {
                     periods.forEach((n, idx) => {
                         if (picked.some((x) => x.dow === dow && x.n === n)) return;

@@ -31,7 +31,7 @@
             SCRIPT_TEACHER_TIMETABLE,
             SCRIPT_PLANNER_CORE,
             'js/planner/teacher-planner-snapshots.js?v=20261116-planner-snap',
-            'js/planner/teacher-planner-auto.js?v=20261117-gap',
+            'js/planner/teacher-planner-auto.js?v=20261117-kind',
             'js/planner/teacher-planner-ui.js?v=20261117-gap'
         ],
         timetable: [
