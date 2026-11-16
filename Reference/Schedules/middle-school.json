@@ -1,0 +1,436 @@
+{
+  "version": 1,
+  "source": "심슨어학원 중등 커리큘럼 flyer (middle-school-curriculum-flyer.jpg), Nov 2026",
+  "notes": [
+    "a|b = one or the other, chosen per cohort",
+    "rc1/rc2 = two separate RC classes (중3)",
+    "Regular tracks are 360 min/week (60-min periods); onceWeekly is 240 min, 5 periods",
+    "중3 starts 예비고1 from the summer term"
+  ],
+  "subjects": {
+    "news": "News",
+    "debate": "Debate",
+    "rc": "RC (실전모의고사 & Reading)",
+    "rc1": "RC 1",
+    "rc2": "RC 2",
+    "grammar": "Grammar",
+    "voca": "Vocabulary",
+    "lc": "LC",
+    "mentoring": "Mentoring",
+    "naesin": "내신완성"
+  },
+  "levels": [
+    {
+      "id": "preBasic",
+      "name": "Pre-Basic",
+      "order": 1
+    },
+    {
+      "id": "basic",
+      "name": "Basic",
+      "order": 2
+    },
+    {
+      "id": "interLow",
+      "name": "Inter-low",
+      "order": 3
+    },
+    {
+      "id": "interHigh",
+      "name": "Inter-high",
+      "order": 4
+    },
+    {
+      "id": "advanced",
+      "name": "Advanced",
+      "order": 5
+    }
+  ],
+  "scoreBasis": {
+    "advanced": "고2–고3 mock tests",
+    "interHigh": "고1–고2",
+    "interLow": "고1",
+    "basic": "고1"
+  },
+  "cohorts": [
+    {
+      "name": "S1",
+      "level": "preBasic",
+      "grade": 1,
+      "gradeLabel": "중1",
+      "suneungScore": "50 이하"
+    },
+    {
+      "name": "S2",
+      "level": "preBasic",
+      "grade": 2,
+      "gradeLabel": "중2",
+      "suneungScore": "50 이하"
+    },
+    {
+      "name": "S3",
+      "level": "preBasic",
+      "grade": 3,
+      "gradeLabel": "중3",
+      "suneungScore": "50 이하"
+    },
+    {
+      "name": "유마",
+      "level": "basic",
+      "grade": 1,
+      "gradeLabel": "중1",
+      "suneungScore": "50"
+    },
+    {
+      "name": "홉스",
+      "level": "basic",
+      "grade": 2,
+      "gradeLabel": "중2",
+      "suneungScore": "55"
+    },
+    {
+      "name": "안나",
+      "level": "basic",
+      "grade": 3,
+      "gradeLabel": "중3",
+      "suneungScore": "60"
+    },
+    {
+      "name": "레오",
+      "level": "interLow",
+      "grade": 1,
+      "gradeLabel": "중1",
+      "suneungScore": "65"
+    },
+    {
+      "name": "티카",
+      "level": "interLow",
+      "grade": 2,
+      "gradeLabel": "중2",
+      "suneungScore": "70"
+    },
+    {
+      "name": "낭가",
+      "level": "interLow",
+      "grade": 3,
+      "gradeLabel": "중3",
+      "suneungScore": "75"
+    },
+    {
+      "name": "파보",
+      "level": "interHigh",
+      "grade": 1,
+      "gradeLabel": "중1",
+      "suneungScore": "70"
+    },
+    {
+      "name": "빅키",
+      "level": "interHigh",
+      "grade": 2,
+      "gradeLabel": "중2",
+      "suneungScore": "75"
+    },
+    {
+      "name": "로체",
+      "level": "interHigh",
+      "grade": 3,
+      "gradeLabel": "중3",
+      "suneungScore": "80"
+    },
+    {
+      "name": "폴라",
+      "level": "advanced",
+      "grade": 1,
+      "gradeLabel": "중1",
+      "suneungScore": "80"
+    },
+    {
+      "name": "바이칼",
+      "level": "advanced",
+      "grade": 2,
+      "gradeLabel": "중2",
+      "suneungScore": "85"
+    },
+    {
+      "name": "캉첸",
+      "level": "advanced",
+      "grade": 3,
+      "gradeLabel": "중3",
+      "suneungScore": "90"
+    }
+  ],
+  "patterns": {
+    "mwf": {
+      "meetingDays": [
+        1,
+        3,
+        5
+      ],
+      "minutesPerWeek": 360
+    },
+    "tth": {
+      "meetingDays": [
+        2,
+        4
+      ],
+      "minutesPerWeek": 360
+    },
+    "mon": {
+      "meetingDays": [
+        1
+      ],
+      "minutesPerWeek": 240
+    }
+  },
+  "tracks": {
+    "preBasic": {
+      "levels": [
+        "preBasic"
+      ],
+      "grades": [
+        1,
+        2,
+        3
+      ]
+    },
+    "m1m2": {
+      "levels": [
+        "basic",
+        "interLow",
+        "interHigh",
+        "advanced"
+      ],
+      "grades": [
+        1,
+        2
+      ]
+    },
+    "m3": {
+      "levels": [
+        "basic",
+        "interLow",
+        "interHigh",
+        "advanced"
+      ],
+      "grades": [
+        3
+      ]
+    },
+    "onceWeekly": {
+      "levels": [
+        "interHigh",
+        "advanced"
+      ],
+      "grades": [
+        2,
+        3
+      ]
+    }
+  },
+  "slots": [
+    {
+      "track": "preBasic",
+      "patternId": "mwf",
+      "period": 1,
+      "byWeekday": {
+        "1": "rc",
+        "3": "rc",
+        "5": "grammar"
+      }
+    },
+    {
+      "track": "preBasic",
+      "patternId": "mwf",
+      "period": 2,
+      "byWeekday": {
+        "1": "grammar",
+        "3": "grammar",
+        "5": "lc|voca"
+      }
+    },
+    {
+      "track": "preBasic",
+      "patternId": "tth",
+      "period": 1,
+      "byWeekday": {
+        "2": "rc",
+        "4": "rc"
+      }
+    },
+    {
+      "track": "preBasic",
+      "patternId": "tth",
+      "period": 2,
+      "byWeekday": {
+        "2": "grammar",
+        "4": "grammar"
+      }
+    },
+    {
+      "track": "preBasic",
+      "patternId": "tth",
+      "period": 3,
+      "byWeekday": {
+        "2": "grammar",
+        "4": "lc|voca"
+      }
+    },
+    {
+      "track": "m1m2",
+      "patternId": "mwf",
+      "period": 1,
+      "byWeekday": {
+        "1": "news",
+        "3": "grammar",
+        "5": "news"
+      }
+    },
+    {
+      "track": "m1m2",
+      "patternId": "mwf",
+      "period": 2,
+      "byWeekday": {
+        "1": "grammar",
+        "3": "rc",
+        "5": "debate|rc"
+      }
+    },
+    {
+      "track": "m1m2",
+      "patternId": "tth",
+      "period": 1,
+      "byWeekday": {
+        "2": "news",
+        "4": "news"
+      }
+    },
+    {
+      "track": "m1m2",
+      "patternId": "tth",
+      "period": 2,
+      "byWeekday": {
+        "2": "rc",
+        "4": "grammar"
+      }
+    },
+    {
+      "track": "m1m2",
+      "patternId": "tth",
+      "period": 3,
+      "byWeekday": {
+        "2": "grammar",
+        "4": "debate|rc"
+      }
+    },
+    {
+      "track": "m3",
+      "patternId": "mwf",
+      "period": 1,
+      "byWeekday": {
+        "1": "rc1",
+        "3": "rc1",
+        "5": "news"
+      }
+    },
+    {
+      "track": "m3",
+      "patternId": "mwf",
+      "period": 2,
+      "byWeekday": {
+        "1": "grammar",
+        "3": "grammar",
+        "5": "debate|rc2"
+      }
+    },
+    {
+      "track": "m3",
+      "patternId": "tth",
+      "period": 1,
+      "byWeekday": {
+        "2": "rc1",
+        "4": "rc1"
+      }
+    },
+    {
+      "track": "m3",
+      "patternId": "tth",
+      "period": 2,
+      "byWeekday": {
+        "2": "news",
+        "4": "grammar"
+      }
+    },
+    {
+      "track": "m3",
+      "patternId": "tth",
+      "period": 3,
+      "byWeekday": {
+        "2": "grammar",
+        "4": "debate|rc2"
+      }
+    },
+    {
+      "track": "onceWeekly",
+      "patternId": "mon",
+      "period": 1,
+      "byWeekday": {
+        "1": "news"
+      }
+    },
+    {
+      "track": "onceWeekly",
+      "patternId": "mon",
+      "period": 2,
+      "byWeekday": {
+        "1": "rc"
+      }
+    },
+    {
+      "track": "onceWeekly",
+      "patternId": "mon",
+      "period": 3,
+      "byWeekday": {
+        "1": "grammar"
+      }
+    },
+    {
+      "track": "onceWeekly",
+      "patternId": "mon",
+      "period": 4,
+      "byWeekday": {
+        "1": "grammar"
+      }
+    },
+    {
+      "track": "onceWeekly",
+      "patternId": "mon",
+      "period": 5,
+      "byWeekday": {
+        "1": "mentoring"
+      }
+    }
+  ],
+  "specialCourses": [
+    {
+      "name": "Debate 실전 특강",
+      "online": true,
+      "perWeek": 1,
+      "minutes": 120,
+      "groupSize": 6,
+      "who": "영어 말하기 가능한 학생"
+    },
+    {
+      "name": "원어민 회화 특강",
+      "online": true,
+      "perWeek": 2,
+      "minutes": 120,
+      "groupSize": 5,
+      "who": "중등 전체 (레벨 5명)"
+    },
+    {
+      "name": "자소서 특강",
+      "with": "심슨진학연구소",
+      "when": "every summer term"
+    }
+  ]
+}

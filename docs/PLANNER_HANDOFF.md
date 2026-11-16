@@ -29,7 +29,7 @@ Also follow `AGENTS.md`, `DEVELOPER.md` and `UI_STYLE_GUIDE.md`. The rules from 
 | `js/planner/teacher-planner-auto.js` | `CCPPlannerAuto` | Auto-schedule, previous-term analysis, plan options, clash fixing. No DOM. |
 | `js/planner/teacher-planner-ui.js` | `CCPTeacherPlannerUi` | **DOM only**: board, tray, To fix list, drag engine, Setup, dialogs, print. |
 | `index.html` `#panel-planner` | | The planner's markup inside the main app: top bar, tray, board, dialogs (`spSetup`, `spAuto`, `spFix`, `spConfirm`), print area. `planner.html` only redirects old links. |
-| `js/schedule-matrix-data.js` | `CCPScheduleMatrixData` | Subjects per level and MWF/TT (Red–Mirinae). **No middle school yet.** |
+| `js/schedule-matrix-data.js` | `CCPScheduleMatrixData` | Subjects per level and MWF/TT (Red–Mirinae). **No middle school yet** — reference: `Reference/Schedules/middle-school.md` / `.json`. |
 | `js/level-profile.js` | `CCPLevelProfile` | Levels; `defaultScheduleBlockForLevel`, `schedulingGroupForLevel`. |
 | `tests/teacher-planner-core.test.mjs`, `tests/planner-auto.test.mjs` | | Rule and algorithm tests (plain Node). |
 | `scripts/make-sample-calendars.mjs` | | Rebuilds the two sample calendars in `Example Calendars/`. |
