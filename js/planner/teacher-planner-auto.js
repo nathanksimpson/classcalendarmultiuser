@@ -200,6 +200,19 @@
         const runLimit = api.maxConsecutive(appData);
         const blockouts = (appData.plannerState && appData.plannerState.blockouts) || {};
         const periods = periodNumbers(appData);
+        // The academy day starts at 15:20: periods that begin earlier are a last resort, not a default.
+        const DEFAULT_START = 15 * 60 + 20;
+        const slotStartMin = (n) => {
+            try {
+                const tp = global.CCPTimetablePeriods;
+                const map = (appData.periodSlotMap && Object.keys(appData.periodSlotMap).length) ? appData.periodSlotMap : (tp && tp.getDefaultMap ? tp.getDefaultMap() : {});
+                const list = (appData.timetableTimeSlots && appData.timetableTimeSlots.length) ? appData.timetableTimeSlots : (tp && tp.getDefaultSlots ? tp.getDefaultSlots() : []);
+                const slot = list.find((x) => x.id === map[String(n)]);
+                const m = slot && String(slot.start).match(/^(\d+):(\d+)$/);
+                return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+            } catch (e) { return null; }
+        };
+        const beforeDefaultStart = (n) => { const m = slotStartMin(n); return m != null && m < DEFAULT_START; };
         const teachers = (appData.teacherProfiles || []).map((t) => api.defaultTeacherProfile(t));
         const rooms = (appData.rooms || []).slice().sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
         const cohortById = new Map(((appData.cohorts || [])).map((c) => [c.id, c]));
@@ -317,8 +330,10 @@
             for (let k = 0; k < count; k += 1) {
                 let best = null;
                 // Spread a class over different days while it still can.
+                // A class never meets twice on the same day when auto places it (only when it needs more
+                // meetings a week than it has days does it have to double up).
                 const freshDays = days.filter((d) => !usedDays.has(d));
-                const dayPool = freshDays.length ? freshDays : days;
+                const dayPool = freshDays.length ? freshDays : (count + usedDays.size > days.length ? days : []);
                 dayPool.forEach((dow) => {
                     periods.forEach((n, idx) => {
                         if (picked.some((x) => x.dow === dow && x.n === n)) return;
@@ -333,9 +348,24 @@
                         const roomFree = !rooms.length || rooms.some((r) => !roomBusy.has(`${r.id}|${dow}|${n}`)
                             && !api.roomTooSmall(appData, demand, r.id));
                         let score = -0.4 * idx; // earlier in the students' hours first
+                        if (beforeDefaultStart(n)) score -= 30; // classes start at 15:20 by default
                         // Purple may go anywhere, but its own block (primary early, secondary later) is preferred.
                         if (api.outsideStudentHours(appData, demand, n, dow, { byBlock: true })) score -= 10;
                         if (!roomFree) score -= 40;
+                        // A cohort keeps the same block every day it comes (e.g. Mon, Wed and Fri all at periods 4–5):
+                        // reward the periods it already uses on its other days, discourage a different block.
+                        (demand.cohortIds || []).forEach((cid) => {
+                            const other = new Set();
+                            cohortDay.forEach((list, key) => {
+                                const [c2, d2] = key.split('|');
+                                if (c2 === cid && Number(d2) !== dow) list.forEach((x) => other.add(x));
+                            });
+                            if (!other.size) return;
+                            const here = (cohortDay.get(`${cid}|${dow}`) || [])
+                                .concat(picked.filter((x) => x.dow === dow).map((x) => x.n));
+                            if (other.has(n)) score += 8;
+                            else if (!here.length) score -= 6;
+                        });
                         // Students should not sit through empty periods.
                         (demand.cohortIds || []).forEach((cid) => {
                             const theirs = cohortDay.get(`${cid}|${dow}`) || [];

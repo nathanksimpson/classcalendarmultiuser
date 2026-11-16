@@ -439,3 +439,46 @@ console.log('planner-auto tests passed');
     assert(JSON.stringify(dr.assignments.find((a) => a.classId === 'sp').meetings.map((m) => [m.dow, m.period])) === before, 'special class stays where it was put');
     console.log('special class tests passed');
 }
+
+// Auto-schedule rules for the academy day: same block every day, never two of one class on a day,
+// days start at 15:20 (period 2), MWF cohorts 2 periods a day, Tue/Thu cohorts 3.
+{
+    const mk = (id, name, days, n) => ({ id, name, meetingDays: days, level: 'Green', students: [] , schedulePattern: days.length === 3 ? 'mwf' : 'tth' });
+    const d = {
+        cohorts: [mk('m', 'Test M', [1, 3, 5]), mk('t', 'Test T', [2, 4])],
+        classes: [
+            { id: 'm1', name: 'M One', cohortIds: ['m'], weeklyFrequency: 3, startDate: '2026-09-01', endDate: '2026-11-30' },
+            { id: 'm2', name: 'M Two', cohortIds: ['m'], weeklyFrequency: 3, startDate: '2026-09-01', endDate: '2026-11-30' },
+            { id: 't1', name: 'T One', cohortIds: ['t'], weeklyFrequency: 2, startDate: '2026-09-01', endDate: '2026-11-30' },
+            { id: 't2', name: 'T Two', cohortIds: ['t'], weeklyFrequency: 2, startDate: '2026-09-01', endDate: '2026-11-30' },
+            { id: 't3', name: 'T Three', cohortIds: ['t'], weeklyFrequency: 2, startDate: '2026-09-01', endDate: '2026-11-30' }
+        ],
+        teacherProfiles: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'c', name: 'C' }],
+        rooms: []
+    };
+    api.ensurePlannerFields(d);
+    const dr = { id: 'dd', assignments: [], issues: [], metrics: {} };
+    const r = auto.autoSchedule(d, dr, {});
+    assert(r.unplaced.length === 0, 'rules fixture places everything');
+    const byCohortDay = {};
+    dr.assignments.forEach((a) => {
+        const cls = d.classes.find((c) => c.id === a.classId);
+        const days = new Set();
+        (a.meetings || []).forEach((m) => {
+            assert(!days.has(m.dow), `${cls.name} is on day ${m.dow} twice`);
+            days.add(m.dow);
+            assert(Number(m.period) >= 2, `${cls.name} starts before 15:20 (period ${m.period})`);
+            const k = `${cls.cohortIds[0]}|${m.dow}`;
+            (byCohortDay[k] = byCohortDay[k] || []).push(Number(m.period));
+        });
+    });
+    Object.entries(byCohortDay).forEach(([k, v]) => {
+        const lim = k.startsWith('m|') ? 2 : 3;
+        assert(Math.max(...v) - Math.min(...v) + 1 <= lim, `${k} day longer than ${lim} periods: ${v}`);
+    });
+    ['m', 't'].forEach((c) => {
+        const sets = Object.entries(byCohortDay).filter(([k]) => k.startsWith(c + '|')).map(([, v]) => v.slice().sort().join(','));
+        assert(new Set(sets).size === 1, `cohort ${c} uses a different block on different days: ${sets}`);
+    });
+    console.log('academy day rules tests passed');
+}
