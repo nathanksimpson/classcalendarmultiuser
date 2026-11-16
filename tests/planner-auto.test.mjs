@@ -475,11 +475,13 @@ console.log('planner-auto tests passed');
     Object.entries(byCohortDay).forEach(([k, v]) => {
         const lim = k.startsWith('m|') ? 2 : 3;
         assert(Math.max(...v) - Math.min(...v) + 1 <= lim, `${k} day longer than ${lim} periods: ${v}`);
+        assert(!api.hasPeriodGap(v), `${k} has a free period in the middle: ${v}`);
     });
     ['m', 't'].forEach((c) => {
         const sets = Object.entries(byCohortDay).filter(([k]) => k.startsWith(c + '|')).map(([, v]) => v.slice().sort().join(','));
         assert(new Set(sets).size === 1, `cohort ${c} uses a different block on different days: ${sets}`);
     });
+    assert(api.hasPeriodGap([4, 6]) && !api.hasPeriodGap([4, 5, 6]) && !api.hasPeriodGap([5]), 'gap helper');
     console.log('academy day rules tests passed');
 }
 

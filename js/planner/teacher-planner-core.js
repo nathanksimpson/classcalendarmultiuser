@@ -46,6 +46,12 @@
         return list.length ? Math.max(...list) - Math.min(...list) + 1 : 0;
     }
 
+    /** True when these periods have a hole (e.g. 4 and 6 with nothing at 5): a student would sit out a period. */
+    function hasPeriodGap(nums) {
+        const list = [...new Set(nums.map(Number).filter((n) => Number.isFinite(n)))];
+        return list.length > 1 && periodSpan(list) > list.length;
+    }
+
     /** Would this period make any of the class's cohorts stay longer that day than allowed? */
     function cohortDayTooLong(assignments, demandById, demand, dow, period) {
         const limit = usualCohortPeriods(dow);
@@ -2096,6 +2102,21 @@
             }));
         });
 
+        // A cohort's classes on one day run back to back: no free period in the middle.
+        cohortDays.forEach((x) => {
+            if (!hasPeriodGap(x.nums)) return;
+            issues.push(createIssue({
+                severity: 'soft',
+                code: 'cohort_day_gap',
+                message: `Cohort has a free period between classes on D${x.dow}.`,
+                cohortId: x.cid,
+                dow: x.dow,
+                period: String(Math.min(...x.nums)),
+                assignmentId: x.asg.assignmentId,
+                demandId: x.demand.demandId
+            }));
+        });
+
         const teacherLoads = {};
         teachers.forEach((t) => {
             const assigned = countTeacherLoad(loadAssignments, t.id);
@@ -2906,6 +2927,7 @@
         loadReferenceDate,
         countsForLoad,
         periodSpan,
+        hasPeriodGap,
         isPurpleCohort,
         cohortBlock,
         classAllowedDays,

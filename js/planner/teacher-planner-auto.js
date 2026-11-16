@@ -331,6 +331,9 @@
                         // Hard: a cohort is only in 2 periods on MWF and 3 on Tue/Thu, first class to last.
                         if ((demand.cohortIds || []).some((cid) => api.periodSpan((cohortDay.get(`${cid}|${dow}`) || [])
                             .concat(picked.filter((x) => x.dow === dow).map((x) => x.n), [n])) > api.usualCohortPeriods(dow))) return;
+                        // Hard: students never sit through a free period between two classes.
+                        if ((demand.cohortIds || []).some((cid) => api.hasPeriodGap((cohortDay.get(`${cid}|${dow}`) || [])
+                            .concat(picked.filter((x) => x.dow === dow).map((x) => x.n), [n])))) return;
                         const mine = tDay(dow);
                         if (!teacherCanTake(teacher, dow, n, mine)) return;
                         // Prefer times when a room that seats the class is free (a room is never shared or overfilled).
@@ -515,7 +518,8 @@
         // Would this period make a cohort of the class stay longer than allowed that day? (classes at
         // the same time are about to be moved away, so the span is counted without that period twice)
         const spanTooLong = (demand, dow, n) => (demand.cohortIds || []).some((cid) =>
-            api.periodSpan((cohortDay.get(`${cid}|${dow}`) || []).concat([n])) > api.usualCohortPeriods(dow));
+            api.periodSpan((cohortDay.get(`${cid}|${dow}`) || []).concat([n])) > api.usualCohortPeriods(dow)
+            || api.hasPeriodGap((cohortDay.get(`${cid}|${dow}`) || []).concat([n])));
         const tryEject = (demand, asg) => {
             const teacher = teacherOf(asg);
             const days = classDays(demand);
