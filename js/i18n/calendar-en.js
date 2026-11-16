@@ -3146,6 +3146,8 @@
         spAutoWorking: 'Working out plans…',
         spPlanKept: '{pct}% of students keep a teacher they had',
         spPlanRun: 'Longest stretch: {n} in a row',
+        spPlanChecked: 'Rule check: every rule kept',
+        spPlanCheckBad: 'Rule check: {n} problems left',
         spPlanHoles: 'Split breaks: {n}',
         spPlanLoad: 'Periods per teacher: {min} to {max}',
         spPlanNeedHand: '{n} classes still need placing by hand',

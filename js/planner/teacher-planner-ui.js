@@ -2597,6 +2597,10 @@ ${by.get(cid).map((d) => `
                 lines.push(t('spPlanRun', 'Longest stretch: {n} in a row', { n: st.longestRun }));
                 lines.push(t('spPlanHoles', 'One-period gaps: {n}', { n: st.holes }));
                 lines.push(t('spPlanLoad', 'Periods per teacher: {min} to {max}', { min: st.loadMin, max: st.loadMax }));
+                const broken = st.rulesBroken || 0;
+                lines.push(broken
+                    ? t('spPlanCheckBad', 'Rule check: {n} problems left', { n: broken })
+                    : t('spPlanChecked', 'Rule check: every rule kept'));
                 const current = autoState.appliedId === o.id;
                 return `
 <section class="sp-plan${current ? ' is-current' : ''}">

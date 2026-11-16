@@ -3145,6 +3145,8 @@
         spAutoWorking: '계획을 만드는 중…',
         spPlanKept: '학생의 {pct}%가 기존 교사와 계속 수업',
         spPlanRun: '가장 긴 연속 수업: {n}교시',
+        spPlanChecked: '규칙 점검: 모든 규칙을 지켰습니다',
+        spPlanCheckBad: '규칙 점검: {n}건의 문제가 남아 있습니다',
         spPlanHoles: '나뉜 공강: {n}',
         spPlanLoad: '교사별 교시 수: {min}~{max}',
         spPlanNeedHand: '{n}개 수업은 직접 배치해야 합니다',

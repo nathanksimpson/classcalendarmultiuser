@@ -171,6 +171,15 @@
         balance: { continuity: 0.8, breaks: 1, balance: 3 }
     };
 
+    /** What kind of class this is: its class type, else the subject in its name ("Blue M · Grammar" -> grammar). */
+    function typeKeyOf(d) {
+        const type = String(d.classTypeId || '').trim();
+        if (type) return `type:${type}`;
+        const name = String(d.name || '');
+        const subject = name.includes('·') ? name.split('·').pop() : name.replace(/^.*?\s/, '');
+        return `name:${subject.toLowerCase().replace(/[\s\d]+/g, '')}`;
+    }
+
     /** Separate stretches of classes in a teacher's day (back-to-back classes are one stretch). */
     function teachingBlocks(periods) {
         const nums = [...new Set(periods.map(Number))].sort((a, b) => a - b);
@@ -192,6 +201,98 @@
         const run = P().longestRun(nums);
         if (run >= runLimit) score -= 3; // at the limit: allowed, not liked
         return score;
+    }
+
+    /**
+     * Independent rule check of a draft (does not use the placement code, so it catches its mistakes).
+     * Returns a list of { code, demandId, dow, period, meetings, auto, message }; `auto` is true when one of the
+     * meetings was placed by auto-schedule (options.fresh = that set; without it every meeting counts as auto).
+     * Rules: no double-booking (teacher, cohort, room); a class once a day, and one class of a kind per cohort a day;
+     * cohort day (2 periods MWF / 3 Tue-Thu, back to back) and one block on every day; cohort days; student hours;
+     * teacher type, limits, blocked times, daily/weekly maximums, longest run; the first period unless switched on.
+     */
+    function verifyDraft(appData, draft, options) {
+        const api = P();
+        const opts = options || {};
+        const fresh = opts.fresh || null;
+        const demands = api.buildDemandsFromAppData(appData).filter((d) => d.includedInDraft !== false);
+        const demandById = new Map(demands.map((d) => [d.demandId, d]));
+        const teacherById = new Map((appData.teacherProfiles || []).map((t) => [t.id, api.defaultTeacherProfile(t)]));
+        const runLimit = api.maxConsecutive(appData);
+        const blockouts = (appData.plannerState && appData.plannerState.blockouts) || {};
+        const allPeriods = periodNumbers(appData);
+        const useFirst = !!(appData.plannerState && appData.plannerState.useFirstPeriod === true);
+        const rows = [];
+        (draft.assignments || []).forEach((asg) => {
+            const demand = demandById.get(asg.demandId);
+            if (!demand || demand.special) return;
+            (asg.meetings || []).forEach((m) => rows.push({ asg, demand, m, dow: Number(m.dow), n: Number(m.period) }));
+        });
+        const isAuto = (r) => !fresh || fresh.has(r.m);
+        const out = [];
+        const add = (code, list, message) => {
+            const r = list[0];
+            out.push({ code, demandId: r.demand.demandId, dow: r.dow, period: String(r.n), meetings: list.map((x) => x.m), auto: list.some(isAuto), message });
+        };
+        const group = (keyOf) => {
+            const map = new Map();
+            rows.forEach((r) => keyOf(r).forEach((k) => { if (!map.has(k)) map.set(k, []); map.get(k).push(r); }));
+            return map;
+        };
+        const distinct = (list) => list.filter((r, i) => list.findIndex((x) => x.m === r.m) === i);
+        // Double-booking.
+        group((r) => (r.asg.teacherProfileId ? [`${r.asg.teacherProfileId}|${r.dow}|${r.n}`] : [])).forEach((l) => {
+            if (distinct(l).length > 1) add('teacher_double_booked', l, 'A teacher has two classes at the same time.');
+        });
+        group((r) => (r.demand.cohortIds || []).map((c) => `${c}|${r.dow}|${r.n}`)).forEach((l) => {
+            if (distinct(l).length > 1) add('cohort_double_booked', l, 'A cohort has two classes at the same time.');
+        });
+        group((r) => { const id = api.meetingRoomId(r.asg, r.m); return id ? [`${id}|${r.dow}|${r.n}`] : []; }).forEach((l) => {
+            if (distinct(l).length > 1) add('room_double_booked', l, 'A room is used twice at the same time.');
+        });
+        // A class once a day (unless it meets more often than it has days); one class of a kind per cohort a day.
+        group((r) => [`${r.asg.assignmentId}|${r.dow}`]).forEach((l) => {
+            const days = api.classAllowedDays(appData, l[0].demand) || [1, 2, 3, 4, 5];
+            if (distinct(l).length > 1 && api.weeklyNeed(l[0].demand) <= days.length) add('class_twice_a_day', l, 'A class meets twice on one day.');
+        });
+        group((r) => (r.demand.cohortIds || []).map((c) => `${c}|${r.dow}|${typeKeyOf(r.demand)}`)).forEach((l) => {
+            if (new Set(l.map((r) => r.demand.demandId)).size > 1) add('same_kind_same_day', l, 'Two classes of the same kind on one day for a cohort.');
+        });
+        // Cohort day shape, and one block on every day it comes.
+        const cohortDay = group((r) => (r.demand.cohortIds || []).map((c) => `${c}|${r.dow}`));
+        cohortDay.forEach((l, key) => {
+            const dow = Number(key.split('|')[1]);
+            const nums = [...new Set(l.map((r) => r.n))];
+            if (api.periodSpan(nums) > api.usualCohortPeriods(dow) || api.hasPeriodGap(nums)) add('cohort_day_shape', l, 'A cohort day is too long or has a free period in the middle.');
+        });
+        group((r) => (r.demand.cohortIds || []).map((c) => String(c))).forEach((l) => {
+            const nums = [...new Set(l.map((r) => r.n))];
+            if (api.periodSpan(nums) > api.usualCohortPeriods(l[0].dow) || api.hasPeriodGap(nums)) add('cohort_block', l, 'A cohort is not in the same periods on every day.');
+        });
+        // Per meeting rules.
+        rows.forEach((r) => {
+            const teacher = r.asg.teacherProfileId ? teacherById.get(r.asg.teacherProfileId) : null;
+            const days = api.classAllowedDays(appData, r.demand);
+            if (days && !days.includes(r.dow)) add('off_day', [r], 'The cohort does not come on this day.');
+            if (api.outsideStudentHours(appData, r.demand, r.n, r.dow)) add('outside_student_hours', [r], 'Outside the cohort\'s student hours.');
+            if (!useFirst && allPeriods.length > 1 && r.n === allPeriods[0] && isAuto(r)) add('first_period', [r], 'The first period is switched off.');
+            if (teacher) {
+                if (api.teacherLimitReason(teacher, r.demand)) add('wrong_teacher', [r], 'This teacher may not take this class.');
+                if (api.isSlotBlocked(teacher, r.dow, r.n, blockouts) || api.outsideTeacherHours(appData, teacher, r.n)) add('teacher_unavailable', [r], 'The teacher is not available then.');
+            }
+        });
+        // Teacher day and week limits.
+        group((r) => (r.asg.teacherProfileId ? [`${r.asg.teacherProfileId}|${r.dow}`] : [])).forEach((l, key) => {
+            const t = teacherById.get(key.split('|')[0]);
+            const nums = [...new Set(l.map((r) => r.n))];
+            if (!t) return;
+            if (nums.length > (t.limits.maxPeriodsPerDay || 99) || api.longestRun(nums) > runLimit) add('teacher_day_limit', l, 'A teacher has too many periods or too long a run in one day.');
+        });
+        group((r) => (r.asg.teacherProfileId ? [String(r.asg.teacherProfileId)] : [])).forEach((l, key) => {
+            const t = teacherById.get(key);
+            if (t && distinct(l).length > (t.limits.maxPeriodsPerWeek || 99)) add('teacher_week_limit', l, 'A teacher has more periods than the weekly maximum.');
+        });
+        return out;
     }
 
     /**
@@ -325,14 +426,6 @@
             return api.periodSpan(all) > api.usualCohortPeriods(dow) || api.hasPeriodGap(all);
         });
         const RAINBOW = ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Navy'];
-        /** What kind of class this is: its class type, else the subject in its name ("Blue M · Grammar" -> grammar). */
-        const typeKeyOf = (d) => {
-            const type = String(d.classTypeId || '').trim();
-            if (type) return `type:${type}`;
-            const name = String(d.name || '');
-            const subject = name.includes('·') ? name.split('·').pop() : name.replace(/^.*?\s/, '');
-            return `name:${subject.toLowerCase().replace(/[\s\d]+/g, '')}`;
-        };
         /** Does one of this class's cohorts already have another class of the same kind on this day? */
         const sameKindThatDay = (demand, dow) => {
             const key = typeKeyOf(demand);
@@ -583,6 +676,9 @@
                     if ((asg.meetings || []).some((m) => Number(m.dow) === dow && Number(m.period) === n)) continue;
                     if (api.outsideStudentHours(appData, demand, n, dow)) continue;
                     if (spanTooLong(demand, dow, n, asg)) continue;
+                    // The same hard rules as chooseSlots: once a class a day (unless it must double up), one class of a kind a day.
+                    if (used.has(dow) && api.weeklyNeed(demand) <= days.length) continue;
+                    if (sameKindThatDay(demand, dow)) continue;
                     const inTheWay = [];
                     let fixedInTheWay = false;
                     draft.assignments.forEach((other) => {
@@ -666,6 +762,55 @@
             });
         }
         result.unplaced = result.unplaced.filter((u) => u.missing > 0 || u.reason === 'no_teacher');
+
+        /*
+         * Final check. An independent pass (verifyDraft) looks for any broken rule. Anything auto-schedule placed that
+         * breaks one is taken off the board (the most recently placed meeting of each problem) and placed again with the
+         * full rule filter; what cannot be placed again is reported as still to place. Repeats until clean (max 6 passes).
+         */
+        const placedOrder = new Map();
+        [...fresh].forEach((m, i) => placedOrder.set(m, i));
+        let passes = 0;
+        for (; passes < 6; passes += 1) {
+            const bad = verifyDraft(appData, draft, { fresh }).filter((v) => v.auto);
+            if (!bad.length) break;
+            const drop = new Set();
+            bad.forEach((v) => {
+                const mine = v.meetings.filter((m) => fresh.has(m)).sort((a, b) => (placedOrder.get(b) || 0) - (placedOrder.get(a) || 0));
+                if (mine.length) drop.add(mine[0]);
+            });
+            if (!drop.size) break;
+            const affected = new Map();
+            draft.assignments.forEach((asg) => {
+                const gone = (asg.meetings || []).filter((m) => drop.has(m));
+                if (!gone.length) return;
+                asg.meetings = asg.meetings.filter((m) => !drop.has(m));
+                gone.forEach((m) => fresh.delete(m));
+                affected.set(asg, gone.length);
+            });
+            rebuild();
+            affected.forEach((count, asg) => {
+                const demand = demandById.get(asg.demandId);
+                if (!demand) return;
+                const teacher = teacherOf(asg);
+                const picked = chooseSlots(demand, teacher, count).picked;
+                picked.forEach((slot) => {
+                    const m = addMeeting(asg, demand, slot.dow, slot.n);
+                    placedOrder.set(m, placedOrder.size + 1);
+                });
+                const left = count - picked.length;
+                if (left > 0) {
+                    const u = result.unplaced.find((x) => x.demandId === demand.demandId);
+                    if (u) u.missing += left;
+                    else result.unplaced.push({ demandId: demand.demandId, missing: left, reason: 'no_time' });
+                    result.placed -= left;
+                }
+            });
+        }
+        // What is left (hand-placed or locked classes that were already wrong are listed too, flagged auto: false).
+        result.violations = verifyDraft(appData, draft, { fresh });
+        result.rulesKept = !result.violations.some((v) => v.auto);
+        result.checkPasses = passes;
 
         draft.updatedAt = new Date().toISOString();
         api.recomputeDraftMetrics(appData, draft);
@@ -914,7 +1059,8 @@
             for (let attempt = 0; attempt < 16; attempt += 1) {
                 const tryDraft = JSON.parse(JSON.stringify(draft));
                 const tryResult = autoSchedule(appData, tryDraft, { analysis, priority: id, seed: attempt ? attempt * 7919 : 0 });
-                const missing = (r) => r.unplaced.reduce((n, u) => n + (u.missing || 0), 0);
+                const broken = (r) => (r.violations || []).filter((v) => v.auto).length * 1000;
+                const missing = (r) => r.unplaced.reduce((n, u) => n + (u.missing || 0), 0) + broken(r);
                 if (!result || missing(tryResult) < missing(result)) {
                     copy = tryDraft;
                     result = tryResult;
@@ -924,7 +1070,7 @@
             const sig = signature(copy);
             if (seen.has(sig)) return;
             seen.add(sig);
-            out.push({ id, draft: copy, result, stats: planStats(appData, copy, analysis) });
+            out.push({ id, draft: copy, result, stats: Object.assign(planStats(appData, copy, analysis), { rulesBroken: (result.violations || []).filter((v) => v.auto).length }) });
         });
         return out;
     }
@@ -935,6 +1081,7 @@
         analysePreviousTerm,
         autoSchedule,
         planStats,
+        verifyDraft,
         buildOptions,
         resolveClashes,
         clashOptions,

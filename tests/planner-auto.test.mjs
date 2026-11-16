@@ -555,3 +555,27 @@ console.log('planner-auto tests passed');
     assert(t('a1') && t('a1') === t('a2'), `same subject, same teacher: ${t('a1')} ${t('a2')}`);
     console.log('same subject same teacher tests passed');
 }
+
+// The final rule check: auto-schedule ends with an independent check, and it catches broken drafts.
+{
+    const d = {
+        cohorts: [{ id: 'q', name: 'Q M', meetingDays: [1, 3, 5], level: 'Green', schedulePattern: 'mwf', students: [] }],
+        classes: [{ id: 'q1', name: 'Q M · Grammar', cohortIds: ['q'], weeklyFrequency: 3, teacherRequirementType: 'korean' },
+            { id: 'q2', name: 'Q M · Reading', cohortIds: ['q'], weeklyFrequency: 3, teacherRequirementType: 'korean' },
+            { id: 'q3', name: 'Q M · Debate', cohortIds: ['q'], weeklyFrequency: 1 }],
+        teacherProfiles: [{ id: 'x', name: 'X' }, { id: 'y', name: 'Y' }, { id: 'n', name: 'N', role: 'native' }], rooms: []
+    };
+    api.ensurePlannerFields(d);
+    const dr = { id: 'v1', assignments: [], issues: [], metrics: {} };
+    const res = auto.autoSchedule(d, dr, {});
+    assert(res.rulesKept === true && res.violations.length === 0, `auto result keeps every rule: ${JSON.stringify(res.violations.map((v) => v.code))}`);
+    // Break rules on purpose: same teacher twice at once, a class twice on one day, a native class given to a Korean teacher.
+    const g = dr.assignments.find((a) => a.classId === 'q1'), r = dr.assignments.find((a) => a.classId === 'q2');
+    r.teacherProfileId = g.teacherProfileId;
+    r.meetings[0].dow = g.meetings[0].dow; r.meetings[0].period = g.meetings[0].period;
+    g.meetings.push({ meetingId: 'dup', dow: g.meetings[0].dow, period: '3' });
+    dr.assignments.find((a) => a.classId === 'q3').teacherProfileId = 'x'; // native class given to a Korean teacher
+    const codes = new Set(auto.verifyDraft(d, dr).map((v) => v.code));
+    ['teacher_double_booked', 'cohort_double_booked', 'class_twice_a_day', 'wrong_teacher'].forEach((c) => assert(codes.has(c), `check finds ${c}: ${[...codes]}`));
+    console.log('final rule check tests passed');
+}
