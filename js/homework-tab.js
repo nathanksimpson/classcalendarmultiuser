@@ -121,6 +121,34 @@
         return '';
     }
 
+    /**
+     * Next regular meeting weekday after afterDateStr, even when that day has no class
+     * (holiday, buffer week) or falls after term end. Homework is submitted online, so the
+     * last class of a term still gets a due date. Nov 2026.
+     */
+    function getNextRegularMeetingDayAfter(classData, afterDateStr, hooks) {
+        if (!classData || !afterDateStr || !hooks || typeof hooks.getMeetingDays !== 'function') {
+            return '';
+        }
+        const meetingDays = hooks.getMeetingDays(classData);
+        if (!meetingDays || meetingDays.length === 0) {
+            return '';
+        }
+        const daySet = new Set(meetingDays);
+        const cur = parseLocal(afterDateStr);
+        if (Number.isNaN(cur.getTime())) {
+            return '';
+        }
+        cur.setHours(0, 0, 0, 0);
+        for (let i = 0; i < 7; i += 1) {
+            cur.setDate(cur.getDate() + 1);
+            if (daySet.has(cur.getDay())) {
+                return formatISO(cur);
+            }
+        }
+        return '';
+    }
+
     function classOccursOnIsoDateWithHooks(classData, isoDate, hooks) {
         if (!classData || !isoDate || !hooks) {
             return false;
@@ -334,7 +362,9 @@
             dueDateAutomatic = dueDateAfterCompressedAssign(lessons, row) || '';
         }
         if (!dueDateAutomatic && lessonDate && hooks) {
-            dueDateAutomatic = getNextClassMeetingAfter(classData, lessonDate, hooks) || '';
+            dueDateAutomatic = getNextClassMeetingAfter(classData, lessonDate, hooks)
+                || getNextRegularMeetingDayAfter(classData, lessonDate, hooks)
+                || '';
         } else if (!dueDateAutomatic && lessonDate) {
             dueDateAutomatic = dueDateFromNextLessonAfter(lessons, lessonDate).dueDate || '';
         }
@@ -691,6 +721,7 @@
         getLessonRowsFromSyllabus,
         findTargetLessonIndex,
         getNextClassMeetingAfter,
+        getNextRegularMeetingDayAfter,
         getPreviousClassMeetingBefore,
         classOccursOnIsoDateWithHooks,
         collectSkippedRegularClassMeetings,

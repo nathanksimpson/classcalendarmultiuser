@@ -1373,6 +1373,26 @@
         return preserveText(prev && prev.planDetail, gen.planDetail, keepEdits);
     }
 
+    /**
+     * Month-bridge rows generated before Nov 2026 hold Day 4 / Preview + Day 1 text.
+     * When the saved text is still exactly that (nobody edited it), take the current template.
+     * Applies whatever the row's source: saving the syllabus editor marks untouched rows manual.
+     */
+    function isUneditedLegacyDebateBridge(prev, gen, mergeContext) {
+        if (!prev || !gen || gen.kind !== 'lesson' || gen.debateTemplateKey !== 'day4and1bridge') {
+            return false;
+        }
+        const templatesApi = typeof global !== 'undefined' ? global.CCPSyllabusTemplates : null;
+        const indexes = mergeContext && mergeContext.templateIndexes;
+        if (!templatesApi || !templatesApi.legacyDebateBridgeTemplate || !indexes) {
+            return false;
+        }
+        const legacy = templatesApi.legacyDebateBridgeTemplate(indexes);
+        const legacyDetail = legacy && legacy.planDetail ? String(legacy.planDetail).trim() : '';
+        const saved = String(prev.planDetail || '').trim();
+        return Boolean(legacyDetail && saved === legacyDetail && saved !== String(gen.planDetail || '').trim());
+    }
+
     function mergeSyllabusRows(existing, generated, options) {
         options = options || {};
         const refreshScheduleTitles = options.refreshScheduleTitles === true;
@@ -1426,13 +1446,17 @@
             const keepEdits = prev.source === 'manual' || prev.source === 'imported';
             const forceTitle = refreshScheduleTitles
                 && (gen.kind === 'lesson' || gen.kind === 'holiday' || gen.kind === 'event');
-            const forceDetail = refreshScheduleTitles
+            // Exact old month-bridge text is template output, not a teacher's edit, even on rows
+            // the editor saved as manual: take the current template text and title.
+            const legacyBridge = isUneditedLegacyDebateBridge(prev, gen, mergeContext);
+            const forceDetail = (refreshScheduleTitles
                 && gen.scheduleCompressed === true
-                && prev.source !== 'imported';
+                && prev.source !== 'imported')
+                || legacyBridge;
             return {
                 ...gen,
                 id: prev.id || gen.id,
-                planTitle: forceTitle
+                planTitle: forceTitle || legacyBridge
                     ? gen.planTitle
                     : (keepEdits && (prev.planTitle || '').trim()
                         ? prev.planTitle

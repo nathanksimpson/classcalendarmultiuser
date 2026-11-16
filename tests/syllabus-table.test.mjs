@@ -359,7 +359,7 @@ function assert(cond, msg) {
     assert(styles.includes('text-overflow: ellipsis'), 'jindo plan titles ellipsize when long');
 }
 
-// Debate: merged Day 2+3 and month-bridge Day 4 + Day 1 templates
+// Debate: merged Day 2+3, and the month-bridge Day 4 uses Day 4 / Preview only (it already previews Day 1)
 {
     const templates = [
         { sessionNumber: 1, planTitle: 'Day 1', planDetail: 'HW-DAY-1' },
@@ -383,7 +383,7 @@ function assert(cond, msg) {
         debateTemplateKey: 'day4and1bridge'
     });
     assert(bridge && bridge.planDetail.includes('HW-DAY-4'), 'bridge includes day 4');
-    assert(bridge.planDetail.includes('HW-DAY-1'), 'bridge includes day 1');
+    assert(!bridge.planDetail.includes('HW-DAY-1'), 'bridge does not add day 1 (Day 4 / Preview already previews it)');
     const classData = { scheduleModel: 'debateMonthly', totalLessons: 4 };
     const lessons = [
         { date: '2026-03-04', monthKey: '2026-03', label: 'Day 1', group: { days: [1], start: 1, end: 1 } },
@@ -410,7 +410,7 @@ function assert(cond, msg) {
     assert(mergeRow.sessionNumber === 2, 'compressed row sessionNumber is curriculum start day');
     const bridgeRow = rows.find((r) => r.date === '2026-03-18');
     assert(bridgeRow && bridgeRow.planDetail.includes('HW-DAY-4'), 'march bridge day 4');
-    assert(bridgeRow.planDetail.includes('HW-DAY-1'), 'march bridge day 1');
+    assert(!bridgeRow.planDetail.includes('HW-DAY-1'), 'march bridge has no day 1 homework');
     assert(bridgeRow.sessionNumber === 4, 'Day 4 after 2+3 merge has sessionNumber 4 not 3');
     assert(bridgeRow.lessonNumber === 4, 'Day 4 lessonNumber is 4');
 }
@@ -518,7 +518,7 @@ function assert(cond, msg) {
     assert(merged[0].planDetail === 'HW-DAY-2\n\nHW-DAY-3', 'saved compressed row does not duplicate day 3');
 }
 
-// Debate: last class of term (no following month) still gets Day 4 + Day 1
+// Debate: last class of term (no following month) gets Day 4 / Preview only, like every bridge
 {
     const templates = [
         { sessionNumber: 1, planTitle: 'Day 1', planDetail: 'HW-DAY-1' },
@@ -537,7 +537,7 @@ function assert(cond, msg) {
     );
     const mayLast = rows.find((r) => r.date === '2026-05-28');
     assert(mayLast && mayLast.planDetail.includes('HW-DAY-4'), 'term-end day 4');
-    assert(mayLast.planDetail.includes('HW-DAY-1'), 'term-end day 1 preview');
+    assert(!mayLast.planDetail.includes('HW-DAY-1'), 'term-end bridge does not add day 1');
     assert(mayLast.trackEssay === true, 'term-end day 4 bridge copies trackEssay');
 }
 
@@ -1384,6 +1384,40 @@ Complete workbook pages 3-4 and listen to tracks 2-4. Parents sign checklist.`;
     assert(docHtml.includes('syllabus-jindo-print-grid--student'), 'student grid class');
     assert(!/<table[^>]*syllabus-table-jindo-notes/.test(docHtml), 'no notes side table element');
     assert(!/<td[^>]*syllabus-jindo-notes-body-cell/.test(docHtml), 'no notes body cell element');
+}
+
+
+// Saved month-bridge rows still holding the old Day 4 + Day 1 text take the new template; edited ones stay
+{
+    const templates = [
+        { sessionNumber: 1, planTitle: 'Day 1', planDetail: 'HW-DAY-1' },
+        { sessionNumber: 4, planTitle: 'Day 4 / Preview', planDetail: 'HW-DAY-4' }
+    ];
+    const indexes = globalThis.CCPSyllabusTemplates.buildTemplateIndexes(templates);
+    const gen = {
+        id: 'g4', kind: 'lesson', date: '2026-11-16', sessionNumber: 4, lessonNumber: 4,
+        planTitle: 'Day 4 / Preview', planDetail: 'HW-DAY-4', source: 'generated',
+        debateTemplateKey: 'day4and1bridge'
+    };
+    const old = {
+        id: 's4', kind: 'lesson', date: '2026-11-16', sessionNumber: 4, lessonNumber: 4,
+        planTitle: 'Day 4 / Preview & Day 1 (month bridge)', planDetail: 'HW-DAY-4\n\nHW-DAY-1',
+        source: 'generated', debateTemplateKey: 'day4and1bridge'
+    };
+    const opts = { templateIndexes: indexes, classData: { scheduleModel: 'debateMonthly' } };
+    const refreshed = CCPSyllabus.mergeSyllabusRows([old], [gen], opts);
+    assert(refreshed[0].planDetail === 'HW-DAY-4', 'unedited old bridge text replaced by Day 4 / Preview');
+    assert(refreshed[0].id === 's4', 'row keeps its id');
+    const edited = CCPSyllabus.mergeSyllabusRows(
+        [Object.assign({}, old, { planDetail: 'HW-DAY-4\n\nHW-DAY-1\nplus my note' })], [gen], opts);
+    assert(edited[0].planDetail.includes('plus my note'), 'edited bridge text is kept');
+    const manual = CCPSyllabus.mergeSyllabusRows([Object.assign({}, old, { source: 'manual' })], [gen], opts);
+    assert(manual[0].planDetail === 'HW-DAY-4', 'untouched old text on a manual row is replaced too');
+    assert(manual[0].planTitle === 'Day 4 / Preview', 'and takes the current title');
+    assert(manual[0].source === 'manual', 'source unchanged');
+    const manualEdited = CCPSyllabus.mergeSyllabusRows(
+        [Object.assign({}, old, { source: 'manual', planDetail: 'HW-DAY-4 my words' })], [gen], opts);
+    assert(manualEdited[0].planDetail === 'HW-DAY-4 my words', 'edited manual text is kept');
 }
 
 console.log('All syllabus-table tests passed.');

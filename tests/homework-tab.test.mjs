@@ -482,9 +482,10 @@ function meetingHooks(holidayMap) {
         referenceDate: '2026-08-18',
         hooks: meetingHooks()
     });
-    assert(pkt.dueDate === '', 'last lesson of term has no due date');
-    assert(pkt.messageKey === 'homeworkTabNoDueDate' || pkt.messageKey === 'homeworkTabNoGradingText',
-        'last lesson reports missing due date or first-lesson grading empty');
+    // Homework is submitted online: the last class of a term is due on the next regular
+    // meeting weekday even though it is after term end (Thu 2026-08-20).
+    assert(pkt.dueDate === '2026-08-20', 'last lesson of term is due the next regular meeting day');
+    assert(pkt.messageKey !== 'homeworkTabNoDueDate', 'no missing-due warning on the last class');
 }
 
 {

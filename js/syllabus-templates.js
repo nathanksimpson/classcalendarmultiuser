@@ -173,11 +173,9 @@
             return resolveDay2And3CombinedTemplate(indexes);
         }
         if (key === 'day4and1bridge') {
-            return mergeDebateTemplates(
-                indexes,
-                ['Day 4 / Preview', 'Day 1'],
-                'Day 4 / Preview & Day 1 (month bridge)'
-            );
+            // The Day 4 / Preview template already carries next month's preview homework.
+            // Adding Day 1 on top assigned it twice (and again at Day 1). Nov 2026.
+            return mergeDebateTemplates(indexes, ['Day 4 / Preview']);
         }
         if (row.debateCompressed && row.debateGroupStart != null && row.debateGroupEnd != null) {
             const start = row.debateGroupStart;
@@ -197,6 +195,18 @@
             return resolveDay2And3CombinedTemplate(indexes);
         }
         return resolveRowTemplate(indexes, row, { skipDebate: true });
+    }
+
+    /**
+     * The month-bridge text rows were generated with before Nov 2026 (Day 4 / Preview + Day 1).
+     * Only used to recognise unedited old rows so they can take the current template.
+     */
+    function legacyDebateBridgeTemplate(indexes) {
+        return mergeDebateTemplates(
+            indexes,
+            ['Day 4 / Preview', 'Day 1'],
+            'Day 4 / Preview & Day 1 (month bridge)'
+        );
     }
 
     /**
@@ -397,6 +407,7 @@
         templateByTitle,
         mergeTemplatesBySessionRange,
         mergeDebateTemplates,
+        legacyDebateBridgeTemplate,
         combinedTemplateCoversAllDays,
         resolveDay2And3CombinedTemplate,
         resolveDebateRowTemplate,
