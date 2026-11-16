@@ -265,4 +265,30 @@ const initial = {
     assert(server.patches === before, 'blocked change not resent');
 }
 
+// Scenario G: concurrent loadCalendar calls share one GET; a later call fetches fresh.
+{
+    const server = createServer(initial);
+    let gets = 0;
+    const handle = server.handle;
+    server.handle = (url, opts) => {
+        if (url === '/api/calendars/cal1' && (!opts || !opts.method || opts.method === 'GET')) {
+            gets += 1;
+        }
+        return handle(url, opts);
+    };
+    const pc = createTab(server, 'pc');
+    const [a, b, c] = await Promise.all([
+        pc.CS.loadCalendar('cal1'),
+        pc.CS.loadCalendar('cal1'),
+        pc.CS.loadCalendar('cal1')
+    ]);
+    assert(gets === 1, 'three concurrent loads → one GET, got ' + gets);
+    assert(a.revision === b.revision && b.revision === c.revision, 'all callers get the same revision');
+    assert(a !== b && a.data !== b.data && b.data !== c.data, 'each joiner gets its own copy');
+    b.data.classes[0].note = 'edited by caller b';
+    assert(a.data.classes[0].note === '' && c.data.classes[0].note === '', 'one caller\'s edit does not leak');
+    await pc.CS.loadCalendar('cal1');
+    assert(gets === 2, 'a load after the first finished fetches again (no TTL), got ' + gets);
+}
+
 console.log('live-sync-tabs.test.mjs: all passed');

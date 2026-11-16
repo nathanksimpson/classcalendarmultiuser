@@ -39613,7 +39613,10 @@ async function runTeamSyncBoot() {
         ensureTermStartData();
         initializeTermStart();
         renderCalendarNow({ forceFull: true });
-        if (teamSyncEnabled && isCalendarContainerEmpty()) {
+        // The container is also empty when the first view isn't the month/agenda calendar;
+        // only refetch when the calendar data itself didn't arrive.
+        const calendarDataLoaded = teamSyncCalendarHydrated && !isAppDataCalendarEmpty();
+        if (teamSyncEnabled && isCalendarContainerEmpty() && !calendarDataLoaded) {
             try {
                 await reloadActiveCalendarFromServer();
                 initializeTermStart();

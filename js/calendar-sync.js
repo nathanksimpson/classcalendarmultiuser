@@ -1011,6 +1011,15 @@
         sharedGets.delete(key);
     }
 
+    /** loadCalendar(id) requests still running, by calendar id (no caching after they finish). */
+    const inflightCalendarLoads = new Map();
+    function cloneCalendarDoc(doc) {
+        if (!doc || typeof doc !== 'object') {
+            return doc;
+        }
+        return typeof structuredClone === 'function' ? structuredClone(doc) : JSON.parse(JSON.stringify(doc));
+    }
+
     const CalendarSync = {
         state,
 
@@ -1450,16 +1459,35 @@
         },
 
         async loadCalendar(id) {
-            debugLog('api', 'GET /calendars/:id (load)', { calendarId: id });
-            const doc = await apiFetch('/calendars/' + encodeURIComponent(id));
-            if (!liveSyncActive() || String(id) !== String(state.baseCalendarId || '')) {
-                state.revision = doc.revision || 0;
-                state.remoteNewer = false;
+            // Calls for the same calendar while one is still running share that request
+            // (in flight only: a call after it finishes always fetches a fresh copy).
+            // Joiners get their own copy so one caller's edits can't leak into another's.
+            const key = String(id);
+            const running = inflightCalendarLoads.get(key);
+            if (running) {
+                debugLog('api', 'GET /calendars/:id (load, joined in-flight request)', { calendarId: id });
+                return cloneCalendarDoc(await running);
             }
-            // Live sync: the revision moves only when the page merges this copy
-            // (adoptServerDoc / mergeServerDoc), so nothing in it is skipped.
-            applyLockFromResponse(tagLockDebugSource(doc, 'loadCalendar'));
-            return doc;
+            const request = (async () => {
+                debugLog('api', 'GET /calendars/:id (load)', { calendarId: id });
+                const doc = await apiFetch('/calendars/' + encodeURIComponent(id));
+                if (!liveSyncActive() || String(id) !== String(state.baseCalendarId || '')) {
+                    state.revision = doc.revision || 0;
+                    state.remoteNewer = false;
+                }
+                // Live sync: the revision moves only when the page merges this copy
+                // (adoptServerDoc / mergeServerDoc), so nothing in it is skipped.
+                applyLockFromResponse(tagLockDebugSource(doc, 'loadCalendar'));
+                return doc;
+            })();
+            inflightCalendarLoads.set(key, request);
+            try {
+                return await request;
+            } finally {
+                if (inflightCalendarLoads.get(key) === request) {
+                    inflightCalendarLoads.delete(key);
+                }
+            }
         },
 
         /**
