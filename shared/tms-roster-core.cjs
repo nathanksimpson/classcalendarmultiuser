@@ -2896,8 +2896,294 @@ async function probe(options) {
     };
 }
 
+/* ===========================================================================
+ * Branch-wide term schedule + cohort catalogue (read-only; for the Planner).
+ * scrapeCohortCatalogue → every cohort this term + previous terms, with
+ *   division / level / day-pattern / default subject, from Nesin.aspx.
+ * scrapeTermSchedule   → the whole placed timetable (every teacher's grid),
+ *   from teacher_time.aspx. Login + GET + the page's own search postback only.
+ * Verified against live TMS HTML 2026-11-16.
+ * ======================================================================== */
+
+/** Per-teacher weekly grid: cohort / subject / room per period. */
+const TEACHER_TIME_PATH = '/iFrame/teacher_time.aspx';
+/** Cohort catalogue: cmbban = current term, cmboldban = previous terms. */
+const NESIN_PATH = '/iFrame/Nesin.aspx';
+
+/** Inner HTML of the first <select> whose name/id contains `key`. */
+function extractSelectBlock(html, key) {
+    const re = new RegExp(
+        '<select\\b[^>]*(?:name|id)=["\'][^"\']*' + key + '[^"\']*["\'][^>]*>([\\s\\S]*?)</select>',
+        'i'
+    );
+    const m = re.exec(String(html || ''));
+    return m ? m[1] : '';
+}
+
+/** Parse <option value=..>text</option> pairs out of a select block. */
+function parseSelectOptions(block) {
+    const out = [];
+    const re = /<option\b[^>]*value=["']([^"']*)["'][^>]*>([\s\S]*?)<\/option>/gi;
+    let m;
+    while ((m = re.exec(String(block || '')))) {
+        out.push({
+            value: String(m[1]).trim(),
+            text: stripTags(decodeHtmlEntities(m[2])).replace(/\s+/g, ' ').trim()
+        });
+    }
+    return out;
+}
+
+/** Map a TMS day label to ClassManager meetingDays / schedulePattern. */
+function dayLabelToSchedule(dayLabel) {
+    const dp = String(dayLabel || '').replace(/\s+/g, '');
+    if (dp === '월수금') {
+        return { schedulePattern: 'mwf', meetingDays: [1, 3, 5] };
+    }
+    if (dp === '화목') {
+        return { schedulePattern: 'tth', meetingDays: [2, 4] };
+    }
+    return { schedulePattern: '', meetingDays: [] };
+}
+
+/**
+ * Parse a Nesin cohort <option> (cmbban / cmboldban) into structured cohort data.
+ * e.g. "샘물M^2609[정규 초등_Basic_월수금]=>Debate"
+ * @returns {object|null}
+ */
+function parseNesinCohortOption(opt) {
+    if (!opt || !opt.value) {
+        return null;
+    }
+    const m = String(opt.text || '').match(/^(.*?)\s*\[([^\]]*)\]\s*(?:=>\s*(.*))?$/);
+    if (!m) {
+        return null;
+    }
+    const cohortName = String(m[1] || '').trim();
+    const parts = String(m[2] || '').split('_').map((s) => s.trim());
+    const dayLabel = parts[2] || '';
+    const sched = dayLabelToSchedule(dayLabel);
+    return {
+        tmsClassId: String(opt.value).trim(),
+        cohortName,
+        division: parts[0] || '',
+        level: parts[1] || '',
+        dayLabel,
+        schedulePattern: sched.schedulePattern,
+        meetingDays: sched.meetingDays,
+        defaultSubject: String(m[3] || '').trim(),
+        term: (cohortName.match(/[\^_](\d{4}|\d{2}SP)/) || [])[1] || ''
+    };
+}
+
+/**
+ * Parse a teacher_time.aspx weekly grid into placement rows.
+ * @returns {{day,start,end,cohortName,subject,room}[]}
+ */
+function parseTeacherGrid(html) {
+    const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+    const slots = [];
+    const trRe = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
+    let tr;
+    while ((tr = trRe.exec(String(html || '')))) {
+        const cells = [];
+        const tdRe = /<td\b[^>]*>([\s\S]*?)<\/td>/gi;
+        let td;
+        while ((td = tdRe.exec(tr[1]))) {
+            cells.push(td[1]);
+        }
+        if (!cells.length) {
+            continue;
+        }
+        const timeTxt = stripTags(decodeHtmlEntities(cells[0])).replace(/ /g, ' ').trim();
+        const tm = timeTxt.match(/^(\d{1,2}:\d{2})\s*[~～\-–—]\s*(\d{1,2}:\d{2})$/);
+        if (!tm) {
+            continue; // not a schedule row
+        }
+        for (let i = 1; i < cells.length && i <= 7; i += 1) {
+            const parts = cells[i]
+                .split(/<br\s*\/?>/i)
+                .map((s) => stripTags(decodeHtmlEntities(s)).replace(/ /g, ' ').trim())
+                .filter(Boolean);
+            for (let k = 0; k < parts.length; k += 2) {
+                const classLine = parts[k];
+                const room = parts[k + 1] || '';
+                // greedy: last (...) is the subject; handles names like 동아(윤정미)(내신수업)
+                const cm = classLine.match(/^(.*)\(([^()]*)\)\s*$/);
+                slots.push({
+                    day: DAYS[i - 1],
+                    start: tm[1],
+                    end: tm[2],
+                    cohortName: cm ? cm[1].trim() : classLine,
+                    subject: cm ? cm[2].trim() : '',
+                    room
+                });
+            }
+        }
+    }
+    return slots;
+}
+
+/**
+ * Branch-wide cohort catalogue from Nesin.aspx.
+ * @returns {Promise<{current:object[], previous:object[], meta:object}>}
+ */
+async function scrapeCohortCatalogue(options) {
+    const cfg = Object.assign({}, getConfig(), options || {});
+    cfg.baseUrl = normalizeTmsBaseUrl(cfg.baseUrl);
+    if (!credentialsConfigured(cfg)) {
+        const err = new Error('TMS credentials not configured');
+        err.code = 'TMS_CREDS_MISSING';
+        throw err;
+    }
+    const jar = createJar();
+    await login(cfg, jar);
+
+    const url = `${cfg.baseUrl}${NESIN_PATH}`;
+    const page = await fetchPage(jar, url);
+    if (page.status >= 400 || stillOnLoginPage(page.text, page.finalUrl)) {
+        const err = new Error('Could not open cohort list (Nesin)');
+        err.code = 'TMS_COHORTS_FAILED';
+        throw err;
+    }
+
+    const dedupe = (arr) => {
+        const seen = new Set();
+        return arr.filter((c) => {
+            if (!c || !c.tmsClassId || seen.has(c.tmsClassId)) {
+                return false;
+            }
+            seen.add(c.tmsClassId);
+            return true;
+        });
+    };
+
+    const current = dedupe(
+        parseSelectOptions(extractSelectBlock(page.text, 'cmbban')).map(parseNesinCohortOption)
+    );
+    const previous = dedupe(
+        parseSelectOptions(extractSelectBlock(page.text, 'cmboldban')).map(parseNesinCohortOption)
+    );
+
+    return {
+        current,
+        previous,
+        meta: {
+            source: 'nesin',
+            url,
+            currentCount: current.length,
+            previousCount: previous.length
+        }
+    };
+}
+
+/**
+ * Branch-wide placed timetable from teacher_time.aspx.
+ * `placements` is the flat list the auto-scheduler reasons over.
+ * @returns {Promise<{aca:string, teachers:object[], placements:object[], meta:object}>}
+ */
+async function scrapeTermSchedule(options) {
+    const cfg = Object.assign({}, getConfig(), options || {});
+    cfg.baseUrl = normalizeTmsBaseUrl(cfg.baseUrl);
+    if (!credentialsConfigured(cfg)) {
+        const err = new Error('TMS credentials not configured');
+        err.code = 'TMS_CREDS_MISSING';
+        throw err;
+    }
+    const jar = createJar();
+    await login(cfg, jar);
+
+    const url = `${cfg.baseUrl}${TEACHER_TIME_PATH}`;
+    const first = await fetchPage(jar, url);
+    if (first.status >= 400 || stillOnLoginPage(first.text, first.finalUrl)) {
+        const err = new Error('Could not open teacher timetable');
+        err.code = 'TMS_SCHEDULE_FAILED';
+        throw err;
+    }
+
+    // Branch (aca): use the page's own selected value, don't hardcode.
+    const acaBlock = extractSelectBlock(first.text, 'cmbaca');
+    const acaSelected =
+        (acaBlock.match(/<option[^>]*value=["']([^"']*)["'][^>]*selected/i) || [])[1] ||
+        (parseSelectOptions(acaBlock)[0] || {}).value ||
+        String(cfg.aca || '');
+
+    const includePlaceholders = Boolean(cfg.includePlaceholders);
+    const teachers = parseSelectOptions(extractSelectBlock(first.text, 'cmbteacher')).filter(
+        (t) => t.value && t.text && (includePlaceholders || !/^XXX_/.test(t.text))
+    );
+
+    // ASP.NET image-button name ("검색"); fallback to imgSearch.
+    const imgName =
+        (first.text.match(/<input[^>]*type=["']image["'][^>]*name=["']([^"']+)["']/i) || [])[1] ||
+        (first.text.match(/name=["']([^"']+)["'][^>]*type=["']image["']/i) || [])[1] ||
+        'imgSearch';
+
+    const includeEmpty = Boolean(cfg.includeEmptyTeachers);
+    const results = [];
+
+    for (const t of teachers) {
+        const fields = extractHiddenInputs(first.text);
+        fields.cmbaca = acaSelected;
+        fields.cmbteacher = t.value;
+        fields[`${imgName}.x`] = '5';
+        fields[`${imgName}.y`] = '5';
+
+        let slots = [];
+        let error;
+        try {
+            const posted = await requestFollow(url, {
+                method: 'POST',
+                jar,
+                body: encodeForm(fields),
+                headers: { Referer: url },
+                contentType: 'application/x-www-form-urlencoded'
+            });
+            if (posted.status < 400 && !stillOnLoginPage(posted.text, posted.finalUrl)) {
+                slots = parseTeacherGrid(posted.text);
+            } else {
+                error = `HTTP ${posted.status}`;
+            }
+        } catch (e) {
+            error = e.message || String(e);
+        }
+
+        if (slots.length || includeEmpty || error) {
+            results.push({
+                tmsTeacherId: t.value,
+                teacherName: t.text,
+                slots,
+                error: error || undefined
+            });
+        }
+    }
+
+    const placements = results.flatMap((r) =>
+        r.slots.map((s) =>
+            Object.assign({ teacherName: r.teacherName, tmsTeacherId: r.tmsTeacherId }, s)
+        )
+    );
+
+    return {
+        aca: acaSelected,
+        teachers: results,
+        placements,
+        meta: {
+            source: 'teacher-time',
+            url,
+            teacherCount: teachers.length,
+            placementCount: placements.length
+        }
+    };
+}
+
 module.exports = {
     getConfig,
+    scrapeTermSchedule,
+    scrapeCohortCatalogue,
+    parseNesinCohortOption,
+    parseTeacherGrid,
+    dayLabelToSchedule,
     normalizeTmsBaseUrl,
     resolveTmsRedirectUrl,
     setFetchDispatcher,

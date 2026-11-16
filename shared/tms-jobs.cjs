@@ -57,6 +57,25 @@ const JOBS = {
         };
     },
 
+    schedule: async (_payload, { scrapeOpts }) => {
+        const result = await tmsRoster.scrapeTermSchedule(scrapeOpts);
+        return {
+            aca: result.aca,
+            teachers: result.teachers || [],
+            placements: result.placements || [],
+            meta: result.meta || {}
+        };
+    },
+
+    cohorts: async (_payload, { scrapeOpts }) => {
+        const result = await tmsRoster.scrapeCohortCatalogue(scrapeOpts);
+        return {
+            current: result.current || [],
+            previous: result.previous || [],
+            meta: result.meta || {}
+        };
+    },
+
     essays: async (_payload, { scrapeOpts }) => {
         const result = await tmsRoster.scrapeEssaySubmissions(scrapeOpts);
         return {

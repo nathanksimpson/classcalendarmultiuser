@@ -1679,7 +1679,9 @@ export default {
             '/api/tms/counsel/preview': 'counsel',
             '/api/tms/essays/preview': 'essays',
             '/api/tms/essays/content': 'essayContent',
-            '/api/tms/homework/preview': 'homework'
+            '/api/tms/homework/preview': 'homework',
+            '/api/tms/schedule/preview': 'schedule',
+            '/api/tms/cohorts/preview': 'cohorts'
         }[path];
         if ((tmsRunMatch || tmsAliasKind) && request.method === 'POST') {
             const blocked = rejectViewAsJson();
@@ -1690,6 +1692,8 @@ export default {
                 return json({ error: 'No calendar access' }, 403);
             }
             const kind = tmsRunMatch ? decodeURIComponent(tmsRunMatch[1]) : tmsAliasKind;
+            // Light, single-session TMS scrapes the Worker can run directly.
+            const WORKER_DIRECT_KINDS = ['roster', 'schedule', 'cohorts'];
             if (kind === 'essays' || kind === 'essayContent' || kind === 'homework' || kind === 'counsel' || kind === 'attendance') {
                 return json(
                     {
@@ -1699,7 +1703,7 @@ export default {
                     503
                 );
             }
-            if (kind !== 'roster') {
+            if (!WORKER_DIRECT_KINDS.includes(kind)) {
                 return json(
                     {
                         error: 'Unknown sync kind: ' + kind,
@@ -1732,7 +1736,7 @@ export default {
                 if (tmsLimited) {
                     return tmsLimited;
                 }
-                return json(await runTmsJob('roster', body));
+                return json(await runTmsJob(kind, body));
             } catch (err) {
                 const code = err && err.code;
                 if (code === 'TMS_LOGIN_FAILED') {

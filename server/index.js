@@ -1268,6 +1268,8 @@ registerTmsSessionJob('/api/tms/essays/preview', 'essays');
 registerTmsSessionJob('/api/tms/essays/content', 'essayContent');
 registerTmsSessionJob('/api/tms/homework/preview', 'homework');
 registerTmsSessionJob('/api/tms/counsel/preview', 'counsel');
+registerTmsSessionJob('/api/tms/schedule/preview', 'schedule');
+registerTmsSessionJob('/api/tms/cohorts/preview', 'cohorts');
 
 /**
  * Live-site → localhost bridge (no ClassManager session).
@@ -1323,6 +1325,8 @@ registerTmsBridgeJob('/api/tms/bridge/counsel', 'counsel');
 registerTmsBridgeJob('/api/tms/bridge/essays/preview', 'essays');
 registerTmsBridgeJob('/api/tms/bridge/essays/content', 'essayContent');
 registerTmsBridgeJob('/api/tms/bridge/homework/preview', 'homework');
+registerTmsBridgeJob('/api/tms/bridge/schedule/preview', 'schedule');
+registerTmsBridgeJob('/api/tms/bridge/cohorts/preview', 'cohorts');
 
 
 /** OpenAI API proxy for tools/essay-batch-editor.html (same-origin, signed-in users only). */
