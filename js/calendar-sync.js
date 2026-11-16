@@ -1011,6 +1011,30 @@
         sharedGets.delete(key);
     }
 
+    /**
+     * js/boot-prefetch.js (main page only) starts the startup reads while the HTML parses.
+     * Hand over its answer once; anything else (no prefetch, already used, error status)
+     * falls through to the normal request so error handling is unchanged.
+     */
+    async function viaBootPrefetch(key, run) {
+        let pending = null;
+        try {
+            if (typeof window !== 'undefined' && window.CCPBootPrefetch && !isViewAsMode()) {
+                pending = window.CCPBootPrefetch.take(key);
+            }
+        } catch (_) {
+            pending = null;
+        }
+        if (pending) {
+            const json = await pending.catch(() => null);
+            if (json !== null && json !== undefined) {
+                debugLog('api', 'boot prefetch hit', { key });
+                return json;
+            }
+        }
+        return run();
+    }
+
     /** loadCalendar(id) requests still running, by calendar id (no caching after they finish). */
     const inflightCalendarLoads = new Map();
     function cloneCalendarDoc(doc) {
@@ -1077,7 +1101,9 @@
 
         async checkHealth() {
             try {
-                const res = await sharedGet('health', 10000, () => apiFetch('/health', { timeoutMs: 8000 }));
+                const res = await sharedGet('health', 10000, () =>
+                    viaBootPrefetch('health', () => apiFetch('/health', { timeoutMs: 8000 }))
+                );
                 return Boolean(res && res.ok);
             } catch (_) {
                 return false;
@@ -1085,15 +1111,15 @@
         },
 
         async fetchHostInfo() {
-            return apiFetch('/host-info');
+            return viaBootPrefetch('host-info', () => apiFetch('/host-info'));
         },
 
         async listCalendars() {
-            return apiFetch('/calendars');
+            return viaBootPrefetch('calendars', () => apiFetch('/calendars'));
         },
 
         async fetchTeachers() {
-            return apiFetch('/teachers');
+            return viaBootPrefetch('teachers', () => apiFetch('/teachers'));
         },
 
         async fetchGroups() {
@@ -1106,7 +1132,16 @@
                 return null;
             }
             debugLog('api', 'GET /meta (refreshLockMeta)', { calendarId: calId });
-            const meta = await apiFetch(metaPath(calId));
+            const path = metaPath(calId);
+            const bootPath =
+                typeof window !== 'undefined' && window.CCPBootPrefetch && window.CCPBootPrefetch.metaPathFor
+                    ? window.CCPBootPrefetch.metaPathFor(calId)
+                    : null;
+            // The prefetch carries no edit focus: only use it when this request wouldn't either.
+            const meta =
+                path === bootPath
+                    ? await viaBootPrefetch('meta:' + calId, () => apiFetch(path))
+                    : await apiFetch(path);
             applyLockFromResponse(tagLockDebugSource(meta, 'refreshLockMeta'));
             return meta;
         },
@@ -1320,8 +1355,8 @@
                 return { meta: {} };
             }
             debugLog('api', 'GET /notification-meta', { calendarId: calId });
-            const result = await apiFetch(
-                '/calendars/' + encodeURIComponent(calId) + '/notification-meta'
+            const result = await viaBootPrefetch('notification-meta:' + calId, () =>
+                apiFetch('/calendars/' + encodeURIComponent(calId) + '/notification-meta')
             );
             state.notificationMeta =
                 result && result.meta && typeof result.meta === 'object' ? result.meta : {};
@@ -1343,7 +1378,9 @@
             }
             debugLog('api', 'GET /ui-prefs', { calendarId: calId });
             const result = await sharedGet('ui-prefs:' + calId, 5000, () =>
-                apiFetch('/calendars/' + encodeURIComponent(calId) + '/ui-prefs')
+                viaBootPrefetch('ui-prefs:' + calId, () =>
+                    apiFetch('/calendars/' + encodeURIComponent(calId) + '/ui-prefs')
+                )
             );
             return result && typeof result === 'object'
                 ? result
@@ -1397,7 +1434,9 @@
 
         async loadUserUiPrefs() {
             debugLog('api', 'GET /me/ui-prefs');
-            const result = await sharedGet('me-ui-prefs', 5000, () => apiFetch('/me/ui-prefs'));
+            const result = await sharedGet('me-ui-prefs', 5000, () =>
+                viaBootPrefetch('me-ui-prefs', () => apiFetch('/me/ui-prefs'))
+            );
             return result && typeof result === 'object'
                 ? result
                 : { classScope: null, updatedAt: null };
@@ -1470,7 +1509,9 @@
             }
             const request = (async () => {
                 debugLog('api', 'GET /calendars/:id (load)', { calendarId: id });
-                const doc = await apiFetch('/calendars/' + encodeURIComponent(id));
+                const doc = await viaBootPrefetch('calendar:' + key, () =>
+                    apiFetch('/calendars/' + encodeURIComponent(id))
+                );
                 if (!liveSyncActive() || String(id) !== String(state.baseCalendarId || '')) {
                     state.revision = doc.revision || 0;
                     state.remoteNewer = false;

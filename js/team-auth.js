@@ -189,6 +189,34 @@
         return Object.assign({}, extra || {});
     }
 
+    /** A startup read js/boot-prefetch.js already started (JSON), or null to fetch normally. */
+    async function takeBootPrefetch(key) {
+        try {
+            if (typeof window === 'undefined' || !window.CCPBootPrefetch || hasViewAsToken()) {
+                return null;
+            }
+            const pending = window.CCPBootPrefetch.take(key);
+            return pending ? await pending : null;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function hasViewAsToken() {
+        return Boolean(
+            typeof ViewAsBanner !== 'undefined' && ViewAsBanner.getViewAsToken && ViewAsBanner.getViewAsToken()
+        );
+    }
+
+    /** First auth check of the page: reuse the boot prefetch when it succeeded. */
+    async function fetchMeAtBoot() {
+        const prefetched = await takeBootPrefetch('auth-me');
+        if (prefetched && prefetched.id) {
+            return prefetched;
+        }
+        return fetchMe();
+    }
+
     async function fetchMe() {
         const res = await fetch('/api/auth/me', {
             credentials: 'same-origin',
@@ -354,17 +382,20 @@
                 throw err;
             }
             try {
-                const health = await fetch('/api/health', { credentials: 'same-origin' });
-                if (!health.ok) {
-                    checked = true;
-                    return null;
+                let healthJson = await takeBootPrefetch('health');
+                if (!healthJson) {
+                    const health = await fetch('/api/health', { credentials: 'same-origin' });
+                    if (!health.ok) {
+                        checked = true;
+                        return null;
+                    }
+                    healthJson = await health.json().catch(() => ({}));
                 }
-                const healthJson = await health.json().catch(() => ({}));
                 if (
                     healthJson.openAccess &&
                     !(typeof ViewAsBanner !== 'undefined' && ViewAsBanner.getViewAsToken && ViewAsBanner.getViewAsToken())
                 ) {
-                    currentUser = (await fetchMe()) || openAccessDevUser();
+                    currentUser = (await fetchMeAtBoot()) || openAccessDevUser();
                     applyIdlePolicy(currentUser);
                     applyRolePalette(currentUser);
                     checked = true;
@@ -382,7 +413,7 @@
                 return null;
             }
 
-            currentUser = await fetchMe();
+            currentUser = await fetchMeAtBoot();
             applyIdlePolicy(currentUser);
             applyRolePalette(currentUser);
             checked = true;

@@ -129,6 +129,7 @@ const MINIFY_JS = [
     'js/syllabus-templates.js',
     'js/schedule-matrix-data.js',
     'js/theme-init.js',
+    'js/boot-prefetch.js',
     'js/language-init.js',
     'js/theme-toggle.js',
     'js/games-loader.js',
