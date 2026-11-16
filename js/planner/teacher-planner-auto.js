@@ -171,16 +171,24 @@
         balance: { continuity: 0.8, breaks: 1, balance: 3 }
     };
 
-    /** How pleasant a teacher's day is (higher is better): holes and long runs cost. */
+    /** Separate stretches of classes in a teacher's day (back-to-back classes are one stretch). */
+    function teachingBlocks(periods) {
+        const nums = [...new Set(periods.map(Number))].sort((a, b) => a - b);
+        let blocks = nums.length ? 1 : 0;
+        for (let i = 1; i < nums.length; i += 1) if (nums[i] - nums[i - 1] > 1) blocks += 1;
+        return blocks;
+    }
+
+    /**
+     * How pleasant a teacher's day is (higher is better). Breaks are allowed, of any length, and never
+     * forbidden; teachers prefer them grouped, so every extra stretch of classes (a split break) costs a little.
+     * Long runs cost too.
+     */
     function dayShapeScore(periods, runLimit) {
         const nums = [...periods].sort((a, b) => a - b);
         if (nums.length < 2) return 0;
         let score = 0;
-        for (let i = 1; i < nums.length; i += 1) {
-            const gap = nums[i] - nums[i - 1] - 1;
-            if (gap === 1) score -= 5; // one empty period stuck between classes
-            else if (gap >= 3) score -= 3; // long wait at school
-        }
+        score -= 3 * Math.max(0, teachingBlocks(nums) - 2); // one break is fine; each further split costs
         const run = P().longestRun(nums);
         if (run >= runLimit) score -= 3; // at the limit: allowed, not liked
         return score;
@@ -873,7 +881,7 @@
         perTeacherDay.forEach((list) => {
             longest = Math.max(longest, api.longestRun(list));
             const nums = [...new Set(list)].sort((a, b) => a - b);
-            for (let i = 1; i < nums.length; i += 1) if (nums[i] - nums[i - 1] === 2) holes += 1;
+            holes += Math.max(0, teachingBlocks(nums) - 2); // split breaks: stretches of classes beyond two in one day
         });
         const all = (appData.teacherProfiles || []).map((t) => loads.get(t.id) || 0);
         return {

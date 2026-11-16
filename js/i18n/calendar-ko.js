@@ -3145,7 +3145,7 @@
         spAutoWorking: '계획을 만드는 중…',
         spPlanKept: '학생의 {pct}%가 기존 교사와 계속 수업',
         spPlanRun: '가장 긴 연속 수업: {n}교시',
-        spPlanHoles: '한 교시짜리 공강: {n}',
+        spPlanHoles: '나뉜 공강: {n}',
         spPlanLoad: '교사별 교시 수: {min}~{max}',
         spPlanNeedHand: '{n}개 수업은 직접 배치해야 합니다',
         spPlanCurrent: '현재 보드에 적용됨',

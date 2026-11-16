@@ -3146,7 +3146,7 @@
         spAutoWorking: 'Working out plans…',
         spPlanKept: '{pct}% of students keep a teacher they had',
         spPlanRun: 'Longest stretch: {n} in a row',
-        spPlanHoles: 'One-period gaps: {n}',
+        spPlanHoles: 'Split breaks: {n}',
         spPlanLoad: 'Periods per teacher: {min} to {max}',
         spPlanNeedHand: '{n} classes still need placing by hand',
         spPlanCurrent: 'On the board now',
