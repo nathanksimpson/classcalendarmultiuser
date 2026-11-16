@@ -1113,9 +1113,9 @@ ${classEditHtml(demand)}`;
     }
 
     function bandLabel(band) {
-        if (band === 'junior') return t('plannerJunior', 'Junior');
-        if (band === 'middle') return t('plannerMiddle', 'Middle');
-        return t('plannerSenior', 'Senior');
+        if (band === 'junior') return t('plannerJunior', 'Lower elem');
+        if (band === 'middle') return t('plannerMiddle', 'Middle school');
+        return t('plannerSenior', 'Upper elem');
     }
 
     /** On the Cohorts sheet the column already names the cohort: show the subject part of the class name. */
@@ -2859,7 +2859,7 @@ ${by.get(cid).map((d) => `
      */
     function printRoomSchedule() {
         const map = cellMap(M, 'cohorts');
-        const bands = [['junior', t('plannerJunior', 'Junior')], ['senior', t('plannerSenior', 'Senior')], ['middle', t('plannerMiddle1', '중1')]];
+        const bands = [['junior', t('plannerJunior', 'Lower elem')], ['senior', t('plannerSenior', 'Upper elem')], ['middle', t('plannerMiddle', 'Middle school')]];
         const rank = { junior: 0, senior: 1, middle: 2 };
         return DAYS.map((d) => {
             const title = `${dayLabel(d)} ${t('plannerPrintRoomTitle', 'Room schedule')}`;

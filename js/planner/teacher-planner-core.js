@@ -14,6 +14,23 @@
         senior: [4, 5, 6, 7],
         middle: [5, 6, 7, 8]
     };
+    // Middle school starts at 19:00 (period 6) on Mon/Wed/Fri; Tue/Thu keep the wider window.
+    const MIDDLE_MWF_PERIODS = [6, 7, 8];
+    const NATIVE_CLASS_TYPES = ['builtin-debate', 'builtin-wr-sp', 'builtin-conversation'];
+    const NATIVE_NAME = /debate|spk|speaking|wr&|writing|ipe\b|conversation|디베이트|스피킹|라이팅|회화|원어민/i;
+    const KOREAN_NAME = /grammar|\brc\b|reading|phonics|toefl|ipk|문법|독해|리딩|파닉스/i;
+    /**
+     * Who may teach a class when nobody set it: Speaking & Writing, Debate and Conversation are native-teacher
+     * classes; Grammar, RC, Reading, Phonics and TOEFL are Korean-teacher classes; News and Animation either.
+     * An explicit choice on the class always wins.
+     */
+    function inferTeacherRequirement(cls) {
+        const type = normalizeStr(cls && cls.classTypeId);
+        const name = normalizeStr(cls && cls.name);
+        if (NATIVE_CLASS_TYPES.includes(type) || NATIVE_NAME.test(name)) return 'native';
+        if (type === 'builtin-rc' || KOREAN_NAME.test(name)) return 'korean';
+        return 'either';
+    }
     /**
      * Longest a cohort is at the academy on one day, in periods: 2 on Mon/Wed/Fri, 3 on Tue/Thu.
      * Auto-schedule never goes past it (first class of the day to last); by hand it is only a warning.
@@ -368,6 +385,7 @@
         if ((d === 2 || d === 4) && band !== 'senior' && band !== 'middle') {
             return !JUNIOR_TTH_PERIODS.includes(parsePeriod(period));
         }
+        if (band === 'middle' && (d === 1 || d === 3 || d === 5)) return !MIDDLE_MWF_PERIODS.includes(parsePeriod(period));
         return isOutOfBlock(band, period);
     }
 
@@ -896,9 +914,9 @@
                 classTypeId: normalizeStr(cls.classTypeId),
                 cadence: cadence || 'custom',
                 weeklyFrequency: weeklyFrequency >= 1 ? weeklyFrequency : meetings.length,
-                teacherRequirementType: cls.teacherRequirementType === 'korean' || cls.teacherRequirementType === 'native'
+                teacherRequirementType: cls.teacherRequirementType === 'korean' || cls.teacherRequirementType === 'native' || cls.teacherRequirementType === 'either'
                     ? cls.teacherRequirementType
-                    : 'either',
+                    : inferTeacherRequirement(cls),
                 preferredRoomId: normalizeStr(cls.roomId) || null,
                 includedInDraft: cls.plannerExcluded === true ? false : true,
                 // Special / temporary class added in the planner: no cohort needed, one slot a week,
@@ -2883,6 +2901,7 @@
         setAssignmentTeacher,
         recomputeDraftMetrics,
         outsideStudentHours,
+        inferTeacherRequirement,
         usualCohortPeriods,
         loadReferenceDate,
         countsForLoad,

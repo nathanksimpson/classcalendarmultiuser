@@ -77,7 +77,7 @@ const teacherNames = [...new Set(placements.map((p) => p.teacher).concat(scrape.
 const nativeNames = new Set(scrape.nativeTeachers || ['Nathan']);
 const teachers = teacherNames.map((name, i) => P.defaultTeacherProfile({
     id: `tp-${i + 1}`, userId: `tms-teacher-${i + 1}`, name, role: nativeNames.has(name) ? 'native' : 'korean',
-    limits: { maxPeriodsPerWeek: 22, maxPeriodsPerDay: 6 }
+    limits: { maxPeriodsPerWeek: 22, maxPeriodsPerDay: 6, ownTypeOnly: nativeNames.has(name) }
 }));
 
 function build(withTimes) {
@@ -102,9 +102,11 @@ function build(withTimes) {
             const cls = {
                 id: id('cl'), name: `${ci.name} · ${subject}`, levelPreset: ci.level, level: ci.level, grade: '', cohortId: cohort.id,
                 cohortIds: [cohort.id], classTypeId: '', scheduleBlock: cohort.scheduleBlock, meetingDays: [], weeklyFrequency: list.length,
-                teacherRequirementType: nativeNames.has(teacher) ? 'native' : 'either', classTeachers: [], color, textColor: textOn(color),
+                teacherRequirementType: '', classTeachers: [], color, textColor: textOn(color),
                 startDate: term.start, endDate: term.end, useAutoTermEnd: false, generatedFromCohort: true, notes: ''
             };
+            // Speaking/Writing/Debate = native teacher, Grammar/RC/Reading = Korean teacher, News/Animation = either (same rule as the planner).
+            cls.teacherRequirementType = P.inferTeacherRequirement(cls);
             cohort.classIds.push(cls.id);
             classes.push(Object.assign(cls, { _list: list, _teacher: teacher }));
         });

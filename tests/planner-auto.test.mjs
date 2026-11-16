@@ -32,9 +32,9 @@ const data = {
         { id: 'green', name: 'Green M', meetingDays: [1, 3, 5], level: 'Green', students: [20, 21, 22].map(st) }
     ],
     classes: [
-        { id: 'c1', name: 'Yellow Debate', cohortIds: ['yellow'], classTypeId: 'builtin-debate', weeklyFrequency: 2 },
+        { id: 'c1', name: 'Yellow Debate', cohortIds: ['yellow'], classTypeId: 'builtin-debate', teacherRequirementType: 'either', weeklyFrequency: 2 },
         { id: 'c2', name: 'Yellow RC', cohortIds: ['yellow'], classTypeId: 'builtin-rc', weeklyFrequency: 2 },
-        { id: 'c3', name: 'Green Debate', cohortIds: ['green'], classTypeId: 'builtin-debate', weeklyFrequency: 2 },
+        { id: 'c3', name: 'Green Debate', cohortIds: ['green'], classTypeId: 'builtin-debate', teacherRequirementType: 'either', weeklyFrequency: 2 },
         { id: 'c4', name: 'Speaking (Yellow + Green)', cohortIds: ['yellow', 'green'], classTypeId: 'builtin-conversation', weeklyFrequency: 1, teacherRequirementType: 'native' },
         { id: 'c5', name: 'Green RC', cohortIds: ['green'], classTypeId: 'builtin-rc', weeklyFrequency: 2 }
     ],
@@ -181,7 +181,7 @@ console.log('planner-auto tests passed');
         ],
         // An MWF cohort is in 2 periods a day x 3 days = 6 slots; each cohort needs all 6.
         classes: [].concat(...['o', 'g'].map((c) => [
-            { id: `${c}1`, name: `${c} Debate`, cohortIds: [c], weeklyFrequency: 2 },
+            { id: `${c}1`, name: `${c} Debate`, cohortIds: [c], weeklyFrequency: 2, teacherRequirementType: 'either' },
             { id: `${c}2`, name: `${c} RC`, cohortIds: [c], weeklyFrequency: 1 },
             { id: `${c}4`, name: `${c} Speaking`, cohortIds: [c], weeklyFrequency: 3, teacherRequirementType: 'native' }
         ])),
@@ -297,8 +297,8 @@ console.log('planner-auto tests passed');
             { id: 'bm', name: 'Blue M', levelPreset: 'Blue', scheduleBlock: 'primary', meetingDays: [1, 3, 5] },
             { id: 'gt', name: 'Garam T', levelPreset: 'Garam', scheduleBlock: 'secondary', meetingDays: [2, 4] }
         ],
-        classes: ['Debate', 'RC', 'Grammar'].map((s, i) => ({ id: `t${i}`, name: `Blue T ${s}`, cohortIds: ['bt'], weeklyFrequency: 2 }))
-            .concat([{ id: 'm0', name: 'Blue M Debate', cohortIds: ['bm'], weeklyFrequency: 1 }, { id: 'g0', name: 'Garam T Debate', cohortIds: ['gt'], weeklyFrequency: 1 }]),
+        classes: ['Debate', 'RC', 'Grammar'].map((s, i) => ({ id: `t${i}`, name: `Blue T ${s}`, cohortIds: ['bt'], weeklyFrequency: 2, teacherRequirementType: 'either' }))
+            .concat([{ id: 'm0', name: 'Blue M Debate', cohortIds: ['bm'], weeklyFrequency: 1, teacherRequirementType: 'either' }, { id: 'g0', name: 'Garam T Debate', cohortIds: ['gt'], weeklyFrequency: 1, teacherRequirementType: 'either' }]),
         teacherProfiles: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'c', name: 'C' }]
     };
     api.ensurePlannerFields(d);
@@ -481,4 +481,19 @@ console.log('planner-auto tests passed');
         assert(new Set(sets).size === 1, `cohort ${c} uses a different block on different days: ${sets}`);
     });
     console.log('academy day rules tests passed');
+}
+
+// Who may teach what when nobody chose: Speaking/Writing/Debate native, Grammar/RC/Reading Korean, News either.
+{
+    const inf = api.inferTeacherRequirement;
+    assert(inf({ name: 'Green M · Wr&Spk' }) === 'native' && inf({ name: 'X', classTypeId: 'builtin-debate' }) === 'native', 'speaking/writing/debate are native');
+    assert(inf({ name: 'Navy M · Grammar' }) === 'korean' && inf({ name: 'Navy M · RC' }) === 'korean' && inf({ name: 'Green · Reading' }) === 'korean', 'grammar/RC/reading are Korean');
+    assert(inf({ name: 'Navy M · News' }) === 'either' && inf({ name: 'Green · Animation' }) === 'either', 'news/animation either');
+    // Middle school: Mon/Wed/Fri start at 19:00 (period 6).
+    const d = { cohorts: [{ id: 'mid', name: 'Mid M', level: '파보', scheduleBlock: 'secondary', meetingDays: [1, 3, 5], students: [] }], classes: [], teacherProfiles: [], rooms: [] };
+    api.ensurePlannerFields(d);
+    const dm = { cohortIds: ['mid'], band: 'middle' };
+    assert(api.outsideStudentHours(d, dm, 5, 1) && !api.outsideStudentHours(d, dm, 6, 1) && !api.outsideStudentHours(d, dm, 8, 3), 'middle school MWF: from period 6');
+    assert(!api.outsideStudentHours(d, dm, 5, 2), 'middle school Tue/Thu keep the wider window');
+    console.log('teacher type and middle school start tests passed');
 }
