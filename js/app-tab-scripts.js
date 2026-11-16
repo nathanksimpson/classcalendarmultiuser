@@ -10,7 +10,7 @@
     const SCRIPT_CLASS_CURRICULUM_SLICES = 'js/class-curriculum-slices.js?v=20260603-curriculum-pipeline';
     const SCRIPT_ROSTER_IMPORT = 'js/roster-import.js?v=20260806-name-marks';
     const SCRIPT_TEACHER_TIMETABLE = 'js/teacher-timetable.js?v=20260909-period8';
-    const SCRIPT_PLANNER_CORE = 'js/planner/teacher-planner-core.js?v=20261117-gap';
+    const SCRIPT_PLANNER_CORE = 'js/planner/teacher-planner-core.js?v=20261117-kt';
 
     const TAB_SCRIPTS = {
         // Not a tab: the class editor's clash and warning checks reuse the planner's rules.

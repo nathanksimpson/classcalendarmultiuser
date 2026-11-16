@@ -490,7 +490,8 @@ console.log('planner-auto tests passed');
     const inf = api.inferTeacherRequirement;
     assert(inf({ name: 'Green M · Wr&Spk' }) === 'native' && inf({ name: 'X', classTypeId: 'builtin-debate' }) === 'native', 'speaking/writing/debate are native');
     assert(inf({ name: 'Navy M · Grammar' }) === 'korean' && inf({ name: 'Navy M · RC' }) === 'korean' && inf({ name: 'Green · Reading' }) === 'korean', 'grammar/RC/reading are Korean');
-    assert(inf({ name: 'Navy M · News' }) === 'either' && inf({ name: 'Green · Animation' }) === 'either', 'news/animation either');
+    assert(inf({ name: 'Navy M · News' }) === 'korean' && inf({ name: 'Green · Animation' }) === 'korean' && inf({ name: 'X · 애니메이션' }) === 'korean', 'news/animation are Korean-teacher classes');
+    assert(inf({ name: 'Navy M · Hobby Club' }) === 'either', 'unknown subjects stay either');
     // Middle school: Mon/Wed/Fri start at 19:00 (period 6).
     const d = { cohorts: [{ id: 'mid', name: 'Mid M', level: '파보', scheduleBlock: 'secondary', meetingDays: [1, 3, 5], students: [] }], classes: [], teacherProfiles: [], rooms: [] };
     api.ensurePlannerFields(d);

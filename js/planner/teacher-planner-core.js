@@ -18,10 +18,10 @@
     const MIDDLE_MWF_PERIODS = [6, 7, 8];
     const NATIVE_CLASS_TYPES = ['builtin-debate', 'builtin-wr-sp', 'builtin-conversation'];
     const NATIVE_NAME = /debate|spk|speaking|wr&|writing|ipe\b|conversation|디베이트|스피킹|라이팅|회화|원어민/i;
-    const KOREAN_NAME = /grammar|\brc\b|reading|phonics|toefl|ipk|문법|독해|리딩|파닉스/i;
+    const KOREAN_NAME = /grammar|\brc\b|reading|phonics|toefl|ipk|news|animation|문법|독해|리딩|파닉스|뉴스|애니메이션/i;
     /**
      * Who may teach a class when nobody set it: Speaking & Writing, Debate and Conversation are native-teacher
-     * classes; Grammar, RC, Reading, Phonics and TOEFL are Korean-teacher classes; News and Animation either.
+     * classes; Grammar, RC, Reading, Phonics, TOEFL, News and Animation are Korean-teacher classes.
      * An explicit choice on the class always wins.
      */
     function inferTeacherRequirement(cls) {
