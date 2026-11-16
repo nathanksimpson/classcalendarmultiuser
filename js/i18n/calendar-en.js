@@ -2951,6 +2951,7 @@
         spUndoTip: 'Undo (Ctrl+Z)',
         spRedoTip: 'Redo (Ctrl+Y)',
         spWhyCohortDay: 'Students are only here 2 periods on Mon/Wed/Fri and 3 on Tue/Thu',
+        spIssueCohortBlock: '{cohort} is not in the same periods on every day it comes',
         spIssueCohortGap: '{cohort} has a free period between classes on {day}',
         spIssueCohortDay: '{cohort} is at the academy {span} periods on {day} (most is {limit})',
         spPeriodFrom: 'P{n} · {time}',

@@ -2102,6 +2102,28 @@
             }));
         });
 
+        // A cohort uses the same periods on every day it comes: across the whole week no more periods than one day allows.
+        const cohortWeek = new Map();
+        cohortDays.forEach((x) => {
+            if (!cohortWeek.has(x.cid)) cohortWeek.set(x.cid, { nums: [], x });
+            cohortWeek.get(x.cid).nums.push(...x.nums);
+        });
+        cohortWeek.forEach((w, cid) => {
+            const limit = usualCohortPeriods(w.x.dow);
+            const distinct = [...new Set(w.nums)];
+            if (periodSpan(distinct) <= limit && !hasPeriodGap(distinct)) return;
+            issues.push(createIssue({
+                severity: 'soft',
+                code: 'cohort_block_differs',
+                message: 'Cohort is not in the same periods on every day.',
+                cohortId: cid,
+                dow: w.x.dow,
+                period: String(Math.min(...distinct)),
+                assignmentId: w.x.asg.assignmentId,
+                demandId: w.x.demand.demandId
+            }));
+        });
+
         // A cohort's classes on one day run back to back: no free period in the middle.
         cohortDays.forEach((x) => {
             if (!hasPeriodGap(x.nums)) return;

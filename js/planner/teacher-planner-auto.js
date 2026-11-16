@@ -305,6 +305,17 @@
             return allowed || DAYS.slice();
         };
 
+        /** Every period a cohort has on any day (its block: the same periods on every day it comes). */
+        const cohortAllPeriods = (cid) => {
+            const all = [];
+            cohortDay.forEach((list, key) => { if (key.startsWith(`${cid}|`)) list.forEach((x) => all.push(x)); });
+            return all;
+        };
+        /** Hard: with this period added, the cohort would use more periods overall than one day allows, or leave a hole. */
+        const breaksBlock = (demand, dow, n, extra) => (demand.cohortIds || []).some((cid) => {
+            const all = cohortAllPeriods(cid).concat(extra || [], [n]);
+            return api.periodSpan(all) > api.usualCohortPeriods(dow) || api.hasPeriodGap(all);
+        });
         const RAINBOW = ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Navy'];
         /** What kind of class this is: its class type, else the subject in its name ("Blue M · Grammar" -> grammar). */
         const typeKeyOf = (d) => {
@@ -354,6 +365,8 @@
                         // Hard: a cohort is only in 2 periods on MWF and 3 on Tue/Thu, first class to last.
                         if ((demand.cohortIds || []).some((cid) => api.periodSpan((cohortDay.get(`${cid}|${dow}`) || [])
                             .concat(picked.filter((x) => x.dow === dow).map((x) => x.n), [n])) > api.usualCohortPeriods(dow))) return;
+                        // Hard: a cohort has one block, the same periods on every day it comes (2 periods MWF, 3 Tue/Thu).
+                        if (breaksBlock(demand, dow, n, picked.map((x) => x.n))) return;
                         // Hard: students never sit through a free period between two classes.
                         if ((demand.cohortIds || []).some((cid) => api.hasPeriodGap((cohortDay.get(`${cid}|${dow}`) || [])
                             .concat(picked.filter((x) => x.dow === dow).map((x) => x.n), [n])))) return;
@@ -544,7 +557,8 @@
         // the same time are about to be moved away, so the span is counted without that period twice)
         const spanTooLong = (demand, dow, n) => (demand.cohortIds || []).some((cid) =>
             api.periodSpan((cohortDay.get(`${cid}|${dow}`) || []).concat([n])) > api.usualCohortPeriods(dow)
-            || api.hasPeriodGap((cohortDay.get(`${cid}|${dow}`) || []).concat([n])));
+            || api.hasPeriodGap((cohortDay.get(`${cid}|${dow}`) || []).concat([n])))
+            || breaksBlock(demand, dow, n);
         const tryEject = (demand, asg) => {
             const teacher = teacherOf(asg);
             const days = classDays(demand);

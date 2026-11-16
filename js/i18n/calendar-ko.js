@@ -2950,6 +2950,7 @@
         spUndoTip: '실행 취소 (Ctrl+Z)',
         spRedoTip: '다시 실행 (Ctrl+Y)',
         spWhyCohortDay: '학생들은 월수금 2교시, 화목 3교시만 학원에 있습니다',
+        spIssueCohortBlock: '{cohort} 반이 오는 날마다 같은 교시에 있지 않습니다',
         spIssueCohortGap: '{cohort} 반은 {day}에 수업 사이에 빈 교시가 있습니다',
         spIssueCohortDay: '{cohort} 반이 {day}에 {span}교시 동안 학원에 있습니다 (최대 {limit}교시)',
         spPeriodFrom: '{n}교시 · {time}',
