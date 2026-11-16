@@ -199,20 +199,9 @@
         const analysis = opts.analysis || { byDemand: new Map() };
         const runLimit = api.maxConsecutive(appData);
         const blockouts = (appData.plannerState && appData.plannerState.blockouts) || {};
-        const periods = periodNumbers(appData);
-        // The academy day starts at 15:20: periods that begin earlier are a last resort, not a default.
-        const DEFAULT_START = 15 * 60 + 20;
-        const slotStartMin = (n) => {
-            try {
-                const tp = global.CCPTimetablePeriods;
-                const map = (appData.periodSlotMap && Object.keys(appData.periodSlotMap).length) ? appData.periodSlotMap : (tp && tp.getDefaultMap ? tp.getDefaultMap() : {});
-                const list = (appData.timetableTimeSlots && appData.timetableTimeSlots.length) ? appData.timetableTimeSlots : (tp && tp.getDefaultSlots ? tp.getDefaultSlots() : []);
-                const slot = list.find((x) => x.id === map[String(n)]);
-                const m = slot && String(slot.start).match(/^(\d+):(\d+)$/);
-                return m ? Number(m[1]) * 60 + Number(m[2]) : null;
-            } catch (e) { return null; }
-        };
-        const beforeDefaultStart = (n) => { const m = slotStartMin(n); return m != null && m < DEFAULT_START; };
+        // The first period (14:30) is ignored unless the planner's "Use the first period" setting is on.
+        const allPeriods = periodNumbers(appData);
+        const periods = appData.plannerState && appData.plannerState.useFirstPeriod === true ? allPeriods : allPeriods.slice(1);
         const teachers = (appData.teacherProfiles || []).map((t) => api.defaultTeacherProfile(t));
         const rooms = (appData.rooms || []).slice().sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
         const cohortById = new Map(((appData.cohorts || [])).map((c) => [c.id, c]));
@@ -348,7 +337,6 @@
                         const roomFree = !rooms.length || rooms.some((r) => !roomBusy.has(`${r.id}|${dow}|${n}`)
                             && !api.roomTooSmall(appData, demand, r.id));
                         let score = -0.4 * idx; // earlier in the students' hours first
-                        if (beforeDefaultStart(n)) score -= 30; // classes start at 15:20 by default
                         // Purple may go anywhere, but its own block (primary early, secondary later) is preferred.
                         if (api.outsideStudentHours(appData, demand, n, dow, { byBlock: true })) score -= 10;
                         if (!roomFree) score -= 40;

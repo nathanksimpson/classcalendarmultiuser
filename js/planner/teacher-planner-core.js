@@ -631,6 +631,8 @@
                 globalUnavailablePeriods: [],
                 notes: ''
             }, p.blockouts || {}),
+            // The first period (P1, 14:30) is ignored unless this is on: hidden from the board when empty, never used by auto-schedule.
+            useFirstPeriod: p.useFirstPeriod === true,
             lockToCohortDays: p.lockToCohortDays === true,
             // cohortId -> { days, start, end }: time blocks changed in the planner, not yet written to the cohorts.
             cohortBlocks: p.cohortBlocks && typeof p.cohortBlocks === 'object' ? Object.assign({}, p.cohortBlocks) : {},

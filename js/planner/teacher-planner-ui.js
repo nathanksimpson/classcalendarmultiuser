@@ -248,7 +248,13 @@
         const rooms = (data.rooms || []).slice()
             .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
         const roomById = new Map(rooms.map((r) => [r.id, r]));
-        const periods = periodRows(data);
+        let periods = periodRows(data);
+        // First period (P1) is ignored: its row is hidden unless the setting is on or a class already sits in it.
+        if (periods.length > 1 && !(data.plannerState && data.plannerState.useFirstPeriod === true)) {
+            const first = periods[0].period;
+            const used = draft.assignments.some((a) => (a.meetings || []).some((m) => String(m.period) === first));
+            if (!used) periods = periods.slice(1);
+        }
 
         // Where every placed period sits, per sheet.
         const tiles = [];
@@ -2053,7 +2059,10 @@ ${open ? `<div class="sp-issues-body">${total ? groups.filter((g) => g.items.len
         const map = Object.assign({}, M.data.periodSlotMap || tp.getDefaultMap());
         const nums = tp.getPeriodNumbers(map);
         const ro = readOnly();
-        return `<p class="sp-hint">${esc(t('spSetupPeriodsHint', 'Clock times for each period. The board, warnings and printouts use these, and so does the rest of the app. Changes save straight away.'))}</p>
+        const firstOn = !!(M.data.plannerState && M.data.plannerState.useFirstPeriod === true);
+        return `<label class="sp-chip"><input type="checkbox" data-change="use-first-period"${firstOn ? ' checked' : ''}${ro ? ' disabled' : ''}><span>${esc(t('spUseFirstPeriod', 'Use the first period (P1)'))}</span></label>
+<p class="sp-hint">${esc(t('spUseFirstPeriodHint', 'Off: the first period is ignored. Auto-schedule never uses it and the board hides it (a class already placed there keeps it visible).'))}</p>
+<p class="sp-hint">${esc(t('spSetupPeriodsHint', 'Clock times for each period. The board, warnings and printouts use these, and so does the rest of the app. Changes save straight away.'))}</p>
 <table class="sp-table sp-periods"><thead><tr><th>${esc(t('timetablePeriodColPeriod', 'Period'))}</th><th>${esc(t('timetablePeriodColStart', 'Start'))}</th><th>${esc(t('timetablePeriodColEnd', 'End'))}</th><th></th></tr></thead><tbody>
 ${nums.map((n) => {
         const slot = slots.find((x) => x.id === map[String(n)]) || {};
@@ -3266,7 +3275,12 @@ ${by.get(cid).map((d) => `
         const kind = el.getAttribute('data-change');
         if (!kind || !M) return;
         const row = el.closest('[data-teacher], [data-room], [data-class]');
-        if (kind === 'period-start' || kind === 'period-end') {
+        if (kind === 'use-first-period') {
+            const on = el.checked;
+            setupEdit((data) => { data.plannerState.useFirstPeriod = on; });
+            render();
+            renderSetup();
+        } else if (kind === 'period-start' || kind === 'period-end') {
             editPeriodTime(el, kind === 'period-start' ? 'start' : 'end');
         } else if (kind.startsWith('edit-class-')) {
             editClassField(el, kind);

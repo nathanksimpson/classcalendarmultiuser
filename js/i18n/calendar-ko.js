@@ -3128,6 +3128,8 @@
         spClassTypesN: '수업 유형 ({n})',
         spClassTypesAny: '수업 유형: 전체',
         spClassTypesHint: '이 교사가 맡는 수업 유형을 체크하세요. 아무것도 체크하지 않으면 전체입니다.',
+        spUseFirstPeriod: '1교시 사용',
+        spUseFirstPeriodHint: '끄면 1교시는 무시됩니다. 자동 배정이 사용하지 않고 보드에서도 숨겨집니다 (이미 수업이 배치된 경우에는 계속 표시됩니다).',
         spMaxRun: '최대 연속 교시',
         spAutoPrevFailed: '그 캘린더를 열 수 없습니다. 아래 계획은 지난 학기를 반영하지 않습니다.',
         spPlanContinuity: '교사와 학생을 그대로 유지',

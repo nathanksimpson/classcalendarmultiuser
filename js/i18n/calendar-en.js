@@ -3129,6 +3129,8 @@
         spClassTypesN: 'Class types ({n})',
         spClassTypesAny: 'Class types: any',
         spClassTypesHint: 'Tick the class types this teacher teaches. None ticked means any.',
+        spUseFirstPeriod: 'Use the first period (P1)',
+        spUseFirstPeriodHint: 'Off: the first period is ignored. Auto-schedule never uses it and the board hides it (a class already placed there keeps it visible).',
         spMaxRun: 'Most periods in a row',
         spAutoPrevFailed: 'Could not open that calendar. Plans below do not use last term.',
         spPlanContinuity: 'Keep teachers with their students',

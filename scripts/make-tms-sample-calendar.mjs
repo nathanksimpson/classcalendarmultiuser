@@ -142,9 +142,7 @@ function build(withTimes) {
         });
         cal.plannerDrafts = [];
     }
-    // The academy day starts at 15:20 (period 2); period 1 (14:30) is not used.
-    P.ensurePlannerFields(cal);
-    cal.plannerState.blockouts = Object.assign({}, cal.plannerState.blockouts, { globalUnavailablePeriods: ['1'] });
+    P.ensurePlannerFields(cal); // useFirstPeriod stays off: the 14:30 period is ignored, days start at 15:20
     cal.classes.forEach((k) => { delete k._list; delete k._teacher; });
     return cal;
 }
