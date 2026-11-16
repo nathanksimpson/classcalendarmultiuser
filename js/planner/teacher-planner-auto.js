@@ -413,9 +413,6 @@
                             if (prefs.avoidLastPeriod && idx === periods.length - 1) score -= 3;
                         }
                         if (prevSlots.some((s) => s.dow === dow && Number(s.period) === n)) score += 4 * w.continuity;
-                        // Twice a week: not on back-to-back days when there is a choice.
-                        const otherDays = [...usedDays];
-                        if (otherDays.length && otherDays.every((d) => Math.abs(d - dow) >= 2)) score += 2;
                         if (!best || score > best.score) best = { dow, n, score };
                     });
                 });
