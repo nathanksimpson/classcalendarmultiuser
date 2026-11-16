@@ -3149,6 +3149,7 @@
         spPlanUse: 'Use this plan',
         spAutoOnePlan: 'The other priorities give this same plan.',
         spAutoKeeps: 'Plans only fill what is missing. Classes you placed stay where they are, and Undo brings the board back.',
+        spAutoDoneClash: 'Plan is on the board, but {n} clashes are left. Pick a suggested fix, or close this and move them yourself.',
         spAutoDoneNeed: 'Plan is on the board. {n} classes still need placing by hand (see To fix).',
         spAutoDone: 'Plan is on the board. Drag anything to change it, or press Undo.',
         spFixKeep: 'Keep the class you moved last, move the others',

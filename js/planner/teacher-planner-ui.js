@@ -2616,6 +2616,11 @@ ${by.get(cid).map((d) => `
         notice(need
             ? t('spAutoDoneNeed', 'Plan is on the board. {n} classes still need placing by hand (see To fix).', { n: need })
             : t('spAutoDone', 'Plan is on the board. Drag anything to change it, or press Undo.'), need ? 'info' : 'success');
+        // Clashes left on the board: offer the fixes straight away so the user can accept one.
+        if (clashCount() > 0) {
+            notice(t('spAutoDoneClash', 'Plan is on the board, but {n} clashes are left. Pick a suggested fix, or close this and move them yourself.', { n: clashCount() }), 'info');
+            setTimeout(openFix, 0);
+        }
     }
 
     /* ------------------------------------------------------------ fix clashes */
