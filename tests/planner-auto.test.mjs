@@ -538,3 +538,20 @@ console.log('planner-auto tests passed');
     assert(ps.length === 6 && ps.every((p) => p === 2 || p === 3), `rainbow periods: ${ps}`);
     console.log('rainbow period preference tests passed');
 }
+
+// Preferred: the same subject keeps one teacher across cohorts.
+{
+    const d = {
+        cohorts: [{ id: 'c1', name: 'One M', meetingDays: [1, 3, 5], level: 'Green', schedulePattern: 'mwf', students: [] },
+            { id: 'c2', name: 'Two M', meetingDays: [1, 3, 5], level: 'Navy', schedulePattern: 'mwf', students: [] }],
+        classes: [{ id: 'a1', name: 'One M · Grammar', cohortIds: ['c1'], weeklyFrequency: 1, teacherRequirementType: 'korean' },
+            { id: 'a2', name: 'Two M · Grammar', cohortIds: ['c2'], weeklyFrequency: 1, teacherRequirementType: 'korean' }],
+        teacherProfiles: [{ id: 'x', name: 'X' }, { id: 'y', name: 'Y' }], rooms: []
+    };
+    api.ensurePlannerFields(d);
+    const dr = { id: 'st', assignments: [], issues: [], metrics: {} };
+    auto.autoSchedule(d, dr, {});
+    const t = (id) => dr.assignments.find((a) => a.classId === id).teacherProfileId;
+    assert(t('a1') && t('a1') === t('a2'), `same subject, same teacher: ${t('a1')} ${t('a2')}`);
+    console.log('same subject same teacher tests passed');
+}

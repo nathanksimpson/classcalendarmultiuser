@@ -490,6 +490,13 @@
                 const kept = continuityOf(demand, teacher.id);
                 if (kept) score += 100 * w.continuity * kept.score;
                 score -= 20 * w.balance * ((now + extra + slots.picked.length) / maxWeek);
+                // Preferred, not required: one teacher for the same subject across cohorts.
+                if (!fixedTeacher) {
+                    const key = typeKeyOf(demand);
+                    const alreadyTeaches = draft.assignments.some((o) => o.teacherProfileId === teacher.id && o.demandId !== demand.demandId
+                        && (() => { const od = demandById.get(o.demandId); return od && typeKeyOf(od) === key; })());
+                    if (alreadyTeaches) score += 12;
+                }
                 if (!best || score > best.score) best = { teacher, slots, score, kept };
             });
             if (!best && !fixedTeacher) {
