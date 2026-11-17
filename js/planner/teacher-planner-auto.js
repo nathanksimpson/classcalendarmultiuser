@@ -172,12 +172,32 @@
     };
 
     /** What kind of class this is: its class type, else the subject in its name ("Blue M · Grammar" -> grammar). */
+    const SUBJECT_ALIASES = [
+        [/(spk|speak).*(wr|writ)|(wr|writ).*(spk|speak)/, 'speakingwriting'],
+        [/^(rc|reading|readingcomprehension|리딩)$/, 'reading'],
+        [/^(grammar|그래머|문법)$/, 'grammar'],
+        [/^(animation|애니메이션)$/, 'animation'],
+        [/^(news|뉴스)$/, 'news'],
+        [/^(conversation|convo|회화)$/, 'conversation']
+    ];
+
+    /** The subject of a class, spelled one way: "Spk&Wr" = "Speaking & Writing", "Grammar A" = "Grammar B". */
+    function subjectOfName(name) {
+        const text = String(name || '');
+        const part = text.includes('·') ? text.split('·').pop() : text.replace(/^.*?\s/, '');
+        let s = part.toLowerCase().replace(/[^a-z0-9가-힣&]+/g, '');
+        // Drop a trailing level / group mark: Grammar 2, Grammar A, Grammar II.
+        s = s.replace(/(\d+|[abc]|i{1,3}|iv)$/, (m, _x, off) => (off >= 3 ? '' : m));
+        for (let i = 0; i < SUBJECT_ALIASES.length; i += 1) if (SUBJECT_ALIASES[i][0].test(s)) return SUBJECT_ALIASES[i][1];
+        return s;
+    }
+
     function typeKeyOf(d) {
+        // The name decides first: two classes with different class types can still be the same subject.
+        const bySubject = subjectOfName(d.name);
+        if (bySubject) return `name:${bySubject}`;
         const type = String(d.classTypeId || '').trim();
-        if (type) return `type:${type}`;
-        const name = String(d.name || '');
-        const subject = name.includes('·') ? name.split('·').pop() : name.replace(/^.*?\s/, '');
-        return `name:${subject.toLowerCase().replace(/[\s\d]+/g, '')}`;
+        return type ? `type:${type}` : `name:${String(d.demandId || '')}`;
     }
 
     /** Separate stretches of classes in a teacher's day (back-to-back classes are one stretch). */
