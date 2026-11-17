@@ -2441,6 +2441,55 @@ ${by.get(cid).map((d) => `
     }
 
     /**
+     * Sign-in popout for the TMS pull. The password is only held for this one request (never stored);
+     * the username can be remembered on this computer. Both may stay empty when this computer's
+     * ClassManager already has a TMS sign-in set up.
+     * @returns {Promise<{username:string,password:string}|null>} null when cancelled.
+     */
+    function askTmsLogin(errorText) {
+        return new Promise((resolve) => {
+            const dlg = $('spTmsLogin');
+            if (!dlg) { resolve({ username: '', password: '' }); return; }
+            const S = global.CCPTmsSync;
+            const user = $('spTmsUser');
+            const pass = $('spTmsPass');
+            const remember = $('spTmsRemember');
+            const err = $('spTmsLoginError');
+            const saved = S && S.getSavedUsername ? S.getSavedUsername() : '';
+            if (!user.value) user.value = saved;
+            remember.checked = !!saved || remember.checked;
+            pass.value = '';
+            err.textContent = errorText || '';
+            err.hidden = !errorText;
+            dlg.hidden = false;
+            (user.value ? pass : user).focus();
+            const done = (val) => {
+                dlg.hidden = true;
+                pass.value = '';
+                dlg.removeEventListener('click', onClick);
+                dlg.removeEventListener('submit', onSubmit);
+                document.removeEventListener('keydown', onKey, true);
+                resolve(val);
+            };
+            function onSubmit(ev) {
+                ev.preventDefault();
+                const name = user.value.trim();
+                if (S && S.setSavedUsername) S.setSavedUsername(name, remember.checked);
+                done({ username: name, password: pass.value });
+            }
+            function onClick(ev) {
+                if (ev.target === dlg || ev.target.closest('[data-tms-cancel]')) done(null);
+            }
+            function onKey(ev) {
+                if (ev.key === 'Escape') { ev.stopPropagation(); done(null); }
+            }
+            dlg.addEventListener('click', onClick);
+            dlg.addEventListener('submit', onSubmit);
+            document.addEventListener('keydown', onKey, true);
+        });
+    }
+
+    /**
      * Pull the term schedule from TMS (read-only) and put it on the board as a draft: it is matched to this
      * calendar's own cohorts, classes and teachers; whatever does not match is reported and left out.
      * Nothing is written to TMS, and nothing is applied to the calendar (that stays the explicit Apply step).
@@ -2458,18 +2507,28 @@ ${by.get(cid).map((d) => `
             t('spTmsReplace', 'Replace this plan with the schedule that is in TMS now? You can undo this.'),
             t('spReplace', 'Replace')
         ))) return;
-        notice(t('spTmsPulling', 'Pulling the schedule from TMS…'), 'info');
-        let body;
-        try {
-            body = await S.run('schedule', {});
-        } catch (err) {
-            const code = err && err.code;
-            notice(code === 'TMS_BRIDGE_OUTDATED' ? t('tmsSyncOutdatedHint', 'Update the local ClassManager (restart npm start).')
-                : code === 'TMS_BRIDGE_REQUIRED' ? t('tmsSyncMissingHint', 'Install the Sync helper first.')
-                    : code === 'TMS_CREDS_MISSING' ? t('rosterTmsSyncCredsMissing', 'TMS sign-in is not set up.')
-                        : code === 'TMS_LOGIN_FAILED' || (err && err.status === 401) ? t('rosterTmsSyncLoginFailed', 'TMS sign-in failed.')
+        let body = null;
+        let problem = '';
+        for (;;) {
+            const creds = await askTmsLogin(problem);
+            if (!creds) return;
+            notice(t('spTmsPulling', 'Pulling the schedule from TMS…'), 'info');
+            try {
+                const payload = {};
+                if (creds.username || creds.password) { payload.username = creds.username; payload.password = creds.password; }
+                body = await S.run('schedule', payload);
+                break;
+            } catch (err) {
+                const code = err && err.code;
+                if (code === 'TMS_CREDS_MISSING') problem = t('spTmsNeedLogin', 'Enter your TMS username and password.');
+                else if (code === 'TMS_LOGIN_FAILED' || (err && err.status === 401)) problem = t('rosterTmsSyncLoginFailed', 'Could not sign in to TMS. Check the username and password.');
+                else {
+                    notice(code === 'TMS_BRIDGE_OUTDATED' ? t('tmsSyncOutdatedHint', 'Update the local ClassManager (restart npm start).')
+                        : code === 'TMS_BRIDGE_REQUIRED' ? t('tmsSyncMissingHint', 'Install the Sync helper first.')
                             : (err && err.message) || t('spTmsFailed', 'Could not pull the schedule from TMS.'), 'error');
-            return;
+                    return;
+                }
+            }
         }
         if (!body || !Array.isArray(body.placements)) {
             notice(t('spTmsFailed', 'Could not pull the schedule from TMS.'), 'error');

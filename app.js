@@ -6307,6 +6307,17 @@ function updateTopBarCalendarLabel() {
     requestAnimationFrame(syncAppChromeStickyTop);
 }
 
+/** Schedule drafter tab (prototype): load its scripts on first visit, then draw next term's levels. */
+async function mountDrafterTab() {
+    if (typeof CCPTabScripts !== 'undefined' && CCPTabScripts.ensureTabScripts) {
+        await CCPTabScripts.ensureTabScripts('drafter');
+    }
+    const root = document.getElementById('drafterRoot');
+    if (root && typeof CCPNextTermDrafter !== 'undefined') {
+        CCPNextTermDrafter.mount(root, appData);
+    }
+}
+
 function updateTermSummaryStrip() {
     const strip = document.getElementById('termSummaryStrip');
     if (!strip) {
@@ -11990,10 +12001,10 @@ async function openPlannerPage(options = {}) {
     }
     // The planner is a Schedule tab now (it used to be planner.html).
     if (options.sameTab === false) {
-        window.open('/?zone=schedule&segment=planner', '_blank', 'noopener');
+        window.open('/?zone=classes&segment=planner', '_blank', 'noopener');
         return;
     }
-    navigateToZone(APP_ZONE_SCHEDULE, 'planner');
+    navigateToZone(APP_ZONE_CLASSES, 'planner');
 }
 
 async function reloadPlannerCalendar() {
@@ -14739,7 +14750,6 @@ const APP_TEACHING_ONLY_TAB_IDS = [
     'homework',
     'notes',
     'timetable',
-    'planner',
     'command-center',
     'events',
     'briefing',
@@ -14756,7 +14766,7 @@ const APP_TEACHING_ONLY_TAB_IDS = [
     'debate-books',
     'speaking-test'
 ];
-const APP_SETUP_ONLY_TAB_IDS = ['cohorts', 'teachers', 'curriculum', 'syllabus', 'data'];
+const APP_SETUP_ONLY_TAB_IDS = ['cohorts', 'teachers', 'curriculum', 'syllabus', 'planner', 'drafter', 'data'];
 /** Setup tabs that still open on a phone (the rest send phones back to Calendar). */
 const APP_SETUP_PHONE_ALLOWED_TAB_IDS = ['data'];
 /** Setup subtabs that require head-teacher / manage_calendar_access (cohorts, setup hub & teachers only). */
@@ -14786,13 +14796,15 @@ const DIRECT_ZONE_TAB = {
 };
 
 const ZONE_SEGMENT_TO_TAB = {
-    schedule: { calendar: 'calendar', events: 'events', homework: 'homework', timetable: 'timetable', planner: 'planner' },
+    schedule: { calendar: 'calendar', events: 'events', homework: 'homework', timetable: 'timetable' },
     classes: {
         classes: 'classes',
         cohorts: 'cohorts',
         teachers: 'teachers',
         curriculum: 'curriculum',
-        syllabus: 'syllabus'
+        syllabus: 'syllabus',
+        planner: 'planner',
+        drafter: 'drafter'
     },
     classroom: {
         briefing: 'briefing',
@@ -15342,7 +15354,8 @@ const TAB_TO_ZONE_SEGMENT = (() => {
 const LEGACY_TAB_ZONE_REDIRECT = {
     calendar: { zone: APP_ZONE_SCHEDULE, segment: 'calendar' },
     timetable: { zone: APP_ZONE_SCHEDULE, segment: 'timetable' },
-    planner: { zone: APP_ZONE_SCHEDULE, segment: 'planner' },
+    planner: { zone: APP_ZONE_CLASSES, segment: 'planner' },
+    drafter: { zone: APP_ZONE_CLASSES, segment: 'drafter' },
     classes: { zone: APP_ZONE_CLASSES, segment: 'classes' },
     cohorts: { zone: APP_ZONE_CLASSES, segment: 'cohorts' },
     homework: { zone: APP_ZONE_SCHEDULE, segment: 'homework' },
@@ -15456,7 +15469,7 @@ function canAccessZoneSegment(zoneId, segmentId) {
     if (segmentId === 'data') {
         return canAccessSetupHost();
     }
-    if (segmentId === 'planner') {
+    if (segmentId === 'planner' || segmentId === 'drafter') {
         // Only management changes the schedule.
         return isScheduleManager();
     }
@@ -15515,7 +15528,7 @@ function syncZoneNavPermissions() {
     // Management plans in Planner (the Timetable tab stays reachable from "My timetable");
     // teachers get Timetable with only their own classes.
     const manager = isScheduleManager();
-    document.querySelectorAll('.app-zone-segment-btn[data-segment="planner"]').forEach((el) => {
+    document.querySelectorAll('.app-zone-segment-btn[data-segment="planner"], .app-zone-segment-btn[data-segment="drafter"]').forEach((el) => {
         el.hidden = !manager;
     });
     document.querySelectorAll('.app-zone-segment-btn[data-segment="timetable"]').forEach((el) => {
@@ -17017,6 +17030,8 @@ async function navigateToTabBody(tabId, options = {}) {
         if (typeof CCPTeacherPlannerUi !== 'undefined') {
             CCPTeacherPlannerUi.mountPage();
         }
+    } else if (tabId === 'drafter') {
+        void mountDrafterTab();
     } else if (tabId === 'cohorts') {
         tabInitPromise = initCohortsTabControls(options);
     } else if (
@@ -39504,6 +39519,8 @@ function refreshActiveTabAfterHydration() {
         }
     } else if (tab === 'timetable') {
         initTimetableTabControls();
+    } else if (tab === 'drafter') {
+        void mountDrafterTab();
     } else if (tab === 'planner') {
         // Opened straight on the planner: draw it again now the team calendar has loaded.
         if (typeof CCPTabScripts !== 'undefined' && CCPTabScripts.ensureTabScripts) {

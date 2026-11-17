@@ -35,6 +35,10 @@
             'js/planner/tms-schedule-import.js?v=20261117-import',
             'js/planner/teacher-planner-ui.js?v=20261117-history'
         ],
+        drafter: [
+            'js/level-progression.js?v=20261117-drafter',
+            'js/planner/next-term-drafter.js?v=20261117-drafter'
+        ],
         timetable: [
             SCRIPT_TEACHER_TIMETABLE,
             'js/timetable-export.js?v=20260602-tab-fast'

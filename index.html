@@ -225,7 +225,6 @@
                             <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="command-center" data-tab="command-center" data-i18n="tabCommandCenter" hidden>Command Center</button>
                             <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="homework" data-tab="homework" data-i18n="tabHomework">Homework copy</button>
                             <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="timetable" data-tab="timetable" data-i18n="tabTimetable">Timetable</button>
-                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="planner" data-tab="planner" data-i18n="tabPlanner">Planner</button>
                         </div>
                         <div id="zoneSegments-classes" class="app-zone-segment-panel" data-zone="classes" hidden role="presentation">
                             <button type="button" class="app-zone-segment-btn is-active" role="tab" aria-selected="true" data-segment="classes" data-tab="classes" data-i18n="zoneSegmentAllClasses">All classes</button>
@@ -233,6 +232,8 @@
                             <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="teachers" data-tab="teachers" data-i18n="tabTeachers" hidden>Teachers</button>
                             <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="curriculum" data-tab="curriculum" data-i18n="tabCurriculum">Books</button>
                             <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="syllabus" data-tab="syllabus" data-i18n="tabSyllabus">Syllabi</button>
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="planner" data-tab="planner" data-i18n="tabPlanner">Planner</button>
+                            <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="drafter" data-tab="drafter" data-i18n="tabDrafter">Schedule drafter</button>
                         </div>
                         <div id="zoneSegments-classroom" class="app-zone-segment-panel" data-zone="classroom" hidden role="presentation">
                             <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="briefing" data-tab="briefing" data-i18n="classroomTabBriefing">Briefing</button>
@@ -1306,7 +1307,7 @@
             <section id="panel-timetable" class="app-tab-panel" data-tab="timetable" role="tabpanel" aria-labelledby="tabBtn-timetable" hidden>
                 <div class="print-data-section timetable-view-section">
                 <div class="module-toolbar timetable-tab-toolbar">
-                    <a href="/?zone=schedule&amp;segment=planner" id="timetableOpenPlannerBtn" class="btn btn-outline btn-small" data-i18n="plannerOpenLink">Open schedule planner</a>
+                    <a href="/?zone=classes&amp;segment=planner" id="timetableOpenPlannerBtn" class="btn btn-outline btn-small" data-i18n="plannerOpenLink">Open schedule planner</a>
                     <button type="button" id="timetablePeriodScheduleBtn" class="btn btn-outline btn-small" data-i18n="timetablePeriodSchedule">Period schedule</button>
                     <button type="button" id="timetableMyScheduleBtn" class="btn btn-outline btn-small" data-i18n="timetableMySchedule">My schedule</button>
                     <button type="button" id="timetableImportXlsBtn" class="btn btn-outline btn-small" data-i18n="timetableImportExcel">Import Excel</button>
@@ -1350,7 +1351,7 @@
                 </div>
             </section>
 
-            <section id="panel-planner" class="app-tab-panel planner-panel" data-tab="planner" role="tabpanel" aria-labelledby="zoneBtn-schedule" hidden>
+            <section id="panel-planner" class="app-tab-panel planner-panel" data-tab="planner" role="tabpanel" aria-labelledby="zoneBtn-classes" hidden>
                 <!-- Schedule planner (js/planner/*). Scripts load on first visit (js/app-tab-scripts.js). -->
             <div id="plannerPageRoot" class="sp-root" hidden>
                 <div class="sp-topbar">
@@ -1461,6 +1462,23 @@
                 </div>
             </div>
 
+            <div id="spTmsLogin" class="sp-overlay sp-overlay--confirm" hidden>
+                <form class="sp-dialog sp-dialog--small" role="dialog" aria-modal="true" aria-labelledby="spTmsLoginTitle" autocomplete="on">
+                    <h2 id="spTmsLoginTitle" class="sp-confirm-text" data-i18n="spTmsLoginTitle">Sign in to TMS</h2>
+                    <p class="sp-hint" data-i18n="spTmsLoginHint">Read-only: ClassManager only reads the schedule and never changes anything in TMS. Your password is used for this pull only and is not saved.</p>
+                    <p id="spTmsLoginError" class="sp-hint sp-auto-error" role="alert" hidden></p>
+                    <label class="sp-field"><span data-i18n="spTmsUser">TMS username</span>
+                        <input type="text" id="spTmsUser" class="field-input" autocomplete="username" spellcheck="false"></label>
+                    <label class="sp-field"><span data-i18n="spTmsPass">TMS password</span>
+                        <input type="password" id="spTmsPass" class="field-input" autocomplete="current-password"></label>
+                    <label class="sp-field sp-check"><input type="checkbox" id="spTmsRemember"> <span data-i18n="spTmsRemember">Remember my username on this computer</span></label>
+                    <div class="sp-confirm-actions">
+                        <button type="button" class="btn btn-outline btn-small" data-tms-cancel data-i18n="spCancel">Cancel</button>
+                        <button type="submit" class="btn btn-primary btn-small" data-i18n="spTmsSignIn">Sign in and pull</button>
+                    </div>
+                </form>
+            </div>
+
             <div id="spConfirm" class="sp-overlay sp-overlay--confirm" hidden>
                 <div class="sp-dialog sp-dialog--small" role="alertdialog" aria-modal="true" aria-describedby="spConfirmText">
                     <p id="spConfirmText" class="sp-confirm-text"></p>
@@ -1472,6 +1490,12 @@
             </div>
 
             <div id="plannerPrintArea" class="planner-print-area" aria-hidden="true"></div>
+            </section>
+
+            <section id="panel-drafter" class="app-tab-panel drafter-panel" data-tab="drafter" role="tabpanel" aria-labelledby="zoneBtn-classes" hidden>
+                <!-- Schedule drafter (prototype): next term's levels and cohort sizes. Script: js/planner/next-term-drafter.js -->
+                <h2 class="drafter-title" data-i18n="drafterTitle">Schedule drafter</h2>
+                <div id="drafterRoot" class="drafter-root"></div>
             </section>
 
             <section id="panel-cohorts" class="app-tab-panel" data-tab="cohorts" role="tabpanel" aria-labelledby="zoneBtn-classes" hidden>
@@ -1546,7 +1570,7 @@
                     <h2 class="teachers-placeholder-title" data-i18n="teachersPlaceholderTitle">Teachers</h2>
                     <p class="teachers-placeholder-body" data-i18n="teachersPlaceholderBody">Planned future features will live here.</p>
                     <div class="teachers-placeholder-actions">
-                        <a href="/?zone=schedule&amp;segment=planner" id="teachersPlaceholderOpenPlannerBtn" class="btn btn-primary btn-small" data-i18n="plannerOpenLink">Open schedule planner</a>
+                        <a href="/?zone=classes&amp;segment=planner" id="teachersPlaceholderOpenPlannerBtn" class="btn btn-primary btn-small" data-i18n="plannerOpenLink">Open schedule planner</a>
                         <button type="button" id="teachersPlaceholderOpenTimetableBtn" class="btn btn-outline btn-small" data-i18n="teachersTabOpenTimetable">Open in Timetable</button>
                         <button type="button" id="teachersPlaceholderOpenCohortsBtn" class="btn btn-outline btn-small" data-i18n="teachersTabManageCohorts">Open Cohorts board</button>
                     </div>
@@ -1576,7 +1600,7 @@
                         <h2 class="module-section-title" data-i18n="dataPlannerHeading">Class scheduler</h2>
                         <p class="section-hint" data-i18n="dataPlannerHint">Plan the term&rsquo;s timetable: drag classes onto teachers, cohorts and rooms, or let auto-schedule suggest plans. Nothing changes on the calendar until you apply it.</p>
                         <div class="print-data-actions">
-                            <a href="/?zone=schedule&amp;segment=planner" id="dataOpenPlannerBtn" class="btn btn-primary btn-small" data-i18n="dataPlannerOpen">Open class scheduler</a>
+                            <a href="/?zone=classes&amp;segment=planner" id="dataOpenPlannerBtn" class="btn btn-primary btn-small" data-i18n="dataPlannerOpen">Open class scheduler</a>
                         </div>
                     </div>
                     <div class="print-data-section print-data-section--import-export">
@@ -3330,7 +3354,7 @@
         <hr class="header-dropdown-divider" aria-hidden="true">
         <button type="button" id="accountMyTimetableBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" hidden data-i18n="accountMyTimetable">My timetable</button>
         <button type="button" id="openNotesAppHeaderBtn" class="btn btn-outline btn-small btn-notes-app header-dropdown-item" data-i18n="notesOpenMobile" data-i18n-title="notesOpenMobileTitle">Mobile day notes</button>
-        <a href="/?zone=schedule&amp;segment=planner" id="openPlannerAppHeaderBtn" class="btn btn-outline btn-small header-dropdown-item" data-i18n="plannerOpenLink" data-i18n-title="plannerOpenLinkTitle">Schedule planner</a>
+        <a href="/?zone=classes&amp;segment=planner" id="openPlannerAppHeaderBtn" class="btn btn-outline btn-small header-dropdown-item" data-i18n="plannerOpenLink" data-i18n-title="plannerOpenLinkTitle">Schedule planner</a>
         <hr class="header-dropdown-divider" aria-hidden="true">
         <button type="button" id="accountPrintItem" class="btn btn-outline btn-small header-dropdown-item account-print-item" role="menuitem" data-i18n="printBtn">Print</button>
         <a href="help.html" id="helpLink" class="btn btn-outline btn-small btn-help header-dropdown-item" role="menuitem" data-i18n="accountHelpTutorial" data-i18n-title="howToBtnTitle">Help &amp; tutorial</a>
@@ -3395,7 +3419,7 @@
     <script defer src="js/class-color-tile.js?v=20261114-pinned-save"></script>
     <script defer src="js/print-center.js?v=20261014-p6-hierarchy"></script>
     <script defer src="js/class-one-teacher.js?v=20261115-one-teacher"></script>
-    <script defer src="app.js?v=20261114-steady-lock"></script>
+    <script defer src="app.js?v=20261117-drafter"></script>
 </body>
 </html>
 

@@ -27244,3 +27244,12 @@ body.timetable-mine-only .timetable-layout {
 .sp-hist-item { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--border, #d7d7d7); border-radius: 8px; }
 .sp-hist-main { display: grid; gap: 4px; flex: 1 1 220px; min-width: 0; }
 .sp-hist-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.drafter-panel { padding: 16px; }
+.drafter-table { border-collapse: collapse; width: 100%; max-width: 760px; margin-top: 12px; }
+.drafter-table th, .drafter-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border, #d7d7d7); }
+.drafter-groups { list-style: none; padding: 0; display: grid; gap: 6px; max-width: 760px; }
+.drafter-band { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border, #d7d7d7); }
+.drafter-band--healthy { border-color: #3a8f5c; }
+.drafter-band--thin { border-color: #c98a1b; }
+.drafter-band--single, .drafter-band--tooSmall, .drafter-band--tooBig { border-color: #c0392b; }

@@ -12,11 +12,13 @@ const {
 assert.strictEqual(BRIDGE_PROTOCOL, 2);
 assert.deepStrictEqual(JOB_KINDS.slice().sort(), [
     'attendance',
+    'cohorts',
     'counsel',
     'essayContent',
     'essays',
     'homework',
-    'roster'
+    'roster',
+    'schedule'
 ]);
 
 let lastHomeworkOpts = null;

@@ -152,6 +152,8 @@ const MINIFY_JS = [
     'js/planner/teacher-planner-core.js',
     'js/planner/teacher-planner-auto.js',
     'js/planner/auto-worker.js',
+    'js/planner/next-term-drafter.js',
+    'js/level-progression.js',
     'js/planner/tms-schedule-import.js',
     'js/planner/teacher-planner-ui.js',
     'js/core/app-state.js'

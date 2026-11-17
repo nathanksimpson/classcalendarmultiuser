@@ -134,6 +134,7 @@ function block(id) {
         'debate-rec',
         'debate-scores',
         'debate-teams',
+        'drafter',
         'essays',
         'events',
         'homework',
