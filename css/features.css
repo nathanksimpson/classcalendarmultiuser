@@ -20205,9 +20205,9 @@ th[data-cohort-col] {
     display: inline-flex;
     align-items: center;
     gap: var(--space-1, 4px);
-    min-height: 36px;
-    padding: var(--space-1, 4px) var(--space-2, 8px);
-    border-radius: var(--radius-md, 8px);
+    min-height: 28px;
+    padding: 2px var(--space-2, 8px);
+    border-radius: 999px;
     border: 1px solid var(--border-color, #e3e8ef);
     background: var(--bg-card, #fff);
     font-size: 0.8125rem;
@@ -20337,7 +20337,13 @@ th[data-cohort-col] {
     margin-bottom: var(--space-2, 8px);
 }
 
-#panel-debate-rec .debate-rec-stats,
+#panel-debate-rec .debate-rec-stats {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--space-1, 4px) var(--space-2, 8px);
+}
+
 /* Essays: assignment chip row (same pattern as Debate recording's Day 4 dates). */
 #panel-essays .classroom-essay-assign-picker {
     display: flex;
@@ -20492,9 +20498,9 @@ th[data-cohort-col] {
     display: inline-flex;
     align-items: center;
     gap: var(--space-1, 4px);
-    min-height: 36px;
-    padding: var(--space-1, 4px) var(--space-2, 8px);
-    border-radius: var(--radius-md, 8px);
+    min-height: 28px;
+    padding: 2px var(--space-2, 8px);
+    border-radius: 999px;
     border: 1px solid var(--border-color, #e3e8ef);
     background: var(--bg-card, #fff);
     font-size: 0.8125rem;
