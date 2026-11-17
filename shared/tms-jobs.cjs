@@ -51,6 +51,15 @@ const JOBS = {
             meta: {
                 homeUrl: result.meta && result.meta.homeUrl,
                 pagesFetched: result.meta && result.meta.pagesFetched,
+                // Compact page log: lets the popout say what TMS returned when no classes are found.
+                pages: ((result.meta && result.meta.pages) || []).slice(0, 6).map((pg) => ({
+                    url: pg.url,
+                    status: pg.status,
+                    ok: pg.ok,
+                    cohortCount: pg.cohortCount,
+                    error: pg.error,
+                    note: pg.note
+                })),
                 cohortCount: cohorts.length,
                 studentCount: cohorts.reduce((n, c) => n + ((c.students && c.students.length) || 0), 0)
             }

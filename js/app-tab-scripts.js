@@ -59,7 +59,7 @@
             SCRIPT_ROSTER_IMPORT,
             'js/classroom-access.js?v=20260911-essay-groups',
             'js/classroom-student-row.js?v=20260723-tms-sync',
-            'js/classroom-roster.js?v=20261013-tms-sync'
+            'js/classroom-roster.js?v=20261117-diag'
         ],
         attendance: [
             'js/classroom-access.js?v=20260911-essay-groups',

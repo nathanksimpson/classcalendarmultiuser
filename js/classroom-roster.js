@@ -3121,10 +3121,15 @@
             tmsSyncPlan = cohorts.map((c) => buildTmsPlanRowFromScrape(c, calendar, links));
             refreshTmsPlanHomeroomFields();
             if (!tmsSyncPlan.length) {
+                // Say what TMS returned, so "no classes" can be told apart from "signed in to the wrong page".
+                const pg = ((body.meta && body.meta.pages) || [])[0];
+                const seen = pg
+                    ? ` (${[pg.url, pg.status ? `HTTP ${pg.status}` : '', pg.error || '', pg.note || ''].filter(Boolean).join(' · ')})`
+                    : '';
                 setTmsSyncStatus(
-                    usedBridge
+                    (usedBridge
                         ? `${t('rosterTmsBridgeConnected')} ${t('rosterTmsSyncEmpty')}`
-                        : t('rosterTmsSyncEmpty')
+                        : t('rosterTmsSyncEmpty')) + seen
                 );
             } else {
                 const meta = body.meta || {};

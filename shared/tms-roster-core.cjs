@@ -2588,7 +2588,14 @@ async function scrapeRosters(options) {
             ok: popupPage.status < 400 && !stillOnLoginPage(popupPage.text, popupPage.finalUrl),
             cohortCount: classList.length,
             studentCount: 0,
-            source: 'class-popup-list'
+            source: 'class-popup-list',
+            // When the sidebar is empty, say what TMS actually returned (shown in the sync popout).
+            note: classList.length
+                ? undefined
+                : stripTags(decodeHtmlEntities(String(popupPage.text || '').replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')))
+                      .replace(/\s+/g, ' ')
+                      .trim()
+                      .slice(0, 160)
         });
 
         if (
