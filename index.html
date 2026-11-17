@@ -16,7 +16,7 @@
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20261117-map';
+        window.CCP_I18N_VERSION = '20261117-map2';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -1480,10 +1480,15 @@
             </div>
 
             <div id="spTmsMap" class="sp-overlay sp-overlay--confirm" hidden>
-                <div class="sp-dialog" role="dialog" aria-modal="true" aria-labelledby="spTmsMapTitle">
+                <div class="sp-dialog sp-map-dialog" role="dialog" aria-modal="true" aria-labelledby="spTmsMapTitle">
                     <h2 id="spTmsMapTitle" class="sp-confirm-text" data-i18n="spTmsMapTitle">Match TMS classes to cohorts</h2>
-                    <p class="sp-hint" data-i18n="spTmsMapHint">These TMS classes are not matched to a cohort in this calendar yet. Pick the cohort for each one, or skip classes that are not part of this calendar. Your choices are remembered, also for the roster sync.</p>
+                    <p class="sp-hint" data-i18n="spTmsMapHint">Pick the cohort for each TMS class, or skip classes that are not in this calendar. Choices are remembered, also for the roster sync.</p>
+                    <div class="sp-map-head"><span data-i18n="spTmsMapColTms">TMS class</span><span data-i18n="spTmsMapColCohort">Cohort in this calendar</span></div>
                     <div id="spTmsMapList" class="sp-map-list"></div>
+                    <div class="sp-map-foot">
+                        <span id="spTmsMapTally" class="sp-hint" aria-live="polite"></span>
+                        <button type="button" class="btn btn-outline btn-small" data-map-skip-rest data-i18n="spTmsMapSkipRest">Skip the undecided</button>
+                    </div>
                     <div class="sp-confirm-actions">
                         <button type="button" class="btn btn-outline btn-small" data-map-cancel data-i18n="spCancel">Cancel</button>
                         <button type="button" class="btn btn-primary btn-small" data-map-save data-i18n="spTmsMapSave">Save and continue</button>
@@ -3305,7 +3310,7 @@
     <script defer src="js/toolbar-menus.js?v=20261111-toolbar-menus"></script>
     <script defer src="js/classroom-zone-context.js?v=20261111-tools-month"></script>
     <script defer src="js/template-loader.js?v=20261015-p7-level"></script>
-    <script defer src="js/tms-sync-client.js?v=20261117-map"></script>
+    <script defer src="js/tms-sync-client.js?v=20261117-map2"></script>
     <script defer src="js/app-tab-scripts.js?v=20261113-cohort-links"></script>
     <script defer src="js/load-extension-scripts.js?v=20261113-hih-tracks"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
@@ -3331,7 +3336,7 @@
     <script defer src="js/term-migrate-wizard.js?v=20261013-tms-sync"></script>
     <script defer src="js/dom.js?v=20260615-ui-refactor"></script>
     <script defer src="js/ui/modal.js?v=20260828-modal-stay"></script>
-    <script defer src="js/tms-sync-center.js?v=20261117-map"></script>
+    <script defer src="js/tms-sync-center.js?v=20261117-map2"></script>
     <script defer src="js/source-version-banners.js?v=20261013-tms-sync"></script>
     <script defer src="js/ui/filter-presets.js?v=20260703-ui-harmonize"></script>
     <script defer src="js/ui/classroom-autosave.js?v=20260807-deconflict-min"></script>
@@ -3421,7 +3426,7 @@
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260918-viewport-p0"></script>
     <script defer src="js/tab-warnings.js?v=20261114-steady-lock"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20261117-map"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20261117-map2"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/nav-tab-layout.js?v=20260720-nav-layout-v1"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260720-cross-zone-preview"></script>

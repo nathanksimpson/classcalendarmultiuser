@@ -2455,52 +2455,82 @@ ${by.get(cid).map((d) => `
             const cohorts = (M.data.cohorts || []).filter((c) => c && !(D.isArchiveCohort && D.isArchiveCohort(c)));
             const links = M.data.tmsRosterLinks || {};
             const list = $('spTmsMapList');
+            const tally = $('spTmsMapTally');
+            const saveBtn = dlg.querySelector('[data-map-save]');
             list.innerHTML = '';
-            // One row per TMS class name (the term suffix is dropped: 샘물M^2609 and 샘물M^2612 are the same class).
+            // One row per TMS class (term suffix dropped: 샘물M^2609 and 샘물M^2612 are the same class). When TMS
+            // lists several terms, only the newest one matters for this schedule.
+            const termOf = (n) => (String(n || '').match(/\^([^\s^]+)\s*$/) || [])[1] || '';
+            const terms = unmatched.map((u) => termOf(u.name)).filter(Boolean).sort();
+            const newest = terms.length ? terms[terms.length - 1] : '';
             const seen = new Map();
             unmatched.forEach((u) => {
+                if (newest && termOf(u.name) && termOf(u.name) !== newest) return;
                 const base = String(u.name || '').replace(/\^.*$/, '').trim();
-                if (base && !seen.has(base.toLowerCase())) seen.set(base.toLowerCase(), { base, raw: u.name });
+                if (!base) return;
+                const k = base.toLowerCase();
+                const prev = seen.get(k);
+                if (prev) prev.count += u.count || 1;
+                else seen.set(k, { base, raw: u.name, count: u.count || 1 });
             });
             const opt = (v, label, sel) => `<option value="${esc(v)}"${sel ? ' selected' : ''}>${esc(label)}</option>`;
-            seen.forEach((e) => {
-                const r = D.resolveTmsRosterLink(links, e.raw, cohorts);
-                const row = document.createElement('label');
+            const rows = Array.from(seen.values()).map((e) => ({ e, r: D.resolveTmsRosterLink(links, e.raw, cohorts) }));
+            // Likely matches first, then the ones that need a decision.
+            rows.sort((x, y) => Number(!!y.r.suggestedTargetId) - Number(!!x.r.suggestedTargetId) || x.e.base.localeCompare(y.e.base));
+            rows.forEach(({ e, r }) => {
+                const row = document.createElement('div');
                 row.className = 'sp-map-row';
-                row.innerHTML = `<span class="sp-map-name">${esc(e.base)}</span>
-                    <select class="field-input sp-map-select" data-tms="${esc(e.base)}">
+                row.innerHTML = `<span class="sp-map-name">${esc(e.base)}<small>${esc(t('spTmsMapPeriods', '{n} periods', { n: e.count }))}</small></span>
+                    <select class="field-input sp-map-select" data-tms="${esc(e.base)}" aria-label="${esc(e.base)}">
                         ${opt('', t('spTmsMapChoose', 'Choose cohort…'), !r.suggestedTargetId)}
                         ${cohorts.map((c) => opt(c.id, c.name, c.id === r.suggestedTargetId)).join('')}
                         ${opt('__skip__', t('spTmsMapSkip', 'Not in this calendar (skip)'), false)}
                     </select>`;
                 list.appendChild(row);
             });
+            const update = () => {
+                let mapped = 0; let skipped = 0; let open = 0;
+                list.querySelectorAll('select').forEach((sel) => {
+                    sel.closest('.sp-map-row').classList.toggle('is-open', !sel.value);
+                    if (!sel.value) open += 1; else if (sel.value === '__skip__') skipped += 1; else mapped += 1;
+                });
+                tally.textContent = t('spTmsMapTally', '{mapped} matched · {skipped} skipped · {open} undecided', { mapped, skipped, open });
+                saveBtn.disabled = mapped + skipped === 0;
+            };
+            update();
             dlg.hidden = false;
-            const first = list.querySelector('select');
-            if (first) first.focus();
+            const firstOpen = list.querySelector('.sp-map-row.is-open select') || list.querySelector('select');
+            if (firstOpen) firstOpen.focus();
             const done = (val) => {
                 dlg.hidden = true;
                 dlg.removeEventListener('click', onClick);
+                dlg.removeEventListener('change', update);
                 document.removeEventListener('keydown', onKey, true);
                 resolve(val);
             };
             function onClick(ev) {
                 if (ev.target === dlg || ev.target.closest('[data-map-cancel]')) { done(null); return; }
+                if (ev.target.closest('[data-map-skip-rest]')) {
+                    list.querySelectorAll('select').forEach((sel) => { if (!sel.value) sel.value = '__skip__'; });
+                    update();
+                    return;
+                }
                 if (ev.target.closest('[data-map-save]')) {
-                    const rows = [];
+                    const out = [];
                     list.querySelectorAll('select').forEach((sel) => {
                         if (!sel.value) return;
-                        rows.push(sel.value === '__skip__'
+                        out.push(sel.value === '__skip__'
                             ? { importCohortName: sel.dataset.tms, userAction: 'skip' }
                             : { importCohortName: sel.dataset.tms, userAction: 'map', userTargetId: sel.value });
                     });
-                    done(rows);
+                    done(out);
                 }
             }
             function onKey(ev) {
                 if (ev.key === 'Escape') { ev.stopPropagation(); done(null); }
             }
             dlg.addEventListener('click', onClick);
+            dlg.addEventListener('change', update);
             document.addEventListener('keydown', onKey, true);
         });
     }
