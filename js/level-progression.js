@@ -1,14 +1,19 @@
 /**
- * Level progression — where a cohort goes next term, by default.
+ * Level progression: where a cohort goes next term, by default.
  * Pure tables + helpers; no DOM, no app state.
  * window.CCPLevelProgression
  *
- * Elementary: one step up the ladder each term (Red -> ... -> Mirinae).
- * Middle school (flyer "Simson Middle school"): each level tier has one cohort
- * per school year (중1, 중2, 중3). By default a cohort moves to the next school
- * year of the SAME tier (유마 -> 홉스 -> 안나). Moving to a higher tier is a
- * decision based on test scores, so it is an override, never a default.
- * 중3 finishes the academy's middle school.
+ * Elementary: Red -> ... -> Purple -> Saemmul -> Yeoul -> Garam -> Bada -> Mirinae -> Byeolmaru.
+ *   Cohorts usually move up after two terms, but not all together, so the
+ *   default only suggests a move once the cohort has had two terms at its
+ *   level; a person can always override one cohort.
+ * Middle school (flyer "Simson Middle school"): each level group (Pre-Basic,
+ *   Basic, Inter-low, Inter-high, Advanced) has one cohort per school year
+ *   (중1, 중2, 중3): the same English ability, different year requirements.
+ *   The school year changes in December, so only terms starting in December
+ *   move a cohort to the next year of its own group. Moving to a higher group
+ *   is a person's decision (test scores), never a default. 중3 finishes.
+ * Sixth graders leave elementary for 중1 of the matching group (MIDDLE_ENTRY).
  *
  * Every result carries a `source` so the screen can show "default" or "changed".
  */
@@ -16,19 +21,30 @@
     /** Elementary ladder, lowest first. Purple sits before the Waterflow levels. */
     const ELEMENTARY_ORDER = [
         'Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Navy', 'Purple',
-        'Saemmul', 'Yeoul', 'Garam', 'Bada', 'Byeolmaru', 'Mirinae'
+        'Saemmul', 'Yeoul', 'Garam', 'Bada', 'Mirinae', 'Byeolmaru'
     ];
 
-    /** Middle-school tiers, lowest first; each lists its 중1, 중2, 중3 cohort. */
+    /** Middle-school level groups, lowest first; each lists its 중1, 중2, 중3 cohort. */
     const MIDDLE_TIERS = [
-        { id: 'basic', label: 'Basic', cohorts: ['유마', '홉스', '안나'] },
-        { id: 'inter-low', label: 'Inter-low', cohorts: ['레오', '티카', '낭가'] },
-        { id: 'inter-high', label: 'Inter-high', cohorts: ['파보', '빅키', '로체'] },
+        { id: 'pre-basic', label: 'Pre-Basic', cohorts: ['S1', 'S2', 'S3'] },
+        { id: 'basic', label: 'Basic', cohorts: ['\uC720\uB9C8', '\uD649\uC2A4', '\uC548\uB098'] },
+        { id: 'inter-low', label: 'Inter-low', cohorts: ['\uB808\uC624', '\uD2F0\uCE74', '\uB0AD\uAC00'] },
+        { id: 'inter-high', label: 'Inter-high', cohorts: ['\uD30C\uBCF4', '\uBE45\uD0A4', '\uB85C\uCCB4'] },
         // 바이컬 is the spelling already stored in data for the 중2 Advanced cohort; 바이칼 is the display name.
-        { id: 'advanced', label: 'Advanced', cohorts: ['폴라', '바이컬', '캉첸'] }
+        { id: 'advanced', label: 'Advanced', cohorts: ['\uD3F4\uB77C', '\uBC14\uC774\uCEEC', '\uCE89\uCCB8'] }
     ];
 
-    const SPELLING = { '바이칼': '바이컬' };
+    /** The 중1 cohort a sixth grader joins from each senior level (its middle-school analogue). */
+    const MIDDLE_ENTRY = {
+        Saemmul: '\uC720\uB9C8',
+        Yeoul: '\uC720\uB9C8',
+        Garam: '\uB808\uC624',
+        Bada: '\uD30C\uBCF4',
+        Mirinae: '\uD3F4\uB77C',
+        Byeolmaru: '\uD3F4\uB77C'
+    };
+
+    const SPELLING = { '\uBC14\uC774\uCE7C': '\uBC14\uC774\uCEEC' };
 
     function str(v) {
         return v == null ? '' : String(v).trim();
@@ -50,31 +66,43 @@
 
     /**
      * The default next level.
-     * @returns {{ to: string, reason: 'next'|'graduate'|'choose'|'unknown' }}
-     *   next      – `to` is the level.
-     *   graduate  – finished middle school (`to` is '').
-     *   choose    – a person must pick (elementary -> middle school depends on the score).
-     *   unknown   – the level is not in the table.
+     * @param {string} levelId
+     * @param {{ termStartMonth?: number, termsAtLevel?: number }} [ctx]
+     *   termStartMonth: 1-12, month the new term starts (middle school moves up in December).
+     *   termsAtLevel: terms this cohort has already had at its level (elementary moves after two).
+     * @returns {{ to: string, reason: 'next'|'stay'|'ask'|'graduate'|'unknown', askLevelUp?: boolean }}
+     *   next      - `to` is the level.
+     *   stay      - the cohort keeps its level this term.
+     *   ask       - elementary: a move is likely but the term count is unknown; `to` is the suggestion.
+     *   graduate  - finished middle school (`to` is '').
+     *   askLevelUp - December middle-school term: also ask whether to go up a group.
      */
-    function defaultNext(levelId) {
+    function defaultNext(levelId, ctx) {
         const id = canon(levelId);
+        const c = ctx || {};
         const e = ELEMENTARY_ORDER.indexOf(id);
         if (e >= 0) {
-            if (e < ELEMENTARY_ORDER.length - 1) return { to: ELEMENTARY_ORDER[e + 1], reason: 'next' };
-            return { to: '', reason: 'choose' };
+            const top = e === ELEMENTARY_ORDER.length - 1;
+            const next = top ? '' : ELEMENTARY_ORDER[e + 1];
+            if (top) return { to: id, reason: 'stay' };
+            if (c.termsAtLevel == null) return { to: next, reason: 'ask' };
+            return Number(c.termsAtLevel) >= 2 ? { to: next, reason: 'next' } : { to: id, reason: 'stay' };
         }
         const m = middlePosition(id);
         if (m) {
+            if (Number(c.termStartMonth) !== 12) return { to: id, reason: 'stay' };
             if (m.grade >= 2) return { to: '', reason: 'graduate' };
-            return { to: MIDDLE_TIERS[m.tier].cohorts[m.grade + 1], reason: 'next' };
+            return { to: MIDDLE_TIERS[m.tier].cohorts[m.grade + 1], reason: 'next', askLevelUp: true };
         }
         return { to: '', reason: 'unknown' };
     }
 
-    /**
-     * The English-ability group a level belongs to. 유마, 홉스 and 안나 are all 'basic': the same ability in
-     * different school years, each year with its own requirements. Elementary levels are their own group.
-     */
+    /** The 중1 cohort a sixth grader from this senior level joins ('' if the level has none). */
+    function middleFor(levelId) {
+        return MIDDLE_ENTRY[canon(levelId)] || '';
+    }
+
+    /** The English-ability group a level belongs to. 유마, 홉스, 안나 are all 'basic': same ability, different school year. */
     function levelGroup(levelId) {
         const id = canon(levelId);
         const m = middlePosition(id);
@@ -98,11 +126,11 @@
 
     /**
      * Plan the next term for a list of cohorts.
-     * @param {Array<{id: string, level: string}>} cohorts
+     * @param {Array<{id: string, level: string, termsAtLevel?: number}>} cohorts
      * @param {Object<string,string>} overrides cohort id -> chosen level, or '' to stay, or '__stay__'
      * @returns {Array<{id, from, to, reason, source: 'default'|'override'}>}
      */
-    function planProgression(cohorts, overrides) {
+    function planProgression(cohorts, overrides, ctx) {
         const ov = overrides || {};
         return (cohorts || []).map((c) => {
             const from = canon(c.level);
@@ -116,7 +144,7 @@
                     source: 'override'
                 };
             }
-            const d = defaultNext(from);
+            const d = defaultNext(from, Object.assign({}, ctx, c.termsAtLevel != null ? { termsAtLevel: c.termsAtLevel } : {}));
             return { id: c.id, from, to: d.to, reason: d.reason, source: 'default' };
         });
     }
@@ -124,7 +152,9 @@
     global.CCPLevelProgression = {
         ELEMENTARY_ORDER: ELEMENTARY_ORDER.slice(),
         MIDDLE_TIERS,
+        MIDDLE_ENTRY,
         defaultNext,
+        middleFor,
         levelGroup,
         optionsFor,
         planProgression
