@@ -326,7 +326,7 @@
             if (!useFirst && allPeriods.length > 1 && r.n === allPeriods[0] && isAuto(r)) add('first_period', [r]);
             if (teacher) {
                 if (api.teacherLimitReason(teacher, r.demand)) add('wrong_teacher', [r]);
-                if (api.isSlotBlocked(teacher, r.dow, r.n, blockouts) || api.outsideTeacherHours(appData, teacher, r.n)) add('teacher_unavailable', [r]);
+                if (api.teacherUnavailable(appData, teacher, r.dow, r.n, blockouts)) add('teacher_unavailable', [r]);
             }
         });
         // Teacher day and week limits.
@@ -334,11 +334,11 @@
             const t = teacherById.get(key.split('|')[0]);
             const nums = [...new Set(l.map((r) => r.n))];
             if (!t) return;
-            if (nums.length > (t.limits.maxPeriodsPerDay || 99) || api.longestRun(nums) > runLimit) add('teacher_day_limit', l);
+            if (api.teacherDayLimitBroken(t, nums, runLimit)) add('teacher_day_limit', l);
         });
         group((r) => (r.asg.teacherProfileId ? [String(r.asg.teacherProfileId)] : [])).forEach((l, key) => {
             const t = teacherById.get(key);
-            if (t && distinct(l).length > (t.limits.maxPeriodsPerWeek || 99)) add('teacher_week_limit', l);
+            if (t && api.teacherWeekLimitBroken(t, distinct(l).length)) add('teacher_week_limit', l);
         });
         return out;
     }
@@ -436,11 +436,9 @@
         const teacherCanTake = (teacher, dow, n, mine) => {
             if (!teacher) return !api.isSlotBlocked(api.defaultTeacherProfile({}), dow, n, blockouts);
             if (teacherBusy.has(`${teacher.id}|${dow}|${n}`)) return false;
-            if ((load.get(teacher.id) || 0) + 1 > (teacher.limits.maxPeriodsPerWeek || 99)) return false;
-            if (api.isSlotBlocked(teacher, dow, n, blockouts)) return false;
-            if (api.outsideTeacherHours(appData, teacher, n)) return false;
-            if (mine.length + 1 > (teacher.limits.maxPeriodsPerDay || 99)) return false;
-            if (api.longestRun(mine.concat([n])) > runLimit) return false;
+            if (api.teacherWeekLimitBroken(teacher, (load.get(teacher.id) || 0) + 1)) return false;
+            if (api.teacherUnavailable(appData, teacher, dow, n, blockouts)) return false;
+            if (api.teacherDayLimitBroken(teacher, mine.concat([n]), runLimit)) return false;
             return true;
         };
 
@@ -626,10 +624,9 @@
                 // Taking the class means taking the periods it already has, too.
                 const extra = fixedTeacher ? 0 : alreadyOnBoard.length;
                 if (!fixedTeacher) {
-                    if (now + extra + missing > maxWeek) return;
+                    if (api.teacherWeekLimitBroken(teacher, now + extra + missing)) return;
                     const clash = alreadyOnBoard.some((m) => teacherBusy.has(`${teacher.id}|${Number(m.dow)}|${Number(m.period)}`)
-                        || api.isSlotBlocked(teacher, m.dow, m.period, blockouts)
-                        || api.outsideTeacherHours(appData, teacher, m.period));
+                        || api.teacherUnavailable(appData, teacher, m.dow, m.period, blockouts));
                     if (clash) return;
                 }
                 const slots = chooseSlots(demand, teacher, missing);

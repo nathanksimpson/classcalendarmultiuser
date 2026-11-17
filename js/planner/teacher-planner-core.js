@@ -62,6 +62,22 @@
         return hasPeriodGap(nums) ? 'gap' : '';
     }
 
+    /** Teacher rules, defined once (auto-schedule placing a class and the final check both use them). */
+    function teacherUnavailable(appData, teacher, dow, period, blockouts) {
+        return !!(isSlotBlocked(teacher, dow, period, blockouts) || outsideTeacherHours(appData, teacher, period));
+    }
+
+    /** More periods in one day than the teacher's daily limit, or a run of classes longer than allowed. */
+    function teacherDayLimitBroken(teacher, dayPeriods, runLimit) {
+        const nums = [...new Set(dayPeriods.map(Number))];
+        return nums.length > ((teacher.limits && teacher.limits.maxPeriodsPerDay) || 99) || longestRun(nums) > runLimit;
+    }
+
+    /** More periods in the week than the teacher's weekly limit. */
+    function teacherWeekLimitBroken(teacher, weekCount) {
+        return weekCount > ((teacher.limits && teacher.limits.maxPeriodsPerWeek) || 99);
+    }
+
     /**
      * The rules auto-schedule keeps and the final check reports (code -> tier and plain message).
      * Tier 'hard' = never broken by auto-schedule; by hand the board shows them as warnings.
@@ -2981,6 +2997,9 @@
         periodSpan,
         hasPeriodGap,
         cohortDayBroken,
+        teacherUnavailable,
+        teacherDayLimitBroken,
+        teacherWeekLimitBroken,
         RULES,
         isPurpleCohort,
         cohortBlock,

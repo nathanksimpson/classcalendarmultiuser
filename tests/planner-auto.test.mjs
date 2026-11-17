@@ -603,3 +603,13 @@ console.log('planner-auto tests passed');
     assert(w.slotNoRoom < 0 && w.pickSameSubject > 0, 'weights have the expected sign');
     console.log('soft weights tests passed');
 }
+
+// Teacher rules defined once.
+{
+    const t = api.defaultTeacherProfile({ id: 'tt', limits: { maxPeriodsPerDay: 3, maxPeriodsPerWeek: 5 } });
+    assert(!api.teacherDayLimitBroken(t, [1, 2, 3], 4), 'three periods in a row is within the limits');
+    assert(api.teacherDayLimitBroken(t, [1, 2, 3, 4], 9), 'a fourth period breaks the daily limit');
+    assert(api.teacherDayLimitBroken(t, [1, 2, 3], 2), 'a run longer than the allowed run breaks it');
+    assert(!api.teacherWeekLimitBroken(t, 5) && api.teacherWeekLimitBroken(t, 6), 'weekly limit');
+    console.log('teacher rules tests passed');
+}
