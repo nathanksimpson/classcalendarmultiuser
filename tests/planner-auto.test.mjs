@@ -594,3 +594,12 @@ console.log('planner-auto tests passed');
     });
     console.log('shared rules tests passed');
 }
+
+// The scoring numbers live in one frozen table.
+{
+    const w = auto.SOFT_WEIGHTS;
+    assert(w && Object.isFrozen(w), 'SOFT_WEIGHTS is exported and frozen');
+    assert(w.slotRainbowIn23 > 0 && w.slotRainbowElsewhere < 0, 'rainbow prefers periods 2 and 3');
+    assert(w.slotNoRoom < 0 && w.pickSameSubject > 0, 'weights have the expected sign');
+    console.log('soft weights tests passed');
+}

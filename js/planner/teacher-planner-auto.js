@@ -200,6 +200,33 @@
         return type ? `type:${type}` : `name:${String(d.demandId || '')}`;
     }
 
+    /**
+     * Every "how much do we like it" number auto-schedule uses, in one place (higher score = better).
+     * Hard rules are never traded against these; they only choose between allowed options.
+     * `slot*` terms rank one period for one class, `pick*` terms rank a teacher for a class.
+     */
+    const SOFT_WEIGHTS = Object.freeze({
+        slotEarlier: -0.4,            // per position in the students' hours: earlier first
+        slotOutsideOwnBlock: -10,     // Purple outside its own block (primary early, secondary later)
+        slotNoRoom: -40,              // no room free that seats the class
+        slotRainbowIn23: 8,           // Red to Navy in periods 2 or 3
+        slotRainbowElsewhere: -4,     // Red to Navy in any other period
+        slotSameBlockDay: 8,          // a cohort's period it already uses on its other days
+        slotNewBlockDay: -6,          // a different block from its other days
+        slotNextToCohortClass: 6,     // directly next to another class of the cohort that day
+        slotCohortHolePerPeriod: -6,  // per free period away from the cohort's other classes
+        slotTeacherNextTo: 1.5,       // next to another class of this teacher (times the breaks priority)
+        slotPreferred: 1,             // teacher's preferred day or period
+        slotDiscouraged: -3,          // teacher's discouraged day or period, or avoided first/last period
+        slotContinuity: 4,            // same time as last term (times the continuity priority)
+        dayExtraSplit: -3,            // each split of a teacher's day beyond one break
+        dayRunAtLimit: -3,            // a run of classes at the longest allowed
+        pickMissingPeriod: -60,       // per period of the class that could not be placed with this teacher
+        pickContinuity: 100,          // teacher taught these students last term (times priority and match)
+        pickBalance: -20,             // teacher's share of the weekly load (times the balance priority)
+        pickSameSubject: 12           // teacher already teaches this subject to another cohort
+    });
+
     /** Separate stretches of classes in a teacher's day (back-to-back classes are one stretch). */
     function teachingBlocks(periods) {
         const nums = [...new Set(periods.map(Number))].sort((a, b) => a - b);
@@ -217,9 +244,9 @@
         const nums = [...periods].sort((a, b) => a - b);
         if (nums.length < 2) return 0;
         let score = 0;
-        score -= 3 * Math.max(0, teachingBlocks(nums) - 2); // one break is fine; each further split costs
+        score += SOFT_WEIGHTS.dayExtraSplit * Math.max(0, teachingBlocks(nums) - 2); // one break is fine; each further split costs
         const run = P().longestRun(nums);
-        if (run >= runLimit) score -= 3; // at the limit: allowed, not liked
+        if (run >= runLimit) score += SOFT_WEIGHTS.dayRunAtLimit; // at the limit: allowed, not liked
         return score;
     }
 
@@ -495,12 +522,12 @@
                         // Prefer times when a room that seats the class is free (a room is never shared or overfilled).
                         const roomFree = !rooms.length || rooms.some((r) => !roomBusy.has(`${r.id}|${dow}|${n}`)
                             && !api.roomTooSmall(appData, demand, r.id));
-                        let score = -0.4 * idx; // earlier in the students' hours first
+                        let score = SOFT_WEIGHTS.slotEarlier * idx; // earlier in the students' hours first
                         // Purple may go anywhere, but its own block (primary early, secondary later) is preferred.
-                        if (api.outsideStudentHours(appData, demand, n, dow, { byBlock: true })) score -= 10;
-                        if (!roomFree) score -= 40;
+                        if (api.outsideStudentHours(appData, demand, n, dow, { byBlock: true })) score += SOFT_WEIGHTS.slotOutsideOwnBlock;
+                        if (!roomFree) score += SOFT_WEIGHTS.slotNoRoom;
                         // Rainbow classes (Red to Navy, not Purple) prefer periods 2 and 3 (15:20 to 17:00).
-                        if (RAINBOW.includes(String(demand.level || '').trim())) score += (n === 2 || n === 3) ? 8 : -4;
+                        if (RAINBOW.includes(String(demand.level || '').trim())) score += (n === 2 || n === 3) ? SOFT_WEIGHTS.slotRainbowIn23 : SOFT_WEIGHTS.slotRainbowElsewhere;
                         // A cohort keeps the same block every day it comes (e.g. Mon, Wed and Fri all at periods 4–5):
                         // reward the periods it already uses on its other days, discourage a different block.
                         (demand.cohortIds || []).forEach((cid) => {
@@ -512,27 +539,27 @@
                             if (!other.size) return;
                             const here = (cohortDay.get(`${cid}|${dow}`) || [])
                                 .concat(picked.filter((x) => x.dow === dow).map((x) => x.n));
-                            if (other.has(n)) score += 8;
-                            else if (!here.length) score -= 6;
+                            if (other.has(n)) score += SOFT_WEIGHTS.slotSameBlockDay;
+                            else if (!here.length) score += SOFT_WEIGHTS.slotNewBlockDay;
                         });
                         // Students should not sit through empty periods.
                         (demand.cohortIds || []).forEach((cid) => {
                             const theirs = cohortDay.get(`${cid}|${dow}`) || [];
                             if (!theirs.length) return;
                             const dist = Math.min(...theirs.map((x) => Math.abs(x - n)));
-                            score += dist === 1 ? 6 : -6 * (dist - 1);
+                            score += dist === 1 ? SOFT_WEIGHTS.slotNextToCohortClass : SOFT_WEIGHTS.slotCohortHolePerPeriod * (dist - 1);
                         });
                         if (teacher) {
                             score += w.breaks * (dayShapeScore(mine.concat([n]), runLimit) - dayShapeScore(mine, runLimit));
-                            if (mine.some((x) => Math.abs(x - n) === 1)) score += 1.5 * w.breaks;
-                            if ((prefs.preferredDays || []).map(Number).includes(dow)) score += 1;
-                            if ((prefs.discouragedDays || []).map(Number).includes(dow)) score -= 3;
-                            if ((prefs.preferredPeriods || []).map(String).includes(String(n))) score += 1;
-                            if ((prefs.discouragedPeriods || []).map(String).includes(String(n))) score -= 3;
-                            if (prefs.avoidFirstPeriod && idx === 0) score -= 3;
-                            if (prefs.avoidLastPeriod && idx === periods.length - 1) score -= 3;
+                            if (mine.some((x) => Math.abs(x - n) === 1)) score += SOFT_WEIGHTS.slotTeacherNextTo * w.breaks;
+                            if ((prefs.preferredDays || []).map(Number).includes(dow)) score += SOFT_WEIGHTS.slotPreferred;
+                            if ((prefs.discouragedDays || []).map(Number).includes(dow)) score += SOFT_WEIGHTS.slotDiscouraged;
+                            if ((prefs.preferredPeriods || []).map(String).includes(String(n))) score += SOFT_WEIGHTS.slotPreferred;
+                            if ((prefs.discouragedPeriods || []).map(String).includes(String(n))) score += SOFT_WEIGHTS.slotDiscouraged;
+                            if (prefs.avoidFirstPeriod && idx === 0) score += SOFT_WEIGHTS.slotDiscouraged;
+                            if (prefs.avoidLastPeriod && idx === periods.length - 1) score += SOFT_WEIGHTS.slotDiscouraged;
                         }
-                        if (prevSlots.some((s) => s.dow === dow && Number(s.period) === n)) score += 4 * w.continuity;
+                        if (prevSlots.some((s) => s.dow === dow && Number(s.period) === n)) score += SOFT_WEIGHTS.slotContinuity * w.continuity;
                         if (!best || score > best.score) best = { dow, n, score };
                     });
                 });
@@ -606,16 +633,16 @@
                     if (clash) return;
                 }
                 const slots = chooseSlots(demand, teacher, missing);
-                let score = slots.score - 60 * (missing - slots.picked.length);
+                let score = slots.score + SOFT_WEIGHTS.pickMissingPeriod * (missing - slots.picked.length);
                 const kept = continuityOf(demand, teacher.id);
-                if (kept) score += 100 * w.continuity * kept.score;
-                score -= 20 * w.balance * ((now + extra + slots.picked.length) / maxWeek);
+                if (kept) score += SOFT_WEIGHTS.pickContinuity * w.continuity * kept.score;
+                score += SOFT_WEIGHTS.pickBalance * w.balance * ((now + extra + slots.picked.length) / maxWeek);
                 // Preferred, not required: one teacher for the same subject across cohorts.
                 if (!fixedTeacher) {
                     const key = typeKeyOf(demand);
                     const alreadyTeaches = draft.assignments.some((o) => o.teacherProfileId === teacher.id && o.demandId !== demand.demandId
                         && (() => { const od = demandById.get(o.demandId); return od && typeKeyOf(od) === key; })());
-                    if (alreadyTeaches) score += 12;
+                    if (alreadyTeaches) score += SOFT_WEIGHTS.pickSameSubject;
                 }
                 if (!best || score > best.score) best = { teacher, slots, score, kept };
             });
@@ -1095,6 +1122,7 @@
 
     global.CCPPlannerAuto = {
         PRIORITIES,
+        SOFT_WEIGHTS,
         termRoster,
         analysePreviousTerm,
         autoSchedule,
