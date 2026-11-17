@@ -149,7 +149,38 @@
         });
     }
 
+    /**
+     * Students are what actually move: a cohort's plan is only where its students go by default.
+     * @param {Array<{id: string, cohortId: string}>} students
+     * @param {Array<{id, to}>} cohortPlan result of planProgression
+     * @param {Object<string,string>} studentOverrides student id -> level (e.g. moved by test score)
+     * @returns {Array<{id, cohortId, to, source: 'cohort'|'override'}>}
+     */
+    function planStudents(students, cohortPlan, studentOverrides) {
+        const byCohort = new Map((cohortPlan || []).map((p) => [p.id, p]));
+        const ov = studentOverrides || {};
+        return (students || []).map((st) => {
+            if (Object.prototype.hasOwnProperty.call(ov, st.id)) {
+                return { id: st.id, cohortId: st.cohortId, to: canon(ov[st.id]), source: 'override' };
+            }
+            const c = byCohort.get(st.cohortId);
+            return { id: st.id, cohortId: st.cohortId, to: c ? c.to : '', source: 'cohort' };
+        });
+    }
+
+    /** Levels whose next-term headcount is below the minimum, so the person can merge or move students. */
+    function belowMinimum(studentPlan, minimum) {
+        const counts = new Map();
+        (studentPlan || []).forEach((p) => {
+            if (p.to) counts.set(p.to, (counts.get(p.to) || 0) + 1);
+        });
+        const min = Number(minimum) || 0;
+        return Array.from(counts.entries()).filter(([, n]) => n < min).map(([level, count]) => ({ level, count }));
+    }
+
     global.CCPLevelProgression = {
+        planStudents,
+        belowMinimum,
         ELEMENTARY_ORDER: ELEMENTARY_ORDER.slice(),
         MIDDLE_TIERS,
         MIDDLE_ENTRY,

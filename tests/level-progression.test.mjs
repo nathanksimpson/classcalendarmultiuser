@@ -63,4 +63,14 @@ assert.notEqual(L.levelGroup(TIKA), 'basic');
 assert.equal(L.levelGroup('S2'), 'pre-basic');
 assert.equal(L.levelGroup('Green'), 'Green');
 
+// Students move, not only cohorts: a student override beats the cohort's default; small groups are flagged.
+const cp = L.planProgression([{ id: 'a', level: HOBBS }], {}, { termStartMonth: 12 });
+const sp = L.planStudents(
+    [{ id: 's1', cohortId: 'a' }, { id: 's2', cohortId: 'a' }, { id: 's3', cohortId: 'a' }],
+    cp,
+    { s3: TIKA }
+);
+assert.deepEqual(sp.map((x) => [x.id, x.to, x.source]), [['s1', ANNA, 'cohort'], ['s2', ANNA, 'cohort'], ['s3', TIKA, 'override']]);
+assert.deepEqual(L.belowMinimum(sp, 2), [{ level: TIKA, count: 1 }]);
+
 console.log('level-progression tests passed');
