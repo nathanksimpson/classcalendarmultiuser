@@ -215,7 +215,30 @@
         return out;
     }
 
+    /** Size settings (editable by the person). 16 is the most a cohort can hold. */
+    const SIZE_DEFAULTS = { healthyFrom: 4, thinAt: 3, max: 16 };
+
+    /** Why a student might be moved from the default; recorded on the student, never moves them by itself. */
+    const MOVE_REASONS = ['testScore', 'classComposition', 'friends', 'sibling', 'parentRequest', 'teacherRecommendation'];
+
+    /**
+     * How a cohort's size looks. Small cohorts are allowed but discouraged; a single student is a last resort.
+     * @returns {'empty'|'single'|'tooSmall'|'thin'|'healthy'|'tooBig'}
+     */
+    function sizeBand(count, settings) {
+        const o = Object.assign({}, SIZE_DEFAULTS, settings || {});
+        const n = Number(count) || 0;
+        if (n <= 0) return 'empty';
+        if (n > o.max) return 'tooBig';
+        if (n >= o.healthyFrom) return 'healthy';
+        if (n >= o.thinAt) return 'thin';
+        return n === 1 ? 'single' : 'tooSmall';
+    }
+
     global.CCPLevelProgression = {
+        SIZE_DEFAULTS,
+        MOVE_REASONS,
+        sizeBand,
         deriveCohorts,
         planStudents,
         belowMinimum,

@@ -82,3 +82,8 @@ assert.equal(L.deriveCohorts(sp, [{ id: 'a', level: HOBBS }], 0).find((d) => d.l
 console.log('level-progression tests passed');
 const dc2 = L.deriveCohorts([{ id: 's', to: ANNA }, { id: 't', to: ANNA }], [{ id: 'c', level: ANNA }], 2);
 assert.equal(dc2[0].status, 'continues');
+
+// Size bands: 4+ healthy, 3 thin, 2 too small, 1 single (allowed, last resort), 17+ too big.
+assert.deepEqual([0, 1, 2, 3, 4, 16, 17].map((n) => L.sizeBand(n)), ['empty', 'single', 'tooSmall', 'thin', 'healthy', 'healthy', 'tooBig']);
+assert.equal(L.sizeBand(3, { healthyFrom: 3 }), 'healthy');
+assert.equal(L.MOVE_REASONS.length, 6);
