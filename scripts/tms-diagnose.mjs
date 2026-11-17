@@ -30,7 +30,10 @@ if (!username || !password) {
 
 function summarize(kind, body) {
     if (kind === 'roster') {
-        return `${(body.cohorts || []).length} classes, ${body.meta && body.meta.studentCount} students`;
+        const pages = ((body.meta && body.meta.pages) || [])
+            .map((pg) => `\n    page: ${pg.url} HTTP ${pg.status} ok=${pg.ok} classes=${pg.cohortCount}${pg.error ? ` error=${pg.error}` : ''}${pg.note ? ` text="${pg.note}"` : ''}`)
+            .join('');
+        return `${(body.cohorts || []).length} classes, ${body.meta && body.meta.studentCount} students, landed ${(body.meta && body.meta.homeUrl) || '?'}${(body.cohorts || []).length ? '' : pages}`;
     }
     if (kind === 'essays') {
         return `${(body.assignments || []).length} assignments, ${(body.rows || []).length} rows`;
