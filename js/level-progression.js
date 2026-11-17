@@ -71,6 +71,17 @@
         return { to: '', reason: 'unknown' };
     }
 
+    /**
+     * The English-ability group a level belongs to. 유마, 홉스 and 안나 are all 'basic': the same ability in
+     * different school years, each year with its own requirements. Elementary levels are their own group.
+     */
+    function levelGroup(levelId) {
+        const id = canon(levelId);
+        const m = middlePosition(id);
+        if (m) return MIDDLE_TIERS[m.tier].id;
+        return ELEMENTARY_ORDER.includes(id) ? id : '';
+    }
+
     /** Levels a person may pick instead of the default (for the override list). */
     function optionsFor(levelId) {
         const id = canon(levelId);
@@ -114,6 +125,7 @@
         ELEMENTARY_ORDER: ELEMENTARY_ORDER.slice(),
         MIDDLE_TIERS,
         defaultNext,
+        levelGroup,
         optionsFor,
         planProgression
     };

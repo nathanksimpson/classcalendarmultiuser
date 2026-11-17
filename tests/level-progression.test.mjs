@@ -38,4 +38,11 @@ assert.deepEqual(plan.map((p) => [p.id, p.to, p.source]), [
 // Override choices for a middle cohort are the next year's cohort of every tier.
 assert.deepEqual(L.optionsFor('유마'), ['홉스', '티카', '빅키', '바이컬']);
 
+// Same ability, different school year: one group.
+assert.equal(L.levelGroup('\uC720\uB9C8'), 'basic');
+assert.equal(L.levelGroup('\uD649\uC2A4'), 'basic');
+assert.equal(L.levelGroup('\uC548\uB098'), 'basic');
+assert.notEqual(L.levelGroup('\uD2F0\uCE74'), 'basic');
+assert.equal(L.levelGroup('Green'), 'Green');
+
 console.log('level-progression tests passed');
