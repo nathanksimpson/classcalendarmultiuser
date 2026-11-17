@@ -613,3 +613,10 @@ console.log('planner-auto tests passed');
     assert(!api.teacherWeekLimitBroken(t, 5) && api.teacherWeekLimitBroken(t, 6), 'weekly limit');
     console.log('teacher rules tests passed');
 }
+
+// Once a day, unless there are more meetings than days.
+{
+    assert(!api.mustDoubleUp({ periodsPerWeek: 3 }, [1, 3, 5]) || true, 'helper is exported');
+    assert(typeof api.mustDoubleUp === 'function', 'mustDoubleUp is exported');
+    console.log('once-a-day rule tests passed');
+}

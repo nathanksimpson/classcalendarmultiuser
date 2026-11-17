@@ -301,7 +301,7 @@
         // A class once a day (unless it meets more often than it has days); one class of a kind per cohort a day.
         group((r) => [`${r.asg.assignmentId}|${r.dow}`]).forEach((l) => {
             const days = api.classAllowedDays(appData, l[0].demand) || [1, 2, 3, 4, 5];
-            if (distinct(l).length > 1 && api.weeklyNeed(l[0].demand) <= days.length) add('class_twice_a_day', l);
+            if (distinct(l).length > 1 && !api.mustDoubleUp(l[0].demand, days)) add('class_twice_a_day', l);
         });
         group((r) => (r.demand.cohortIds || []).map((c) => `${c}|${r.dow}|${typeKeyOf(r.demand)}`)).forEach((l) => {
             if (new Set(l.map((r) => r.demand.demandId)).size > 1) add('same_kind_same_day', l);
@@ -719,7 +719,7 @@
                     if (api.outsideStudentHours(appData, demand, n, dow)) continue;
                     if (spanTooLong(demand, dow, n, asg)) continue;
                     // The same hard rules as chooseSlots: once a class a day (unless it must double up), one class of a kind a day.
-                    if (used.has(dow) && api.weeklyNeed(demand) <= days.length) continue;
+                    if (used.has(dow) && !api.mustDoubleUp(demand, days)) continue;
                     if (sameKindThatDay(demand, dow)) continue;
                     const inTheWay = [];
                     let fixedInTheWay = false;

@@ -62,6 +62,11 @@
         return hasPeriodGap(nums) ? 'gap' : '';
     }
 
+    /** A class meets at most once a day, unless it has more meetings a week than it has days to meet on. */
+    function mustDoubleUp(demand, allowedDays) {
+        return weeklyNeed(demand) > (allowedDays || [1, 2, 3, 4, 5]).length;
+    }
+
     /** Teacher rules, defined once (auto-schedule placing a class and the final check both use them). */
     function teacherUnavailable(appData, teacher, dow, period, blockouts) {
         return !!(isSlotBlocked(teacher, dow, period, blockouts) || outsideTeacherHours(appData, teacher, period));
@@ -2997,6 +3002,7 @@
         periodSpan,
         hasPeriodGap,
         cohortDayBroken,
+        mustDoubleUp,
         teacherUnavailable,
         teacherDayLimitBroken,
         teacherWeekLimitBroken,
