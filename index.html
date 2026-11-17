@@ -16,7 +16,7 @@
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20261117-term';
+        window.CCP_I18N_VERSION = '20261117-termpick';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -1477,6 +1477,18 @@
                         <button type="submit" class="btn btn-primary btn-small" data-i18n="spTmsSignIn">Sign in and pull</button>
                     </div>
                 </form>
+            </div>
+
+            <div id="spTmsTerm" class="sp-overlay sp-overlay--confirm" hidden>
+                <div class="sp-dialog sp-dialog--small" role="dialog" aria-modal="true" aria-labelledby="spTmsTermTitle">
+                    <h2 id="spTmsTermTitle" class="sp-confirm-text" data-i18n="spTmsTermTitle">Which term should be imported?</h2>
+                    <p class="sp-hint" data-i18n="spTmsTermHint">TMS lists more than one term in the timetable. Only the term you pick is imported.</p>
+                    <div id="spTmsTermList" class="sp-term-list"></div>
+                    <div class="sp-confirm-actions">
+                        <button type="button" class="btn btn-outline btn-small" data-term-cancel data-i18n="spCancel">Cancel</button>
+                        <button type="button" class="btn btn-primary btn-small" data-term-ok data-i18n="spTmsTermImport">Import this term</button>
+                    </div>
+                </div>
             </div>
 
             <div id="spTmsMap" class="sp-overlay sp-overlay--confirm" hidden>
@@ -3310,7 +3322,7 @@
     <script defer src="js/toolbar-menus.js?v=20261111-toolbar-menus"></script>
     <script defer src="js/classroom-zone-context.js?v=20261111-tools-month"></script>
     <script defer src="js/template-loader.js?v=20261015-p7-level"></script>
-    <script defer src="js/tms-sync-client.js?v=20261117-term"></script>
+    <script defer src="js/tms-sync-client.js?v=20261117-termpick"></script>
     <script defer src="js/app-tab-scripts.js?v=20261113-cohort-links"></script>
     <script defer src="js/load-extension-scripts.js?v=20261113-hih-tracks"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
@@ -3336,7 +3348,7 @@
     <script defer src="js/term-migrate-wizard.js?v=20261013-tms-sync"></script>
     <script defer src="js/dom.js?v=20260615-ui-refactor"></script>
     <script defer src="js/ui/modal.js?v=20260828-modal-stay"></script>
-    <script defer src="js/tms-sync-center.js?v=20261117-term"></script>
+    <script defer src="js/tms-sync-center.js?v=20261117-termpick"></script>
     <script defer src="js/source-version-banners.js?v=20261013-tms-sync"></script>
     <script defer src="js/ui/filter-presets.js?v=20260703-ui-harmonize"></script>
     <script defer src="js/ui/classroom-autosave.js?v=20260807-deconflict-min"></script>
@@ -3426,7 +3438,7 @@
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260918-viewport-p0"></script>
     <script defer src="js/tab-warnings.js?v=20261114-steady-lock"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20261117-term"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20261117-termpick"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/nav-tab-layout.js?v=20260720-nav-layout-v1"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260720-cross-zone-preview"></script>

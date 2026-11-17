@@ -2446,6 +2446,51 @@ ${by.get(cid).map((d) => `
      * ClassManager already has a TMS sign-in set up.
      * @returns {Promise<{username:string,password:string}|null>} null when cancelled.
      */
+    /** TMS holds several terms in one timetable (e.g. 2609 and 2612): let the person choose which to import. */
+    function askTmsTerm(terms, suggested) {
+        return new Promise((resolve) => {
+            const dlg = $('spTmsTerm');
+            if (!dlg) { resolve(suggested || ''); return; }
+            const list = $('spTmsTermList');
+            const label = (term) => {
+                const n = String(term);
+                if (!/^\d{4}$/.test(n)) return n;
+                const mo = Number(n.slice(2));
+                const ko = document.documentElement.lang === 'ko';
+                const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                const month = ko ? mo + '월' : (names[mo - 1] || String(mo));
+                return `${month} 20${n.slice(0, 2)}  (${n})`;
+            };
+            const now = new Date();
+            const nowYm = (now.getFullYear() % 100) * 100 + (now.getMonth() + 1);
+            list.innerHTML = terms.map((x) => {
+                const tag = Number(x.term) === nowYm || (Number(x.term) <= nowYm && !terms.some((y) => Number(y.term) > Number(x.term) && Number(y.term) <= nowYm))
+                    ? ' · ' + t('spTmsTermRunning', 'running now') : (Number(x.term) > nowYm ? ' · ' + t('spTmsTermNext', 'upcoming') : '');
+                return `<label class="sp-term-row"><input type="radio" name="spTmsTermPick" value="${esc(x.term)}"${x.term === suggested ? ' checked' : ''}>
+                    <span>${esc(label(x.term))}<small>${esc(t('spTmsMapPeriods', '{n} periods', { n: x.count }) + tag)}</small></span></label>`;
+            }).join('') + `<label class="sp-term-row"><input type="radio" name="spTmsTermPick" value="all"><span>${esc(t('spTmsTermAll', 'All terms together'))}</span></label>`;
+            dlg.hidden = false;
+            const done = (val) => {
+                dlg.hidden = true;
+                dlg.removeEventListener('click', onClick);
+                document.removeEventListener('keydown', onKey, true);
+                resolve(val);
+            };
+            function onClick(ev) {
+                if (ev.target === dlg || ev.target.closest('[data-term-cancel]')) { done(null); return; }
+                if (ev.target.closest('[data-term-ok]')) {
+                    const pick = list.querySelector('input:checked');
+                    done(pick ? pick.value : suggested || '');
+                }
+            }
+            function onKey(ev) {
+                if (ev.key === 'Escape') { ev.stopPropagation(); done(null); }
+            }
+            dlg.addEventListener('click', onClick);
+            document.addEventListener('keydown', onKey, true);
+        });
+    }
+
     /** Ask which calendar cohort each unmatched TMS class belongs to (same links the roster sync remembers). */
     function askTmsMapping(unmatched) {
         return new Promise((resolve) => {
@@ -2640,7 +2685,21 @@ ${by.get(cid).map((d) => `
             notice(t('spTmsFailed', 'Could not pull the schedule from TMS.'), 'error');
             return;
         }
-        let out = I.buildDraftFromTms(freshModel().data, body);
+        // Several terms in the timetable? Let the person pick (default: the one that fits this calendar best).
+        const termCount = new Map();
+        body.placements.forEach((pl) => {
+            const m = String(pl.cohortName != null ? pl.cohortName : pl.cohort || '').match(/\^([^\s^]+)\s*$/);
+            if (m) termCount.set(m[1], (termCount.get(m[1]) || 0) + 1);
+        });
+        const buildOpts = {};
+        if (termCount.size > 1) {
+            const guess = I.buildDraftFromTms(freshModel().data, body).report.term;
+            const terms = Array.from(termCount.entries()).map(([term, count]) => ({ term, count })).sort((a, b) => (a.term < b.term ? -1 : 1));
+            const picked = await askTmsTerm(terms, guess);
+            if (picked === null) return;
+            buildOpts.term = picked;
+        }
+        let out = I.buildDraftFromTms(freshModel().data, body, buildOpts);
         let rep = out.report;
         // TMS class names rarely equal cohort names: let the person map them once; the links are remembered
         // (the same ones the roster sync uses).
@@ -2653,7 +2712,7 @@ ${by.get(cid).map((d) => `
                 if (typeof global.saveClassroomPartial === 'function') {
                     try { await global.saveClassroomPartial({ tmsRosterLinks: data.tmsRosterLinks }); } catch (e) { /* kept in memory; saved with the next save */ }
                 }
-                out = I.buildDraftFromTms(freshModel().data, body);
+                out = I.buildDraftFromTms(freshModel().data, body, buildOpts);
                 rep = out.report;
             }
         }

@@ -24547,3 +24547,9 @@ body:not(.planner-page) #spHoldBar {
 .sp-map-name { font-weight: 600; overflow-wrap: anywhere; display: flex; flex-direction: column; }
 .sp-map-name small { font-weight: 400; color: var(--text-muted); }
 .sp-map-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 4px 0 8px; }
+
+.sp-term-list { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+.sp-term-row { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--border-color, #e3e8ef); border-radius: 8px; cursor: pointer; }
+.sp-term-row:has(input:checked) { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, transparent); }
+.sp-term-row span { display: flex; flex-direction: column; font-weight: 600; }
+.sp-term-row small { font-weight: 400; color: var(--text-muted); }
