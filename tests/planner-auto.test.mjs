@@ -650,3 +650,25 @@ console.log('planner-auto tests passed');
     assert(d2.blockers.some((b) => b.rule === 'no_eligible_teacher') && d2.fixes.length === 1, 'no eligible teacher is explained');
     console.log('why-not-placed tests passed');
 }
+
+// Time limit: a deadline in the past stops placing, reports the rest as unplaced, and never throws.
+{
+    const t = (id, role) => ({ id, name: id, role, limits: {}, preferences: {} });
+    const cal = {
+        classes: [1, 2, 3].map((i) => ({ id: `c${i}`, name: `Blue M · Subject${i}`, cohortIds: ['co1'], meetingDays: [1, 3, 5], periodsPerWeek: 3, classTypeId: `t${i}`, teacherRequirementType: 'korean' })),
+        cohorts: [{ id: 'co1', name: 'Blue M', meetingDays: [1, 3, 5], level: 'Blue', students: [] }],
+        teacherProfiles: [t('kim', 'korean')]
+    };
+    api.ensurePlannerFields(cal);
+    const late = auto.autoSchedule(cal, { id: 'd', label: 'x', assignments: [], issues: [], metrics: {} }, { deadline: Date.now() - 1 });
+    assert(late.timedOut === true, 'a passed deadline is reported');
+    assert(late.unplaced.length > 0 && late.unplaced.every((u) => u.reason === 'time_limit'), 'unfinished classes are listed with the time_limit reason');
+    const fine = auto.autoSchedule(cal, { id: 'd', label: 'x', assignments: [], issues: [], metrics: {} }, { deadline: Date.now() + 60000 });
+    assert(fine.timedOut === false, 'a generous deadline is not hit');
+    const opts = auto.buildOptions(cal, { id: 'd', label: 'x', assignments: [], issues: [], metrics: {} }, undefined, { timeLimitMs: 0 });
+    assert(opts.length >= 1 && opts.every((o) => o.timedOut === true), 'buildOptions with no time returns timed-out options, not an error');
+    const started = Date.now();
+    auto.buildOptions(cal, { id: 'd', label: 'x', assignments: [], issues: [], metrics: {} }, undefined, { timeLimitMs: 500 });
+    assert(Date.now() - started < 3000, 'buildOptions respects its time budget');
+    console.log('time limit tests passed');
+}

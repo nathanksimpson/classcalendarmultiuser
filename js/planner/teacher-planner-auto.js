@@ -165,6 +165,9 @@
         return nums.length ? nums : [1, 2, 3, 4, 5, 6, 7];
     }
 
+    /** How long the plan options may take in total (ms) before the best found so far is returned. */
+    const DEFAULT_TIME_LIMIT_MS = 6000;
+
     const PRIORITIES = {
         continuity: { continuity: 1.6, breaks: 1, balance: 0.6 },
         breaks: { continuity: 0.6, breaks: 2.6, balance: 0.6 },
@@ -737,12 +740,19 @@
                 || b.strength - a.strength
                 || api.weeklyNeed(b.d) - api.weeklyNeed(a.d));
 
-        const result = { placed: 0, teachersSet: 0, unplaced: [] };
+        const result = { placed: 0, teachersSet: 0, unplaced: [], timedOut: false };
+        // opts.deadline (epoch ms): stop placing when it passes and return what is done so far; the rest is listed as unplaced.
+        const timeUp = () => !!opts.deadline && Date.now() > opts.deadline;
         const teacherPickedNow = new Set(); // assignments whose teacher this run chose
 
         todo.forEach(({ d: demand }) => {
             let asg = asgOf(demand);
             const missing = missingOf(demand);
+            if (timeUp()) {
+                result.timedOut = true;
+                if (missing > 0) result.unplaced.push({ demandId: demand.demandId, missing, reason: 'time_limit' });
+                return;
+            }
             const fixedTeacher = asg && asg.teacherProfileId
                 ? teachers.find((t) => t.id === asg.teacherProfileId) || null
                 : null;
@@ -902,7 +912,7 @@
         };
         let rounds = 0;
         let progress = true;
-        while (progress && rounds < 40) {
+        while (progress && rounds < 40 && !timeUp()) {
             progress = false;
             rounds += 1;
             result.unplaced.forEach((u) => {
@@ -944,7 +954,7 @@
         const placedOrder = new Map();
         [...fresh].forEach((m, i) => placedOrder.set(m, i));
         let passes = 0;
-        for (; passes < 6; passes += 1) {
+        for (; passes < 6 && !timeUp(); passes += 1) {
             const bad = verifyDraft(appData, draft, { fresh }).filter((v) => v.auto);
             if (!bad.length) break;
             const drop = new Set();
@@ -985,6 +995,7 @@
         result.violations = verifyDraft(appData, draft, { fresh });
         result.rulesKept = !result.violations.some((v) => v.auto);
         result.checkPasses = passes;
+        if (timeUp()) result.timedOut = true;
 
         draft.updatedAt = new Date().toISOString();
         api.recomputeDraftMetrics(appData, draft);
@@ -1223,16 +1234,23 @@
     }
 
     /** A few different plans from the same starting board. Each: { id, draft, result, stats }. */
-    function buildOptions(appData, draft, analysis) {
+    function buildOptions(appData, draft, analysis, options) {
         const seen = new Set();
         const out = [];
-        Object.keys(PRIORITIES).forEach((id) => {
+        // The whole run is held to a time budget (ms) so a tight term never freezes the page; each plan gets an equal share.
+        const budget = options && Number.isFinite(Number(options.timeLimitMs)) ? Number(options.timeLimitMs) : DEFAULT_TIME_LIMIT_MS;
+        const started = Date.now();
+        const ids = Object.keys(PRIORITIES);
+        ids.forEach((id, idx) => {
+            const share = Math.max(0, started + budget - Date.now()) / (ids.length - idx);
+            const priorityEnd = Date.now() + share;
             // A tight term can leave a class out; then try again with ties broken in other orders.
             let copy = null;
             let result = null;
             for (let attempt = 0; attempt < 16; attempt += 1) {
+                if (attempt && Date.now() >= priorityEnd) break;
                 const tryDraft = JSON.parse(JSON.stringify(draft));
-                const tryResult = autoSchedule(appData, tryDraft, { analysis, priority: id, seed: attempt ? attempt * 7919 : 0 });
+                const tryResult = autoSchedule(appData, tryDraft, { analysis, priority: id, seed: attempt ? attempt * 7919 : 0, deadline: priorityEnd });
                 const broken = (r) => (r.violations || []).filter((v) => v.auto).length * 1000;
                 const missing = (r) => r.unplaced.reduce((n, u) => n + (u.missing || 0), 0) + broken(r);
                 if (!result || missing(tryResult) < missing(result)) {
@@ -1244,13 +1262,14 @@
             const sig = signature(copy);
             if (seen.has(sig)) return;
             seen.add(sig);
-            out.push({ id, draft: copy, result, stats: Object.assign(planStats(appData, copy, analysis), { rulesBroken: (result.violations || []).filter((v) => v.auto).length }) });
+            out.push({ id, timedOut: !!result.timedOut, draft: copy, result, stats: Object.assign(planStats(appData, copy, analysis), { rulesBroken: (result.violations || []).filter((v) => v.auto).length }) });
         });
         return out;
     }
 
     global.CCPPlannerAuto = {
         PRIORITIES,
+        DEFAULT_TIME_LIMIT_MS,
         SOFT_WEIGHTS,
         termRoster,
         analysePreviousTerm,
