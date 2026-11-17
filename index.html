@@ -7,7 +7,7 @@
     <link rel="icon" href="/favicon.ico" sizes="32x32">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="styles.css?v=20261117-chips">
+    <link rel="stylesheet" href="styles.css?v=20261117-pop">
     <link rel="stylesheet" href="css/ui-refresh.css?v=20261104-float-menu">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
@@ -16,7 +16,7 @@
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20261117-termpick';
+        window.CCP_I18N_VERSION = '20261117-pop';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -1463,48 +1463,61 @@
             </div>
 
             <div id="spTmsLogin" class="sp-overlay sp-overlay--confirm" hidden>
-                <form class="sp-dialog sp-dialog--small" role="dialog" aria-modal="true" aria-labelledby="spTmsLoginTitle" autocomplete="on">
-                    <h2 id="spTmsLoginTitle" class="sp-confirm-text" data-i18n="spTmsLoginTitle">Sign in to TMS</h2>
-                    <p class="sp-hint" data-i18n="spTmsLoginHint">Read-only: ClassManager only reads the schedule and never changes anything in TMS. Your password is used for this pull only and is not saved.</p>
-                    <p id="spTmsLoginError" class="sp-hint sp-auto-error" role="alert" hidden></p>
-                    <label class="sp-field"><span data-i18n="spTmsUser">TMS username</span>
-                        <input type="text" id="spTmsUser" class="field-input" autocomplete="username" spellcheck="false"></label>
-                    <label class="sp-field"><span data-i18n="spTmsPass">TMS password</span>
-                        <input type="password" id="spTmsPass" class="field-input" autocomplete="current-password"></label>
-                    <label class="sp-field sp-check"><input type="checkbox" id="spTmsRemember"> <span data-i18n="spTmsRemember">Remember my username on this computer</span></label>
-                    <div class="sp-confirm-actions">
+                <form class="sp-dialog sp-dialog--pop" role="dialog" aria-modal="true" aria-labelledby="spTmsLoginTitle" autocomplete="on">
+                    <header class="sp-dialog-head">
+                        <h2 id="spTmsLoginTitle" data-i18n="spTmsLoginTitle">Sign in to TMS</h2>
+                        <button type="button" class="modal-close" data-tms-cancel data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+                    </header>
+                    <div class="sp-dialog-body">
+                        <p class="sp-hint" data-i18n="spTmsLoginHint">Read-only: ClassManager only reads the schedule and never changes anything in TMS. Your password is used for this pull only and is not saved.</p>
+                        <p id="spTmsLoginError" class="sp-hint sp-auto-error" role="alert" hidden></p>
+                        <label class="sp-field"><span data-i18n="spTmsUser">TMS username</span>
+                            <input type="text" id="spTmsUser" class="field-input" autocomplete="username" spellcheck="false"></label>
+                        <label class="sp-field"><span data-i18n="spTmsPass">TMS password</span>
+                            <input type="password" id="spTmsPass" class="field-input" autocomplete="current-password"></label>
+                        <label class="sp-field sp-check"><input type="checkbox" id="spTmsRemember"> <span data-i18n="spTmsRemember">Remember my username on this computer</span></label>
+                    </div>
+                    <footer class="sp-dialog-foot">
                         <button type="button" class="btn btn-outline btn-small" data-tms-cancel data-i18n="spCancel">Cancel</button>
                         <button type="submit" class="btn btn-primary btn-small" data-i18n="spTmsSignIn">Sign in and pull</button>
-                    </div>
+                    </footer>
                 </form>
             </div>
 
             <div id="spTmsTerm" class="sp-overlay sp-overlay--confirm" hidden>
-                <div class="sp-dialog sp-dialog--small" role="dialog" aria-modal="true" aria-labelledby="spTmsTermTitle">
-                    <h2 id="spTmsTermTitle" class="sp-confirm-text" data-i18n="spTmsTermTitle">Which term should be imported?</h2>
-                    <p class="sp-hint" data-i18n="spTmsTermHint">TMS lists more than one term in the timetable. Only the term you pick is imported.</p>
-                    <div id="spTmsTermList" class="sp-term-list"></div>
-                    <div class="sp-confirm-actions">
+                <div class="sp-dialog sp-dialog--pop" role="dialog" aria-modal="true" aria-labelledby="spTmsTermTitle">
+                    <header class="sp-dialog-head">
+                        <h2 id="spTmsTermTitle" data-i18n="spTmsTermTitle">Which term should be imported?</h2>
+                        <button type="button" class="modal-close" data-term-cancel data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+                    </header>
+                    <div class="sp-dialog-body">
+                        <p class="sp-hint" data-i18n="spTmsTermHint">TMS lists more than one term in the timetable. Only the term you pick is imported.</p>
+                        <div id="spTmsTermList" class="sp-term-list"></div>
+                    </div>
+                    <footer class="sp-dialog-foot">
                         <button type="button" class="btn btn-outline btn-small" data-term-cancel data-i18n="spCancel">Cancel</button>
                         <button type="button" class="btn btn-primary btn-small" data-term-ok data-i18n="spTmsTermImport">Import this term</button>
-                    </div>
+                    </footer>
                 </div>
             </div>
 
             <div id="spTmsMap" class="sp-overlay sp-overlay--confirm" hidden>
-                <div class="sp-dialog sp-map-dialog" role="dialog" aria-modal="true" aria-labelledby="spTmsMapTitle">
-                    <h2 id="spTmsMapTitle" class="sp-confirm-text" data-i18n="spTmsMapTitle">Match TMS classes to cohorts</h2>
-                    <p class="sp-hint" data-i18n="spTmsMapHint">Pick the cohort for each TMS class, or skip classes that are not in this calendar. Choices are remembered, also for the roster sync.</p>
-                    <div class="sp-map-head"><span data-i18n="spTmsMapColTms">TMS class</span><span data-i18n="spTmsMapColCohort">Cohort in this calendar</span></div>
-                    <div id="spTmsMapList" class="sp-map-list"></div>
-                    <div class="sp-map-foot">
+                <div class="sp-dialog sp-dialog--pop sp-map-dialog" role="dialog" aria-modal="true" aria-labelledby="spTmsMapTitle">
+                    <header class="sp-dialog-head">
+                        <h2 id="spTmsMapTitle" data-i18n="spTmsMapTitle">Match TMS classes to cohorts</h2>
+                        <button type="button" class="modal-close" data-map-cancel data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+                    </header>
+                    <div class="sp-dialog-body">
+                        <p class="sp-hint" data-i18n="spTmsMapHint">Pick the cohort for each TMS class, or skip classes that are not in this calendar. Choices are remembered, also for the roster sync.</p>
+                        <div class="sp-map-head"><span data-i18n="spTmsMapColTms">TMS class</span><span data-i18n="spTmsMapColCohort">Cohort in this calendar</span></div>
+                        <div id="spTmsMapList" class="sp-map-list"></div>
+                    </div>
+                    <footer class="sp-dialog-foot">
                         <span id="spTmsMapTally" class="sp-hint" aria-live="polite"></span>
                         <button type="button" class="btn btn-outline btn-small" data-map-skip-rest data-i18n="spTmsMapSkipRest">Skip the undecided</button>
-                    </div>
-                    <div class="sp-confirm-actions">
                         <button type="button" class="btn btn-outline btn-small" data-map-cancel data-i18n="spCancel">Cancel</button>
                         <button type="button" class="btn btn-primary btn-small" data-map-save data-i18n="spTmsMapSave">Save and continue</button>
-                    </div>
+                    </footer>
                 </div>
             </div>
 
@@ -3322,7 +3335,7 @@
     <script defer src="js/toolbar-menus.js?v=20261111-toolbar-menus"></script>
     <script defer src="js/classroom-zone-context.js?v=20261111-tools-month"></script>
     <script defer src="js/template-loader.js?v=20261015-p7-level"></script>
-    <script defer src="js/tms-sync-client.js?v=20261117-termpick"></script>
+    <script defer src="js/tms-sync-client.js?v=20261117-pop"></script>
     <script defer src="js/app-tab-scripts.js?v=20261113-cohort-links"></script>
     <script defer src="js/load-extension-scripts.js?v=20261113-hih-tracks"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
@@ -3348,7 +3361,7 @@
     <script defer src="js/term-migrate-wizard.js?v=20261013-tms-sync"></script>
     <script defer src="js/dom.js?v=20260615-ui-refactor"></script>
     <script defer src="js/ui/modal.js?v=20260828-modal-stay"></script>
-    <script defer src="js/tms-sync-center.js?v=20261117-termpick"></script>
+    <script defer src="js/tms-sync-center.js?v=20261117-pop"></script>
     <script defer src="js/source-version-banners.js?v=20261013-tms-sync"></script>
     <script defer src="js/ui/filter-presets.js?v=20260703-ui-harmonize"></script>
     <script defer src="js/ui/classroom-autosave.js?v=20260807-deconflict-min"></script>
@@ -3438,7 +3451,7 @@
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260918-viewport-p0"></script>
     <script defer src="js/tab-warnings.js?v=20261114-steady-lock"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20261117-termpick"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20261117-pop"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/nav-tab-layout.js?v=20260720-nav-layout-v1"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260720-cross-zone-preview"></script>

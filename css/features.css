@@ -24553,3 +24553,13 @@ body:not(.planner-page) #spHoldBar {
 .sp-term-row:has(input:checked) { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, transparent); }
 .sp-term-row span { display: flex; flex-direction: column; font-weight: 600; }
 .sp-term-row small { font-weight: 400; color: var(--text-muted); }
+
+/* Pop-out convention: fixed header with title and ×, scrolling body, fixed footer actions. */
+.sp-dialog--pop { width: min(480px, 100%); padding: 0; overflow: hidden; }
+.sp-dialog--pop.sp-map-dialog { width: min(40rem, 100%); }
+.sp-dialog--pop .sp-dialog-head { flex: 0 0 auto; flex-wrap: nowrap; justify-content: space-between; }
+.sp-dialog--pop .sp-dialog-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.sp-dialog--pop .sp-dialog-head .modal-close { position: static; flex: 0 0 auto; }
+.sp-dialog-foot { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2, 8px); padding: var(--space-3) var(--space-4); border-top: 1px solid var(--border-color); background: var(--bg-card); }
+.sp-dialog-foot .sp-hint { margin: 0 auto 0 0; }
+.sp-map-dialog .sp-map-list { max-height: none; overflow: visible; }
