@@ -10,7 +10,7 @@ const tls = require('node:tls');
 const { runTmsJob, JOB_KINDS, BRIDGE_PROTOCOL } = require('../shared/tms-jobs.cjs');
 const { isLoopbackAddress, tmsBridgeAllowedOrigin } = require('../server/tms-bridge-security.js');
 
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const PORT = Number(process.env.CCP_HELPER_PORT || 8765);
 const HOST = '127.0.0.1';
 const MAX_BODY = 5 * 1024 * 1024;

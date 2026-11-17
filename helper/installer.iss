@@ -2,7 +2,7 @@
 [Setup]
 AppId=ClassManagerSyncHelper
 AppName=ClassManager Sync Helper
-AppVersion=1.0.0
+AppVersion=1.1.0
 AppVerName=ClassManager Sync Helper
 AppPublisher=ClassManager
 DefaultDirName={localappdata}\ClassManagerSync
