@@ -1239,6 +1239,8 @@
         const out = [];
         // The whole run is held to a time budget (ms) so a tight term never freezes the page; each plan gets an equal share.
         const budget = options && Number.isFinite(Number(options.timeLimitMs)) ? Number(options.timeLimitMs) : DEFAULT_TIME_LIMIT_MS;
+        // options.seedOffset: a retry starts from other tie-break orders than the run before it.
+        const seedOffset = options && Number.isFinite(Number(options.seedOffset)) ? Math.max(0, Math.floor(Number(options.seedOffset))) : 0;
         const started = Date.now();
         const ids = Object.keys(PRIORITIES);
         ids.forEach((id, idx) => {
@@ -1250,7 +1252,7 @@
             for (let attempt = 0; attempt < 16; attempt += 1) {
                 if (attempt && Date.now() >= priorityEnd) break;
                 const tryDraft = JSON.parse(JSON.stringify(draft));
-                const tryResult = autoSchedule(appData, tryDraft, { analysis, priority: id, seed: attempt ? attempt * 7919 : 0, deadline: priorityEnd });
+                const tryResult = autoSchedule(appData, tryDraft, { analysis, priority: id, seed: (attempt || seedOffset) ? (attempt + seedOffset * 16) * 7919 : 0, deadline: priorityEnd });
                 const broken = (r) => (r.violations || []).filter((v) => v.auto).length * 1000;
                 const missing = (r) => r.unplaced.reduce((n, u) => n + (u.missing || 0), 0) + broken(r);
                 if (!result || missing(tryResult) < missing(result)) {

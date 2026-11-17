@@ -2534,10 +2534,51 @@ ${by.get(cid).map((d) => `
                 // Allowed to move: unlocked classes come off the board (teachers stay) and are placed again.
                 base.assignments.forEach((a) => { if (!a.locked) a.meetings = []; });
             }
+            autoState.attempt = 0;
             autoState.options = A.buildOptions(M.data, base, autoState.analysis);
         }
         autoState.loading = false;
         renderAuto();
+    }
+
+    /** How good a plan is, lower is better: classes left to place, and broken rules weigh far more. */
+    function planCost(o) {
+        return o.result.unplaced.reduce((n, x) => n + (x.missing || 1), 0) + 1000 * ((o.stats && o.stats.rulesBroken) || 0);
+    }
+
+    /** Try again: more time and other tie-break orders; each plan keeps whichever run was better. */
+    function retryAuto() {
+        if (!autoState.open || !M || autoState.loading || autoState.moveHand === null) return;
+        const A = global.CCPPlannerAuto;
+        autoState.attempt = (autoState.attempt || 0) + 1;
+        autoState.loading = true;
+        renderAuto();
+        // Let "Working out plans…" show before the search blocks the page.
+        setTimeout(() => {
+            try {
+                const base = JSON.parse(autoState.base);
+                if (autoState.moveHand) base.assignments.forEach((a) => { if (!a.locked) a.meetings = []; });
+                const limit = Math.min(30000, A.DEFAULT_TIME_LIMIT_MS * (1 + 2 * autoState.attempt));
+                const next = A.buildOptions(M.data, base, autoState.analysis, { timeLimitMs: limit, seedOffset: autoState.attempt });
+                const old = new Map((autoState.options || []).map((o) => [o.id, o]));
+                autoState.options = next.map((o) => (old.has(o.id) && planCost(old.get(o.id)) <= planCost(o) ? old.get(o.id) : o));
+            } catch (err) {
+                autoState.error = String((err && err.message) || err);
+            }
+            autoState.loading = false;
+            renderAuto();
+        }, 30);
+    }
+
+    /** Short text for what ruled out the most slots for a class that could not be placed. */
+    function whyText(why) {
+        if (!why || !why.blockers || !why.blockers.length) return '';
+        const structural = ['outside_student_hours', 'class_twice_a_day'];
+        const shown = why.blockers.filter((b) => !structural.includes(b.rule)).slice(0, 2);
+        const list = (shown.length ? shown : why.blockers.slice(0, 1)).map((b) => t(`spWhy_${b.rule}`, b.rule, { n: b.count, detail: b.detail || '' }));
+        const fix = (why.fixes || [])[0];
+        const fixText = fix ? t(`spFix_${fix.rule}`, fix.text, { detail: ((why.blockers.find((b) => b.rule === fix.rule) || {}).detail) || '' }) : '';
+        return list.join('; ') + (fixText ? ` — ${fixText}` : '');
     }
 
     function closeAuto() {
@@ -2605,13 +2646,20 @@ ${by.get(cid).map((d) => `
                 return `
 <section class="sp-plan${current ? ' is-current' : ''}">
   <h3>${esc(titles[o.id] || o.id)}</h3>
-  <ul>${lines.map((l) => `<li>${esc(l)}</li>`).join('')}${need ? `<li class="sp-plan-warn">${esc(t('spPlanNeedHand', '{n} classes still need placing by hand', { n: need }))}</li>` : ''}${st.clashes ? `<li class="sp-plan-warn">${esc(t('spSumClashes', '{n} clashes', { n: st.clashes }))}</li>` : ''}</ul>
+  <ul>${lines.map((l) => `<li>${esc(l)}</li>`).join('')}${o.timedOut ? `<li class="sp-plan-warn">${esc(t('spPlanTimedOut', 'Stopped early: it ran out of time'))}</li>` : ''}${need ? `<li class="sp-plan-warn">${esc(t('spPlanNeedHand', '{n} classes still need placing by hand', { n: need }))}</li>` : ''}${st.clashes ? `<li class="sp-plan-warn">${esc(t('spSumClashes', '{n} clashes', { n: st.clashes }))}</li>` : ''}</ul>
+  ${need ? `<details class="sp-plan-why"><summary>${esc(t('spPlanWhy', 'Why these were not placed'))}</summary><ul>${o.result.unplaced.map((x) => {
+                    const why = x.why || {};
+                    const text = x.reason === 'time_limit' ? t('spWhy_time_limit', 'Not reached: out of time') : whyText(why);
+                    return `<li><strong>${esc(why.name || x.demandId)}</strong>${text ? `: ${esc(text)}` : ''}</li>`;
+                }).join('')}</ul></details>` : ''}
   <button type="button" class="btn ${current ? 'btn-outline' : 'btn-primary'} btn-small" data-act="use-plan" data-plan="${esc(o.id)}"${current ? ' disabled' : ''}>${esc(current ? t('spPlanCurrent', 'On the board now') : t('spPlanUse', 'Use this plan'))}</button>
 </section>`;
             }).join('')}</div>`;
             if (autoState.options.length === 1) {
                 html += `<p class="sp-hint">${esc(t('spAutoOnePlan', 'The other priorities give this same plan.'))}</p>`;
             }
+            const anyLeft = autoState.options.some((o) => o.result.unplaced.length || o.timedOut || (o.stats && o.stats.rulesBroken));
+            html += `<p class="sp-auto-retry"><button type="button" class="btn ${anyLeft ? 'btn-primary' : 'btn-outline'} btn-small" data-act="auto-retry">${esc(t('spAutoRetry', 'Try again'))}</button> <span class="sp-hint">${esc(t('spAutoRetryHint', 'Searches longer and in other orders. Each plan keeps whichever run was better.'))}</span></p>`;
             html += `<p class="sp-hint">${esc(autoState.moveHand
                 ? t('spAutoMoves', 'These plans place every unlocked class again. Undo brings the board back.')
                 : t('spAutoKeeps', 'Plans only fill what is missing. Classes you placed stay where they are, and Undo brings the board back.'))}</p>`;
@@ -3096,6 +3144,7 @@ ${by.get(cid).map((d) => `
         case 'close-fix': closeFix(); break;
         case 'use-fix': useFix(el.getAttribute('data-plan')); break;
         case 'use-plan': usePlan(el.getAttribute('data-plan')); break;
+        case 'auto-retry': retryAuto(); break;
         case 'toggle-types': {
             const owner = el.getAttribute('data-owner');
             state.openTypes = state.openTypes === owner ? null : owner;

@@ -672,3 +672,17 @@ console.log('planner-auto tests passed');
     assert(Date.now() - started < 3000, 'buildOptions respects its time budget');
     console.log('time limit tests passed');
 }
+
+// A retry (seedOffset) is accepted and still returns plans.
+{
+    const t = (id, role) => ({ id, name: id, role, limits: {}, preferences: {} });
+    const cal = {
+        classes: [1, 2].map((i) => ({ id: `c${i}`, name: `Blue M · Subject${i}`, cohortIds: ['co1'], meetingDays: [1, 3, 5], periodsPerWeek: 3, classTypeId: `t${i}`, teacherRequirementType: 'korean' })),
+        cohorts: [{ id: 'co1', name: 'Blue M', meetingDays: [1, 3, 5], level: 'Blue', students: [] }],
+        teacherProfiles: [t('kim', 'korean')]
+    };
+    api.ensurePlannerFields(cal);
+    const out = auto.buildOptions(cal, { id: 'd', label: 'x', assignments: [], issues: [], metrics: {} }, undefined, { timeLimitMs: 2000, seedOffset: 3 });
+    assert(out.length >= 1 && out.every((o) => o.result && o.stats), 'a retry with a seed offset returns plans');
+    console.log('retry tests passed');
+}

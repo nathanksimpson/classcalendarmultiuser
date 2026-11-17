@@ -26125,6 +26125,24 @@ body.sp-readonly .sp-tile-x {
     color: var(--warning-text, #92400e);
 }
 
+.sp-plan-why {
+    margin: var(--space-2) 0;
+    font-size: var(--text-sm, 0.875rem);
+}
+
+.sp-plan-why summary {
+    cursor: pointer;
+}
+
+.sp-plan-why ul {
+    margin: var(--space-1) 0 0;
+    padding-left: var(--space-4);
+}
+
+.sp-auto-retry {
+    margin: var(--space-3) 0;
+}
+
 .sp-plans {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
