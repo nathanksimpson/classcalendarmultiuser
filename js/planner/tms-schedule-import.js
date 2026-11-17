@@ -80,7 +80,17 @@
 
         const cohorts = appData.cohorts || [];
         const cohortByKey = new Map(cohorts.map((c) => [nameKey(c.name), c]));
-        const known = new Set(cohorts.map((c) => nameKey(c.name)));
+        // TMS class names often differ from calendar cohort names (Korean vs English, etc.). The links saved by
+        // the roster sync ("this TMS class is that cohort") fill in whatever the names alone do not match.
+        const byId = new Map(cohorts.map((c) => [String(c.id), c]));
+        const links = appData.tmsRosterLinks && typeof appData.tmsRosterLinks === 'object' ? appData.tmsRosterLinks : {};
+        Object.keys(links).forEach((k) => {
+            const e = links[k];
+            if (!e || e.action !== 'map' || !byId.has(String(e.cohortId))) return;
+            const key = cohortKey(e.tmsClassName || k).key;
+            if (key && !cohortByKey.has(key)) cohortByKey.set(key, byId.get(String(e.cohortId)));
+        });
+        const known = new Set(cohortByKey.keys());
 
         // Which TMS term lines up with this calendar: the one that matches the most cohorts.
         const termScore = new Map();

@@ -3180,6 +3180,7 @@
         spTmsReplace: '현재 계획을 지금 TMS에 있는 시간표로 바꿀까요? 되돌릴 수 있습니다.',
         spTmsPulling: 'TMS에서 시간표를 가져오는 중…',
         spTmsFailed: 'TMS에서 시간표를 가져오지 못했습니다.',
+        spTmsNothingHint: 'TMS 반: {names}. TMS 동기화(명단)에서 이 캘린더의 코호트에 연결한 뒤 다시 가져오세요.',
         spTmsNothing: '이 달력의 코호트·수업과 맞는 TMS 수업이 없어 아무것도 바꾸지 않았습니다.',
         spTmsDone: 'TMS에서 가져왔습니다 (학기 {term}): {classes}개 수업, {periods}교시.',
         spTmsLeft: '제외됨: 이 달력에 없는 코호트 {cohorts}개, 수업 {classes}개, 선생님 {teachers}명.',

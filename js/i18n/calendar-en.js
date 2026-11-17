@@ -3181,6 +3181,7 @@
         spTmsReplace: 'Replace this plan with the schedule that is in TMS now? You can undo this.',
         spTmsPulling: 'Pulling the schedule from TMS…',
         spTmsFailed: 'Could not pull the schedule from TMS.',
+        spTmsNothingHint: 'TMS has: {names}. Link them to this calendar’s cohorts in Sync from TMS (roster), then pull again.',
         spTmsNothing: 'No TMS class matched this calendar’s cohorts and classes, so nothing was changed.',
         spTmsDone: 'Pulled from TMS (term {term}): {periods} periods on {classes} classes.',
         spTmsLeft: 'Left out: {cohorts} cohorts, {classes} classes and {teachers} teachers that are not in this calendar.',

@@ -72,3 +72,17 @@ assert.notEqual(other.draft.id, draft.id, 'each pull is its own draft');
 assert.equal(other.report.used, 1);
 
 console.log('tms-schedule-import tests passed');
+
+// Saved roster links match TMS class names that differ from the calendar's cohort names.
+{
+    const linked = JSON.parse(JSON.stringify(cal));
+    linked.cohorts[0].name = 'Saemmul T';
+    linked.classes[0].name = 'Saemmul T · Speaking & Writing';
+    linked.classes[1].name = 'Saemmul T · Reading';
+    linked.tmsRosterLinks = { 'xyz^2609': { action: 'map', tmsClassName: 'XYZ^2609', cohortId: 'co1' } };
+    const link = (name) => [row('Lee', 'mon', '15:20', name, 'Wr&Spk')];
+    assert.equal(I.buildDraftFromTms(linked, { placements: link('XYZ^2609') }).draft.assignments.length, 1);
+    delete linked.tmsRosterLinks;
+    assert.equal(I.buildDraftFromTms(linked, { placements: link('XYZ^2609') }).draft.assignments.length, 0);
+}
+console.log('tms-schedule-import linked-name test passed');

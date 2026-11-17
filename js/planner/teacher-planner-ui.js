@@ -2554,7 +2554,9 @@ ${by.get(cid).map((d) => `
         const out = I.buildDraftFromTms(freshModel().data, body);
         const rep = out.report;
         if (!out.draft.assignments.length) {
-            notice(t('spTmsNothing', 'No TMS class matched this calendar’s cohorts and classes, so nothing was changed.'), 'error');
+            const names = rep.unmatchedCohorts.slice(0, 5).map((x) => x.name).join(', ');
+            notice(t('spTmsNothing', 'No TMS class matched this calendar’s cohorts and classes, so nothing was changed.')
+                + (names ? ' ' + t('spTmsNothingHint', 'TMS has: {names}. Link them to this calendar’s cohorts in Sync from TMS (roster), then pull again.', { names }) : ''), 'error');
             return;
         }
         const res = mutate((data) => {
