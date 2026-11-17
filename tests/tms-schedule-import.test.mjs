@@ -96,3 +96,13 @@ console.log('tms-schedule-import linked-name test passed');
     assert.equal(out.draft.assignments.length, 1);
 }
 console.log('tms-schedule-import skip test passed');
+
+// Two terms tie: the running term wins over next term's classes.
+{
+    const both = I.buildDraftFromTms(cal, { placements: [
+        row('Lee', 'mon', '15:20', 'BlueM^2612', 'Wr&Spk'),
+        row('Lee', 'mon', '15:20', 'BlueM^2609', 'Wr&Spk')
+    ] }, { now: new Date(2026, 10, 17) });
+    assert.equal(both.report.term, '2609');
+}
+console.log('tms-schedule-import term tie-break test passed');

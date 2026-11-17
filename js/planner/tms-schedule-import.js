@@ -104,8 +104,16 @@
             if (!termScore.has(r.term)) termScore.set(r.term, new Set());
             termScore.get(r.term).add(r.cohort);
         });
+        // On a tie, prefer the term that is running now (YYMM <= this month, newest of those) over a term that
+        // has not started yet: TMS timetables also hold next term's classes (e.g. 2612 while 2609 is running).
+        const nowDate = opts.now || new Date();
+        const nowYm = (nowDate.getFullYear() % 100) * 100 + (nowDate.getMonth() + 1);
+        const termRank = (term) => {
+            const n = Number(term) || 0;
+            return n <= nowYm ? nowYm - n : 10000 + (n - nowYm);
+        };
         const terms = Array.from(termScore.entries()).map(([term, set]) => ({ term, cohorts: set.size }))
-            .sort((a, b) => b.cohorts - a.cohorts || (a.term < b.term ? 1 : -1));
+            .sort((a, b) => b.cohorts - a.cohorts || termRank(a.term) - termRank(b.term));
         const wantTerm = opts.term === 'all' ? '' : (opts.term || (terms[0] && terms[0].term) || '');
         const used = rows.filter((r) => (!wantTerm || !r.term || r.term === wantTerm) && !skipped.has(r.cohort));
 
