@@ -37937,6 +37937,9 @@ function saveNavNotificationMeta(meta) {
     appData.ui.dismissedNavTabWarnings = Object.keys(normalized).filter(
         (id) => normalized[id].dismissedAt != null
     );
+    if (!uiStateHydratedFromStorage) {
+        return;
+    }
     const key = getUiStorageKey();
     let stored = {};
     try {
@@ -38575,6 +38578,9 @@ function saveDismissedNavTabWarnings(ids) {
             : appData.ui.dismissedNavTabWarnings || []
     );
     appData.ui.dismissedNavTabWarnings = normalized;
+    if (!uiStateHydratedFromStorage) {
+        return;
+    }
     const key = getUiStorageKey();
     let stored = {};
     try {
@@ -38597,6 +38603,14 @@ function saveDismissedNavTabWarnings(ids) {
         /* ignore */
     }
 }
+
+/**
+ * False until this page has read the viewer's saved UI prefs (last tab, filters…) from
+ * localStorage. Boot steps that run before loadData() — e.g. loadTheme() re-rendering the
+ * calendar — would otherwise save the default UI (Calendar tab) over the saved one, so every
+ * refresh came back to Calendar. Writes to the UI key are skipped until then.
+ */
+var uiStateHydratedFromStorage = false; // var: read by functions that may run before this line is evaluated
 
 function loadUiStateFromLocalStorageIntoData(data) {
     if (!data || typeof data !== 'object') {
@@ -38638,6 +38652,7 @@ function loadUiStateFromLocalStorageIntoData(data) {
     if (typeof CCPActiveContext !== 'undefined' && CCPActiveContext.hydrateUiFromStorage) {
         CCPActiveContext.hydrateUiFromStorage(data.ui);
     }
+    uiStateHydratedFromStorage = true;
     return data;
 }
 
@@ -38839,11 +38854,38 @@ function saveSyllabusListSegmentToUi(segment) {
     saveUiStateToLocalStorage();
 }
 
+/**
+ * A ?zone=…&segment=… link (e.g. "Open schedule planner") only picks the first view.
+ * Drop it from the address bar once used, so a later refresh reopens the last tab the
+ * person was on instead of jumping back to the linked one.
+ */
+function clearZoneDeepLinkFromUrl() {
+    try {
+        if (typeof history === 'undefined' || !history.replaceState || isNotesPage() || isWorkspacePage()) {
+            return;
+        }
+        const url = new URL(location.href);
+        let changed = false;
+        ['zone', 'segment', 'tab', 'classId', 'book'].forEach((key) => {
+            if (url.searchParams.has(key)) {
+                url.searchParams.delete(key);
+                changed = true;
+            }
+        });
+        if (changed) {
+            history.replaceState(history.state, '', url.pathname + url.search + url.hash);
+        }
+    } catch (_) {
+        /* ignore */
+    }
+}
+
 function restoreAppSessionState() {
     ensureUiState();
     const urlZone = resolveZoneFromUrl();
     if (urlZone) {
         navigateToZone(urlZone.zone, urlZone.segment, urlZone.options || {});
+        clearZoneDeepLinkFromUrl();
         applyPrintSummaryVisibilityFromUi();
         return;
     }
@@ -38901,6 +38943,9 @@ function saveUiStateToLocalStorage() {
     syncDismissedNavTabWarningsIntoUi(appData.ui);
     if (appData.ui.navNotificationMeta && typeof appData.ui.navNotificationMeta === 'object') {
         writeNavNotificationMetaToDedicatedStorage(appData.ui.navNotificationMeta);
+    }
+    if (!uiStateHydratedFromStorage) {
+        return;
     }
     try {
         localStorage.setItem(getUiStorageKey(), JSON.stringify(appData.ui));
