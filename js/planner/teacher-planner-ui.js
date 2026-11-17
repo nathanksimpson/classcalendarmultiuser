@@ -2595,10 +2595,53 @@ ${by.get(cid).map((d) => `
                 base.assignments.forEach((a) => { if (!a.locked) a.meetings = []; });
             }
             autoState.attempt = 0;
-            autoState.options = A.buildOptions(M.data, base, autoState.analysis);
+            try {
+                autoState.options = await runBuild(base);
+            } catch (err) {
+                autoState.error = String((err && err.message) || err);
+            }
         }
         autoState.loading = false;
         renderAuto();
+    }
+
+    /**
+     * Run the auto-schedule search off the page in a Web Worker so the page stays responsive.
+     * Falls back to running it here when a worker cannot be started (old browser, blocked, file://).
+     */
+    let autoWorker = null;
+    let autoJob = 0;
+    function runBuild(base, limit, seedOffset) {
+        const A = global.CCPPlannerAuto;
+        const opts = {};
+        if (limit) opts.timeLimitMs = limit;
+        if (seedOffset) opts.seedOffset = seedOffset;
+        const inline = () => new Promise((resolve) => setTimeout(() => resolve(A.buildOptions(M.data, base, autoState.analysis, opts)), 30));
+        if (typeof global.Worker !== 'function') return inline();
+        return new Promise((resolve, reject) => {
+            const id = ++autoJob;
+            try {
+                if (!autoWorker) autoWorker = new global.Worker('js/planner/auto-worker.js?v=20261117-worker');
+            } catch (err) { autoWorker = null; resolve(inline()); return; }
+            const w = autoWorker;
+            const done = () => { w.removeEventListener('message', onMsg); w.removeEventListener('error', onErr); };
+            const onMsg = (ev) => {
+                if (!ev.data || ev.data.id !== id) return;
+                done();
+                if (ev.data.ok) resolve(ev.data.options); else reject(new Error(ev.data.error));
+            };
+            const onErr = () => {
+                done();
+                try { w.terminate(); } catch (e) { /* ignore */ }
+                if (autoWorker === w) autoWorker = null;
+                resolve(inline());
+            };
+            w.addEventListener('message', onMsg);
+            w.addEventListener('error', onErr);
+            try {
+                w.postMessage({ id, appData: M.data, draft: base, analysis: autoState.analysis, options: opts });
+            } catch (err) { onErr(); }
+        });
     }
 
     /** How good a plan is, lower is better: classes left to place, and broken rules weigh far more. */
@@ -2607,27 +2650,24 @@ ${by.get(cid).map((d) => `
     }
 
     /** Try again: more time and other tie-break orders; each plan keeps whichever run was better. */
-    function retryAuto() {
+    async function retryAuto() {
         if (!autoState.open || !M || autoState.loading || autoState.moveHand === null) return;
         const A = global.CCPPlannerAuto;
         autoState.attempt = (autoState.attempt || 0) + 1;
         autoState.loading = true;
         renderAuto();
-        // Let "Working out plans…" show before the search blocks the page.
-        setTimeout(() => {
-            try {
-                const base = JSON.parse(autoState.base);
-                if (autoState.moveHand) base.assignments.forEach((a) => { if (!a.locked) a.meetings = []; });
-                const limit = Math.min(30000, A.DEFAULT_TIME_LIMIT_MS * (1 + 2 * autoState.attempt));
-                const next = A.buildOptions(M.data, base, autoState.analysis, { timeLimitMs: limit, seedOffset: autoState.attempt });
-                const old = new Map((autoState.options || []).map((o) => [o.id, o]));
-                autoState.options = next.map((o) => (old.has(o.id) && planCost(old.get(o.id)) <= planCost(o) ? old.get(o.id) : o));
-            } catch (err) {
-                autoState.error = String((err && err.message) || err);
-            }
-            autoState.loading = false;
-            renderAuto();
-        }, 30);
+        try {
+            const base = JSON.parse(autoState.base);
+            if (autoState.moveHand) base.assignments.forEach((a) => { if (!a.locked) a.meetings = []; });
+            const limit = Math.min(30000, A.DEFAULT_TIME_LIMIT_MS * (1 + 2 * autoState.attempt));
+            const next = await runBuild(base, limit, autoState.attempt);
+            const old = new Map((autoState.options || []).map((o) => [o.id, o]));
+            autoState.options = next.map((o) => (old.has(o.id) && planCost(old.get(o.id)) <= planCost(o) ? old.get(o.id) : o));
+        } catch (err) {
+            autoState.error = String((err && err.message) || err);
+        }
+        autoState.loading = false;
+        renderAuto();
     }
 
     /** Short text for what ruled out the most slots for a class that could not be placed. */
