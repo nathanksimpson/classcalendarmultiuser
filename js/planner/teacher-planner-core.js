@@ -62,6 +62,30 @@
         return hasPeriodGap(nums) ? 'gap' : '';
     }
 
+    const SUBJECT_ALIASES = [
+        [/(spk|speak).*(wr|writ)|(wr|writ).*(spk|speak)/, 'speakingwriting'],
+        [/^(rc|reading|readingcomprehension|리딩)$/, 'reading'],
+        [/^(grammar|그래머|문법)$/, 'grammar'],
+        [/^(animation|애니메이션)$/, 'animation'],
+        [/^(news|뉴스)$/, 'news'],
+        [/^(conversation|convo|회화)$/, 'conversation']
+    ];
+
+    /** A subject word spelled one way: "Spk&Wr" = "Speaking & Writing", "Grammar A" = "Grammar B". */
+    function normalizeSubject(subject) {
+        let s = String(subject || '').toLowerCase().replace(/[^a-z0-9가-힣&]+/g, '');
+        // Drop a trailing level / group mark: Grammar 2, Grammar A, Grammar II.
+        s = s.replace(/(\d+|[abc]|i{1,3}|iv)$/, (m, _x, off) => (off >= 3 ? '' : m));
+        for (let i = 0; i < SUBJECT_ALIASES.length; i += 1) if (SUBJECT_ALIASES[i][0].test(s)) return SUBJECT_ALIASES[i][1];
+        return s;
+    }
+
+    /** The subject of a class from its name: "Blue M · Grammar" -> grammar. */
+    function subjectOfName(name) {
+        const text = String(name || '');
+        return normalizeSubject(text.includes('\u00B7') ? text.split('\u00B7').pop() : text.replace(/^.*?\s/, ''));
+    }
+
     /** A class meets at most once a day, unless it has more meetings a week than it has days to meet on. */
     function mustDoubleUp(demand, allowedDays) {
         return weeklyNeed(demand) > (allowedDays || [1, 2, 3, 4, 5]).length;
@@ -3003,6 +3027,8 @@
         hasPeriodGap,
         cohortDayBroken,
         mustDoubleUp,
+        subjectOfName,
+        normalizeSubject,
         teacherUnavailable,
         teacherDayLimitBroken,
         teacherWeekLimitBroken,

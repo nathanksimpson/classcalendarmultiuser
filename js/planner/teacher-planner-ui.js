@@ -2440,6 +2440,66 @@ ${by.get(cid).map((d) => `
         });
     }
 
+    /**
+     * Pull the term schedule from TMS (read-only) and put it on the board as a draft: it is matched to this
+     * calendar's own cohorts, classes and teachers; whatever does not match is reported and left out.
+     * Nothing is written to TMS, and nothing is applied to the calendar (that stays the explicit Apply step).
+     */
+    async function pullTms() {
+        if (!M || readOnly()) return;
+        const I = global.CCPTmsScheduleImport;
+        const S = global.CCPTmsSync;
+        if (!I || !S) {
+            notice(t('spTmsMissing', 'TMS sync is not available on this page.'), 'error');
+            return;
+        }
+        const has = M.draft.assignments.some((a) => a.source === 'manual');
+        if (has && !(await confirmBox(
+            t('spTmsReplace', 'Replace this plan with the schedule that is in TMS now? You can undo this.'),
+            t('spReplace', 'Replace')
+        ))) return;
+        notice(t('spTmsPulling', 'Pulling the schedule from TMS…'), 'info');
+        let body;
+        try {
+            body = await S.run('schedule', {});
+        } catch (err) {
+            const code = err && err.code;
+            notice(code === 'TMS_BRIDGE_OUTDATED' ? t('tmsSyncOutdatedHint', 'Update the local ClassManager (restart npm start).')
+                : code === 'TMS_BRIDGE_REQUIRED' ? t('tmsSyncMissingHint', 'Install the Sync helper first.')
+                    : code === 'TMS_CREDS_MISSING' ? t('rosterTmsSyncCredsMissing', 'TMS sign-in is not set up.')
+                        : code === 'TMS_LOGIN_FAILED' || (err && err.status === 401) ? t('rosterTmsSyncLoginFailed', 'TMS sign-in failed.')
+                            : (err && err.message) || t('spTmsFailed', 'Could not pull the schedule from TMS.'), 'error');
+            return;
+        }
+        if (!body || !Array.isArray(body.placements)) {
+            notice(t('spTmsFailed', 'Could not pull the schedule from TMS.'), 'error');
+            return;
+        }
+        const out = I.buildDraftFromTms(freshModel().data, body);
+        const rep = out.report;
+        if (!out.draft.assignments.length) {
+            notice(t('spTmsNothing', 'No TMS class matched this calendar’s cohorts and classes, so nothing was changed.'), 'error');
+            return;
+        }
+        const res = mutate((data) => {
+            const prev = getActiveDraft(data);
+            out.draft.id = prev ? prev.id : out.draft.id;
+            installDraft(data, out.draft);
+            // A named copy stays in the calendar's snapshot history so pulls can be compared and restored later.
+            if (global.CCPPlannerSnapshots && global.CCPPlannerSnapshots.save) {
+                global.CCPPlannerSnapshots.save(data, out.draft.label, { draft: out.draft, note: 'TMS pull' });
+            }
+            return { ok: true };
+        });
+        if (!res) return;
+        const left = rep.unmatchedCohorts.length + rep.unmatchedClasses.length + rep.unmatchedTeachers.length;
+        notice(t('spTmsDone', 'Pulled from TMS (term {term}): {periods} periods on {classes} classes.', {
+            term: rep.term || '–', periods: out.draft.assignments.reduce((n, a) => n + (a.meetings || []).length, 0), classes: out.draft.assignments.length
+        }) + (left ? ' ' + t('spTmsLeft', 'Left out: {cohorts} cohorts, {classes} classes and {teachers} teachers that are not in this calendar.', {
+            cohorts: rep.unmatchedCohorts.length, classes: rep.unmatchedClasses.length, teachers: rep.unmatchedTeachers.length
+        }) : ''), left ? 'info' : 'success');
+    }
+
     async function loadFromCalendar() {
         if (!M || readOnly()) return;
         const has = M.draft.assignments.some((a) => a.source === 'manual');
@@ -3091,6 +3151,7 @@ ${by.get(cid).map((d) => `
         case 'open-setup': closeMenus(); openSetup(el.getAttribute('data-tab')); break;
         case 'close-setup': closeSetup(); break;
         case 'load-calendar': closeMenus(); loadFromCalendar(); break;
+        case 'pull-tms': closeMenus(); pullTms(); break;
         case 'auto': closeMenus(); openAuto(); break;
         case 'close-auto': closeAuto(); break;
         case 'auto-hand':
