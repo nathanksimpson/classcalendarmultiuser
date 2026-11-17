@@ -7,6 +7,9 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const tls = require('node:tls');
+const crypto = require('node:crypto');
+const os = require('node:os');
+const { spawn } = require('node:child_process');
 const { runTmsJob, JOB_KINDS, BRIDGE_PROTOCOL } = require('../shared/tms-jobs.cjs');
 const { isLoopbackAddress, tmsBridgeAllowedOrigin } = require('../server/tms-bridge-security.js');
 
@@ -17,6 +20,67 @@ const MAX_BODY = 5 * 1024 * 1024;
 const ORIGIN_MODE = { mode: 'helper' };
 
 installHelperCas();
+
+const MANIFEST_URL = 'https://classmanager.live/downloads/helper-manifest.json';
+const INSTALLER_PREFIX = 'https://github.com/nathanksimpson/classcalendarmultiuser/releases/download/';
+
+function versionParts(v) {
+    return String(v || '').split('.').map((n) => parseInt(n, 10) || 0);
+}
+
+function versionLessThan(a, b) {
+    const x = versionParts(a);
+    const y = versionParts(b);
+    for (let i = 0; i < Math.max(x.length, y.length); i += 1) {
+        if ((x[i] || 0) !== (y[i] || 0)) {
+            return (x[i] || 0) < (y[i] || 0);
+        }
+    }
+    return false;
+}
+
+/** One-click self-update: download the newest installer, check its SHA-256, run it silently. */
+async function selfUpdate() {
+    if (process.platform !== 'win32') {
+        const e = new Error('Self-update is only available on Windows');
+        e.code = 'HELPER_UPDATE_UNSUPPORTED';
+        throw e;
+    }
+    const mres = await fetch(MANIFEST_URL, { cache: 'no-store' });
+    if (!mres.ok) {
+        throw new Error('Could not read the update manifest (HTTP ' + mres.status + ')');
+    }
+    const manifest = await mres.json();
+    const url = String(manifest.url || '');
+    const sha = String(manifest.sha256 || '').toLowerCase();
+    if (!url.startsWith(INSTALLER_PREFIX) || !/^[0-9a-f]{64}$/.test(sha)) {
+        throw new Error('Update manifest is not valid');
+    }
+    if (!versionLessThan(VERSION, manifest.version)) {
+        return { updated: false, version: VERSION, latest: manifest.version };
+    }
+    const ires = await fetch(url);
+    if (!ires.ok) {
+        throw new Error('Could not download the installer (HTTP ' + ires.status + ')');
+    }
+    const buf = Buffer.from(await ires.arrayBuffer());
+    const got = crypto.createHash('sha256').update(buf).digest('hex');
+    if (got !== sha) {
+        throw new Error('Installer checksum did not match; update cancelled');
+    }
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cmsync-'));
+    const file = path.join(dir, 'ClassManagerSyncSetup.exe');
+    fs.writeFileSync(file, buf);
+    // Wait for this process to exit, then install silently over it (the installer relaunches the helper).
+    const cmd = 'ping -n 3 127.0.0.1 >nul & "' + file + '" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS';
+    spawn('cmd.exe', ['/d', '/s', '/c', '"' + cmd + '"'], {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true,
+        windowsVerbatimArguments: true
+    }).unref();
+    return { updated: true, version: VERSION, latest: manifest.version };
+}
 
 function installHelperCas() {
     if (typeof tls.setDefaultCACertificates !== 'function' || typeof tls.getCACertificates !== 'function') {
@@ -174,8 +238,34 @@ const server = http.createServer(async (req, res) => {
             version: VERSION,
             protocol: BRIDGE_PROTOCOL,
             kinds: JOB_KINDS,
+            selfUpdate: true,
             port: PORT
         });
+        return;
+    }
+
+    if (req.method === 'POST' && pathName === '/api/helper/update') {
+        if (!cors(req, res)) {
+            sendJson(res, 403, { error: 'Origin not allowed', code: 'TMS_BRIDGE_DENIED' });
+            return;
+        }
+        req.resume();
+        try {
+            const out = await selfUpdate();
+            const body = Buffer.from(JSON.stringify(Object.assign({ ok: true }, out)), 'utf8');
+            res.writeHead(200, {
+                'Content-Type': 'application/json; charset=utf-8',
+                'Cache-Control': 'no-store',
+                'Content-Length': String(body.length)
+            });
+            res.end(body, () => {
+                if (out.updated) {
+                    setImmediate(() => process.exit(0));
+                }
+            });
+        } catch (err) {
+            sendJson(res, 500, { error: (err && err.message) || 'Update failed', code: (err && err.code) || 'HELPER_UPDATE_FAILED' });
+        }
         return;
     }
 

@@ -1,13 +1,26 @@
 name: Build Sync Helper
 
-# Run from the Actions tab (Run workflow), or push a tag like sync-helper-1.1.0.
+# Runs automatically when helper or scraper code changes on main, or by hand (Actions tab > Run workflow).
+# Publishes the newest installer to the rolling release "sync-helper-latest" and updates
+# downloads/helper-manifest.json, so the site always offers the newest helper and installed
+# helpers can update themselves.
 on:
   workflow_dispatch:
   push:
-    tags: ['sync-helper-*']
+    branches: [main]
+    paths:
+      - 'helper/**'
+      - 'shared/tms-*.cjs'
+      - 'server/tms-bridge-security.js'
+      - 'scripts/build-helper.mjs'
+      - '.github/workflows/sync-helper.yml'
 
 permissions:
   contents: write
+
+concurrency:
+  group: sync-helper
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -19,6 +32,16 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - name: Stamp version (major.minor from helper, patch = run number)
+        shell: pwsh
+        run: |
+          $src = Get-Content helper\sync-helper.cjs -Raw
+          $m = [regex]::Match($src, "const VERSION = '(\d+)\.(\d+)\.\d+';")
+          $ver = "$($m.Groups[1].Value).$($m.Groups[2].Value).${{ github.run_number }}"
+          $src = $src -replace "const VERSION = '[^']+';", "const VERSION = '$ver';"
+          Set-Content helper\sync-helper.cjs $src -NoNewline
+          (Get-Content helper\installer.iss -Raw) -replace 'AppVersion=\S+', "AppVersion=$ver" | Set-Content helper\installer.iss -NoNewline
+          "VERSION=$ver" >> $env:GITHUB_ENV
       - run: npm run build:helper
       - name: Compile installer (Inno Setup)
         shell: pwsh
@@ -26,20 +49,32 @@ jobs:
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
           & $iscc helper\installer.iss
-      - name: SHA-256
-        id: sha
+      - name: Checksum and manifest
         shell: pwsh
         run: |
           $h = (Get-FileHash helper\build\ClassManagerSyncSetup.exe -Algorithm SHA256).Hash.ToLower()
-          "sha=$h" >> $env:GITHUB_OUTPUT
-          "SHA-256: $h" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ClassManagerSyncSetup
-          path: helper/build/ClassManagerSyncSetup.exe
-      - name: Publish release (tag runs only)
-        if: startsWith(github.ref, 'refs/tags/sync-helper-')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: helper/build/ClassManagerSyncSetup.exe
-          body: "SHA-256: ${{ steps.sha.outputs.sha }}"
+          $manifest = [ordered]@{
+            version = $env:VERSION
+            protocol = 2
+            url = "https://github.com/${{ github.repository }}/releases/download/sync-helper-latest/ClassManagerSyncSetup.exe"
+            sha256 = $h
+            releasedAt = (Get-Date -Format 'yyyy-MM-dd')
+          } | ConvertTo-Json
+          Set-Content downloads\helper-manifest.json $manifest
+          "Helper $env:VERSION  SHA-256: $h" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+      - name: Publish rolling release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete sync-helper-latest --cleanup-tag --yes 2>$null
+          gh release create sync-helper-latest helper\build\ClassManagerSyncSetup.exe --title "Sync Helper (latest)" --notes "Version $env:VERSION. Installed helpers update themselves from this release."
+      - name: Commit manifest (deploys the site with the new version)
+        shell: pwsh
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add downloads/helper-manifest.json
+          git commit -m "Sync helper $env:VERSION: update manifest"
+          git pull --rebase origin main
+          git push origin HEAD:main

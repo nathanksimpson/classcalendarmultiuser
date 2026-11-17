@@ -36,7 +36,7 @@
     let guideNoteMode = '';
     let guideDownloadStarted = false;
     const HELPER_START_URL = 'classmanager-sync://start';
-    const INSTALLER_URL = 'https://github.com/nathanksimpson/classcalendarmultiuser/releases/download/sync-helper-1.0.0/ClassManagerSyncSetup.exe';
+    const INSTALLER_URL = 'https://github.com/nathanksimpson/classcalendarmultiuser/releases/download/sync-helper-latest/ClassManagerSyncSetup.exe';
     const HELPER_UNINSTALL_URL = 'classmanager-sync://uninstall';
     const HELPER_SEEN_KEY = 'ccp.syncHelperInstalled';
     const GUIDE_DONE_KEY = 'ccp.syncHelperGuideDone';
@@ -336,6 +336,19 @@
             return 'dev-old';
         }
         return 'off';
+    }
+
+    async function selfUpdateHelper() {
+        const label = document.getElementById('tmsHelperToggleText');
+        if (label) {
+            label.textContent = t('tmsHelperUpdating', 'Updating…');
+        }
+        const res = await syncApi().updateHelper();
+        if (!res.ok) {
+            // Could not self-update: fall back to the installer download.
+            beginInstallerDownload();
+            void onHelperToggle();
+        }
     }
 
     function paintHeaderHelper(state) {
@@ -1200,6 +1213,9 @@
             const mode = known ? headerMode(helperViewState) : 'off';
             if (mode === 'off' && helperInstallKnown(helperViewState)) {
                 launchHelperFromClick();
+            } else if (mode === 'update' && helperViewState.selfUpdate && syncApi() && syncApi().updateHelper) {
+                void selfUpdateHelper();
+                return;
             } else if (mode === 'off' || mode === 'update') {
                 beginInstallerDownload();
             }

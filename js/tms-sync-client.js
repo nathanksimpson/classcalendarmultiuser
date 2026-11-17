@@ -131,6 +131,7 @@
                         protocol: protocol,
                         version: body.version || '',
                         kinds: Array.isArray(body.kinds) ? body.kinds : [],
+                        selfUpdate: body.selfUpdate === true,
                         bridgeKind: body.kind || ''
                     });
                 } catch (_) {
@@ -392,11 +393,51 @@
         }
     }
 
+    /** Ask the running helper to download and install the newest version, then wait for it to come back. */
+    async function updateHelper() {
+        const state = bridgeState;
+        if (!state || state.bridgeKind !== 'helper' || !state.base) {
+            return { ok: false, reason: 'no-helper' };
+        }
+        if (!state.selfUpdate) {
+            return { ok: false, reason: 'unsupported' };
+        }
+        const before = state.version;
+        try {
+            const res = await fetch(state.base + '/api/helper/update', {
+                method: 'POST',
+                mode: 'cors',
+                credentials: 'omit',
+                targetAddressSpace: 'loopback',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{}'
+            });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                return { ok: false, reason: 'failed', error: body.error || ('HTTP ' + res.status) };
+            }
+            if (!body.updated) {
+                return { ok: true, updated: false };
+            }
+        } catch (_) {
+            /* the helper may drop the connection as it restarts */
+        }
+        for (let i = 0; i < 30; i += 1) {
+            await new Promise((r) => setTimeout(r, 2000));
+            const next = await detectBridge();
+            if (next && next.status === 'ready' && next.version && next.version !== before) {
+                return { ok: true, updated: true, version: next.version };
+            }
+        }
+        return { ok: false, reason: 'timeout' };
+    }
+
     global.CCPTmsSync = {
         HELPER_PORTS: HELPER_PORTS,
         STALE_SYNC_MS: STALE_SYNC_MS,
         detectBridge: detectBridge,
         stopHelper: stopHelper,
+        updateHelper: updateHelper,
         run: run,
         onBridgeChange: onBridgeChange,
         getSavedUsername: getSavedUsername,

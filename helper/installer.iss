@@ -13,6 +13,7 @@ OutputBaseFilename=ClassManagerSyncSetup
 Compression=lzma2
 SolidCompression=yes
 UninstallDisplayName=ClassManager Sync Helper
+CloseApplications=force
 
 [Files]
 Source: "build\ClassManagerSync.exe"; DestDir: "{app}"; Flags: ignoreversion

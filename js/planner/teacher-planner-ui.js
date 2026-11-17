@@ -2509,9 +2509,18 @@ ${by.get(cid).map((d) => `
         ))) return;
         // An installed Sync Helper built before the schedule pull existed cannot do it: say so up front.
         try {
-            const st = S.getBridgeState && S.getBridgeState().checked ? S.getBridgeState() : await S.detectBridge();
-            if (st && st.status === 'ready' && st.bridgeKind === 'helper' && Array.isArray(st.kinds) && st.kinds.length && !st.kinds.includes('schedule')) {
-                notice(t('spTmsHelperOld', 'The installed Sync Helper is too old to pull the schedule. Install the newer helper, or run ClassManager locally (npm start).'), 'error');
+            let st = S.getBridgeState && S.getBridgeState().checked ? S.getBridgeState() : await S.detectBridge();
+            if (st && st.status === 'outdated' && st.bridgeKind === 'helper' && st.selfUpdate && S.updateHelper) {
+                notice(t('spTmsHelperUpdating', 'Updating the Sync Helper…'), 'info');
+                const up = await S.updateHelper();
+                if (!up.ok) {
+                    notice(t('spTmsHelperUpdateFailed', 'The Sync Helper could not update itself. Open Sync from TMS and use Update.'), 'error');
+                    return;
+                }
+                st = S.getBridgeState();
+            }
+            if (st && (st.status === 'ready' || st.status === 'outdated') && st.bridgeKind === 'helper' && Array.isArray(st.kinds) && st.kinds.length && !st.kinds.includes('schedule')) {
+                notice(t('spTmsHelperOld', 'The installed Sync Helper is too old to update itself. Install the newest one once from Sync from TMS; after that it updates itself.'), 'error');
                 return;
             }
         } catch (e) { /* the pull below reports a missing helper itself */ }
