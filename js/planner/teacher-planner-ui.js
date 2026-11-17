@@ -2486,8 +2486,8 @@ ${by.get(cid).map((d) => `
             out.draft.id = prev ? prev.id : out.draft.id;
             installDraft(data, out.draft);
             // A named copy stays in the calendar's snapshot history so pulls can be compared and restored later.
-            if (global.CCPPlannerSnapshots && global.CCPPlannerSnapshots.save) {
-                global.CCPPlannerSnapshots.save(data, out.draft.label, { draft: out.draft, note: 'TMS pull' });
+            if (global.CCPTeacherPlannerSnapshots && global.CCPTeacherPlannerSnapshots.save) {
+                global.CCPTeacherPlannerSnapshots.save(data, out.draft.label, { draft: out.draft, note: 'TMS pull' });
             }
             return { ok: true };
         });
@@ -2642,6 +2642,135 @@ ${by.get(cid).map((d) => `
                 w.postMessage({ id, appData: M.data, draft: base, analysis: autoState.analysis, options: opts });
             } catch (err) { onErr(); }
         });
+    }
+
+    /* --------------------------------------------------------- plan history */
+
+    const historyState = { open: false };
+
+    function snapApi() {
+        return global.CCPTeacherPlannerSnapshots;
+    }
+
+    /** One line per class: teacher and periods, so two plans can be compared. */
+    function planSigMap(draft) {
+        const m = new Map();
+        ((draft && draft.assignments) || []).forEach((a) => {
+            const periods = (a.meetings || []).map((x) => `${x.dow}.${x.period}`).sort().join(',');
+            m.set(a.demandId, `${a.teacherProfileId || ''}|${periods}`);
+        });
+        return m;
+    }
+
+    function diffCount(a, b) {
+        const x = planSigMap(a);
+        const y = planSigMap(b);
+        let n = 0;
+        new Set([...x.keys(), ...y.keys()]).forEach((k) => { if (x.get(k) !== y.get(k)) n += 1; });
+        return n;
+    }
+
+    function openHistory() {
+        if (!M || !snapApi()) return;
+        historyState.open = true;
+        $('spHistory').hidden = false;
+        document.body.classList.add('sp-modal-open');
+        renderHistory();
+    }
+
+    function closeHistory() {
+        historyState.open = false;
+        const dlg = $('spHistory');
+        if (dlg) dlg.hidden = true;
+        document.body.classList.remove('sp-modal-open');
+    }
+
+    function renderHistory() {
+        const body = $('spHistoryBody');
+        if (!body || !M || !snapApi()) return;
+        const S = snapApi();
+        const ro = readOnly();
+        const items = S.list(M.data);
+        let html = `
+<div class="sp-field sp-hist-save">
+  <span>${esc(t('spHistSaveLabel', 'Save the plan on the board as a version'))}</span>
+  <div class="sp-hist-row">
+    <input type="text" class="field-input" id="spHistName" maxlength="80" placeholder="${esc(t('spHistNamePh', 'Name (optional)'))}">
+    <button type="button" class="btn btn-primary btn-small" data-act="hist-save"${ro ? ' disabled' : ''}>${esc(t('spHistSave', 'Save version'))}</button>
+  </div>
+</div>`;
+        if (!items.length) {
+            html += `<p class="sp-hint">${esc(t('spHistEmpty', 'No saved versions yet. Pulling from TMS saves one automatically.'))}</p>`;
+        } else {
+            html += '<ul class="sp-hist-list">';
+            items.forEach((s) => {
+                const full = S.get(M.data, s.id);
+                const n = diffCount(M.draft, full && full.draft);
+                const when = s.createdAt ? new Date(s.createdAt).toLocaleString() : '';
+                html += `
+<li class="sp-hist-item" data-snap="${esc(s.id)}">
+  <div class="sp-hist-main">
+    <input type="text" class="field-input sp-hist-title" data-hist-name="${esc(s.id)}" value="${esc(s.name)}" maxlength="80"${ro ? ' disabled' : ''}>
+    <span class="sp-hint">${esc(when)} · ${esc(t('spHistClasses', '{n} classes', { n: s.assignmentCount }))} · ${esc(n ? t('spHistDiffers', '{n} differ from the board', { n }) : t('spHistSame', 'same as the board'))}</span>
+  </div>
+  <div class="sp-hist-actions">
+    <button type="button" class="btn btn-outline btn-small" data-act="hist-restore" data-id="${esc(s.id)}"${ro ? ' disabled' : ''}>${esc(t('spHistRestore', 'Restore'))}</button>
+    <button type="button" class="btn btn-outline btn-small" data-act="hist-rename" data-id="${esc(s.id)}"${ro ? ' disabled' : ''}>${esc(t('spHistRename', 'Rename'))}</button>
+    <button type="button" class="btn btn-outline btn-small" data-act="hist-delete" data-id="${esc(s.id)}"${ro ? ' disabled' : ''}>${esc(t('spHistDelete', 'Delete'))}</button>
+  </div>
+</li>`;
+            });
+            html += '</ul>';
+        }
+        body.innerHTML = html;
+    }
+
+    function historySave() {
+        if (!M || readOnly()) return;
+        const input = $('spHistName');
+        const name = input ? input.value.trim() : '';
+        const res = mutate((data, draft) => snapApi().save(data, name || draft.label || '', { draft }), { noUndo: true });
+        if (res && res.ok) {
+            notice(t('spHistSaved', 'Version saved.'), 'success');
+            renderHistory();
+        }
+    }
+
+    async function historyRestore(id) {
+        if (!M || readOnly()) return;
+        const snap = snapApi().get(M.data, id);
+        if (!snap) return;
+        const n = diffCount(M.draft, snap.draft);
+        if (n && !(await confirmBox(
+            t('spHistRestoreAsk', 'Put “{name}” on the board? It replaces the current plan; you can undo this.', { name: snap.name }),
+            t('spHistRestore', 'Restore')
+        ))) return;
+        const res = mutate((data) => {
+            const r = snapApi().restore(data, id);
+            if (r.ok) data.plannerDrafts = (data.plannerDrafts || []).slice(0, 5);
+            return r;
+        });
+        if (res && res.ok) {
+            notice(t('spHistRestored', 'Restored “{name}”.', { name: snap.name }), 'success');
+            renderHistory();
+        }
+    }
+
+    function historyRename(id) {
+        if (!M || readOnly()) return;
+        const input = document.querySelector(`[data-hist-name="${id}"]`);
+        if (!input || !input.value.trim()) return;
+        const res = mutate((data) => snapApi().rename(data, id, input.value), { noUndo: true });
+        if (res && res.ok) renderHistory();
+    }
+
+    async function historyDelete(id) {
+        if (!M || readOnly()) return;
+        const snap = snapApi().get(M.data, id);
+        if (!snap) return;
+        if (!(await confirmBox(t('spHistDeleteAsk', 'Delete the saved version “{name}”? This cannot be undone.', { name: snap.name }), t('spHistDelete', 'Delete')))) return;
+        const res = mutate((data) => snapApi().remove(data, id), { noUndo: true });
+        if (res && res.ok) renderHistory();
     }
 
     /** How good a plan is, lower is better: classes left to place, and broken rules weigh far more. */
@@ -3154,6 +3283,10 @@ ${by.get(cid).map((d) => `
             closeFix();
             return;
         }
+        if (e.target.id === 'spHistory') {
+            closeHistory();
+            return;
+        }
         if (e.target.id === 'spAuto') {
             closeAuto();
             return;
@@ -3194,6 +3327,12 @@ ${by.get(cid).map((d) => `
         case 'pull-tms': closeMenus(); pullTms(); break;
         case 'auto': closeMenus(); openAuto(); break;
         case 'close-auto': closeAuto(); break;
+        case 'history': closeMenus(); openHistory(); break;
+        case 'close-history': closeHistory(); break;
+        case 'hist-save': historySave(); break;
+        case 'hist-restore': historyRestore(el.getAttribute('data-id')); break;
+        case 'hist-rename': historyRename(el.getAttribute('data-id')); break;
+        case 'hist-delete': historyDelete(el.getAttribute('data-id')); break;
         case 'auto-hand':
             autoState.moveHand = el.getAttribute('data-move') === '1';
             autoState.appliedId = null;

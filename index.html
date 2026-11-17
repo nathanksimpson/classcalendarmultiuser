@@ -7,7 +7,7 @@
     <link rel="icon" href="/favicon.ico" sizes="32x32">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="styles.css?v=20261114-steady-lock">
+    <link rel="stylesheet" href="styles.css?v=20261117-hist">
     <link rel="stylesheet" href="css/ui-refresh.css?v=20261104-float-menu">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
@@ -16,7 +16,7 @@
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20261113-notes-search';
+        window.CCP_I18N_VERSION = '20261117-hist';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -1377,6 +1377,7 @@
                                 <div id="spToolsMenu" class="sp-menu" hidden>
                                     <button type="button" data-act="load-calendar" data-i18n="spToolLoad">Load from calendar</button>
                                     <button type="button" data-act="pull-tms" data-i18n="spToolPullTms">Pull from TMS</button>
+                                    <button type="button" data-act="history" data-i18n="spToolHistory">Saved versions</button>
                                     <button type="button" data-act="clear-board" data-i18n="spToolClear">Clear the board</button>
                                     <hr class="sp-menu-sep">
                                     <button type="button" data-act="tt-import-excel" data-i18n="spToolImportExcel">Import timetable (Excel)</button>
@@ -1434,6 +1435,16 @@
                         <button type="button" class="btn btn-outline btn-small" data-act="close-auto" data-i18n="spClose">Close</button>
                     </header>
                     <div id="spAutoBody" class="sp-dialog-body"></div>
+                </div>
+            </div>
+
+            <div id="spHistory" class="sp-overlay" hidden>
+                <div class="sp-dialog sp-dialog--auto" role="dialog" aria-modal="true" aria-labelledby="spHistoryTitle">
+                    <header class="sp-dialog-head">
+                        <h2 id="spHistoryTitle" data-i18n="spHistTitle">Saved versions</h2>
+                        <button type="button" class="btn btn-outline btn-small" data-act="close-history" data-i18n="spClose">Close</button>
+                    </header>
+                    <div id="spHistoryBody" class="sp-dialog-body"></div>
                 </div>
             </div>
 
@@ -3371,7 +3382,7 @@
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260918-viewport-p0"></script>
     <script defer src="js/tab-warnings.js?v=20261114-steady-lock"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20261117-tms"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20261117-hist"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/nav-tab-layout.js?v=20260720-nav-layout-v1"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260720-cross-zone-preview"></script>

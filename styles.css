@@ -27237,3 +27237,10 @@ body.timetable-mine-only .timetable-layout {
     border: 0;
     border-top: 1px solid var(--border-color);
 }
+
+.sp-hist-row { display: flex; gap: 8px; align-items: center; }
+.sp-hist-row .field-input { flex: 1; }
+.sp-hist-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.sp-hist-item { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--border, #d7d7d7); border-radius: 8px; }
+.sp-hist-main { display: grid; gap: 4px; flex: 1 1 220px; min-width: 0; }
+.sp-hist-actions { display: flex; gap: 6px; flex-wrap: wrap; }
