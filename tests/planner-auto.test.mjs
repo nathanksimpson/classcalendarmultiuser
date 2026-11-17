@@ -620,3 +620,33 @@ console.log('planner-auto tests passed');
     assert(typeof api.mustDoubleUp === 'function', 'mustDoubleUp is exported');
     console.log('once-a-day rule tests passed');
 }
+
+// Why a class could not be placed.
+{
+    const t = (id, role) => ({ id, name: id, role, limits: {}, preferences: {} });
+    const cal = {
+        classes: [
+            { id: 'c1', name: 'Blue M · Grammar', cohortIds: ['co1'], meetingDays: [1, 3, 5], periodsPerWeek: 3, classTypeId: 'grammar', teacherRequirementType: 'korean' },
+            { id: 'c2', name: 'Blue M · Reading', cohortIds: ['co1'], meetingDays: [1, 3, 5], periodsPerWeek: 3, classTypeId: 'reading', teacherRequirementType: 'korean' }
+        ],
+        cohorts: [{ id: 'co1', name: 'Blue M', meetingDays: [1, 3, 5], level: 'Blue', students: [] }],
+        teacherProfiles: [t('kim', 'korean')]
+    };
+    api.ensurePlannerFields(cal);
+    const draft = { id: 'd', label: 'x', assignments: [], issues: [], metrics: {} };
+    const res = auto.autoSchedule(cal, draft, {});
+    const un = res.unplaced.find((u) => u.why);
+    if (un) {
+        assert(Array.isArray(un.why.blockers) && un.why.looked > 0, 'an unplaced class explains what ruled slots out');
+        assert(un.why.blockers.every((b) => api.RULES[b.rule] || ['cohort_busy', 'no_teacher_free', 'no_eligible_teacher', 'no_common_days', 'already_here'].includes(b.rule)), 'blockers use known rule names');
+    }
+    const none = auto.explainUnplaced(cal, draft, 'demand:missing');
+    assert(none.looked === 0 && none.blockers.length === 0, 'unknown class gives an empty explanation');
+    // No teacher can take it: the explanation says so and offers a fix.
+    const cal2 = JSON.parse(JSON.stringify(cal));
+    cal2.teacherProfiles = [t('lee', 'native')];
+    api.ensurePlannerFields(cal2);
+    const d2 = auto.explainUnplaced(cal2, { assignments: [] }, 'demand:c1');
+    assert(d2.blockers.some((b) => b.rule === 'no_eligible_teacher') && d2.fixes.length === 1, 'no eligible teacher is explained');
+    console.log('why-not-placed tests passed');
+}

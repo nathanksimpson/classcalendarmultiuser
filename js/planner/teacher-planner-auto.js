@@ -344,6 +344,137 @@
     }
 
     /**
+     * Why a class could not be placed, from the draft as it stands (works on any draft, auto or by hand).
+     * Walks every day and period the class could meet in, and records the FIRST rule that rules each one out, so the
+     * counts add up to the slots that were looked at. Teachers are only blamed for slots every other rule allows.
+     * @returns {{ demandId, name, free: number, looked: number,
+     *             blockers: Array<{ rule, count, detail?: string }>,
+     *             teachers: Array<{ teacherProfileId, name, reasons: Object<string, number> }>,
+     *             fixes: Array<{ rule, text }> }}
+     */
+    function explainUnplaced(appData, draft, demandId) {
+        const api = P();
+        const demands = api.buildDemandsFromAppData(appData).filter((d) => d.includedInDraft !== false);
+        const demandById = new Map(demands.map((d) => [d.demandId, d]));
+        const demand = demandById.get(demandId);
+        const out = { demandId, name: demand ? demand.name || '' : '', free: 0, looked: 0, blockers: [], teachers: [], fixes: [] };
+        if (!demand) return out;
+        const counts = new Map();
+        const details = new Map();
+        const bump = (rule, detail) => {
+            counts.set(rule, (counts.get(rule) || 0) + 1);
+            if (detail && !details.has(rule)) details.set(rule, detail);
+        };
+        const runLimit = api.maxConsecutive(appData);
+        const blockouts = (appData.plannerState && appData.plannerState.blockouts) || {};
+        const allPeriods = periodNumbers(appData);
+        const periods = appData.plannerState && appData.plannerState.useFirstPeriod === true ? allPeriods : allPeriods.slice(1);
+        const teachers = (appData.teacherProfiles || []).map((t) => api.defaultTeacherProfile(t));
+        const eligible = teachers.filter((t) => !api.teacherLimitReason(t, demand));
+        const myAsg = (draft.assignments || []).find((x) => x.demandId === demandId) || null;
+        const mine = (myAsg && myAsg.meetings || []).map((m) => ({ dow: Number(m.dow), n: Number(m.period) }));
+
+        // What the rest of the draft has taken.
+        const cohortDay = new Map();
+        const cohortBusyBy = new Map(); // `${cid}|${dow}|${n}` -> class name
+        const teacherBusyBy = new Map();
+        const teacherDay = new Map();
+        const load = new Map();
+        const addTo = (map, k, n) => { if (!map.has(k)) map.set(k, []); map.get(k).push(n); };
+        (draft.assignments || []).forEach((asg) => {
+            const d = demandById.get(asg.demandId);
+            if (!d || asg.demandId === demandId) return;
+            (asg.meetings || []).forEach((m) => {
+                const dow = Number(m.dow);
+                const n = Number(m.period);
+                (d.cohortIds || []).forEach((cid) => { addTo(cohortDay, `${cid}|${dow}`, n); cohortBusyBy.set(`${cid}|${dow}|${n}`, d.name || ''); });
+                if (asg.teacherProfileId) {
+                    teacherBusyBy.set(`${asg.teacherProfileId}|${dow}|${n}`, d.name || '');
+                    addTo(teacherDay, `${asg.teacherProfileId}|${dow}`, n);
+                    load.set(asg.teacherProfileId, (load.get(asg.teacherProfileId) || 0) + 1);
+                }
+            });
+        });
+        const cohortAll = (cid) => {
+            const all = [];
+            cohortDay.forEach((list, key) => { if (key.startsWith(`${cid}|`)) all.push(...list); });
+            return all;
+        };
+
+        const days = api.classAllowedDays(appData, demand);
+        const teacherWhy = new Map(eligible.map((t) => [t.id, {}]));
+        if (!eligible.length) {
+            bump('no_eligible_teacher', 'No teacher is set up to take this kind of class.');
+        }
+        if (days && !days.length) {
+            bump('no_common_days', 'The cohorts of this class share no day.');
+        } else {
+            const dayList = days || [1, 2, 3, 4, 5];
+            const key = typeKeyOf(demand);
+            dayList.forEach((dow) => {
+                const sameKindWith = (draft.assignments || []).map((o) => demandById.get(o.demandId))
+                    .find((od, i) => od && od.demandId !== demandId && typeKeyOf(od) === key
+                        && (od.cohortIds || []).some((cid) => (demand.cohortIds || []).includes(cid))
+                        && ((draft.assignments[i].meetings || []).some((m) => Number(m.dow) === dow)));
+                periods.forEach((n) => {
+                    out.looked += 1;
+                    if (mine.some((x) => x.dow === dow && x.n === n)) return bump('already_here');
+                    if (mine.some((x) => x.dow === dow) && !api.mustDoubleUp(demand, days)) return bump('class_twice_a_day');
+                    if (sameKindWith) return bump('same_kind_same_day', sameKindWith.name || '');
+                    const busyCohort = (demand.cohortIds || []).find((cid) => cohortBusyBy.has(`${cid}|${dow}|${n}`));
+                    if (busyCohort) return bump('cohort_busy', cohortBusyBy.get(`${busyCohort}|${dow}|${n}`));
+                    if (api.outsideStudentHours(appData, demand, n, dow)) return bump('outside_student_hours');
+                    if ((demand.cohortIds || []).some((cid) => api.cohortDayBroken((cohortDay.get(`${cid}|${dow}`) || []).concat([n]), dow))) return bump('cohort_day_shape');
+                    if ((demand.cohortIds || []).some((cid) => api.cohortDayBroken(cohortAll(cid).concat([n]), dow))) return bump('cohort_block');
+                    if (!eligible.length) return bump('no_eligible_teacher');
+                    // Every rule on the cohort side allows it; can any eligible teacher take it?
+                    const tmine = (t) => teacherDay.get(`${t.id}|${dow}`) || [];
+                    let anyFree = false;
+                    eligible.forEach((t) => {
+                        let why = '';
+                        if (teacherBusyBy.has(`${t.id}|${dow}|${n}`)) why = 'teacher_double_booked';
+                        else if (api.teacherUnavailable(appData, t, dow, n, blockouts)) why = 'teacher_unavailable';
+                        else if (api.teacherWeekLimitBroken(t, (load.get(t.id) || 0) + 1)) why = 'teacher_week_limit';
+                        else if (api.teacherDayLimitBroken(t, tmine(t).concat([n]), runLimit)) why = 'teacher_day_limit';
+                        if (!why) anyFree = true;
+                        else teacherWhy.get(t.id)[why] = (teacherWhy.get(t.id)[why] || 0) + 1;
+                    });
+                    if (anyFree) out.free += 1;
+                    else bump('no_teacher_free');
+                });
+            });
+        }
+        out.blockers = Array.from(counts.entries()).filter(([r]) => r !== 'already_here')
+            .map(([rule, count]) => ({ rule, count, detail: details.get(rule) || '' }))
+            .sort((x, y) => y.count - x.count);
+        out.teachers = eligible.map((t) => ({ teacherProfileId: t.id, name: t.name || '', reasons: teacherWhy.get(t.id) }));
+
+        // Fixes, from what blocks most.
+        // Hours and "once a day" are how the term is set up, not something to fix: point at what can be moved.
+        const structural = ['outside_student_hours', 'class_twice_a_day'];
+        const top = out.blockers.find((b) => !structural.includes(b.rule)) || out.blockers[0];
+        const names = eligible.map((t) => t.name).filter(Boolean).join(', ');
+        if (!eligible.length) {
+            out.fixes.push({ rule: 'no_eligible_teacher', text: 'Allow a teacher to take this kind of class in Setup.' });
+        } else if (top) {
+            if (top.rule === 'no_teacher_free') {
+                out.fixes.push({ rule: top.rule, text: `Free a period for ${names}, or let another teacher take this class.` });
+            } else if (top.rule === 'cohort_busy') {
+                out.fixes.push({ rule: top.rule, text: `The cohort is busy at the open times${top.detail ? ` (for example ${top.detail})` : ''}: move one of its other classes.` });
+            } else if (top.rule === 'cohort_day_shape' || top.rule === 'cohort_block') {
+                out.fixes.push({ rule: top.rule, text: 'The cohort\'s block is full: move another of its classes to a different period, or give it a free day.' });
+            } else if (top.rule === 'same_kind_same_day' || top.rule === 'class_twice_a_day') {
+                out.fixes.push({ rule: top.rule, text: 'The once-a-day rule leaves no day: move the other class of this kind to another day.' });
+            } else if (top.rule === 'outside_student_hours') {
+                out.fixes.push({ rule: top.rule, text: 'No period is inside the students\' hours: check the cohort\'s level window.' });
+            } else if (top.rule === 'no_common_days') {
+                out.fixes.push({ rule: top.rule, text: 'Check the cohort days: the cohorts of this class never come on the same day.' });
+            }
+        }
+        return out;
+    }
+
+    /**
      * Fill the draft in place.
      * options: { analysis, priority: 'continuity'|'breaks'|'balance', weights? }
      * Returns { placed, teachersSet, unplaced: [{ demandId, missing, reason }] }.
@@ -850,6 +981,7 @@
             });
         }
         // What is left (hand-placed or locked classes that were already wrong are listed too, flagged auto: false).
+        result.unplaced.forEach((u) => { u.why = explainUnplaced(appData, draft, u.demandId); });
         result.violations = verifyDraft(appData, draft, { fresh });
         result.rulesKept = !result.violations.some((v) => v.auto);
         result.checkPasses = passes;
@@ -1125,6 +1257,7 @@
         autoSchedule,
         planStats,
         verifyDraft,
+        explainUnplaced,
         buildOptions,
         resolveClashes,
         clashOptions,
