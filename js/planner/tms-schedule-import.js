@@ -90,6 +90,11 @@
             const key = cohortKey(e.tmsClassName || k).key;
             if (key && !cohortByKey.has(key)) cohortByKey.set(key, byId.get(String(e.cohortId)));
         });
+        const skipped = new Set();
+        Object.keys(links).forEach((k) => {
+            const e = links[k];
+            if (e && e.action === 'skip') skipped.add(cohortKey(e.tmsClassName || k).key);
+        });
         const known = new Set(cohortByKey.keys());
 
         // Which TMS term lines up with this calendar: the one that matches the most cohorts.
@@ -102,7 +107,7 @@
         const terms = Array.from(termScore.entries()).map(([term, set]) => ({ term, cohorts: set.size }))
             .sort((a, b) => b.cohorts - a.cohorts || (a.term < b.term ? 1 : -1));
         const wantTerm = opts.term === 'all' ? '' : (opts.term || (terms[0] && terms[0].term) || '');
-        const used = rows.filter((r) => !wantTerm || !r.term || r.term === wantTerm);
+        const used = rows.filter((r) => (!wantTerm || !r.term || r.term === wantTerm) && !skipped.has(r.cohort));
 
         const profiles = appData.teacherProfiles || [];
         const profileByName = new Map(profiles.map((t) => [nameKey(t.name), t]));

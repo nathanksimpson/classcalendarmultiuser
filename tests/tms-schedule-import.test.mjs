@@ -86,3 +86,13 @@ console.log('tms-schedule-import tests passed');
     assert.equal(I.buildDraftFromTms(linked, { placements: link('XYZ^2609') }).draft.assignments.length, 0);
 }
 console.log('tms-schedule-import linked-name test passed');
+
+// Classes the person marked "not in this calendar" are left out silently.
+{
+    const c2 = JSON.parse(JSON.stringify(cal));
+    c2.tmsRosterLinks = { 'other^2609': { action: 'skip', tmsClassName: 'Other^2609', cohortId: '' } };
+    const out = I.buildDraftFromTms(c2, { placements: [row('Lee', 'mon', '15:20', 'Other^2609', 'Wr&Spk'), row('Lee', 'mon', '15:20', 'BlueM^2609', 'Wr&Spk')] });
+    assert.equal(out.report.unmatchedCohorts.length, 0);
+    assert.equal(out.draft.assignments.length, 1);
+}
+console.log('tms-schedule-import skip test passed');

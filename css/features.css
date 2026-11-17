@@ -24537,3 +24537,7 @@ body.sp-dragging .sp-cell[data-drop="clash"] {
 body:not(.planner-page) #spHoldBar {
     display: none !important;
 }
+
+.sp-map-list { display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow: auto; margin: 8px 0; }
+.sp-map-row { display: grid; grid-template-columns: minmax(6rem, 1fr) minmax(10rem, 2fr); gap: 8px; align-items: center; }
+.sp-map-name { font-weight: 600; overflow-wrap: anywhere; }

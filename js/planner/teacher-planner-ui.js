@@ -2446,6 +2446,65 @@ ${by.get(cid).map((d) => `
      * ClassManager already has a TMS sign-in set up.
      * @returns {Promise<{username:string,password:string}|null>} null when cancelled.
      */
+    /** Ask which calendar cohort each unmatched TMS class belongs to (same links the roster sync remembers). */
+    function askTmsMapping(unmatched) {
+        return new Promise((resolve) => {
+            const dlg = $('spTmsMap');
+            const D = global.CCPClassroomDomain;
+            if (!dlg || !D || !D.resolveTmsRosterLink) { resolve(null); return; }
+            const cohorts = (M.data.cohorts || []).filter((c) => c && !(D.isArchiveCohort && D.isArchiveCohort(c)));
+            const links = M.data.tmsRosterLinks || {};
+            const list = $('spTmsMapList');
+            list.innerHTML = '';
+            // One row per TMS class name (the term suffix is dropped: 샘물M^2609 and 샘물M^2612 are the same class).
+            const seen = new Map();
+            unmatched.forEach((u) => {
+                const base = String(u.name || '').replace(/\^.*$/, '').trim();
+                if (base && !seen.has(base.toLowerCase())) seen.set(base.toLowerCase(), { base, raw: u.name });
+            });
+            const opt = (v, label, sel) => `<option value="${esc(v)}"${sel ? ' selected' : ''}>${esc(label)}</option>`;
+            seen.forEach((e) => {
+                const r = D.resolveTmsRosterLink(links, e.raw, cohorts);
+                const row = document.createElement('label');
+                row.className = 'sp-map-row';
+                row.innerHTML = `<span class="sp-map-name">${esc(e.base)}</span>
+                    <select class="field-input sp-map-select" data-tms="${esc(e.base)}">
+                        ${opt('', t('spTmsMapChoose', 'Choose cohort…'), !r.suggestedTargetId)}
+                        ${cohorts.map((c) => opt(c.id, c.name, c.id === r.suggestedTargetId)).join('')}
+                        ${opt('__skip__', t('spTmsMapSkip', 'Not in this calendar (skip)'), false)}
+                    </select>`;
+                list.appendChild(row);
+            });
+            dlg.hidden = false;
+            const first = list.querySelector('select');
+            if (first) first.focus();
+            const done = (val) => {
+                dlg.hidden = true;
+                dlg.removeEventListener('click', onClick);
+                document.removeEventListener('keydown', onKey, true);
+                resolve(val);
+            };
+            function onClick(ev) {
+                if (ev.target === dlg || ev.target.closest('[data-map-cancel]')) { done(null); return; }
+                if (ev.target.closest('[data-map-save]')) {
+                    const rows = [];
+                    list.querySelectorAll('select').forEach((sel) => {
+                        if (!sel.value) return;
+                        rows.push(sel.value === '__skip__'
+                            ? { importCohortName: sel.dataset.tms, userAction: 'skip' }
+                            : { importCohortName: sel.dataset.tms, userAction: 'map', userTargetId: sel.value });
+                    });
+                    done(rows);
+                }
+            }
+            function onKey(ev) {
+                if (ev.key === 'Escape') { ev.stopPropagation(); done(null); }
+            }
+            dlg.addEventListener('click', onClick);
+            document.addEventListener('keydown', onKey, true);
+        });
+    }
+
     function askTmsLogin(errorText) {
         return new Promise((resolve) => {
             const dlg = $('spTmsLogin');
@@ -2551,8 +2610,23 @@ ${by.get(cid).map((d) => `
             notice(t('spTmsFailed', 'Could not pull the schedule from TMS.'), 'error');
             return;
         }
-        const out = I.buildDraftFromTms(freshModel().data, body);
-        const rep = out.report;
+        let out = I.buildDraftFromTms(freshModel().data, body);
+        let rep = out.report;
+        // TMS class names rarely equal cohort names: let the person map them once; the links are remembered
+        // (the same ones the roster sync uses).
+        if (rep.unmatchedCohorts.length && freshModel() && !readOnly()) {
+            const picks = await askTmsMapping(rep.unmatchedCohorts);
+            if (picks && picks.length) {
+                const D = global.CCPClassroomDomain;
+                const data = freshModel().data;
+                data.tmsRosterLinks = D.upsertTmsRosterLinks(data.tmsRosterLinks, picks, data.cohorts || []);
+                if (typeof global.saveClassroomPartial === 'function') {
+                    try { await global.saveClassroomPartial({ tmsRosterLinks: data.tmsRosterLinks }); } catch (e) { /* kept in memory; saved with the next save */ }
+                }
+                out = I.buildDraftFromTms(freshModel().data, body);
+                rep = out.report;
+            }
+        }
         if (!out.draft.assignments.length) {
             const names = rep.unmatchedCohorts.slice(0, 5).map((x) => x.name).join(', ');
             notice(t('spTmsNothing', 'No TMS class matched this calendar’s cohorts and classes, so nothing was changed.')
