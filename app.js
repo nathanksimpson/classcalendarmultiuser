@@ -18804,6 +18804,33 @@ function updateHomeworkAssignEssayWarn(packet) {
     }
 }
 
+function updateHomeworkAssignCohortsWarn(classData) {
+    const el = document.getElementById('homeworkAssignCohortsWarn');
+    const textEl = document.getElementById('homeworkAssignCohortsWarnText');
+    if (!el) {
+        return;
+    }
+    const d = typeof CCPClassroomDomain !== 'undefined' ? CCPClassroomDomain : null;
+    const ids = classData && d && typeof d.getCohortIdsForClass === 'function'
+        ? d.getCohortIdsForClass(classData)
+        : [];
+    if (ids.length < 2) {
+        el.hidden = true;
+        return;
+    }
+    const names = ids.map((id) => {
+        const co = (appData.cohorts || []).find((c) => c && String(c.id) === String(id));
+        return co && co.name ? co.name : String(id);
+    });
+    const key = ids.length === 2 ? 'homeworkTabAssignCohortsWarn' : 'homeworkTabAssignCohortsWarnMany';
+    if (textEl) {
+        textEl.textContent = t(key)
+            .replace('{count}', String(ids.length))
+            .replace('{cohorts}', names.join(' + '));
+    }
+    el.hidden = false;
+}
+
 function updateHomeworkDueDateControls(packet) {
     const dueEl = document.getElementById('homeworkDueDateDisplay');
     const dueInput = document.getElementById('homeworkDueDateInput');
@@ -19079,6 +19106,7 @@ function renderHomeworkEditor() {
         renderHomeworkLastClassNotes(null, null);
         updateHomeworkDueDateControls(null);
         updateHomeworkAssignEssayWarn(null);
+        updateHomeworkAssignCohortsWarn(null);
         updateHomeworkDutiesCopyOption(null);
         const queueEl = document.getElementById('homeworkClassQueue');
         if (queueEl) {
@@ -19129,6 +19157,7 @@ function renderHomeworkEditor() {
     updateHomeworkSourceHints(packet);
     updateHomeworkDueDateControls(packet);
     updateHomeworkAssignEssayWarn(packet);
+    updateHomeworkAssignCohortsWarn(classData);
     updateHomeworkDutiesCopyOption(classData);
     renderHomeworkDueDateSkips(packet);
     renderHomeworkLastClassNotes(classData, packet);

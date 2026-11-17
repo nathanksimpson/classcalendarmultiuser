@@ -3537,6 +3537,8 @@
         homeworkTabAssignSubtitle: '다음 수업까지 숙제',
         homeworkTabAssignEssayWarn: '배정하기 전에 TMS 숙제 영역에서 에세이를 선택하세요.',
         homeworkTabAssignEssayWarnDismiss: '닫기',
+        homeworkTabAssignCohortsWarn: '합반 수업: 두 반 모두에 숙제를 배정하세요 ({cohorts}).',
+        homeworkTabAssignCohortsWarnMany: '합반 수업: {count}개 반 모두에 숙제를 배정하세요 ({cohorts}).',
         homeworkTabDueNextClass: '다음 수업까지',
         homeworkTabDueUseAutomatic: '자동으로',
         homeworkTabDueCustomHint: '직접 지정한 마감일 (다음 수업 대신)',

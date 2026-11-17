@@ -3538,6 +3538,8 @@
         homeworkTabAssignSubtitle: 'Homework to assign for next class',
         homeworkTabAssignEssayWarn: 'Select Essay in the TMS homework area before you assign this.',
         homeworkTabAssignEssayWarnDismiss: 'Dismiss',
+        homeworkTabAssignCohortsWarn: 'Combined class: assign this homework to both cohorts ({cohorts}).',
+        homeworkTabAssignCohortsWarnMany: 'Combined class: assign this homework to all {count} cohorts ({cohorts}).',
         homeworkTabDueNextClass: 'Due next class',
         homeworkTabDueUseAutomatic: 'Use automatic',
         homeworkTabDueCustomHint: 'Custom due date (overrides next class)',
