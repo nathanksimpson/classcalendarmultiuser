@@ -178,7 +178,45 @@
         return Array.from(counts.entries()).filter(([, n]) => n < min).map(([level, count]) => ({ level, count }));
     }
 
+    /**
+     * Cohorts follow the students: next term's cohort at a level exists only if students land there.
+     * @param {Array<{id, to}>} studentPlan result of planStudents
+     * @param {Array<{id: string, level: string}>} currentCohorts this term's cohorts
+     * @param {number} [minimum] smallest cohort worth running (0 = no limit)
+     * @returns {Array<{level, studentIds, status: 'continues'|'new'|'empty'|'small', fromCohortIds}>}
+     *   continues - had a cohort at this level and still has enough students
+     *   new       - students arrive at a level with no cohort this term
+     *   empty     - had a cohort at this level and nobody lands there (it ends)
+     *   small     - students land there but fewer than the minimum (merge or move them)
+     */
+    function deriveCohorts(studentPlan, currentCohorts, minimum) {
+        const min = Number(minimum) || 0;
+        const landing = new Map();
+        (studentPlan || []).forEach((p) => {
+            if (!p.to) return;
+            if (!landing.has(p.to)) landing.set(p.to, []);
+            landing.get(p.to).push(p.id);
+        });
+        const had = new Map();
+        (currentCohorts || []).forEach((c) => {
+            const lv = canon(c.level);
+            if (!had.has(lv)) had.set(lv, []);
+            had.get(lv).push(c.id);
+        });
+        const out = [];
+        landing.forEach((ids, level) => {
+            const from = had.get(level) || [];
+            const status = ids.length < min ? 'small' : from.length ? 'continues' : 'new';
+            out.push({ level, studentIds: ids, status, fromCohortIds: from });
+        });
+        had.forEach((from, level) => {
+            if (!landing.has(level)) out.push({ level, studentIds: [], status: 'empty', fromCohortIds: from });
+        });
+        return out;
+    }
+
     global.CCPLevelProgression = {
+        deriveCohorts,
         planStudents,
         belowMinimum,
         ELEMENTARY_ORDER: ELEMENTARY_ORDER.slice(),

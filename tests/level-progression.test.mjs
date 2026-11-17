@@ -73,4 +73,12 @@ const sp = L.planStudents(
 assert.deepEqual(sp.map((x) => [x.id, x.to, x.source]), [['s1', ANNA, 'cohort'], ['s2', ANNA, 'cohort'], ['s3', TIKA, 'override']]);
 assert.deepEqual(L.belowMinimum(sp, 2), [{ level: TIKA, count: 1 }]);
 
+// Cohorts follow students: a level with no students ends, a level students arrive at starts, a tiny one is flagged.
+const dc = L.deriveCohorts(sp, [{ id: 'a', level: HOBBS }, { id: 'z', level: YUMA }], 2);
+const st = Object.fromEntries(dc.map((d) => [d.level, d.status]));
+assert.deepEqual(st, { [ANNA]: 'new', [TIKA]: 'small', [HOBBS]: 'empty', [YUMA]: 'empty' });
+assert.equal(L.deriveCohorts(sp, [{ id: 'a', level: HOBBS }], 0).find((d) => d.level === TIKA).status, 'new');
+
 console.log('level-progression tests passed');
+const dc2 = L.deriveCohorts([{ id: 's', to: ANNA }, { id: 't', to: ANNA }], [{ id: 'c', level: ANNA }], 2);
+assert.equal(dc2[0].status, 'continues');
