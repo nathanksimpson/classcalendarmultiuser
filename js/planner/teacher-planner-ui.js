@@ -2507,6 +2507,14 @@ ${by.get(cid).map((d) => `
             t('spTmsReplace', 'Replace this plan with the schedule that is in TMS now? You can undo this.'),
             t('spReplace', 'Replace')
         ))) return;
+        // An installed Sync Helper built before the schedule pull existed cannot do it: say so up front.
+        try {
+            const st = S.getBridgeState && S.getBridgeState().checked ? S.getBridgeState() : await S.detectBridge();
+            if (st && st.status === 'ready' && st.bridgeKind === 'helper' && Array.isArray(st.kinds) && st.kinds.length && !st.kinds.includes('schedule')) {
+                notice(t('spTmsHelperOld', 'The installed Sync Helper is too old to pull the schedule. Install the newer helper, or run ClassManager locally (npm start).'), 'error');
+                return;
+            }
+        } catch (e) { /* the pull below reports a missing helper itself */ }
         let body = null;
         let problem = '';
         for (;;) {

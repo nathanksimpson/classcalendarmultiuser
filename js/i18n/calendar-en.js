@@ -3227,6 +3227,7 @@
         drafterBand_thin: 'thin (3)',
         drafterBand_healthy: 'healthy',
         drafterBand_tooBig: 'over the maximum',
+        spTmsHelperOld: 'The installed Sync Helper is too old to pull the schedule. Install the newer helper, or run ClassManager locally (npm start).',
         spPlanNeedHand: '{n} classes still need placing by hand',
         spPlanCurrent: 'On the board now',
         spPlanUse: 'Use this plan',

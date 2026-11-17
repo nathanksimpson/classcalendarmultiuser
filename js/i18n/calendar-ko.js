@@ -3226,6 +3226,7 @@
         drafterBand_thin: '적음 (3명)',
         drafterBand_healthy: '적정',
         drafterBand_tooBig: '최대 인원 초과',
+        spTmsHelperOld: '설치된 동기화 도우미가 오래되어 시간표를 가져올 수 없습니다. 새 도우미를 설치하거나 ClassManager를 로컬에서 실행하세요 (npm start).',
         spPlanNeedHand: '{n}개 수업은 직접 배치해야 합니다',
         spPlanCurrent: '현재 보드에 적용됨',
         spPlanUse: '이 계획 사용',

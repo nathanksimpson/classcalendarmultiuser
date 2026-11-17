@@ -33,7 +33,7 @@
             'js/planner/teacher-planner-snapshots.js?v=20261116-planner-snap',
             'js/planner/teacher-planner-auto.js?v=20261117-subject',
             'js/planner/tms-schedule-import.js?v=20261117-import',
-            'js/planner/teacher-planner-ui.js?v=20261117-history'
+            'js/planner/teacher-planner-ui.js?v=20261117-helperold'
         ],
         drafter: [
             'js/level-progression.js?v=20261117-drafter',
