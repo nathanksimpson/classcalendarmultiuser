@@ -52,6 +52,37 @@
         return list.length > 1 && periodSpan(list) > list.length;
     }
 
+    /**
+     * THE rule for a cohort's day (used by the board, auto-schedule and the final check alike):
+     * at most usualCohortPeriods(dow) periods first to last, and no free period in the middle.
+     * @returns {''|'too_long'|'gap'}
+     */
+    function cohortDayBroken(nums, dow) {
+        if (periodSpan(nums) > usualCohortPeriods(dow)) return 'too_long';
+        return hasPeriodGap(nums) ? 'gap' : '';
+    }
+
+    /**
+     * The rules auto-schedule keeps and the final check reports (code -> tier and plain message).
+     * Tier 'hard' = never broken by auto-schedule; by hand the board shows them as warnings.
+     */
+    const RULES = Object.freeze({
+        teacher_double_booked: { tier: 'hard', message: 'A teacher has two classes at the same time.' },
+        cohort_double_booked: { tier: 'hard', message: 'A cohort has two classes at the same time.' },
+        room_double_booked: { tier: 'hard', message: 'A room is used twice at the same time.' },
+        class_twice_a_day: { tier: 'hard', message: 'A class meets twice on one day.' },
+        same_kind_same_day: { tier: 'hard', message: 'Two classes of the same kind on one day for a cohort.' },
+        cohort_day_shape: { tier: 'hard', message: 'A cohort day is too long or has a free period in the middle.' },
+        cohort_block: { tier: 'hard', message: 'A cohort is not in the same periods on every day.' },
+        off_day: { tier: 'hard', message: 'The cohort does not come on this day.' },
+        outside_student_hours: { tier: 'hard', message: 'Outside the cohort\'s student hours.' },
+        first_period: { tier: 'hard', message: 'The first period is switched off.' },
+        wrong_teacher: { tier: 'hard', message: 'This teacher may not take this class.' },
+        teacher_unavailable: { tier: 'hard', message: 'The teacher is not available then.' },
+        teacher_day_limit: { tier: 'hard', message: 'A teacher has too many periods or too long a run in one day.' },
+        teacher_week_limit: { tier: 'hard', message: 'A teacher has more periods than the weekly maximum.' }
+    });
+
     /** Would this period make any of the class's cohorts stay longer that day than allowed? */
     function cohortDayTooLong(assignments, demandById, demand, dow, period) {
         const limit = usualCohortPeriods(dow);
@@ -2109,9 +2140,8 @@
             cohortWeek.get(x.cid).nums.push(...x.nums);
         });
         cohortWeek.forEach((w, cid) => {
-            const limit = usualCohortPeriods(w.x.dow);
             const distinct = [...new Set(w.nums)];
-            if (periodSpan(distinct) <= limit && !hasPeriodGap(distinct)) return;
+            if (!cohortDayBroken(distinct, w.x.dow)) return;
             issues.push(createIssue({
                 severity: 'soft',
                 code: 'cohort_block_differs',
@@ -2950,6 +2980,8 @@
         countsForLoad,
         periodSpan,
         hasPeriodGap,
+        cohortDayBroken,
+        RULES,
         isPurpleCohort,
         cohortBlock,
         classAllowedDays,

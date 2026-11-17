@@ -250,8 +250,9 @@
         });
         const isAuto = (r) => !fresh || fresh.has(r.m);
         const out = [];
-        const add = (code, list, message) => {
+        const add = (code, list) => {
             const r = list[0];
+            const message = (api.RULES[code] || {}).message || code;
             out.push({ code, demandId: r.demand.demandId, dow: r.dow, period: String(r.n), meetings: list.map((x) => x.m), auto: list.some(isAuto), message });
         };
         const group = (keyOf) => {
@@ -262,43 +263,43 @@
         const distinct = (list) => list.filter((r, i) => list.findIndex((x) => x.m === r.m) === i);
         // Double-booking.
         group((r) => (r.asg.teacherProfileId ? [`${r.asg.teacherProfileId}|${r.dow}|${r.n}`] : [])).forEach((l) => {
-            if (distinct(l).length > 1) add('teacher_double_booked', l, 'A teacher has two classes at the same time.');
+            if (distinct(l).length > 1) add('teacher_double_booked', l);
         });
         group((r) => (r.demand.cohortIds || []).map((c) => `${c}|${r.dow}|${r.n}`)).forEach((l) => {
-            if (distinct(l).length > 1) add('cohort_double_booked', l, 'A cohort has two classes at the same time.');
+            if (distinct(l).length > 1) add('cohort_double_booked', l);
         });
         group((r) => { const id = api.meetingRoomId(r.asg, r.m); return id ? [`${id}|${r.dow}|${r.n}`] : []; }).forEach((l) => {
-            if (distinct(l).length > 1) add('room_double_booked', l, 'A room is used twice at the same time.');
+            if (distinct(l).length > 1) add('room_double_booked', l);
         });
         // A class once a day (unless it meets more often than it has days); one class of a kind per cohort a day.
         group((r) => [`${r.asg.assignmentId}|${r.dow}`]).forEach((l) => {
             const days = api.classAllowedDays(appData, l[0].demand) || [1, 2, 3, 4, 5];
-            if (distinct(l).length > 1 && api.weeklyNeed(l[0].demand) <= days.length) add('class_twice_a_day', l, 'A class meets twice on one day.');
+            if (distinct(l).length > 1 && api.weeklyNeed(l[0].demand) <= days.length) add('class_twice_a_day', l);
         });
         group((r) => (r.demand.cohortIds || []).map((c) => `${c}|${r.dow}|${typeKeyOf(r.demand)}`)).forEach((l) => {
-            if (new Set(l.map((r) => r.demand.demandId)).size > 1) add('same_kind_same_day', l, 'Two classes of the same kind on one day for a cohort.');
+            if (new Set(l.map((r) => r.demand.demandId)).size > 1) add('same_kind_same_day', l);
         });
         // Cohort day shape, and one block on every day it comes.
         const cohortDay = group((r) => (r.demand.cohortIds || []).map((c) => `${c}|${r.dow}`));
         cohortDay.forEach((l, key) => {
             const dow = Number(key.split('|')[1]);
             const nums = [...new Set(l.map((r) => r.n))];
-            if (api.periodSpan(nums) > api.usualCohortPeriods(dow) || api.hasPeriodGap(nums)) add('cohort_day_shape', l, 'A cohort day is too long or has a free period in the middle.');
+            if (api.cohortDayBroken(nums, dow)) add('cohort_day_shape', l);
         });
         group((r) => (r.demand.cohortIds || []).map((c) => String(c))).forEach((l) => {
             const nums = [...new Set(l.map((r) => r.n))];
-            if (api.periodSpan(nums) > api.usualCohortPeriods(l[0].dow) || api.hasPeriodGap(nums)) add('cohort_block', l, 'A cohort is not in the same periods on every day.');
+            if (api.cohortDayBroken(nums, l[0].dow)) add('cohort_block', l);
         });
         // Per meeting rules.
         rows.forEach((r) => {
             const teacher = r.asg.teacherProfileId ? teacherById.get(r.asg.teacherProfileId) : null;
             const days = api.classAllowedDays(appData, r.demand);
-            if (days && !days.includes(r.dow)) add('off_day', [r], 'The cohort does not come on this day.');
-            if (api.outsideStudentHours(appData, r.demand, r.n, r.dow)) add('outside_student_hours', [r], 'Outside the cohort\'s student hours.');
-            if (!useFirst && allPeriods.length > 1 && r.n === allPeriods[0] && isAuto(r)) add('first_period', [r], 'The first period is switched off.');
+            if (days && !days.includes(r.dow)) add('off_day', [r]);
+            if (api.outsideStudentHours(appData, r.demand, r.n, r.dow)) add('outside_student_hours', [r]);
+            if (!useFirst && allPeriods.length > 1 && r.n === allPeriods[0] && isAuto(r)) add('first_period', [r]);
             if (teacher) {
-                if (api.teacherLimitReason(teacher, r.demand)) add('wrong_teacher', [r], 'This teacher may not take this class.');
-                if (api.isSlotBlocked(teacher, r.dow, r.n, blockouts) || api.outsideTeacherHours(appData, teacher, r.n)) add('teacher_unavailable', [r], 'The teacher is not available then.');
+                if (api.teacherLimitReason(teacher, r.demand)) add('wrong_teacher', [r]);
+                if (api.isSlotBlocked(teacher, r.dow, r.n, blockouts) || api.outsideTeacherHours(appData, teacher, r.n)) add('teacher_unavailable', [r]);
             }
         });
         // Teacher day and week limits.
@@ -306,11 +307,11 @@
             const t = teacherById.get(key.split('|')[0]);
             const nums = [...new Set(l.map((r) => r.n))];
             if (!t) return;
-            if (nums.length > (t.limits.maxPeriodsPerDay || 99) || api.longestRun(nums) > runLimit) add('teacher_day_limit', l, 'A teacher has too many periods or too long a run in one day.');
+            if (nums.length > (t.limits.maxPeriodsPerDay || 99) || api.longestRun(nums) > runLimit) add('teacher_day_limit', l);
         });
         group((r) => (r.asg.teacherProfileId ? [String(r.asg.teacherProfileId)] : [])).forEach((l, key) => {
             const t = teacherById.get(key);
-            if (t && distinct(l).length > (t.limits.maxPeriodsPerWeek || 99)) add('teacher_week_limit', l, 'A teacher has more periods than the weekly maximum.');
+            if (t && distinct(l).length > (t.limits.maxPeriodsPerWeek || 99)) add('teacher_week_limit', l);
         });
         return out;
     }
@@ -443,7 +444,7 @@
         /** Hard: with this period added, the cohort would use more periods overall than one day allows, or leave a hole. */
         const breaksBlock = (demand, dow, n, extra) => (demand.cohortIds || []).some((cid) => {
             const all = cohortAllPeriods(cid).concat(extra || [], [n]);
-            return api.periodSpan(all) > api.usualCohortPeriods(dow) || api.hasPeriodGap(all);
+            return !!api.cohortDayBroken(all, dow);
         });
         const RAINBOW = ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Navy'];
         /** Does one of this class's cohorts already have another class of the same kind on this day? */
@@ -483,14 +484,12 @@
                         if (picked.some((x) => x.dow === dow && x.n === n)) return;
                         if ((demand.cohortIds || []).some((cid) => cohortBusy.has(`${cid}|${dow}|${n}`))) return;
                         if (api.outsideStudentHours(appData, demand, n, dow)) return;
-                        // Hard: a cohort is only in 2 periods on MWF and 3 on Tue/Thu, first class to last.
-                        if ((demand.cohortIds || []).some((cid) => api.periodSpan((cohortDay.get(`${cid}|${dow}`) || [])
-                            .concat(picked.filter((x) => x.dow === dow).map((x) => x.n), [n])) > api.usualCohortPeriods(dow))) return;
+                        // Hard: a cohort's day is at most 2 periods on MWF / 3 on Tue/Thu, first class to last,
+                        // and students never sit through a free period between two classes (one shared rule).
+                        if ((demand.cohortIds || []).some((cid) => api.cohortDayBroken((cohortDay.get(`${cid}|${dow}`) || [])
+                            .concat(picked.filter((x) => x.dow === dow).map((x) => x.n), [n]), dow))) return;
                         // Hard: a cohort has one block, the same periods on every day it comes (2 periods MWF, 3 Tue/Thu).
                         if (breaksBlock(demand, dow, n, picked.map((x) => x.n))) return;
-                        // Hard: students never sit through a free period between two classes.
-                        if ((demand.cohortIds || []).some((cid) => api.hasPeriodGap((cohortDay.get(`${cid}|${dow}`) || [])
-                            .concat(picked.filter((x) => x.dow === dow).map((x) => x.n), [n])))) return;
                         const mine = tDay(dow);
                         if (!teacherCanTake(teacher, dow, n, mine)) return;
                         // Prefer times when a room that seats the class is free (a room is never shared or overfilled).
@@ -681,8 +680,7 @@
         // Would this period make a cohort of the class stay longer than allowed that day? (classes at
         // the same time are about to be moved away, so the span is counted without that period twice)
         const spanTooLong = (demand, dow, n) => (demand.cohortIds || []).some((cid) =>
-            api.periodSpan((cohortDay.get(`${cid}|${dow}`) || []).concat([n])) > api.usualCohortPeriods(dow)
-            || api.hasPeriodGap((cohortDay.get(`${cid}|${dow}`) || []).concat([n])))
+            api.cohortDayBroken((cohortDay.get(`${cid}|${dow}`) || []).concat([n]), dow))
             || breaksBlock(demand, dow, n);
         const tryEject = (demand, asg) => {
             const teacher = teacherOf(asg);

@@ -579,3 +579,18 @@ console.log('planner-auto tests passed');
     ['teacher_double_booked', 'cohort_double_booked', 'class_twice_a_day', 'wrong_teacher'].forEach((c) => assert(codes.has(c), `check finds ${c}: ${[...codes]}`));
     console.log('final rule check tests passed');
 }
+
+// One shared cohort-day rule, and a message for every rule the final check can report.
+{
+    const eq = (a, b, m) => assert(a === b, `${m}: got ${a}`);
+    eq(api.cohortDayBroken([1, 2], 1), '', 'two periods on Monday is fine');
+    eq(api.cohortDayBroken([1, 2, 3], 1), 'too_long', 'three periods on Monday is too long');
+    eq(api.cohortDayBroken([1, 2, 3], 2), '', 'three periods on Tuesday is fine');
+    eq(api.cohortDayBroken([4, 6], 3), 'gap', 'a free period in the middle');
+    ['teacher_double_booked', 'cohort_double_booked', 'room_double_booked', 'class_twice_a_day', 'same_kind_same_day',
+        'cohort_day_shape', 'cohort_block', 'off_day', 'outside_student_hours', 'first_period', 'wrong_teacher',
+        'teacher_unavailable', 'teacher_day_limit', 'teacher_week_limit'].forEach((code) => {
+        assert(api.RULES[code] && api.RULES[code].message, `rule ${code} has a message`);
+    });
+    console.log('shared rules tests passed');
+}
