@@ -20,6 +20,36 @@ const LOGIN_PATH = '/member/login.aspx';
 /** Optional undici Agent from the Node server when TMS TLS needs system CAs. */
 let fetchDispatcher = null;
 
+/**
+ * TMS (ASP.NET) pages are sometimes UTF-8 and sometimes EUC-KR / CP949, and the charset may only be in the
+ * Content-Type header. Wrongly decoded Korean shows up as "�" boxes and stray Chinese characters, so:
+ * honour the header and <meta> charset, and when the bytes are not valid UTF-8, read them as CP949.
+ */
+function decodeTmsBody(buf, contentType) {
+    const legacy = (label) => {
+        try {
+            return new TextDecoder(label).decode(buf);
+        } catch (_) {
+            return null;
+        }
+    };
+    const isLegacy = (v) => /(euc-?kr|ks_c_5601|cp949|ms949|x-windows-949|windows-949)/i.test(v);
+    const head = new TextDecoder('latin1').decode(buf.subarray(0, 2048));
+    const metaCharset = (head.match(/charset\s*=\s*["']?([\w-]+)/i) || [])[1] || '';
+    const headerCharset = (String(contentType).match(/charset\s*=\s*["']?([\w-]+)/i) || [])[1] || '';
+    if (isLegacy(headerCharset) || (!headerCharset && isLegacy(metaCharset))) {
+        const t = legacy('euc-kr');
+        if (t != null) {
+            return t;
+        }
+    }
+    try {
+        return new TextDecoder('utf-8', { fatal: true }).decode(buf);
+    } catch (_) {
+        return legacy('euc-kr') != null ? legacy('euc-kr') : new TextDecoder('utf-8').decode(buf);
+    }
+}
+
 function setFetchDispatcher(dispatcher) {
     fetchDispatcher = dispatcher || null;
 }
@@ -319,15 +349,7 @@ function request(urlStr, options) {
                 storeCookies(opts.jar, getSetCookieList(res.headers));
             }
             const buf = new Uint8Array(await res.arrayBuffer());
-            let text = new TextDecoder('utf-8').decode(buf);
-            // ASP.NET TMS pages are often EUC-KR / Windows-949
-            if (/charset\s*=\s*euc-kr/i.test(text) || /charset\s*=\s*ks_c_5601/i.test(text)) {
-                try {
-                    text = new TextDecoder('euc-kr').decode(buf);
-                } catch (_) {
-                    /* keep utf8 */
-                }
-            }
+            const text = decodeTmsBody(buf, res.headers.get('content-type') || '');
             return {
                 status: res.status || 0,
                 headers: {
