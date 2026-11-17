@@ -120,6 +120,104 @@
         return trXml.replace(cells[1], newCell);
     }
 
+    /** Rough text width in em: Hangul/CJK is full width, Latin about half. */
+    function estimateTextEm(text) {
+        let em = 0;
+        for (const ch of String(text || '')) {
+            if (/[ᄀ-ᇿ　-鿿가-힯＀-￯]/.test(ch)) {
+                em += 1;
+            } else if (ch === ' ') {
+                em += 0.25;
+            } else if (/[()[\].,'\-:]/.test(ch)) {
+                em += 0.32;
+            } else if (/[A-Z0-9]/.test(ch)) {
+                em += 0.6;
+            } else {
+                em += 0.5;
+            }
+        }
+        return em;
+    }
+
+    function getCellWidthTwips(cellXml) {
+        const m = cellXml.match(/<w:tcW\b[^>]*w:w="(\d+)"/);
+        return m ? Number(m[1]) : 0;
+    }
+
+    /**
+     * Name row: the template's name cell is very narrow, so "Naeun (김나은)"
+     * wrapped onto 3–4 lines and pushed blocks across pages. Merge the
+     * "Name" label cell with the value cell (gridSpan 2) and write
+     * "Name: <name>" on one line, shrinking the font for long names.
+     */
+    /**
+     * The row regex is non-greedy, so the first row of a nested student table
+     * comes back glued to the start of its outer page-table row. Split off
+     * that prefix so only the real (innermost) row is edited.
+     */
+    function splitInnermostRow(trXml) {
+        const re = /<w:tr[\s>]/g;
+        let last = 0;
+        let m;
+        while ((m = re.exec(trXml))) {
+            last = m.index;
+        }
+        return { prefix: trXml.slice(0, last), row: trXml.slice(last) };
+    }
+
+    function setNameRowText(trXml, name) {
+        const parts = splitInnermostRow(trXml);
+        if (parts.prefix) {
+            return parts.prefix + setNameRowText(parts.row, name);
+        }
+        const cells = getRowCells(trXml);
+        if (cells.length < 2) {
+            return trXml;
+        }
+        const width = getCellWidthTwips(cells[0]) + getCellWidthTwips(cells[1]);
+        const label = name ? 'Name: ' : 'Name';
+        const usable = Math.max(width - 240, 600); // minus default cell margins
+        const sizes = [22, 20, 18, 16, 14];
+        let halfPts = sizes[sizes.length - 1];
+        for (const sz of sizes) {
+            const twips = estimateTextEm(label + (name || '')) * (sz / 2) * 20;
+            if (twips <= usable) {
+                halfPts = sz;
+                break;
+            }
+        }
+        const rPr =
+            `<w:rPr><w:rFonts w:eastAsia="맑은 고딕"/><w:sz w:val="${halfPts}"/>` +
+            `<w:szCs w:val="${halfPts}"/><w:lang w:eastAsia="ko-KR"/></w:rPr>`;
+        let runs = `<w:r>${rPr}<w:t xml:space="preserve">${escapeXml(label)}</w:t></w:r>`;
+        if (name) {
+            runs += `<w:r>${rPr}<w:t xml:space="preserve">${escapeXml(name)}</w:t></w:r>`;
+        }
+        const merged =
+            `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/><w:gridSpan w:val="2"/></w:tcPr>` +
+            `<w:p>${runs}</w:p></w:tc>`;
+        return trXml.replace(cells[0] + cells[1], merged);
+    }
+
+    /** keepNext on every paragraph in a row so Word keeps the block's rows together. */
+    function addKeepNextToRow(trXml) {
+        const parts = splitInnermostRow(trXml);
+        if (parts.prefix) {
+            return parts.prefix + addKeepNextToRow(parts.row);
+        }
+        return trXml
+            .replace(/<w:p(\s[^>]*)?\/>/g, '<w:p$1><w:pPr><w:keepNext/></w:pPr></w:p>')
+            .replace(/<w:pPr>(<w:pStyle\b[^>]*\/>)?(?!(?:<w:pStyle\b[^>]*\/>)?<w:keepNext\/>)/g, '<w:pPr>$1<w:keepNext/>')
+            .replace(/(<w:p(?:\s[^>]*)?>)(?!<w:pPr>)/g, '$1<w:pPr><w:keepNext/></w:pPr>');
+    }
+
+    /** Rows may not break across a page, so a feedback block never splits. */
+    function addCantSplitToRows(documentXml) {
+        return documentXml
+            .replace(/<w:trPr>(?!<w:cantSplit\/>)/g, '<w:trPr><w:cantSplit/>')
+            .replace(/(<w:tr(?:\s[^>]*)?>)(?!<w:(?:tblPrEx|trPr)[\s>])/g, '$1<w:trPr><w:cantSplit/></w:trPr>');
+    }
+
     function findStudentBlockStarts(tableRows) {
         const starts = [];
         tableRows.forEach((tr, i) => {
@@ -262,7 +360,7 @@
     function fillStudentScoreBlock(filledRows, startIdx, speaker, template) {
         const name = speaker ? speaker.name : '';
         const roleLabel = speaker ? speaker.roleAbbr || '' : '';
-        filledRows[startIdx] = setRowMiddleCell(filledRows[startIdx], name);
+        filledRows[startIdx] = setNameRowText(filledRows[startIdx], name);
         if (filledRows[startIdx + 1]) {
             filledRows[startIdx + 1] = setRowMiddleCell(filledRows[startIdx + 1], roleLabel);
         }
@@ -283,6 +381,13 @@
             }
             filledRows[rowIdx] = setRowMiddleCell(filledRows[rowIdx], speakerScoreValue(speaker, key));
         });
+        // Keep every row of the block with the next one (the last row ends the chain).
+        const lastRow = startIdx + 1 + keys.length;
+        for (let r = startIdx; r < lastRow; r++) {
+            if (filledRows[r]) {
+                filledRows[r] = addKeepNextToRow(filledRows[r]);
+            }
+        }
     }
 
     function replaceDocxFieldAfterLabel(documentXml, label, value) {
@@ -396,7 +501,7 @@
             fillStudentScoreBlock(filledRows, startIdx, sp, template);
         });
 
-        const filledXml = applyFilledTableRowsToDocument(documentXml, filledRows);
+        const filledXml = addCantSplitToRows(applyFilledTableRowsToDocument(documentXml, filledRows));
         zip.file('word/document.xml', filledXml);
         return zip.generate({
             type: 'arraybuffer',
@@ -446,7 +551,7 @@
             <div class="score-student-card" style="border:2px solid ${t.primary};border-radius:4px;padding:8px 10px;margin-bottom:10px;font-size:9.5pt;page-break-inside:avoid;break-inside:avoid;">
                 <div style="font-size:8pt;color:#666;margin-bottom:4px;">Debate ${escapeHtml(sp.debate)} · ${escapeHtml(sp.bench)}</div>
                 <div style="display:grid;grid-template-columns:52px 1fr 28%;gap:4px 8px;margin-bottom:4px;">
-                    <span style="font-weight:600;">Name</span><span style="font-weight:600;">${escapeHtml(sp.name)}</span><span style="font-weight:600;font-size:8.5pt;">Comments</span>
+                    <span style="font-weight:600;">Name</span><span style="font-weight:600;white-space:nowrap;">${escapeHtml(sp.name)}</span><span style="font-weight:600;font-size:8.5pt;">Comments</span>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 28%;gap:8px;align-items:stretch;">
                     <div>
@@ -513,7 +618,7 @@
                 <table style="width:100%;border-collapse:collapse;font-size:10pt;">
                     <tr>
                         <th style="width:18%;border:1px solid #999;padding:6px;background:#f4f4f4;">Name</th>
-                        <th style="width:42%;border:1px solid #999;padding:6px;text-align:left;">${escapeHtml(sp.name)}</th>
+                        <th style="width:42%;border:1px solid #999;padding:6px;text-align:left;white-space:nowrap;">${escapeHtml(sp.name)}</th>
                         <th style="width:28%;border:1px solid #999;padding:6px;background:#f4f4f4;">Comments</th>
                     </tr>
                     <tr>

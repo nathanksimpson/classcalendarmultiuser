@@ -3,7 +3,7 @@
  */
 (function (global) {
     const SCRIPT_FEEDBACK_TEMPLATES = 'js/debate/feedback-templates.js?v=20260710-debate-v2';
-    const SCRIPT_DEBATE_SCORESHEET_EXPORT = 'js/debate/debate-scoresheet-export.js?v=20260915-class-prefix';
+    const SCRIPT_DEBATE_SCORESHEET_EXPORT = 'js/debate/debate-scoresheet-export.js?v=20261117-one-page-blocks';
     const SCRIPT_DEBATE_TEAMS_V2 = 'js/debate/debate-teams-v2.js?v=20261113-role-balance';
     const SCRIPT_DEBATE_DUTIES_PPTX = 'js/debate/debate-duties-pptx.js?v=20260915-name-first';
     const SCRIPT_PPTXGENJS = 'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js';
