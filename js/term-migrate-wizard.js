@@ -196,34 +196,53 @@
         return JSON.parse(JSON.stringify(cohorts));
     }
 
+    /** Plain-language reason for a TMS failure, shown inside the wizard. */
+    function tmsErrorText(err) {
+        const code = err && err.code;
+        if (code === 'TMS_CREDS_MISSING') {
+            return t('cohortsGenTmsNeedLogin');
+        }
+        if (code === 'TMS_LOGIN_FAILED') {
+            return t('cohortsGenTmsLoginFailed');
+        }
+        if (code === 'TMS_HELPER_MISSING' || (err && /failed to fetch|networkerror|load failed/i.test(String(err.message || '')))) {
+            return t('cohortsGenTmsNoHelper');
+        }
+        return (err && err.message) || String(err);
+    }
+
+    /**
+     * Your own TMS classes and their rosters, with the sign-in typed in this wizard (no second window).
+     */
     async function scrapeTmsRosters(username, password) {
-        if (global.CCPTmsSyncCenter && global.CCPTmsSyncCenter.open) {
-            const session = await global.CCPTmsSyncCenter.open({
-                kinds: ['roster'],
-                scope: { source: 'term-migrate' },
-                credentials: {
-                    username: String(username || '').trim(),
-                    password: String(password || '')
-                }
-            });
-            const loaded = session && session.results && session.results.roster;
-            if (loaded && Array.isArray(loaded.cohorts)) {
-                return loaded;
-            }
-            if (loaded && loaded.cohorts) {
-                return loaded;
-            }
-            const err = new Error('TMS roster was not loaded');
-            err.code = 'TMS_SYNC_CANCELLED';
-            throw err;
+        const S = global.CCPTmsSync;
+        if (!S || !S.run) {
+            throw new Error(t('cohortsGenTmsNoSync'));
         }
-        if (!global.CCPTmsSync || !global.CCPTmsSync.run) {
-            throw new Error('TMS sync is not available');
+        if (S.detectBridge && S.isBridgeReady) {
+            let ready = false;
+            try {
+                const st = await S.detectBridge();
+                ready = S.isBridgeReady(st) || (st && st.status === 'outdated');
+            } catch (_e) {
+                ready = false;
+            }
+            if (!ready) {
+                const err = new Error(t('cohortsGenTmsNoHelper'));
+                err.code = 'TMS_HELPER_MISSING';
+                throw err;
+            }
         }
-        return global.CCPTmsSync.run('roster', {
-            username: String(username || '').trim(),
-            password: String(password || '')
-        });
+        const user = String(username || '').trim();
+        if (user && S.setSavedUsername) {
+            S.setSavedUsername(user, true);
+        }
+        const payload = {};
+        if (user || password) {
+            payload.username = user;
+            payload.password = String(password || '');
+        }
+        return S.run('roster', payload, { timeoutMs: 300000 });
     }
 
     /** Every teacher's timetable from TMS with the same sign-in (reuses a pull from the last hour). */
@@ -240,7 +259,7 @@
             payload.username = String(username || '').trim();
             payload.password = String(password || '');
         }
-        const body = await global.CCPTmsSync.run('schedule', payload);
+        const body = await global.CCPTmsSync.run('schedule', payload, { timeoutMs: 300000 });
         if (!body || !Array.isArray(body.placements)) {
             throw new Error('TMS timetables were not loaded');
         }
@@ -437,6 +456,12 @@
             manualUnmatchedMoves = new Map();
             manualUnmatchedInclude = new Set();
             unclearResolutions = new Map();
+            // A name with one likely match from last term is pre-picked; only real doubts stay open.
+            (transferPlan.unclear || []).forEach((u, i) => {
+                if (u && Array.isArray(u.candidates) && u.candidates.length === 1 && u.candidates[0].studentId) {
+                    unclearResolutions.set(`u${i}`, u.candidates[0].studentId);
+                }
+            });
         }
     }
 
@@ -651,6 +676,269 @@
         });
     }
 
+    /** Students step: matches grouped by new cohort, so a whole cohort is accepted with one tick. */
+    function studentGroupsByCohort() {
+        const groups = new Map(
+            createdCohortMap.map((row) => [row.cohortId, { row, moves: [], adds: [], unclear: [] }])
+        );
+        const groupFor = (id) => groups.get(id);
+        ((transferPlan && transferPlan.moves) || []).forEach((m, i) => {
+            const g = groupFor(m.toCohortId);
+            if (g) {
+                g.moves.push({ item: m, key: `m${i}` });
+            }
+        });
+        ((transferPlan && transferPlan.adds) || []).forEach((a, i) => {
+            const g = groupFor(a.toCohortId);
+            if (g) {
+                g.adds.push({ item: a, key: `a${i}` });
+            }
+        });
+        ((transferPlan && transferPlan.unclear) || []).forEach((u, i) => {
+            const g = groupFor(u.toCohortId);
+            if (g) {
+                g.unclear.push({ item: u, key: `u${i}` });
+            }
+        });
+        return Array.from(groups.values());
+    }
+
+    function groupAcceptState(g) {
+        const keys = g.moves.map((x) => x.key).concat(g.adds.map((x) => x.key));
+        if (!keys.length) {
+            return 'none';
+        }
+        const on = keys.filter((k) => (k[0] === 'm' ? selectedMoves.has(k) : selectedAdds.has(k))).length;
+        return on === keys.length ? 'all' : on === 0 ? 'off' : 'some';
+    }
+
+    function setGroupAccepted(g, on) {
+        g.moves.forEach((x) => (on ? selectedMoves.add(x.key) : selectedMoves.delete(x.key)));
+        g.adds.forEach((x) => (on ? selectedAdds.add(x.key) : selectedAdds.delete(x.key)));
+    }
+
+    function studentDetailHtml(g) {
+        const rows = [];
+        g.moves.forEach(({ item: m, key }) => {
+            const level = m.likelyLevelUp
+                ? ` (${m.previousLevel || '?'} → ${m.nextLevel || '?'})`
+                : m.previousLevel
+                  ? ` (${m.previousLevel})`
+                  : '';
+            rows.push(`<tr>
+              <td><input type="checkbox" data-move="${key}" ${selectedMoves.has(key) ? 'checked' : ''} /></td>
+              <td>${escapeHtml(m.name)}${escapeHtml(level)}</td>
+              <td>${escapeHtml(t('dataTermMigrateStudentReturning'))} · ${escapeHtml(displayName(m.fromCohortName || ''))}</td>
+            </tr>`);
+        });
+        g.adds.forEach(({ item: a, key }) => {
+            const linked = manualAddLinks.get(key) || '';
+            rows.push(`<tr>
+              <td><input type="checkbox" data-add="${key}" ${selectedAdds.has(key) ? 'checked' : ''} /></td>
+              <td>${escapeHtml(a.tmsName || a.name)}</td>
+              <td>
+                <select class="field-select field-control" data-add-link="${key}">
+                  <option value="">${escapeHtml(t('dataTermMigrateLinkPrevStudentNone'))}</option>
+                  ${previousStudentOptionsHtml(listLinkablePreviousStudents(linked), linked)}
+                </select>
+              </td>
+            </tr>`);
+        });
+        g.unclear.forEach(({ item: u, key }) => {
+            const chosen = unclearResolutions.get(key) || '';
+            const opts = (u.candidates || [])
+                .map((c) => {
+                    const label = `${c.name}${c.fromCohortName ? ` (${displayName(c.fromCohortName)})` : ''}`;
+                    return `<option value="${escapeHtml(c.studentId)}"${chosen === c.studentId ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+                })
+                .join('');
+            rows.push(`<tr>
+              <td>⚠</td>
+              <td>${escapeHtml(u.tmsName)}</td>
+              <td>
+                <select class="field-select field-control" data-unclear="${key}">
+                  <option value="">${escapeHtml(t('dataTermMigrateUnclearPick'))}</option>
+                  ${opts}
+                </select>
+              </td>
+            </tr>`);
+        });
+        return `<table class="classroom-sheet term-migrate-student-detail"><tbody>${rows.join('')}</tbody></table>`;
+    }
+
+    function renderStudentsStep(body) {
+        rebuildTransferPlan({ force: false });
+        const groups = studentGroupsByCohort();
+        const unmatched = (transferPlan && transferPlan.unmatchedPrevious) || [];
+        const totals = groups.reduce(
+            (acc, g) => {
+                acc.moves += g.moves.length;
+                acc.adds += g.adds.length;
+                acc.unclear += g.unclear.filter((x) => !unclearResolutions.get(x.key)).length;
+                return acc;
+            },
+            { moves: 0, adds: 0, unclear: 0 }
+        );
+        const rows = groups
+            .map((g, gi) => {
+                const state = groupAcceptState(g);
+                const open = g.unclear.filter((x) => !unclearResolutions.get(x.key)).length;
+                const hasDetail = g.moves.length || g.adds.length || g.unclear.length;
+                return `<tr data-group="${gi}">
+                  <td>${state === 'none' ? '' : `<input type="checkbox" data-group-accept="${gi}" ${state === 'all' ? 'checked' : ''} aria-label="${escapeHtml(t('dataTermMigrateAcceptCohort'))}" />`}</td>
+                  <td>${escapeHtml(displayName(g.row.cohortName))}${g.row.fromSchedule ? ` <span class="section-hint">(${escapeHtml(t('dataTermMigrateFromTimetable'))})</span>` : ''}</td>
+                  <td>${g.moves.length}</td>
+                  <td>${g.adds.length}</td>
+                  <td>${open ? `<strong>${open}</strong>` : '0'}</td>
+                  <td>${hasDetail ? `<button type="button" class="btn btn-outline btn-compact" data-group-detail="${gi}">${escapeHtml(t('dataTermMigrateShowStudents'))}</button>` : ''}</td>
+                </tr>
+                <tr class="term-migrate-detail-row" data-group-detail-row="${gi}" hidden><td></td><td colspan="5"></td></tr>`;
+            })
+            .join('');
+        const byFrom = new Map();
+        unmatched.forEach((u) => {
+            const k = u.fromCohortName || '—';
+            byFrom.set(k, (byFrom.get(k) || 0) + 1);
+        });
+        const unmatchedList = Array.from(byFrom.entries())
+            .map(([name, n]) => `<li>${escapeHtml(displayName(name))}: ${n}</li>`)
+            .join('');
+        body.innerHTML = `<div class="term-migrate-students">
+            <p class="section-hint">${escapeHtml(t('dataTermMigrateStep3Hint'))}</p>
+            <p class="section-hint">${escapeHtml(
+                t('dataTermMigrateStudentsSummary')
+                    .replace('{moves}', String(totals.moves))
+                    .replace('{adds}', String(totals.adds))
+                    .replace('{unclear}', String(totals.unclear))
+            )}</p>
+            <div class="classroom-sheet-panel">
+              <div class="classroom-sheet-scroll">
+                <table class="classroom-sheet">
+                  <thead><tr>
+                    <th><input type="checkbox" id="termMigrateAcceptAll" aria-label="${escapeHtml(t('dataTermMigrateAcceptAll'))}" /></th>
+                    <th>${escapeHtml(t('dataTermMigrateColClass'))}</th>
+                    <th>${escapeHtml(t('dataTermMigrateColReturning'))}</th>
+                    <th>${escapeHtml(t('dataTermMigrateColNew'))}</th>
+                    <th>${escapeHtml(t('dataTermMigrateColCheck'))}</th>
+                    <th></th>
+                  </tr></thead>
+                  <tbody>${rows}</tbody>
+                </table>
+              </div>
+            </div>
+            ${
+                unmatched.length
+                    ? `<details class="term-migrate-unmatched">
+                    <summary>${escapeHtml(t('dataTermMigrateUnmatchedHint').replace('{n}', String(unmatched.length)))}</summary>
+                    <ul>${unmatchedList}</ul>
+                  </details>`
+                    : ''
+            }
+        </div>`;
+        const root = body.firstElementChild;
+        const allCb = document.getElementById('termMigrateAcceptAll');
+        const paintGroup = (gi) => {
+            const cb = root.querySelector(`input[data-group-accept="${gi}"]`);
+            if (!cb) {
+                return;
+            }
+            const state = groupAcceptState(groups[gi]);
+            cb.checked = state === 'all';
+            cb.indeterminate = state === 'some';
+        };
+        const paintAll = () => {
+            const states = groups.map(groupAcceptState).filter((s) => s !== 'none');
+            if (allCb) {
+                allCb.checked = states.length > 0 && states.every((s) => s === 'all');
+                allCb.indeterminate = !allCb.checked && states.some((s) => s !== 'off');
+            }
+        };
+        groups.forEach((_, gi) => paintGroup(gi));
+        paintAll();
+        if (allCb) {
+            allCb.addEventListener('change', () => {
+                groups.forEach((g, gi) => {
+                    setGroupAccepted(g, allCb.checked);
+                    paintGroup(gi);
+                    const detail = root.querySelector(`[data-group-detail-row="${gi}"]`);
+                    if (detail && !detail.hidden) {
+                        detail.lastElementChild.innerHTML = studentDetailHtml(g);
+                    }
+                });
+                paintAll();
+            });
+        }
+        root.addEventListener('change', (ev) => {
+            const el = ev.target;
+            if (!el || !el.getAttribute) {
+                return;
+            }
+            const groupAccept = el.getAttribute('data-group-accept');
+            if (groupAccept != null) {
+                const gi = Number(groupAccept);
+                setGroupAccepted(groups[gi], el.checked);
+                const detail = root.querySelector(`[data-group-detail-row="${gi}"]`);
+                if (detail && !detail.hidden) {
+                    detail.lastElementChild.innerHTML = studentDetailHtml(groups[gi]);
+                }
+                paintAll();
+                return;
+            }
+            const moveKey = el.getAttribute('data-move');
+            const addKey = el.getAttribute('data-add');
+            if (moveKey || addKey) {
+                const set = moveKey ? selectedMoves : selectedAdds;
+                const key = moveKey || addKey;
+                if (el.checked) {
+                    set.add(key);
+                } else {
+                    set.delete(key);
+                }
+                const row = el.closest('[data-group-detail-row]');
+                if (row) {
+                    paintGroup(Number(row.getAttribute('data-group-detail-row')));
+                }
+                paintAll();
+                return;
+            }
+            const unclearKey = el.getAttribute('data-unclear');
+            if (unclearKey) {
+                if (el.value) {
+                    unclearResolutions.set(unclearKey, el.value);
+                } else {
+                    unclearResolutions.delete(unclearKey);
+                }
+                return;
+            }
+            const linkKey = el.getAttribute('data-add-link');
+            if (linkKey) {
+                if (el.value) {
+                    manualAddLinks.set(linkKey, el.value);
+                } else {
+                    manualAddLinks.delete(linkKey);
+                }
+            }
+        });
+        root.querySelectorAll('[data-group-detail]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const gi = Number(btn.getAttribute('data-group-detail'));
+                const detail = root.querySelector(`[data-group-detail-row="${gi}"]`);
+                if (!detail) {
+                    return;
+                }
+                if (detail.hidden) {
+                    detail.lastElementChild.innerHTML = studentDetailHtml(groups[gi]);
+                    detail.hidden = false;
+                    btn.textContent = t('dataTermMigrateHideStudents');
+                } else {
+                    detail.hidden = true;
+                    detail.lastElementChild.innerHTML = '';
+                    btn.textContent = t('dataTermMigrateShowStudents');
+                }
+            });
+        });
+    }
+
     function flushStep3Transfers() {
         document.querySelectorAll('input[data-move]').forEach((cb) => {
             const key = cb.getAttribute('data-move');
@@ -752,7 +1040,14 @@
             teacherProfiles: appData.teacherProfiles || [],
             timetableTimeSlots: appData.timetableTimeSlots,
             periodSlotMap: appData.periodSlotMap,
-            tmsRosterLinks: {}
+            // Cohorts are named without the TMS day mark and term ("파보", TMS "파보M^2612"): link the TMS name, as
+            // the created calendar does, so the timetables find them.
+            tmsRosterLinks: Object.fromEntries(
+                createdCohortMap.map((spec) => [
+                    `draft:${spec.cohortId}`,
+                    { action: 'map', cohortId: spec.cohortId, tmsClassName: spec.rawName || spec.cohortName }
+                ])
+            )
         };
     }
 
@@ -931,7 +1226,11 @@
             const userEl = document.getElementById('termMigrateTmsUser');
             const passEl = document.getElementById('termMigrateTmsPass');
             if (userEl) {
-                userEl.value = wizardSettings.tmsUser || '';
+                const saved =
+                    global.CCPTmsSync && global.CCPTmsSync.getSavedUsername
+                        ? global.CCPTmsSync.getSavedUsername()
+                        : '';
+                userEl.value = wizardSettings.tmsUser || saved || '';
             }
             if (passEl) {
                 passEl.value = wizardSettings.tmsPass || '';
@@ -978,7 +1277,7 @@
                         <td>${escapeHtml(row.schedulePattern || '')}</td>
                         <td>${escapeHtml(block)}</td>
                         <td>${escapeHtml(period)}</td>
-                        <td>${(row.students || []).length}</td>
+                        <td>${row.fromSchedule ? escapeHtml(t('dataTermMigrateFromTimetable')) : (row.students || []).length}</td>
                         <td>
                           <input type="text" class="field-input field-control term-migrate-level" data-idx="${idx}"
                             value="${escapeHtml(row.levelPreset || '')}" placeholder="${escapeHtml(t('dataTermMigrateLevelPlaceholder'))}" />
@@ -1065,234 +1364,7 @@
         }
 
         if (step === 3) {
-            rebuildTransferPlan({ force: false });
-            const moves = (transferPlan && transferPlan.moves) || [];
-            const adds = (transferPlan && transferPlan.adds) || [];
-            const unmatched = (transferPlan && transferPlan.unmatchedPrevious) || [];
-            const unclear = (transferPlan && transferPlan.unclear) || [];
-            const cohortTargets = createdCohortMap.map((r) => ({
-                id: r.cohortId,
-                name: r.cohortName
-            }));
-            const moveRows = moves
-                .map((m, i) => {
-                    const key = `m${i}`;
-                    const levelNote = m.likelyLevelUp
-                        ? ` (${escapeHtml(m.previousLevel || '?')} → ${escapeHtml(m.nextLevel || '?')})`
-                        : m.previousLevel
-                          ? ` (${escapeHtml(m.previousLevel)})`
-                          : '';
-                    return `<tr>
-                      <td><input type="checkbox" data-move="${key}" ${selectedMoves.has(key) ? 'checked' : ''} /></td>
-                      <td>${escapeHtml(m.name)}${levelNote}</td>
-                      <td>${escapeHtml(m.fromCohortName)}</td>
-                      <td>${escapeHtml(m.toCohortName)}</td>
-                      <td>${escapeHtml(m.matchedBy || '')}</td>
-                    </tr>`;
-                })
-                .join('');
-            const addRows = adds
-                .map((a, i) => {
-                    const key = `a${i}`;
-                    const linkable = listLinkablePreviousStudents(manualAddLinks.get(key) || '');
-                    const linkOpts = previousStudentOptionsHtml(
-                        linkable,
-                        manualAddLinks.get(key) || ''
-                    );
-                    return `<tr>
-                      <td><input type="checkbox" data-add="${key}" ${selectedAdds.has(key) ? 'checked' : ''} /></td>
-                      <td>${escapeHtml(a.tmsName || a.name)}</td>
-                      <td>—</td>
-                      <td>${escapeHtml(a.toCohortName)}</td>
-                      <td>
-                        <select class="field-select field-control" data-add-link="${key}">
-                          <option value="">${escapeHtml(t('dataTermMigrateLinkPrevStudentNone'))}</option>
-                          ${linkOpts}
-                        </select>
-                      </td>
-                    </tr>`;
-                })
-                .join('');
-            const unclearRows = unclear
-                .map((u, i) => {
-                    const key = `u${i}`;
-                    const chosen = unclearResolutions.get(key) || '';
-                    const candidateIds = new Set((u.candidates || []).map((c) => c.studentId));
-                    const extra = listLinkablePreviousStudents(chosen || '');
-                    const merged = [];
-                    const seen = new Set();
-                    (u.candidates || []).forEach((c) => {
-                        if (!seen.has(c.studentId)) {
-                            seen.add(c.studentId);
-                            merged.push(c);
-                        }
-                    });
-                    extra.forEach((p) => {
-                        if (!seen.has(p.studentId)) {
-                            seen.add(p.studentId);
-                            merged.push(p);
-                        }
-                    });
-                    const opts = merged
-                        .map((c) => {
-                            const sel = chosen === c.studentId ? ' selected' : '';
-                            const label = `${c.name}${c.fromCohortName ? ` (${c.fromCohortName})` : ''}`;
-                            return `<option value="${escapeHtml(c.studentId)}"${sel}>${escapeHtml(label)}</option>`;
-                        })
-                        .join('');
-                    return `<tr>
-                      <td>${escapeHtml(u.tmsName)}</td>
-                      <td>${escapeHtml(u.toCohortName)}</td>
-                      <td>
-                        <select class="field-select field-control" data-unclear="${key}">
-                          <option value="">${escapeHtml(t('dataTermMigrateUnclearPick'))}</option>
-                          ${opts}
-                        </select>
-                      </td>
-                    </tr>`;
-                })
-                .join('');
-            const unmatchedRows = unmatched
-                .map((u) => {
-                    const toOpts = cohortTargets
-                        .map((c) => {
-                            const sel =
-                                manualUnmatchedMoves.get(u.studentId) === c.id ? ' selected' : '';
-                            return `<option value="${escapeHtml(c.id)}"${sel}>${escapeHtml(displayName(c.name))}</option>`;
-                        })
-                        .join('');
-                    const included = manualUnmatchedInclude.has(u.studentId);
-                    return `<tr>
-                      <td><input type="checkbox" data-unmatched-include="${escapeHtml(u.studentId)}" ${included ? 'checked' : ''} /></td>
-                      <td>${escapeHtml(u.name)}</td>
-                      <td>${escapeHtml(u.fromCohortName || '')}</td>
-                      <td>
-                        <select class="field-select field-control" data-unmatched-to="${escapeHtml(u.studentId)}">
-                          <option value="">${escapeHtml(t('dataTermMigrateUnmatchedMoveTo'))}</option>
-                          ${toOpts}
-                        </select>
-                      </td>
-                    </tr>`;
-                })
-                .join('');
-            body.innerHTML = `
-                <p class="section-hint">${escapeHtml(t('dataTermMigrateStep3Hint'))}</p>
-                <p class="section-hint">${escapeHtml(
-                    t('dataTermMigrateTransferSummary')
-                        .replace('{moves}', String(moves.length))
-                        .replace('{adds}', String(adds.length))
-                        .replace('{left}', String(unmatched.length))
-                        .replace('{unclear}', String(unclear.length))
-                )}</p>
-                <div class="classroom-sheet-panel">
-                  <div class="classroom-sheet-scroll">
-                    <table class="classroom-sheet">
-                      <thead><tr>
-                        <th></th>
-                        <th>${escapeHtml(t('dataTermMigrateColStudent'))}</th>
-                        <th>${escapeHtml(t('dataTermMigrateColFrom'))}</th>
-                        <th>${escapeHtml(t('dataTermMigrateColTo'))}</th>
-                        <th>${escapeHtml(t('dataTermMigrateLinkPrevStudent'))}</th>
-                      </tr></thead>
-                      <tbody>${moveRows}${addRows || ''}</tbody>
-                    </table>
-                  </div>
-                </div>
-                ${
-                    unclear.length
-                        ? `<h3 class="form-section-title">${escapeHtml(t('dataTermMigrateUnclearHeading'))}</h3>
-                        <p class="section-hint">${escapeHtml(t('dataTermMigrateUnclearHint').replace('{n}', String(unclear.length)))}</p>
-                        <div class="classroom-sheet-panel"><div class="classroom-sheet-scroll">
-                          <table class="classroom-sheet">
-                            <thead><tr>
-                              <th>${escapeHtml(t('dataTermMigrateColStudent'))}</th>
-                              <th>${escapeHtml(t('dataTermMigrateColTo'))}</th>
-                              <th>${escapeHtml(t('dataTermMigrateUnclearPick'))}</th>
-                            </tr></thead>
-                            <tbody>${unclearRows}</tbody>
-                          </table>
-                        </div></div>`
-                        : ''
-                }
-                ${
-                    unmatched.length
-                        ? `<h3 class="form-section-title">${escapeHtml(t('dataTermMigrateUnmatchedHeading'))}</h3>
-                        <p class="section-hint">${escapeHtml(t('dataTermMigrateUnmatchedHint').replace('{n}', String(unmatched.length)))}</p>
-                        <div class="classroom-sheet-panel"><div class="classroom-sheet-scroll">
-                          <table class="classroom-sheet">
-                            <thead><tr>
-                              <th>${escapeHtml(t('dataTermMigrateUnmatchedInclude'))}</th>
-                              <th>${escapeHtml(t('dataTermMigrateColStudent'))}</th>
-                              <th>${escapeHtml(t('dataTermMigrateColFrom'))}</th>
-                              <th>${escapeHtml(t('dataTermMigrateUnmatchedMoveTo'))}</th>
-                            </tr></thead>
-                            <tbody>${unmatchedRows}</tbody>
-                          </table>
-                        </div></div>`
-                        : ''
-                }
-            `;
-            body.querySelectorAll('input[data-move]').forEach((cb) => {
-                cb.addEventListener('change', () => {
-                    const key = cb.getAttribute('data-move');
-                    if (cb.checked) {
-                        selectedMoves.add(key);
-                    } else {
-                        selectedMoves.delete(key);
-                    }
-                });
-            });
-            body.querySelectorAll('input[data-add]').forEach((cb) => {
-                cb.addEventListener('change', () => {
-                    const key = cb.getAttribute('data-add');
-                    if (cb.checked) {
-                        selectedAdds.add(key);
-                    } else {
-                        selectedAdds.delete(key);
-                    }
-                });
-            });
-            body.querySelectorAll('select[data-unclear]').forEach((sel) => {
-                sel.addEventListener('change', () => {
-                    const key = sel.getAttribute('data-unclear');
-                    if (sel.value) {
-                        unclearResolutions.set(key, sel.value);
-                    } else {
-                        unclearResolutions.delete(key);
-                    }
-                });
-            });
-            body.querySelectorAll('select[data-add-link]').forEach((sel) => {
-                sel.addEventListener('change', () => {
-                    const key = sel.getAttribute('data-add-link');
-                    if (sel.value) {
-                        manualAddLinks.set(key, sel.value);
-                    } else {
-                        manualAddLinks.delete(key);
-                    }
-                });
-            });
-            body.querySelectorAll('select[data-unmatched-to]').forEach((sel) => {
-                sel.addEventListener('change', () => {
-                    const sid = sel.getAttribute('data-unmatched-to');
-                    if (sel.value) {
-                        manualUnmatchedMoves.set(sid, sel.value);
-                    } else {
-                        manualUnmatchedMoves.delete(sid);
-                        manualUnmatchedInclude.delete(sid);
-                    }
-                });
-            });
-            body.querySelectorAll('input[data-unmatched-include]').forEach((cb) => {
-                cb.addEventListener('change', () => {
-                    const sid = cb.getAttribute('data-unmatched-include');
-                    if (cb.checked && manualUnmatchedMoves.get(sid)) {
-                        manualUnmatchedInclude.add(sid);
-                    } else {
-                        manualUnmatchedInclude.delete(sid);
-                    }
-                });
-            });
+            renderStudentsStep(body);
             return;
         }
 
@@ -1583,7 +1655,7 @@
                     const extra = scheduleOnlyCohorts(scrapedCohortsAll, scrapedSchedule);
                     scrapedCohortsAll = scrapedCohortsAll.concat(extra);
                 } catch (schedErr) {
-                    scheduleNote = (schedErr && schedErr.message) || String(schedErr);
+                    scheduleNote = tmsErrorText(schedErr);
                 }
                 refreshDiscoveredTermCodes();
                 const api = tmsNameApi();
@@ -1600,22 +1672,19 @@
                 }
                 step = 2;
                 hideScrapeProgress();
+                const fromTimetable = createdCohortMap.filter((r) => r.fromSchedule).length;
                 setStatus(
-                    t('dataTermMigrateScrapeDone').replace(
-                        '{n}',
-                        String(createdCohortMap.length)
-                    ),
-                    false
+                    scheduleNote
+                        ? t('dataTermMigrateScheduleFailed').replace('{why}', scheduleNote)
+                        : t('dataTermMigrateScrapeDoneBoth')
+                              .replace('{roster}', String(createdCohortMap.length - fromTimetable))
+                              .replace('{timetable}', String(fromTimetable)),
+                    Boolean(scheduleNote)
                 );
                 renderStep();
             } catch (err) {
                 hideScrapeProgress();
-                setStatus(
-                    t('dataTermMigrateScrapeFailed') +
-                        ': ' +
-                        (err && err.message ? err.message : String(err)),
-                    true
-                );
+                setStatus(t('dataTermMigrateScrapeFailed') + ': ' + tmsErrorText(err), true);
             } finally {
                 scrapeLoading = false;
                 hideScrapeProgress();
