@@ -1086,28 +1086,8 @@
             }
         });
 
-        const dupReported = new Set();
-        findPossibleDuplicatePairsAcrossCohorts(appData).forEach((pair) => {
-            if (pair.cohortIdA !== cohortId && pair.cohortIdB !== cohortId) {
-                return;
-            }
-            const key = `${pair.classA.id}|${pair.classB.id}`;
-            if (dupReported.has(key)) {
-                return;
-            }
-            dupReported.add(key);
-            const otherName = pair.cohortIdA === cohortId ? pair.cohortNameB : pair.cohortNameA;
-            warnings.push({
-                code: 'duplicate_combined',
-                severity: 'warn',
-                messageKey: 'setupBoardWarnDuplicateCombined',
-                params: {
-                    classA: classLabelForWarning(pair.classA),
-                    classB: classLabelForWarning(pair.classB),
-                    otherCohort: otherName
-                }
-            });
-        });
+        // Cohorts with a class of the same subject are normal (same style, each at its own level): not warned.
+        // Only cohorts TMS shows in one teacher's slot share a class (Generate subjects does that).
 
         return warnings;
     }

@@ -107,9 +107,10 @@ assert(
     warnings.some((w) => w.code === 'period_collision'),
     'two classes same period slot warn'
 );
+// Same subject in two cohorts is normal (each at its own level): never warned as a duplicate.
 assert(
-    warnings.some((w) => w.code === 'duplicate_combined' && w.params.otherCohort === '3T'),
-    'duplicate combine pair touches cohort-1'
+    !warnings.some((w) => w.code === 'duplicate_combined'),
+    'no duplicate warning for same-subject classes in two cohorts'
 );
 assert(
     warnings.some((w) => w.code === 'no_homeroom'),

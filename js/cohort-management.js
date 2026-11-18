@@ -1220,18 +1220,11 @@
         } else if (hooks.populateClassCohortSelect) {
             hooks.populateClassCohortSelect();
         }
-        let msg = t('cohortsGenDone')
+        // Same subject in several cohorts is normal (each at its own level): no duplicate warning.
+        hooks.showMessage(t('cohortsGenDone')
             .replace('{created}', String(result.created))
             .replace('{updated}', String(result.updated))
-            .replace('{linked}', String(result.linked));
-        const ttApi = getTimetableApi();
-        if (ttApi && ttApi.findPossibleDuplicatePairsAcrossCohorts) {
-            const dupCount = ttApi.findPossibleDuplicatePairsAcrossCohorts(hooks.getAppData()).length;
-            if (dupCount > 0) {
-                msg += ' ' + t('cohortsReviewDuplicates').replace('{n}', String(dupCount));
-            }
-        }
-        hooks.showMessage(msg, false);
+            .replace('{linked}', String(result.linked)), false);
         updateCohortEditorModalTitle(cohort);
         renderAll();
     }
@@ -1466,13 +1459,6 @@
             .replace('{classes}', String(classes.length));
         if (unlinked > 0) {
             text += ' ' + t('cohortsSummaryUnlinked').replace('{n}', String(unlinked));
-        }
-        const api = getTimetableApi();
-        if (api && api.findPossibleDuplicatePairsAcrossCohorts) {
-            const dupPairs = api.findPossibleDuplicatePairsAcrossCohorts(appData);
-            if (dupPairs.length) {
-                text += ' ' + t('cohortsReviewDuplicates').replace('{n}', String(dupPairs.length));
-            }
         }
         el.textContent = text;
         if (typeof hooks.onSummaryRendered === 'function') {
