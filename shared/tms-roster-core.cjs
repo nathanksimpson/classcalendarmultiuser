@@ -22,7 +22,7 @@ let fetchDispatcher = null;
 
 /**
  * TMS (ASP.NET) pages are sometimes UTF-8 and sometimes EUC-KR / CP949, and the charset may only be in the
- * Content-Type header. Wrongly decoded Korean shows up as "�" boxes and stray Chinese characters, so:
+ * Content-Type header. Wrongly decoded Korean shows up as replacement-character boxes and stray Chinese characters, so:
  * honour the header and <meta> charset, and when the bytes are not valid UTF-8, read them as CP949.
  */
 function decodeTmsBody(buf, contentType) {

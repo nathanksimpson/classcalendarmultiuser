@@ -2757,25 +2757,37 @@ ${by.get(cid).map((d) => `
                 }
                 out = I.buildDraftFromTms(freshModel().data, body, buildOpts);
                 rep = out.report;
-                // New cohorts have no classes yet: make one per subject TMS teaches them, sized by TMS's periods.
-                const fresh = rep.unmatchedClasses.filter((u) => createdIds.has(u.cohortId));
-                if (fresh.length) {
-                    setupEdit((d2) => {
-                        fresh.forEach((u) => {
-                            const cohort = (d2.cohorts || []).find((c) => c.id === u.cohortId);
-                            if (!cohort) return;
-                            const id = newClassId();
-                            const rec = specialClassRecord({ id, name: `${cohort.name} · ${u.subject}`, type: '', students: 0, cohortIds: [cohort.id], start: '', end: '' });
-                            rec.weeklyFrequency = Math.max(1, Math.min(10, u.count || 1));
-                            d2.classes = d2.classes || [];
-                            d2.classes.push(rec);
-                            if (Array.isArray(cohort.classIds)) cohort.classIds.push(id);
-                        });
-                    });
-                    out = I.buildDraftFromTms(freshModel().data, body, buildOpts);
-                    rep = out.report;
-                }
             }
+        }
+        // The calendar has the cohort but no class for a subject TMS teaches it: make one per subject (sized by TMS's
+        // periods), so the pull builds the classes as well as the timetable.
+        let madeClasses = 0;
+        const fresh = (rep.unmatchedClasses || []).filter((u) => u.cohortId);
+        if (fresh.length && freshModel() && !readOnly()) {
+            const P2 = api();
+            const bySubject = new Map();
+            fresh.forEach((u) => {
+                const k = `${u.cohortId}|${P2.normalizeSubject(u.subject)}`;
+                const hit = bySubject.get(k);
+                if (hit) hit.count += u.count || 1;
+                else bySubject.set(k, { cohortId: u.cohortId, subject: u.subject, count: u.count || 1 });
+            });
+            setupEdit((d2) => {
+                bySubject.forEach((u) => {
+                    const cohort = (d2.cohorts || []).find((c) => c.id === u.cohortId);
+                    if (!cohort) return;
+                    const id = newClassId();
+                    const base = String(cohort.name || '').replace(/\^.*$/, '').trim() || cohort.name;
+                    const rec = specialClassRecord({ id, name: `${base} \u00B7 ${u.subject}`, type: '', students: 0, cohortIds: [cohort.id], start: '', end: '' });
+                    rec.weeklyFrequency = Math.max(1, Math.min(10, u.count || 1));
+                    d2.classes = d2.classes || [];
+                    d2.classes.push(rec);
+                    if (Array.isArray(cohort.classIds)) cohort.classIds.push(id);
+                    madeClasses += 1;
+                });
+            });
+            out = I.buildDraftFromTms(freshModel().data, body, buildOpts);
+            rep = out.report;
         }
         // Cohorts TMS teaches together but the calendar keeps as separate classes: preview, then merge on request.
         const openMerges = (rep.mergedClasses || []).filter((m) => !m.calendarMerged && m.cohortIds && m.cohortIds.length > 1);
@@ -2812,7 +2824,7 @@ ${by.get(cid).map((d) => `
             term: rep.term || '–', periods: out.draft.assignments.reduce((n, a) => n + (a.meetings || []).length, 0), classes: out.draft.assignments.length
         }) + (left ? ' ' + t('spTmsLeft', 'Left out: {cohorts} cohorts, {classes} classes and {teachers} teachers that are not in this calendar.', {
             cohorts: rep.unmatchedCohorts.length, classes: rep.unmatchedClasses.length, teachers: rep.unmatchedTeachers.length
-        }) : '') + (mergedNow ? ' ' + t('spTmsMergedDone', '{n} merged. Undo: Tools menu, Undo TMS merge.', { n: mergedNow }) : '') + mergedNote(rep), left ? 'info' : 'success');
+        }) : '') + (madeClasses ? ' ' + t('spTmsClassesMade', '{n} new classes created from TMS.', { n: madeClasses }) : '') + (mergedNow ? ' ' + t('spTmsMergedDone', '{n} merged. Undo: Tools menu, Undo TMS merge.', { n: mergedNow }) : '') + mergedNote(rep), left ? 'info' : 'success');
     }
 
     /** Tools, TMS import details: every row read from TMS for a teacher, and where it went in this calendar. */

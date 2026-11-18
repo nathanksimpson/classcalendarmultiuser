@@ -3232,6 +3232,7 @@
         spTraceTms: 'In TMS',
         spTraceResult: 'In this calendar',
         spTmsMerged: 'Merged in TMS: {list}. In this calendar they are still separate classes; give them one class with both cohorts to plan them together.',
+        spTmsClassesMade: '{n} new classes created from TMS.',
         spTmsDone: 'Pulled from TMS (term {term}): {periods} periods on {classes} classes.',
         spTmsLeft: 'Left out: {cohorts} cohorts, {classes} classes and {teachers} teachers that are not in this calendar.',
         spToolHistory: 'Saved versions',
