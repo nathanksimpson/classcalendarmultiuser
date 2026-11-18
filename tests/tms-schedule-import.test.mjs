@@ -216,3 +216,24 @@ console.log('tms-schedule-import cohort-named class test passed');
     assert.equal(out.report.matched, 1);
 }
 console.log('tms-schedule-import draft class test passed');
+
+// A real TMS class with no cohort in the calendar needs no mapping: it becomes a stand-alone draft class.
+{
+    const d = JSON.parse(JSON.stringify(cal));
+    P.ensurePlannerFields(d);
+    const body = { placements: [
+        row('Lee', 'mon', '15:20', 'OrangeM^2609', 'Grammar'), row('Lee', 'wed', '15:20', 'OrangeM^2609', 'Grammar'),
+        row('Lee', 'tue', '15:20', 'test폴라_수', 'RC')
+    ] };
+    const first = I.buildDraftFromTms(d, body);
+    assert.equal(first.report.newDraftClasses.length, 1, 'junk/test entries do not make draft classes');
+    const nd = first.report.newDraftClasses[0];
+    assert.equal(nd.count, 2);
+    assert.deepEqual(nd.days.sort(), [1, 3]);
+    d.plannerDrafts = [{ id: 'dr2', assignments: [], draftClasses: [{ id: 'dc2', name: 'OrangeM · Grammar', cohortIds: [], tmsDraftKey: nd.tmsKey, meetingDays: [1, 3], schedulePattern: 'mwf', weeklyFrequency: 2, plannerDraftClass: true }] }];
+    d.plannerState = Object.assign({}, d.plannerState, { activeDraftId: 'dr2' });
+    const second = I.buildDraftFromTms(d, body);
+    assert.equal(second.report.newDraftClasses.length, 0);
+    assert.equal(second.report.matched, 2);
+}
+console.log('tms-schedule-import cohort-free draft class test passed');

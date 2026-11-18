@@ -131,6 +131,8 @@
             matched: 0,
             unmatchedCohorts: [],
             unmatchedClasses: [],
+            // Real TMS classes whose cohort is not in this calendar: the pull makes draft classes for them.
+            newDraftClasses: [],
             unmatchedTeachers: [],
             multiTeacherClasses: [],
             mergedClasses: [],
@@ -158,10 +160,26 @@
         used.forEach((r) => {
             const cohort = cohortByKey.get(r.cohort);
             if (!cohort) {
+                const subj = api.normalizeSubject(r.subject);
+                const real = /\^\d{4}\s*$/.test(r.cohortRaw) && !/test|테스트/i.test(r.cohortRaw);
+                // A draft class made from TMS earlier: it carries the TMS class and subject it stands for.
+                const mine = real ? classes.find((k) => k.tmsDraftKey === `${r.cohort}|${subj}`) : null;
+                if (mine) {
+                    if (!buckets.has(mine.id)) buckets.set(mine.id, { cls: mine, rows: [] });
+                    buckets.get(mine.id).rows.push(r);
+                    trace(r, 'placed', mine);
+                    report.matched += 1;
+                    return;
+                }
                 trace(r, 'no-cohort');
                 tally(report.unmatchedCohorts, r.cohortRaw, { name: r.cohortRaw, days: [] });
                 const u = report.unmatchedCohorts.find((x) => x.key === r.cohortRaw);
                 if (u && !u.days.includes(r.dow)) u.days.push(r.dow);
+                if (real) {
+                    tally(report.newDraftClasses, `${r.cohort}|${subj}`, { tmsKey: `${r.cohort}|${subj}`, cohortRaw: r.cohortRaw, subject: r.subject, days: [] });
+                    const nd = report.newDraftClasses.find((x) => x.key === `${r.cohort}|${subj}`);
+                    if (nd && !nd.days.includes(r.dow)) nd.days.push(r.dow);
+                }
                 return;
             }
             const subject = api.normalizeSubject(r.subject);

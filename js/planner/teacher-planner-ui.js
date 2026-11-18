@@ -2728,7 +2728,9 @@ ${by.get(cid).map((d) => `
         // TMS class names rarely equal cohort names: let the person map them once; the links are remembered
         // (the same ones the roster sync uses).
         const createdIds = new Set();
-        if (rep.unmatchedCohorts.length && freshModel() && !readOnly()) {
+        // Matching to calendar cohorts is optional now: TMS classes without a cohort become draft classes below.
+        const askMapping = false;
+        if (askMapping && rep.unmatchedCohorts.length && freshModel() && !readOnly()) {
             const unmatchedNow = rep.unmatchedCohorts;
             const picks = await askTmsMapping(unmatchedNow, { used: rep.used, matched: rep.matched, draft: (rep.unmatchedClasses || []).reduce((n, x) => n + (x.count || 0), 0), open: rep.unmatchedCohorts.reduce((n, x) => n + (x.count || 0), 0) });
             if (picks && picks.length) {
@@ -2763,23 +2765,30 @@ ${by.get(cid).map((d) => `
         // The calendar has the cohort but no class for a subject TMS teaches it: make one per subject (sized by TMS's
         // periods), so the pull builds the classes as well as the timetable.
         let madeClasses = 0;
-        const fresh = (rep.unmatchedClasses || []).filter((u) => u.cohortId);
+        const fresh = (rep.unmatchedClasses || []).filter((u) => u.cohortId).concat(rep.newDraftClasses || []);
         if (fresh.length && freshModel() && !readOnly()) {
             const P2 = api();
             const bySubject = new Map();
             fresh.forEach((u) => {
-                const k = `${u.cohortId}|${P2.normalizeSubject(u.subject)}`;
+                const k = `${u.cohortId || u.tmsKey}|${P2.normalizeSubject(u.subject)}`;
                 const hit = bySubject.get(k);
                 if (hit) hit.count += u.count || 1;
-                else bySubject.set(k, { cohortId: u.cohortId, subject: u.subject, count: u.count || 1 });
+                else bySubject.set(k, { cohortId: u.cohortId || '', tmsKey: u.tmsKey || '', cohortRaw: u.cohortRaw || '', days: u.days || [], subject: u.subject, count: u.count || 1 });
             });
             setupEdit((d2) => {
                 bySubject.forEach((u) => {
-                    const cohort = (d2.cohorts || []).find((c) => c.id === u.cohortId);
-                    if (!cohort) return;
+                    const cohort = u.cohortId ? (d2.cohorts || []).find((c) => c.id === u.cohortId) : null;
+                    if (u.cohortId && !cohort) return;
                     const id = newClassId();
-                    const base = String(cohort.name || '').replace(/\^.*$/, '').trim() || cohort.name;
-                    const rec = specialClassRecord({ id, name: `${base} \u00B7 ${u.subject}`, type: '', students: 0, cohortIds: [cohort.id], start: '', end: '' });
+                    const base = cohort ? (String(cohort.name || '').replace(/\^.*$/, '').trim() || cohort.name) : String(u.cohortRaw || '').replace(/\^.*$/, '').trim();
+                    const rec = specialClassRecord({ id, name: `${base} \u00B7 ${u.subject}`, type: '', students: 0, cohortIds: cohort ? [cohort.id] : [], start: '', end: '' });
+                    if (!cohort) {
+                        // No calendar cohort: the class stands on its own, named and timed from TMS.
+                        const days = (u.days || []).slice().sort((x, y) => x - y);
+                        rec.tmsDraftKey = `${u.tmsKey}`;
+                        rec.meetingDays = days;
+                        rec.schedulePattern = days.length && days.every((d) => d === 2 || d === 4) ? 'tth' : 'mwf';
+                    }
                     rec.weeklyFrequency = Math.max(1, Math.min(10, u.count || 1));
                     // A draft class: lives in the plan only; Apply to calendar makes it a real class.
                     delete rec.plannerSpecial;
