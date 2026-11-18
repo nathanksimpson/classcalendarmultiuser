@@ -29,6 +29,17 @@
         return norm(raw).replace(/\s+/g, '').toLowerCase();
     }
 
+    /** Every way a person's name can be written: "김현빈 (Olivia)" -> 김현빈(olivia), 김현빈, olivia. */
+    function nameVariants(raw) {
+        const text = norm(raw);
+        const out = new Set([nameKey(text)]);
+        const plain = nameKey(text.replace(/\([^)]*\)/g, ''));
+        if (plain) out.add(plain);
+        (text.match(/\(([^)]*)\)/g) || []).forEach((g) => { const k = nameKey(g.slice(1, -1)); if (k) out.add(k); });
+        out.delete('');
+        return Array.from(out);
+    }
+
     const mins = (s) => {
         const [h, m] = String(s).split(':').map(Number);
         return (h || 0) * 60 + (m || 0);
@@ -119,7 +130,12 @@
         const used = rows.filter((r) => (!wantTerm || !r.term || r.term === wantTerm) && !skipped.has(r.cohort));
 
         const profiles = appData.teacherProfiles || [];
-        const profileByName = new Map(profiles.map((t) => [nameKey(t.name), t]));
+        const profileByName = new Map();
+        profiles.forEach((t) => nameVariants(t.name).forEach((k) => { if (!profileByName.has(k)) profileByName.set(k, t); }));
+        const findProfile = (name) => {
+            const hit = nameVariants(name).map((k) => profileByName.get(k)).find(Boolean);
+            return hit || null;
+        };
         const periodFor = periodFinder(appData);
         const classes = api.allClasses ? api.allClasses(appData) : (appData.classes || []);
 
@@ -187,9 +203,8 @@
             // Classes left out of the plan (e.g. the extra class of a merged pair) only count when nothing else fits.
             const live = mine.filter((k) => k.plannerExcluded !== true);
             const pool = live.length ? live : mine;
-            let candidates = pool.filter((k) => api.subjectOfName(k.name) === subject);
-            // Classes named after the cohort alone ("Blue M", no "· Subject") carry every subject TMS lists for it.
-            if (!candidates.length) candidates = pool.filter((k) => !String(k.name || '').includes('\u00B7') && !/\bnews\b|debate|zoom/i.test(String(k.name || '')));
+            // One class per cohort and subject: a different subject is a different class (its own teacher and periods).
+            const candidates = pool.filter((k) => api.subjectOfName(k.name) === subject);
             // Several classes of one subject in a cohort: take the first that has no bucket yet, else the first.
             const cls = candidates.find((k) => !buckets.has(k.id)) || candidates[0];
             if (!cls) { trace(r, 'no-class'); }
@@ -257,7 +272,7 @@
             const names = Array.from(count.entries()).sort((a, b) => b[1] - a[1]);
             const top = names[0] ? names[0][0] : '';
             if (names.length > 1) report.multiTeacherClasses.push({ classId: cls.id, name: cls.name, teachers: names.map((x) => x[0]) });
-            const prof = top ? profileByName.get(nameKey(top)) : null;
+            const prof = top ? findProfile(top) : null;
             if (top && !prof) tally(report.unmatchedTeachers, top, { name: top });
             assignments.push({
                 assignmentId: `asg-tms-${assignments.length + 1}`,

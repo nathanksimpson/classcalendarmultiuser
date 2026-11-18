@@ -185,7 +185,7 @@ console.log('tms-schedule-import new-cohort data test passed');
 }
 console.log('tms-schedule-import trace test passed');
 
-// A class named after its cohort alone ("Blue M") takes whatever subject TMS lists for that cohort.
+// A class named after its cohort alone does NOT absorb every subject: each subject is its own class.
 {
     const bare = JSON.parse(JSON.stringify(cal));
     bare.classes = [{ id: 'b1', name: 'Blue M', cohortIds: ['co1'], cohortId: 'co1', weeklyFrequency: 3 }];
@@ -193,11 +193,21 @@ console.log('tms-schedule-import trace test passed');
     const out = I.buildDraftFromTms(bare, { placements: [
         row('Lee', 'mon', '15:20', 'BlueM^2609', 'Grammar'), row('Kim', 'tue', '15:20', 'BlueM^2609', 'RC')
     ] });
-    assert.equal(out.report.unmatchedClasses.length, 0);
-    assert.equal(out.report.matched, 2);
-    assert.ok(out.draft.assignments.length >= 1);
+    assert.equal(out.report.matched, 0);
+    assert.equal(out.report.unmatchedClasses.length, 2);
 }
 console.log('tms-schedule-import cohort-named class test passed');
+
+// Teacher names: "김현빈 (Olivia)" in the calendar matches "김현빈" or "Olivia" in TMS.
+{
+    const d = JSON.parse(JSON.stringify(cal));
+    d.teacherProfiles = [prof('t9', '김현빈 (Olivia)', 'korean')];
+    P.ensurePlannerFields(d);
+    const out = I.buildDraftFromTms(d, { placements: [row('김현빈', 'mon', '15:20', 'BlueM^2609', 'Reading'), row('Olivia', 'wed', '15:20', 'BlueM^2609', 'Reading')] });
+    assert.equal(out.report.unmatchedTeachers.length, 0);
+    assert.equal(out.draft.assignments[0].teacherProfileId, 't9');
+}
+console.log('tms-schedule-import teacher name test passed');
 
 // Draft classes live on the plan only: planner lookups and the importer see them, the calendar's classes do not change.
 {
