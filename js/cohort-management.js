@@ -1236,6 +1236,216 @@
         renderAll();
     }
 
+    /* ---- Generate subjects for every cohort at once (after importing many cohorts) ---- */
+
+    function isArchiveCohortForGenerate(cohort) {
+        const D = global.CCPClassroomDomain;
+        if (D && D.isArchiveCohort) {
+            return D.isArchiveCohort(cohort);
+        }
+        return !!(cohort && cohort.isArchiveCohort === true);
+    }
+
+    /**
+     * What the batch would do for each cohort, without changing anything.
+     * @param {object[]} cohorts
+     * @param {object|null} tmsBody  a TMS schedule pull, or null for the level schedule only
+     * @returns {Array<{ cohort, generation: object|null, note: string, hasClasses: boolean }>}
+     */
+    function planBatchGeneration(cohorts, tmsBody) {
+        const appData = hooks.getAppData();
+        const tmsApi = global.CCPTmsScheduleImport;
+        let term = '';
+        if (tmsBody && tmsApi && tmsApi.buildDraftFromTms && plannerApi()) {
+            term = tmsApi.buildDraftFromTms(appData, tmsBody).report.term || '';
+        }
+        return cohorts.map((cohort) => {
+            cohort.meetingDays = getCohortMeetingDays(cohort);
+            const hasClasses = (appData.classes || []).some((k) => classCohortIdsOf(k).includes(cohort.id));
+            let source = null;
+            let note = '';
+            if (tmsBody && tmsApi && plannerApi()) {
+                const plan = tmsApi.planCohortSubjectsFromTms(appData, tmsBody, cohort, { term });
+                if (plan.subjects.length) {
+                    source = { kind: 'tms', plan };
+                    note = t('cohortsGenAllFromTms');
+                }
+            }
+            if (!source && resolveMatrixLevel(cohort) && buildSubjectSlotsFromMatrix(cohort).length) {
+                source = { kind: 'matrix' };
+                note = t('cohortsGenAllFromMatrix');
+            }
+            if (!source) {
+                return { cohort, generation: null, note: t('cohortsGenAllNoSource'), hasClasses };
+            }
+            return { cohort, generation: planCohortGeneration(cohort, source), note, hasClasses };
+        });
+    }
+
+    /** The combined preview: a section per cohort (its own tick), a row per subject. Resolves to picks or null. */
+    function confirmBatchGeneration(plans, why) {
+        const box = document.createElement('div');
+        box.className = 'cohorts-generate-preview cohorts-generate-all';
+        const head = document.createElement('p');
+        head.className = 'section-hint';
+        head.textContent = why;
+        box.appendChild(head);
+        const picks = [];
+        // A class created for an earlier cohort in this batch is shared, not made twice.
+        const madeFor = new Map();
+        plans.forEach((p) => {
+            const sec = document.createElement('section');
+            sec.className = 'cohorts-generate-all-cohort';
+            const h = document.createElement('label');
+            h.className = 'checkbox-label';
+            const title = cohortDisplayName(p.cohort);
+            const cohortBox = document.createElement('input');
+            cohortBox.type = 'checkbox';
+            cohortBox.checked = !!p.generation && p.generation.rows.length > 0 && !p.hasClasses;
+            cohortBox.disabled = !p.generation || !p.generation.rows.length;
+            h.appendChild(cohortBox);
+            const strong = document.createElement('strong');
+            strong.textContent = ' ' + title;
+            h.appendChild(strong);
+            const small = document.createElement('span');
+            small.className = 'section-hint';
+            small.textContent = ' · ' + p.note + (p.hasClasses ? ' ' + t('cohortsGenAllHasClasses') : '');
+            h.appendChild(small);
+            sec.appendChild(h);
+            const rowPicks = [];
+            if (p.generation && p.generation.rows.length) {
+                const table = document.createElement('table');
+                table.className = 'cohort-subject-grid';
+                const tbody = document.createElement('tbody');
+                p.generation.rows.forEach((row) => {
+                    const tr = document.createElement('tr');
+                    const choices = row.slot.choices || [];
+                    const picked = row.cls ? (choices.find((c) => slotSubjectKeys({ subjectTrack: c }).has(classSubjectKey(row.cls))) || choices[0]) : choices[0];
+                    const subjectCell = choices.length
+                        ? `<select class="field-select" data-gen-choice>${choices.map((c) => `<option value="${escapeHtml(c)}"${c === picked ? ' selected' : ''}>${escapeHtml(subjectTrackLabel(c))}</option>`).join('')}</select>`
+                        : escapeHtml(slotLabel(row.slot));
+                    const key = row.slot.subjectKey || row.slot.subjectTrack;
+                    const earlier = row.how === 'create'
+                        ? row.partners.find((c) => madeFor.has(`${c.id}|${key}`))
+                        : null;
+                    let what;
+                    if (earlier) {
+                        what = t('cohortsGenAllSharesNew').replace('{name}', displayName(earlier.name));
+                    } else if (row.how === 'create') {
+                        what = row.partners.length
+                            ? t('cohortsGenCreateShared').replace('{cohorts}', row.partners.map((c) => displayName(c.name)).join(', '))
+                            : t('cohortsGenCreate');
+                        madeFor.set(`${p.cohort.id}|${key}`, true);
+                    } else {
+                        what = t(row.how === 'share' ? 'cohortsGenShare' : row.how === 'link' ? 'cohortsGenLink' : 'cohortsGenUpdate')
+                            .replace('{name}', row.cls.name || row.cls.id);
+                    }
+                    tr.innerHTML = `<td><input type="checkbox" checked></td><td>${subjectCell}</td>
+                        <td>${escapeHtml(formatPlacementsShort(row.slot))}</td><td>${escapeHtml(row.slot.tmsTeacherName || '—')}</td>
+                        <td>${escapeHtml(what)}</td>`;
+                    rowPicks.push({ track: row.slot.subjectTrack, box: tr.querySelector('input'), select: tr.querySelector('[data-gen-choice]') });
+                    tbody.appendChild(tr);
+                });
+                table.appendChild(tbody);
+                const wrap = document.createElement('div');
+                wrap.className = 'cohort-subject-grid-wrap';
+                wrap.appendChild(table);
+                sec.appendChild(wrap);
+                const sync = () => {
+                    wrap.hidden = !cohortBox.checked;
+                };
+                cohortBox.addEventListener('change', sync);
+                sync();
+            }
+            box.appendChild(sec);
+            picks.push({ cohort: p.cohort, cohortBox, rowPicks });
+        });
+        return showGenerateModal(t('cohortsGenAllTitle'), box, t('cohortsGenApply'), () => picks
+            .filter((p) => p.cohortBox.checked)
+            .map((p) => ({
+                cohort: p.cohort,
+                rows: p.rowPicks.filter((r) => r.box.checked).map((r) => ({ track: r.track, choice: r.select ? r.select.value : '' }))
+            }))
+            .filter((p) => p.rows.length));
+    }
+
+    /**
+     * Apply the batch cohort by cohort. Each cohort is planned again just before it is applied, so a class made
+     * for an earlier cohort (taught together in TMS) is found and shared instead of made twice.
+     */
+    function applyBatchGeneration(picks, tmsBody) {
+        const total = { cohorts: 0, created: 0, updated: 0, linked: 0 };
+        picks.forEach((pick) => {
+            const plan = planBatchGeneration([pick.cohort], tmsBody)[0];
+            if (!plan.generation) {
+                return;
+            }
+            const wanted = new Map(pick.rows.map((r) => [r.track, r]));
+            const rows = plan.generation.rows.filter((r) => wanted.has(r.slot.subjectTrack));
+            rows.forEach((r) => {
+                const w = wanted.get(r.slot.subjectTrack);
+                if (w.choice) {
+                    r.choice = w.choice;
+                }
+            });
+            if (!rows.length) {
+                return;
+            }
+            const res = applyCohortGeneration(pick.cohort, plan.generation, rows);
+            total.cohorts += 1;
+            total.created += res.created;
+            total.updated += res.updated;
+            total.linked += res.linked;
+        });
+        return total;
+    }
+
+    async function runGenerateSubjectsForAll() {
+        if (!hooks || (hooks.isViewOnly && hooks.isViewOnly())) {
+            showTeamLockBlockedMessage();
+            return;
+        }
+        const appData = hooks.getAppData();
+        const cohorts = (appData.cohorts || []).filter((c) => c && !isArchiveCohortForGenerate(c) && normalizeStr(c.name));
+        if (!cohorts.length) {
+            hooks.showMessage(t('cohortsGenAllNone'), true);
+            return;
+        }
+        let tmsBody = null;
+        let why = t('cohortsGenAllIntroTms');
+        if (!global.CCPTmsScheduleImport || !plannerApi()) {
+            why = t('cohortsGenAllIntroMatrix').replace('{why}', t('cohortsGenTmsNoSync'));
+        } else {
+            const pulled = await pullTmsScheduleForGenerate();
+            if (pulled.body) {
+                tmsBody = pulled.body;
+            } else {
+                why = t('cohortsGenAllIntroMatrix').replace('{why}', pulled.cancelled ? t('cohortsGenTmsSkipped') : pulled.reason);
+            }
+        }
+        const plans = planBatchGeneration(cohorts, tmsBody);
+        const picks = await confirmBatchGeneration(plans, why);
+        if (!picks || !picks.length) {
+            return;
+        }
+        const total = applyBatchGeneration(picks, tmsBody);
+        hooks.saveData();
+        if (hooks.invalidateScheduleCache) {
+            hooks.invalidateScheduleCache();
+        }
+        if (hooks.refreshClassEditorCohortUiIfOpen) {
+            hooks.refreshClassEditorCohortUiIfOpen();
+        } else if (hooks.populateClassCohortSelect) {
+            hooks.populateClassCohortSelect();
+        }
+        hooks.showMessage(t('cohortsGenAllDone')
+            .replace('{cohorts}', String(total.cohorts))
+            .replace('{created}', String(total.created))
+            .replace('{updated}', String(total.updated))
+            .replace('{linked}', String(total.linked)), false);
+        renderAll();
+    }
+
     function renderSummary() {
         const el = document.getElementById('cohortManagementSummary');
         if (!el || !hooks) {
@@ -3311,6 +3521,18 @@
         document.body.dataset.cohortsTabBound = '1';
         document.getElementById('cohortsAddBtn')?.addEventListener('click', () => addCohort());
         document.getElementById('cohortsPrintHrListBtn')?.addEventListener('click', () => printHrTeacherList());
+        document.getElementById('cohortsGenerateAllBtn')?.addEventListener('click', (ev) => {
+            const btn = ev.currentTarget;
+            btn.disabled = true;
+            runGenerateSubjectsForAll()
+                .catch((err) => {
+                    console.error(err);
+                    hooks.showMessage(t('cohortsGenTmsFailed'), true);
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                });
+        });
         document.getElementById('cohortsImportBtn')?.addEventListener('click', () => importFromClasses());
         document.getElementById('cohortsListSearch')?.addEventListener('input', () => {
             renderCohortList();
@@ -3421,6 +3643,8 @@
         resolveMatrixLevel,
         planCohortGeneration,
         applyCohortGeneration,
+        planBatchGeneration,
+        applyBatchGeneration,
         generateClassesForCohort,
         importFromClasses,
         inferBlankCohortSchedulesIfNeeded,

@@ -183,4 +183,34 @@ assert.equal(appData.classes.find((c) => c.id === gRow.slot.classId).weeklyFrequ
     assert.ok(yAgain.rows.every((r) => r.how === 'update'), 'second run only updates');
 }
 
+/* ---------- batch: every cohort at once, shared classes made once ---------- */
+{
+    const fresh = [
+        { id: 'co-p', name: 'PinkT^2609', meetingDays: [2, 4], schedulePattern: 'tth', students: [] },
+        { id: 'co-q', name: 'TealT^2609', meetingDays: [2, 4], schedulePattern: 'tth', students: [] }
+    ];
+    appData.cohorts.push(...fresh);
+    const body = { placements: [
+        row('Han', 'tue', '14:30', 'PinkT^2609', 'Grammar'),
+        row('Han', 'tue', '14:30', 'TealT^2609', 'Grammar'),
+        row('Han', 'thu', '14:30', 'PinkT^2609', 'Grammar'),
+        row('Han', 'thu', '14:30', 'TealT^2609', 'Grammar'),
+        row('Seo', 'tue', '15:20', 'TealT^2609', 'News')
+    ] };
+    const plans = CM.planBatchGeneration(fresh, body);
+    assert.equal(plans.length, 2);
+    assert.ok(plans.every((p) => p.generation && !p.hasClasses));
+    const before = appData.classes.length;
+    const total = CM.applyBatchGeneration(plans.map((p) => ({
+        cohort: p.cohort,
+        rows: p.generation.rows.map((r) => ({ track: r.slot.subjectTrack, choice: '' }))
+    })), body);
+    assert.equal(total.cohorts, 2);
+    assert.equal(appData.classes.length - before, 2, 'one shared Grammar class + Teal News');
+    const shared = appData.classes.find((c) => c.name === 'PinkT + TealT \u00B7 Grammar');
+    assert.ok(shared, 'shared class named for both cohorts');
+    assert.deepEqual(TT.getClassCohortIds(shared).sort(), ['co-p', 'co-q']);
+    assert.ok(fresh[1].subjectSlots.some((sl) => sl.classId === shared.id), 'Teal row points at the shared class');
+}
+
 console.log('cohort-generate-subjects tests passed');
