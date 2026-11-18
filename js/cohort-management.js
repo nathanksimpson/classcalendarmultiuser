@@ -592,7 +592,6 @@
     /** TMS subjects that are built-in class types. */
     const BUILTIN_TYPE_BY_SUBJECT = { debate: 'builtin-debate', speakingwriting: 'builtin-wr-sp' };
     /** A schedule pull from TMS is reused for this long (it reads every teacher's timetable, which takes a while). */
-    const TMS_PULL_REUSE_MS = 60 * 60 * 1000;
 
     function plannerApi() {
         return global.CCPTeacherPlanner || null;
@@ -1027,81 +1026,30 @@
         });
     }
 
-    function askTmsLoginForGenerate(problem) {
-        const S = global.CCPTmsSync;
-        const box = document.createElement('div');
-        const saved = S && S.getSavedUsername ? S.getSavedUsername() : '';
-        box.innerHTML = `
-            <p class="section-hint">${escapeHtml(t('cohortsGenTmsLoginHint'))}</p>
-            ${problem ? `<p class="section-hint form-error" role="alert">${escapeHtml(problem)}</p>` : ''}
-            <label class="form-group"><span>${escapeHtml(t('cohortsGenTmsUser'))}</span>
-                <input type="text" class="field-input" data-gen-user autocomplete="username" spellcheck="false" value="${escapeHtml(saved)}"></label>
-            <label class="form-group"><span>${escapeHtml(t('cohortsGenTmsPass'))}</span>
-                <input type="password" class="field-input" data-gen-pass autocomplete="current-password"></label>
-            <p class="section-hint">${escapeHtml(t('cohortsGenTmsSkipHint'))}</p>`;
-        return showGenerateModal(t('cohortsGenTmsLoginTitle'), box, t('cohortsGenTmsSignIn'), () => {
-            const username = normalizeStr(box.querySelector('[data-gen-user]').value);
-            const password = box.querySelector('[data-gen-pass]').value;
-            if (username && S && S.setSavedUsername) {
-                try {
-                    S.setSavedUsername(username);
-                } catch (_e) { /* optional */ }
-            }
-            return { username, password };
-        });
-    }
-
     /**
      * Every teacher's timetable from TMS (the Sync Helper reads it; nothing is written to TMS).
-     * A pull from the last hour (here or in the Schedule Planner) is reused.
+     * Uses the shared TMS pull: a pull from the last hour (here, the Planner or the term wizard) is reused,
+     * and the tab's TMS sign-in is asked for only once.
      * @returns {Promise<{ body?: object, reason?: string, cancelled?: boolean }>}
      */
     async function pullTmsScheduleForGenerate() {
-        const last = global.CCPLastTmsSchedulePull;
-        if (last && last.body && Array.isArray(last.body.placements) && Date.now() - last.at < TMS_PULL_REUSE_MS) {
-            return { body: last.body, reused: true };
-        }
         const S = global.CCPTmsSync;
-        if (!S || !S.run) {
+        if (!S || !S.pullSchedule) {
             return { reason: t('cohortsGenTmsNoSync') };
         }
         try {
-            const st = S.getBridgeState && S.getBridgeState().checked ? S.getBridgeState() : await S.detectBridge();
-            if (!S.isBridgeReady(st) && !(st && st.status === 'outdated')) {
-                return { reason: t('cohortsGenTmsNoHelper') };
-            }
-        } catch (_e) {
-            return { reason: t('cohortsGenTmsNoHelper') };
-        }
-        let problem = '';
-        for (;;) {
-            const creds = await askTmsLoginForGenerate(problem);
-            if (!creds) {
-                return { cancelled: true };
-            }
-            hooks.showMessage(t('cohortsGenTmsPulling'), false);
-            try {
-                const payload = {};
-                if (creds.username || creds.password) {
-                    payload.username = creds.username;
-                    payload.password = creds.password;
-                }
-                const body = await S.run('schedule', payload);
-                if (!body || !Array.isArray(body.placements)) {
-                    return { reason: t('cohortsGenTmsFailed') };
-                }
-                global.CCPLastTmsSchedulePull = { at: Date.now(), body };
-                return { body };
-            } catch (err) {
-                const code = err && err.code;
-                if (code === 'TMS_CREDS_MISSING') {
-                    problem = t('cohortsGenTmsNeedLogin');
-                } else if (code === 'TMS_LOGIN_FAILED' || (err && err.status === 401)) {
-                    problem = t('cohortsGenTmsLoginFailed');
-                } else {
-                    return { reason: (err && err.message) || t('cohortsGenTmsFailed') };
-                }
-            }
+            return await S.pullSchedule({
+                signIn: {
+                    title: t('cohortsGenTmsLoginTitle'),
+                    hint: t('cohortsGenTmsLoginHint'),
+                    note: t('cohortsGenTmsSkipHint'),
+                    submitLabel: t('cohortsGenTmsSignIn')
+                },
+                onSignedIn: () => hooks.showMessage(t('cohortsGenTmsPulling'), false)
+            });
+        } catch (err) {
+            // The reason fills "because {why}", so the missing-helper case keeps its short phrase.
+            return { reason: S.isHelperMissingError(err) ? t('cohortsGenTmsNoHelper') : S.errorText(err, t('cohortsGenTmsFailed')) };
         }
     }
 

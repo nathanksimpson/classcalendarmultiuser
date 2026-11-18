@@ -49,22 +49,6 @@
     /** Groups from planCohortDuplicateMerges for the open Find duplicates dialog. */
     let dedupPlan = [];
 
-    function cleanTmsSyncCohortName(name) {
-        const stripped = String(name || '')
-            .replace(/^\[[^\]]+\]\s*/u, '')
-            .replace(/\s+/g, ' ')
-            .trim();
-        return (stripped.split('^')[0] || stripped).trim();
-    }
-
-    function inferScheduleFromTmsSyncName(name) {
-        const core = cleanTmsSyncCohortName(name).split('^')[0] || '';
-        if (/T\s*$/i.test(core) || /T_\d/i.test(core)) {
-            return { schedulePattern: 'tth', meetingDays: [2, 4] };
-        }
-        return { schedulePattern: 'mwf', meetingDays: [1, 3, 5] };
-    }
-
     function cohortManagement() {
         return global.CCPCohortManagement || null;
     }
@@ -136,7 +120,7 @@
                 cm.removeNamelessCohortDraft(row.tmsCreatedCohortId);
             }
         }
-        const sched = inferScheduleFromTmsSyncName(row.importCohortName);
+        const sched = global.CCPTmsClassName.scheduleForNewCohort(row.importCohortName);
         const appData = hooks && hooks.getAppData ? hooks.getAppData() : null;
         const mapped =
             row.schedule && domain().mapTmsBlockToPeriod
@@ -147,7 +131,7 @@
                   )
                 : null;
         const draft = cm.createCohortDraftFromTms({
-            name: cleanTmsSyncCohortName(row.importCohortName),
+            name: global.CCPTmsClassName.stripTmsClassName(row.importCohortName),
             schedulePattern: sched.schedulePattern,
             meetingDays: sched.meetingDays,
             tmsBlockStart: mapped && mapped.start ? mapped.start : '',
@@ -1226,63 +1210,6 @@
         }
     }
 
-    const TMS_USERNAME_STORAGE_KEY = 'ccp.tmsRosterUsername';
-
-    function clearTmsPasswordField() {
-        const pwd = document.getElementById('rosterTmsPassword');
-        if (pwd) {
-            pwd.value = '';
-        }
-    }
-
-    function readTmsCredFields() {
-        const userEl = document.getElementById('rosterTmsUsername');
-        const passEl = document.getElementById('rosterTmsPassword');
-        const rememberEl = document.getElementById('rosterTmsRememberUser');
-        const dom = {
-            username: userEl ? String(userEl.value || '').trim() : '',
-            password: passEl ? String(passEl.value || '') : '',
-            rememberUser: Boolean(rememberEl && rememberEl.checked)
-        };
-        if ((userEl || passEl) && (dom.username || dom.password)) {
-            return dom;
-        }
-        if (global.CCPTmsSyncCenter && global.CCPTmsSyncCenter.getCredentials) {
-            return global.CCPTmsSyncCenter.getCredentials();
-        }
-        return dom;
-    }
-
-    function persistTmsUsernamePreference(username, remember) {
-        try {
-            if (remember && username) {
-                localStorage.setItem(TMS_USERNAME_STORAGE_KEY, username);
-            } else {
-                localStorage.removeItem(TMS_USERNAME_STORAGE_KEY);
-            }
-        } catch (_) {
-            /* ignore quota / private mode */
-        }
-    }
-
-    function hydrateTmsCredForm() {
-        const userEl = document.getElementById('rosterTmsUsername');
-        const rememberEl = document.getElementById('rosterTmsRememberUser');
-        clearTmsPasswordField();
-        let saved = '';
-        try {
-            saved = String(localStorage.getItem(TMS_USERNAME_STORAGE_KEY) || '').trim();
-        } catch (_) {
-            saved = '';
-        }
-        if (userEl) {
-            userEl.value = saved;
-        }
-        if (rememberEl) {
-            rememberEl.checked = Boolean(saved);
-        }
-    }
-
     function setTmsSyncError(msg) {
         const el = document.getElementById('rosterTmsSyncError');
         if (!el) {
@@ -1351,7 +1278,6 @@
         tmsCohortConflictIndex = 0;
         setTmsSyncError('');
         setTmsSyncStatus('');
-        clearTmsPasswordField();
         const confirmBtn = document.getElementById('rosterTmsSyncConfirmBtn');
         if (confirmBtn) {
             confirmBtn.disabled = true;
@@ -1694,7 +1620,7 @@
         const target = creating
             ? {
                   id: '',
-                  name: cleanTmsSyncCohortName(row.importCohortName),
+                  name: global.CCPTmsClassName.stripTmsClassName(row.importCohortName),
                   students: [],
                   tmsStudentResolutions: {}
               }
@@ -2001,7 +1927,7 @@
     }
 
     function findEditableCohortsMatchingName(tmsName) {
-        const cleaned = cleanTmsSyncCohortName(tmsName);
+        const cleaned = global.CCPTmsClassName.stripTmsClassName(tmsName);
         const exact = String(cleaned || '').trim();
         const norm = normalizeCohortLabelLocal(cleaned);
         return getCohorts().filter((c) => {
@@ -2033,7 +1959,7 @@
             queue.push({
                 rowIdx,
                 importCohortName: row.importCohortName,
-                cleanedName: cleanTmsSyncCohortName(row.importCohortName),
+                cleanedName: global.CCPTmsClassName.stripTmsClassName(row.importCohortName),
                 candidates,
                 userChoice: row.cohortConflictChoice || ''
             });
@@ -2973,12 +2899,6 @@
         document.getElementById('rosterTmsLoadBtn')?.addEventListener('click', () => {
             void loadTmsSyncPreview();
         });
-        document.getElementById('rosterTmsPassword')?.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                void loadTmsSyncPreview();
-            }
-        });
         document.getElementById('rosterTmsSyncConfirmBtn')?.addEventListener('click', () => {
             void confirmTmsSync();
         });
@@ -3026,16 +2946,8 @@
         tmsSyncAppliedThisClose = false;
         setTmsSyncError('');
         setTmsSyncStatus('');
-        hydrateTmsCredForm();
         renderTmsSyncTable();
         hooks.openModal(document.getElementById('rosterTmsSyncModal'));
-        const userEl = document.getElementById('rosterTmsUsername');
-        const passEl = document.getElementById('rosterTmsPassword');
-        if (userEl && !userEl.value) {
-            userEl.focus();
-        } else if (passEl) {
-            passEl.focus();
-        }
     }
 
     /**
@@ -3076,8 +2988,7 @@
             setTmsSyncError(t('rosterImportReadOnly'));
             return;
         }
-        const creds = readTmsCredFields();
-        persistTmsUsernamePreference(creds.username, creds.rememberUser);
+        const creds = global.CCPTmsSync.credentialsForSync();
 
         tmsSyncPlan = [];
         tmsSyncLoading = true;
@@ -3114,7 +3025,6 @@
             }
             tmsSyncHasFetched = true;
             loadedRosterBody = body;
-            clearTmsPasswordField();
             const cohorts = body.cohorts;
             const calendar = getCohorts();
             const links = getTmsRosterLinks();

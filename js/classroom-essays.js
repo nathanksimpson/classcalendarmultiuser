@@ -51,7 +51,6 @@
         hasResubmitsOnly: true
     };
     let noteDebouncedSave = null;
-    const ESSAY_TMS_USERNAME_KEY = 'ccp.tmsRosterUsername';
     const ESSAY_TMS_BRIDGE_TIMEOUT_MS = 120000;
     const ESSAY_TMS_BRIDGE_STILL_LOADING_MS = 15000;
     let essayTmsPreview = null;
@@ -5321,53 +5320,6 @@
         }
     }
 
-    function hydrateEssayTmsCredForm() {
-        const userEl = document.getElementById('essayTmsUsername');
-        const rememberEl = document.getElementById('essayTmsRememberUser');
-        let saved = '';
-        try {
-            saved = String(localStorage.getItem(ESSAY_TMS_USERNAME_KEY) || '');
-        } catch (_) {
-            saved = '';
-        }
-        if (userEl && !userEl.value && saved) {
-            userEl.value = saved;
-        }
-        if (rememberEl) {
-            rememberEl.checked = Boolean(saved);
-        }
-    }
-
-    function readEssayTmsCreds() {
-        const userEl = document.getElementById('essayTmsUsername');
-        const passEl = document.getElementById('essayTmsPassword');
-        const rememberEl = document.getElementById('essayTmsRememberUser');
-        const dom = {
-            username: userEl ? String(userEl.value || '').trim() : '',
-            password: passEl ? String(passEl.value || '') : '',
-            rememberUser: Boolean(rememberEl && rememberEl.checked)
-        };
-        if ((userEl || passEl) && (dom.username || dom.password)) {
-            return dom;
-        }
-        if (global.CCPTmsSyncCenter && global.CCPTmsSyncCenter.getCredentials) {
-            return global.CCPTmsSyncCenter.getCredentials();
-        }
-        return dom;
-    }
-
-    function persistEssayTmsUsername(username, remember) {
-        try {
-            if (remember && username) {
-                localStorage.setItem(ESSAY_TMS_USERNAME_KEY, username);
-            } else if (!remember) {
-                localStorage.removeItem(ESSAY_TMS_USERNAME_KEY);
-            }
-        } catch (_) {
-            /* ignore */
-        }
-    }
-
     function essayTmsUnmatchedReason(row) {
         const reason = row && row.reason;
         if (reason === 'class_unlinked' || reason === 'class_missing') {
@@ -5994,16 +5946,8 @@
         essayTmsWizardStep = 1;
         setEssayTmsError('');
         setEssayTmsStatus('');
-        hydrateEssayTmsCredForm();
         renderEssayTmsPreview();
         hooks.openModal(document.getElementById('essayTmsSyncModal'));
-        const userEl = document.getElementById('essayTmsUsername');
-        const passEl = document.getElementById('essayTmsPassword');
-        if (userEl && !userEl.value) {
-            userEl.focus();
-        } else if (passEl) {
-            passEl.focus();
-        }
     }
 
     function isEssayTmsStaleBridgeError(err, res, body) {
@@ -6031,8 +5975,7 @@
             setEssayTmsError(t('rosterImportReadOnly') || 'Read only');
             return;
         }
-        const creds = readEssayTmsCreds();
-        persistEssayTmsUsername(creds.username, creds.rememberUser);
+        const creds = global.CCPTmsSync.credentialsForSync();
         essayTmsPreview = null;
         essayTmsPlan = [];
         essayTmsHasFetched = false;
@@ -6355,12 +6298,6 @@
         document.getElementById('essayTmsLoadBtn')?.addEventListener('click', () => {
             void loadEssayTmsPreview();
         });
-        document.getElementById('essayTmsPassword')?.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                void loadEssayTmsPreview();
-            }
-        });
         document.getElementById('essayTmsSyncConfirmBtn')?.addEventListener('click', () => {
             void confirmEssayTmsSync();
         });
@@ -6663,9 +6600,7 @@
         if (options && Object.prototype.hasOwnProperty.call(options, 'classId')) {
             essayTmsFilterClassId = options.classId || '';
         }
-        if (creds && (creds.username || creds.password)) {
-            /* Center credentials are read by readEssayTmsCreds. */
-        }
+        // The Sync Center's sign-in is read by CCPTmsSync.credentialsForSync().
         return loadEssayTmsPreview();
     }
 

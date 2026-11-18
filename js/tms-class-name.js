@@ -138,7 +138,41 @@
         return list.length ? list[0].code : '';
     }
 
+    /** TMS name without "[HR] " and "^term", keeping the M/T day letter (what roster sync shows and matches on). */
+    function stripTmsClassName(name) {
+        const stripped = String(name || '')
+            .replace(/^\[[^\]]+\]\s*/u, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+        return (stripped.split('^')[0] || stripped).trim();
+    }
+
+    /** Calendar cohort name for a TMS class: also drops the M/T day letter and the term code. */
+    function cohortNameFromTms(name) {
+        const meta = parseTmsClassNameMeta(name);
+        return meta.baseName || stripTmsClassName(name);
+    }
+
+    /**
+     * Meeting pattern for a new cohort made from a TMS class: the M/T day letter when TMS has one,
+     * otherwise a trailing T (or T_term) means Tue/Thu, and anything else Mon/Wed/Fri.
+     */
+    function scheduleForNewCohort(name) {
+        const meta = parseTmsClassNameMeta(name);
+        if (meta.schedulePattern) {
+            return { schedulePattern: meta.schedulePattern, meetingDays: meta.meetingDays.slice() };
+        }
+        const core = stripTmsClassName(name);
+        if (/T\s*$/i.test(core) || /T_\d/i.test(core)) {
+            return { schedulePattern: 'tth', meetingDays: [2, 4] };
+        }
+        return { schedulePattern: 'mwf', meetingDays: [1, 3, 5] };
+    }
+
     global.CCPTmsClassName = {
+        stripTmsClassName,
+        cohortNameFromTms,
+        scheduleForNewCohort,
         cleanTmsCohortDisplayName,
         inferScheduleFromTmsClassName,
         parseTmsClassNameMeta,

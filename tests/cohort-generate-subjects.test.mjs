@@ -14,7 +14,8 @@ globalThis.window = globalThis;
 const el = () => ({ addEventListener() {}, dataset: {}, value: '', innerHTML: '', textContent: '', querySelector: () => null, querySelectorAll: () => [] });
 globalThis.document = { body: el(), documentElement: { lang: 'en', getAttribute: () => null }, getElementById: () => null, querySelector: () => null, querySelectorAll: () => [], createElement: el };
 for (const f of ['schedule-matrix-data.js', 'syllabus-schedule-matrix.js', 'level-profile.js', 'timetable-periods.js',
-    'teacher-timetable.js', 'planner/teacher-planner-core.js', 'planner/tms-schedule-import.js', 'cohort-management.js']) {
+    'teacher-timetable.js', 'planner/teacher-planner-core.js', 'planner/tms-schedule-import.js', 'cohort-management.js',
+    'tms-class-name.js']) {
     await import(pathToFileURL(path.join(root, 'js', f)).href);
 }
 const I = globalThis.CCPTmsScheduleImport;

@@ -10,7 +10,6 @@
 (function (global) {
     'use strict';
 
-    const TMS_USERNAME_STORAGE_KEY = 'ccp.tmsRosterUsername';
     const TRANSLATE_PATH = '/translate';
     const TRANSLATE_GAP_MS = 150;
     const TRANSLATE_CONCURRENCY = 2;
@@ -613,61 +612,13 @@
         return (options && options.classId) || (data.ui && data.ui.classroomTabClassId) || '';
     }
 
-    function persistTmsUsernamePreference(username, remember) {
-        try {
-            if (remember && username) {
-                localStorage.setItem(TMS_USERNAME_STORAGE_KEY, username);
-            } else {
-                localStorage.removeItem(TMS_USERNAME_STORAGE_KEY);
-            }
-        } catch (_) {
-            /* ignore */
-        }
-    }
-
-    function hydrateTmsCredForm() {
-        const userEl = document.getElementById('briefingTmsUsername');
-        const passEl = document.getElementById('briefingTmsPassword');
-        const rememberEl = document.getElementById('briefingTmsRememberUser');
+    function clearModalError() {
         const errEl = document.getElementById('briefingTmsModalError');
-        if (passEl) {
-            passEl.value = '';
-        }
         if (errEl) {
             errEl.hidden = true;
             errEl.textContent = '';
         }
-        let saved = '';
-        try {
-            saved = String(localStorage.getItem(TMS_USERNAME_STORAGE_KEY) || '').trim();
-        } catch (_) {
-            saved = '';
-        }
-        if (userEl) {
-            userEl.value = saved;
-        }
-        if (rememberEl) {
-            rememberEl.checked = Boolean(saved);
-        }
         syncModalConfirmEnabled();
-    }
-
-    function readTmsCredFields() {
-        const userEl = document.getElementById('briefingTmsUsername');
-        const passEl = document.getElementById('briefingTmsPassword');
-        const rememberEl = document.getElementById('briefingTmsRememberUser');
-        const dom = {
-            username: userEl ? String(userEl.value || '').trim() : '',
-            password: passEl ? String(passEl.value || '') : '',
-            rememberUser: Boolean(rememberEl && rememberEl.checked)
-        };
-        if ((userEl || passEl) && (dom.username || dom.password)) {
-            return dom;
-        }
-        if (global.CCPTmsSyncCenter && global.CCPTmsSyncCenter.getCredentials) {
-            return global.CCPTmsSyncCenter.getCredentials();
-        }
-        return dom;
     }
 
     function syncModalConfirmEnabled() {
@@ -675,7 +626,7 @@
         if (!btn) {
             return;
         }
-        const creds = readTmsCredFields();
+        const creds = global.CCPTmsSync.currentCredentials();
         btn.disabled = !(creds.username && creds.password);
     }
 
@@ -727,15 +678,8 @@
                 .replace('{count}', String(studentTotal))
                 .replace('{classes}', String(pendingSyncPlan.length));
         }
-        hydrateTmsCredForm();
+        clearModalError();
         openModalFn(modal);
-        const userEl = document.getElementById('briefingTmsUsername');
-        const passEl = document.getElementById('briefingTmsPassword');
-        if (userEl && !userEl.value) {
-            userEl.focus();
-        } else if (passEl) {
-            passEl.focus();
-        }
     }
 
     function closeTmsLoginModal() {
@@ -1553,7 +1497,7 @@
     async function confirmTmsLogin(planOverride, options) {
         const opts = options || {};
         const passed = opts.creds && opts.creds.username ? opts.creds : null;
-        const creds = passed || readTmsCredFields();
+        const creds = passed || global.CCPTmsSync.currentCredentials();
         const bridgeState = global.CCPTmsSync && global.CCPTmsSync.getBridgeState
             ? global.CCPTmsSync.getBridgeState()
             : null;
@@ -1568,7 +1512,7 @@
             }
             return;
         }
-        persistTmsUsernamePreference(creds.username, creds.rememberUser);
+        global.CCPTmsSync.setSavedUsername(creds.username, creds.rememberUser);
 
         const confirmBtn = document.getElementById('briefingTmsConfirmBtn');
         const plan = Array.isArray(planOverride) && planOverride.length
@@ -1661,10 +1605,6 @@
             if (confirmBtn) {
                 syncModalConfirmEnabled();
             }
-            const passEl = document.getElementById('briefingTmsPassword');
-            if (passEl) {
-                passEl.value = '';
-            }
         }
         // Sync Center needs to know this kind failed so it can say so.
         if (syncError && opts.rethrow) {
@@ -1692,15 +1632,6 @@
         });
         document.getElementById('briefingTmsCancelBtn')?.addEventListener('click', () => {
             closeTmsLoginModal();
-        });
-        ['briefingTmsUsername', 'briefingTmsPassword'].forEach((id) => {
-            document.getElementById(id)?.addEventListener('input', syncModalConfirmEnabled);
-            document.getElementById(id)?.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    void confirmTmsLogin();
-                }
-            });
         });
         if (global.CCPActiveContext && !bindEventsOnce._subscribed) {
             bindEventsOnce._subscribed = true;
