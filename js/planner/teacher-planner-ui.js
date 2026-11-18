@@ -2738,7 +2738,15 @@ ${by.get(cid).map((d) => `
             term: rep.term || '–', periods: out.draft.assignments.reduce((n, a) => n + (a.meetings || []).length, 0), classes: out.draft.assignments.length
         }) + (left ? ' ' + t('spTmsLeft', 'Left out: {cohorts} cohorts, {classes} classes and {teachers} teachers that are not in this calendar.', {
             cohorts: rep.unmatchedCohorts.length, classes: rep.unmatchedClasses.length, teachers: rep.unmatchedTeachers.length
-        }) : ''), left ? 'info' : 'success');
+        }) : '') + mergedNote(rep), left ? 'info' : 'success');
+    }
+
+    /** "Merged classes in TMS: A + B (Kim), …" for merged classes the calendar does not hold as one class yet. */
+    function mergedNote(rep) {
+        const open = (rep.mergedClasses || []).filter((m) => !m.calendarMerged);
+        if (!open.length) return '';
+        const list = open.slice(0, 4).map((m) => `${m.cohorts.join(' + ')} (${m.teacher})`).join('; ');
+        return ' ' + t('spTmsMerged', 'Merged in TMS: {list}. In this calendar they are still separate classes; give them one class with both cohorts to plan them together.', { list });
     }
 
     async function loadFromCalendar() {
