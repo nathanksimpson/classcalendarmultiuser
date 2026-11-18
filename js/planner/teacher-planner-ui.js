@@ -2506,7 +2506,7 @@ ${by.get(cid).map((d) => `
             const sum = $('spTmsMapSummary');
             if (sum) {
                 sum.hidden = !summary;
-                if (summary) sum.textContent = t('spTmsMapSummary', '{used} periods read from TMS for this term: {matched} already fit your cohorts and classes, {open} need a decision.', summary);
+                if (summary) sum.textContent = t('spTmsMapSummary', '{used} periods read from TMS for this term: {matched} fit existing classes, {draft} will become draft classes, {open} need a cohort (below).', summary);
             }
             list.innerHTML = '';
             // One row per TMS class (term suffix dropped: 샘물M^2609 and 샘물M^2612 are the same class). When TMS
@@ -2730,7 +2730,7 @@ ${by.get(cid).map((d) => `
         const createdIds = new Set();
         if (rep.unmatchedCohorts.length && freshModel() && !readOnly()) {
             const unmatchedNow = rep.unmatchedCohorts;
-            const picks = await askTmsMapping(unmatchedNow, { used: rep.used, matched: rep.matched, open: rep.used - rep.matched });
+            const picks = await askTmsMapping(unmatchedNow, { used: rep.used, matched: rep.matched, draft: (rep.unmatchedClasses || []).reduce((n, x) => n + (x.count || 0), 0), open: rep.unmatchedCohorts.reduce((n, x) => n + (x.count || 0), 0) });
             if (picks && picks.length) {
                 const D = global.CCPClassroomDomain;
                 const data = freshModel().data;
