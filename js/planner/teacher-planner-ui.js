@@ -2492,7 +2492,7 @@ ${by.get(cid).map((d) => `
     }
 
     /** Ask which calendar cohort each unmatched TMS class belongs to (same links the roster sync remembers). */
-    function askTmsMapping(unmatched) {
+    function askTmsMapping(unmatched, summary) {
         return new Promise((resolve) => {
             const dlg = $('spTmsMap');
             const D = global.CCPClassroomDomain;
@@ -2502,6 +2502,11 @@ ${by.get(cid).map((d) => `
             const list = $('spTmsMapList');
             const tally = $('spTmsMapTally');
             const saveBtn = dlg.querySelector('[data-map-save]');
+            const sum = $('spTmsMapSummary');
+            if (sum) {
+                sum.hidden = !summary;
+                if (summary) sum.textContent = t('spTmsMapSummary', '{used} periods read from TMS for this term: {matched} already fit your cohorts and classes, {open} need a decision.', summary);
+            }
             list.innerHTML = '';
             // One row per TMS class (term suffix dropped: 샘물M^2609 and 샘물M^2612 are the same class). When TMS
             // lists several terms, only the newest one matters for this schedule.
@@ -2724,7 +2729,7 @@ ${by.get(cid).map((d) => `
         const createdIds = new Set();
         if (rep.unmatchedCohorts.length && freshModel() && !readOnly()) {
             const unmatchedNow = rep.unmatchedCohorts;
-            const picks = await askTmsMapping(unmatchedNow);
+            const picks = await askTmsMapping(unmatchedNow, { used: rep.used, matched: rep.matched, open: rep.used - rep.matched });
             if (picks && picks.length) {
                 const D = global.CCPClassroomDomain;
                 const data = freshModel().data;

@@ -3198,6 +3198,7 @@
         spTmsMapCreate: '+ Create a new cohort',
         spTmsTermMatched: '{n} of your cohorts',
         spTmsMapOther: 'Other TMS entries ({n}): no start code or marked test, skipped',
+        spTmsMapSummary: '{used} periods read from TMS for this term: {matched} already fit your cohorts and classes, {open} need a decision.',
         spTmsMapChoose: 'Choose cohort…',
         spTmsMapSkip: 'Not in this calendar (skip)',
         spTmsMapSave: 'Save and continue',

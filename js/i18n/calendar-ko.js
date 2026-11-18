@@ -3197,6 +3197,7 @@
         spTmsMapCreate: '+ 새 코호트 만들기',
         spTmsTermMatched: '내 코호트 {n}개',
         spTmsMapOther: '기타 TMS 항목 ({n}개): 시작 코드 없음 또는 테스트, 건너뜀',
+        spTmsMapSummary: '이 학기 TMS에서 {used}교시를 읽었습니다. {matched}교시는 이미 코호트·수업과 맞고, {open}교시는 확인이 필요합니다.',
         spTmsMapChoose: '코호트 선택…',
         spTmsMapSkip: '이 캘린더에 없음 (건너뛰기)',
         spTmsMapSave: '저장하고 계속',
