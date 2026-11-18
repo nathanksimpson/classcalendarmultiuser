@@ -2733,12 +2733,55 @@ ${by.get(cid).map((d) => `
             return { ok: true };
         });
         if (!res) return;
+        // Cohorts TMS teaches together but the calendar keeps as separate classes: offer one click to merge them.
+        const openMerges = (rep.mergedClasses || []).filter((m) => !m.calendarMerged && m.cohortIds && m.cohortIds.length > 1);
+        if (openMerges.length && !readOnly()) {
+            const list = openMerges.slice(0, 6).map((m) => `${m.cohorts.join(' + ')} (${m.teacher})`).join('; ') + (openMerges.length > 6 ? '…' : '');
+            const yes = await confirmBox(t('spTmsMergeAsk', 'TMS teaches these together: {list}. Merge each pair into one class in this calendar? The extra classes are left out of the plan, not deleted.', { list }), t('spTmsMergeDo', 'Merge'));
+            if (yes) {
+                mergeTmsGroups(openMerges);
+                out = I.buildDraftFromTms(freshModel().data, body, buildOpts);
+                rep = out.report;
+            }
+        }
         const left = rep.unmatchedCohorts.length + rep.unmatchedClasses.length + rep.unmatchedTeachers.length;
         notice(t('spTmsDone', 'Pulled from TMS (term {term}): {periods} periods on {classes} classes.', {
             term: rep.term || '–', periods: out.draft.assignments.reduce((n, a) => n + (a.meetings || []).length, 0), classes: out.draft.assignments.length
         }) + (left ? ' ' + t('spTmsLeft', 'Left out: {cohorts} cohorts, {classes} classes and {teachers} teachers that are not in this calendar.', {
             cohorts: rep.unmatchedCohorts.length, classes: rep.unmatchedClasses.length, teachers: rep.unmatchedTeachers.length
         }) : '') + mergedNote(rep), left ? 'info' : 'success');
+    }
+
+    /**
+     * Merge cohorts that TMS teaches together into one calendar class: the first matching class takes all the
+     * cohorts (the same "combined class" the class editor makes), and the other cohorts' classes for that
+     * subject are left out of the plan. Nothing is deleted.
+     */
+    function mergeTmsGroups(groups) {
+        setupEdit((data) => {
+            const A = api();
+            groups.forEach((g) => {
+                const found = [];
+                g.cohortIds.forEach((cid) => {
+                    (data.classes || []).forEach((k) => {
+                        if (k.plannerSpecial === true || found.includes(k)) return;
+                        if (!A.getClassCohortIds(k).includes(cid)) return;
+                        if (A.subjectOfName(k.name) !== g.subjectKey) return;
+                        found.push(k);
+                    });
+                });
+                if (!found.length) return;
+                const primary = found.find((k) => k.plannerExcluded !== true) || found[0];
+                const all = Array.from(new Set(g.cohortIds.concat(A.getClassCohortIds(primary))));
+                primary.cohortIds = all;
+                primary.cohortId = all[0];
+                found.forEach((k) => { if (k !== primary) k.plannerExcluded = true; });
+                all.forEach((cid) => {
+                    const c = (data.cohorts || []).find((x) => x.id === cid);
+                    if (c && Array.isArray(c.classIds) && !c.classIds.includes(primary.id)) c.classIds.push(primary.id);
+                });
+            });
+        });
     }
 
     /** "Merged classes in TMS: A + B (Kim), …" for merged classes the calendar does not hold as one class yet. */

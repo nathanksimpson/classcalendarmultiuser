@@ -3199,6 +3199,8 @@
         spTmsMapSkip: 'Not in this calendar (skip)',
         spTmsMapSave: 'Save and continue',
         spTmsNothing: 'No TMS class matched this calendar’s cohorts and classes, so nothing was changed.',
+        spTmsMergeAsk: 'TMS teaches these together: {list}. Merge each pair into one class in this calendar? The extra classes are left out of the plan, not deleted.',
+        spTmsMergeDo: 'Merge',
         spTmsMerged: 'Merged in TMS: {list}. In this calendar they are still separate classes; give them one class with both cohorts to plan them together.',
         spTmsDone: 'Pulled from TMS (term {term}): {periods} periods on {classes} classes.',
         spTmsLeft: 'Left out: {cohorts} cohorts, {classes} classes and {teachers} teachers that are not in this calendar.',

@@ -148,7 +148,9 @@
             if (!cohort) return tally(report.unmatchedCohorts, r.cohortRaw, { name: r.cohortRaw });
             const subject = api.normalizeSubject(r.subject);
             const mine = classes.filter((k) => (k.cohortIds || [k.cohortId]).includes(cohort.id));
-            const candidates = mine.filter((k) => api.subjectOfName(k.name) === subject);
+            // Classes left out of the plan (e.g. the extra class of a merged pair) only count when nothing else fits.
+            const live = mine.filter((k) => k.plannerExcluded !== true);
+            const candidates = (live.length ? live : mine).filter((k) => api.subjectOfName(k.name) === subject);
             // Several classes of one subject in a cohort: take the first that has no bucket yet, else the first.
             const cls = candidates.find((k) => !buckets.has(k.id)) || candidates[0];
             if (!cls) return tally(report.unmatchedClasses, `${r.cohortRaw}|${r.subject}`, { cohort: r.cohortRaw, subject: r.subject });
@@ -179,7 +181,15 @@
                     const ids = k.cohortIds || [k.cohortId];
                     return cohortObjs.every((c) => ids.includes(c.id));
                 });
-                mergedBy.set(key, { teacher: members[0].teacher, cohorts: members.map((m) => m.cohortRaw), subject: members[0].subject, periods: 0, calendarMerged: together });
+                mergedBy.set(key, {
+                    teacher: members[0].teacher,
+                    cohorts: members.map((m) => m.cohortRaw),
+                    cohortIds: cohortObjs.map((c) => c.id),
+                    subject: members[0].subject,
+                    subjectKey: api.normalizeSubject(members[0].subject),
+                    periods: 0,
+                    calendarMerged: together
+                });
             }
             mergedBy.get(key).periods += 1;
         });

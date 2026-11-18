@@ -121,6 +121,12 @@ console.log('tms-schedule-import term tie-break test passed');
     m.classes[0].cohortIds = ['co1', 'co3'];
     const out2 = I.buildDraftFromTms(m, { placements: two });
     assert.equal(out2.report.mergedClasses[0].calendarMerged, true);
+    // After the one-click merge the extra class is left out of the plan: both rows land on the merged class only.
+    m.classes[4].plannerExcluded = true;
+    const out4 = I.buildDraftFromTms(m, { placements: two });
+    assert.equal(out4.draft.assignments.length, 1);
+    assert.equal(out4.draft.assignments[0].classId, 'c1');
+    assert.deepEqual(out4.report.mergedClasses[0].cohortIds.sort(), ['co1', 'co3']);
     // A merged cohort that is not in this calendar is not a merge here.
     const out3 = I.buildDraftFromTms(cal, { placements: two });
     assert.equal(out3.report.mergedClasses.length, 0);
