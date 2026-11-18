@@ -1584,3 +1584,10 @@ details.toolbar-menu .classroom-essay-reports-item:disabled {
     font-variant-numeric: tabular-nums;
     margin: 4px 0 0;
 }
+
+/* Migrate to next term: wide tables (TMS classes, students, classes preview) need near full width. */
+#termMigrateModal > .modal-content {
+    width: min(1280px, calc(100vw - 2rem));
+    max-width: min(1280px, calc(100vw - 2rem));
+    max-height: calc(100dvh - 2rem);
+}
