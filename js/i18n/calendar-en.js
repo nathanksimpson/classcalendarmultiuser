@@ -3219,7 +3219,7 @@
         spTmsMergeSkip: 'Keep separate',
         spToolTmsDetails: 'TMS import details',
         spTmsDetailsTitle: 'TMS import details',
-        spTmsDetailsHint: 'Every class read from a teacher's TMS timetable and where it went in this calendar. Compare it with the teacher's page in TMS.',
+        spTmsDetailsHint: 'Every class read from a teacher’s TMS timetable and where it went in this calendar. Compare it with the teacher’s page in TMS.',
         spTmsDetailsTeacher: 'TMS teacher',
         spTmsDetailsNone: 'Pull from TMS first; then this shows what was read.',
         spTmsTracePlaced: 'Placed',
