@@ -7,7 +7,7 @@
     <link rel="icon" href="/favicon.ico" sizes="32x32">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="stylesheet" href="styles.css?v=20261118-merge2">
+    <link rel="stylesheet" href="styles.css?v=20261118-merge3">
     <link rel="stylesheet" href="css/ui-refresh.css?v=20261118-tab-scroll-hint">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
@@ -16,7 +16,7 @@
         // Load the Korean i18n bundle only when needed. English (the fallback)
         // always loads in the body; Korean is fetched here for Korean users so it
         // is ready before first paint, and lazily on first toggle for everyone else.
-        window.CCP_I18N_VERSION = '20261118-merge2';
+        window.CCP_I18N_VERSION = '20261118-merge3';
         (function () {
             try {
                 var lang = (window.CCPLanguage && window.CCPLanguage.resolveCalendarLanguage)
@@ -1384,6 +1384,7 @@
                                     <button type="button" data-act="load-calendar" data-i18n="spToolLoad">Load from calendar</button>
                                     <button type="button" data-act="pull-tms" data-i18n="spToolPullTms">Pull from TMS</button>
                                     <button type="button" data-act="history" data-i18n="spToolHistory">Saved versions</button>
+                                    <button type="button" data-act="undo-merge" data-i18n="spToolUndoMerge">Undo TMS merge</button>
                                     <button type="button" data-act="clear-board" data-i18n="spToolClear">Clear the board</button>
                                     <hr class="sp-menu-sep">
                                     <button type="button" data-act="tt-import-excel" data-i18n="spToolImportExcel">Import timetable (Excel)</button>
@@ -1484,6 +1485,23 @@
                         <button type="submit" class="btn btn-primary btn-small" data-i18n="spTmsSignIn">Sign in and pull</button>
                     </footer>
                 </form>
+            </div>
+
+            <div id="spTmsMerge" class="sp-overlay sp-overlay--confirm" hidden>
+                <div class="sp-dialog sp-dialog--pop" role="dialog" aria-modal="true" aria-labelledby="spTmsMergeTitle">
+                    <header class="sp-dialog-head">
+                        <h2 id="spTmsMergeTitle" data-i18n="spTmsMergeTitle">Merge classes TMS teaches together?</h2>
+                        <button type="button" class="modal-close" data-merge-cancel data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
+                    </header>
+                    <div class="sp-dialog-body">
+                        <p class="sp-hint" data-i18n="spTmsMergeHint">TMS shows these cohorts together in one class. Merging gives this calendar one class with both cohorts. The other classes are left out of the plan, not deleted, and Tools, Undo TMS merge restores everything.</p>
+                        <div id="spTmsMergeList" class="sp-term-list"></div>
+                    </div>
+                    <footer class="sp-dialog-foot">
+                        <button type="button" class="btn btn-outline btn-small" data-merge-cancel data-i18n="spTmsMergeSkip">Keep separate</button>
+                        <button type="button" class="btn btn-primary btn-small" data-merge-ok>Merge</button>
+                    </footer>
+                </div>
             </div>
 
             <div id="spTmsTerm" class="sp-overlay sp-overlay--confirm" hidden>
@@ -3337,7 +3355,7 @@
     <script defer src="js/toolbar-menus.js?v=20261111-toolbar-menus"></script>
     <script defer src="js/classroom-zone-context.js?v=20261111-tools-month"></script>
     <script defer src="js/template-loader.js?v=20261015-p7-level"></script>
-    <script defer src="js/tms-sync-client.js?v=20261118-merge2"></script>
+    <script defer src="js/tms-sync-client.js?v=20261118-merge3"></script>
     <script defer src="js/app-tab-scripts.js?v=20261113-cohort-links"></script>
     <script defer src="js/load-extension-scripts.js?v=20261113-hih-tracks"></script>
     <script defer src="js/view-as-i18n.js?v=20260608-i18n-audit"></script>
@@ -3363,7 +3381,7 @@
     <script defer src="js/term-migrate-wizard.js?v=20261013-tms-sync"></script>
     <script defer src="js/dom.js?v=20260615-ui-refactor"></script>
     <script defer src="js/ui/modal.js?v=20260828-modal-stay"></script>
-    <script defer src="js/tms-sync-center.js?v=20261118-merge2"></script>
+    <script defer src="js/tms-sync-center.js?v=20261118-merge3"></script>
     <script defer src="js/source-version-banners.js?v=20261013-tms-sync"></script>
     <script defer src="js/ui/filter-presets.js?v=20260703-ui-harmonize"></script>
     <script defer src="js/ui/classroom-autosave.js?v=20260807-deconflict-min"></script>
@@ -3453,7 +3471,7 @@
     <div id="nowClassPopupRoot" class="now-class-popup-root" aria-live="polite" aria-atomic="true"></div>
     <script defer src="js/page-chrome.js?v=20260918-viewport-p0"></script>
     <script defer src="js/tab-warnings.js?v=20261114-steady-lock"></script>
-    <script defer src="js/i18n/calendar-en.js?v=20261118-merge2"></script>
+    <script defer src="js/i18n/calendar-en.js?v=20261118-merge3"></script>
     <script defer src="js/i18n/calendar-i18n.js?v=20260622-i18n-lazy"></script>
     <script defer src="js/nav-tab-layout.js?v=20260720-nav-layout-v1"></script>
     <script defer src="js/zone-nav-reorder.js?v=20260720-cross-zone-preview"></script>

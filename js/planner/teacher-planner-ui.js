@@ -2733,13 +2733,14 @@ ${by.get(cid).map((d) => `
             return { ok: true };
         });
         if (!res) return;
-        // Cohorts TMS teaches together but the calendar keeps as separate classes: offer one click to merge them.
+        // Cohorts TMS teaches together but the calendar keeps as separate classes: preview, then merge on request.
         const openMerges = (rep.mergedClasses || []).filter((m) => !m.calendarMerged && m.cohortIds && m.cohortIds.length > 1);
+        let mergedNow = 0;
         if (openMerges.length && !readOnly()) {
-            const list = openMerges.slice(0, 6).map((m) => `${m.cohorts.join(' + ')} (${m.teacher})`).join('; ') + (openMerges.length > 6 ? '…' : '');
-            const yes = await confirmBox(t('spTmsMergeAsk', 'TMS teaches these together: {list}. Merge each pair into one class in this calendar? The extra classes are left out of the plan, not deleted.', { list }), t('spTmsMergeDo', 'Merge'));
-            if (yes) {
-                mergeTmsGroups(openMerges);
+            const chosen = await askTmsMerge(planTmsMerges(openMerges));
+            if (chosen && chosen.length) {
+                applyTmsMerges(chosen);
+                mergedNow = chosen.length;
                 out = I.buildDraftFromTms(freshModel().data, body, buildOpts);
                 rep = out.report;
             }
@@ -2749,39 +2750,150 @@ ${by.get(cid).map((d) => `
             term: rep.term || '–', periods: out.draft.assignments.reduce((n, a) => n + (a.meetings || []).length, 0), classes: out.draft.assignments.length
         }) + (left ? ' ' + t('spTmsLeft', 'Left out: {cohorts} cohorts, {classes} classes and {teachers} teachers that are not in this calendar.', {
             cohorts: rep.unmatchedCohorts.length, classes: rep.unmatchedClasses.length, teachers: rep.unmatchedTeachers.length
-        }) : '') + mergedNote(rep), left ? 'info' : 'success');
+        }) : '') + (mergedNow ? ' ' + t('spTmsMergedDone', '{n} merged. Undo: Tools menu, Undo TMS merge.', { n: mergedNow }) : '') + mergedNote(rep), left ? 'info' : 'success');
     }
 
     /**
-     * Merge cohorts that TMS teaches together into one calendar class: the first matching class takes all the
-     * cohorts (the same "combined class" the class editor makes), and the other cohorts' classes for that
-     * subject are left out of the plan. Nothing is deleted.
+     * Work out, without changing anything, what merging each TMS group would do: the class that keeps all the
+     * cohorts, and the classes that are left out of the plan. A group is only "ok" when the match is clear.
      */
-    function mergeTmsGroups(groups) {
-        setupEdit((data) => {
-            const A = api();
-            groups.forEach((g) => {
-                const found = [];
-                g.cohortIds.forEach((cid) => {
-                    (data.classes || []).forEach((k) => {
-                        if (k.plannerSpecial === true || found.includes(k)) return;
-                        if (!A.getClassCohortIds(k).includes(cid)) return;
-                        if (A.subjectOfName(k.name) !== g.subjectKey) return;
-                        found.push(k);
-                    });
-                });
-                if (!found.length) return;
-                const primary = found.find((k) => k.plannerExcluded !== true) || found[0];
-                const all = Array.from(new Set(g.cohortIds.concat(A.getClassCohortIds(primary))));
-                primary.cohortIds = all;
-                primary.cohortId = all[0];
-                found.forEach((k) => { if (k !== primary) k.plannerExcluded = true; });
-                all.forEach((cid) => {
-                    const c = (data.cohorts || []).find((x) => x.id === cid);
-                    if (c && Array.isArray(c.classIds) && !c.classIds.includes(primary.id)) c.classIds.push(primary.id);
+    function planTmsMerges(groups) {
+        const A = api();
+        const data = M.data;
+        return groups.map((g) => {
+            const found = [];
+            g.cohortIds.forEach((cid) => {
+                (data.classes || []).forEach((k) => {
+                    if (k.plannerSpecial === true || found.includes(k)) return;
+                    if (!A.getClassCohortIds(k).includes(cid)) return;
+                    if (A.subjectOfName(k.name) !== g.subjectKey) return;
+                    found.push(k);
                 });
             });
+            const primary = found.find((k) => k.plannerExcluded !== true) || found[0] || null;
+            const extras = found.filter((k) => k !== primary);
+            // Clear = one class per cohort (or fewer); more than that means the name match is a guess.
+            const status = !primary ? 'none' : (found.length > g.cohortIds.length ? 'unclear' : 'ok');
+            return { g, primary, extras, status };
         });
+    }
+
+    /** Preview dialog: one row per group, ticked when the match is clear. Resolves with the chosen plans, or null. */
+    function askTmsMerge(plans) {
+        return new Promise((resolve) => {
+            const dlg = $('spTmsMerge');
+            if (!dlg) { resolve(null); return; }
+            const list = $('spTmsMergeList');
+            const saveBtn = dlg.querySelector('[data-merge-ok]');
+            const name = (k) => esc(k.name || k.id);
+            list.innerHTML = plans.map((p, i) => {
+                const head = esc(p.g.cohorts.join(' + ')) + ` <small>(${esc(p.g.teacher)})</small>`;
+                const body = p.status === 'none'
+                    ? `<small class="sp-merge-warn">${esc(t('spTmsMergeNone', 'No matching class in this calendar. Skipped.'))}</small>`
+                    : `<small>${esc(t('spTmsMergeKeep', 'Kept as the merged class'))}: <strong>${name(p.primary)}</strong></small>`
+                        + (p.extras.length ? `<small>${esc(t('spTmsMergeLeave', 'Left out of the plan'))}: ${p.extras.map(name).join(', ')}</small>` : '')
+                        + (p.status === 'unclear' ? `<small class="sp-merge-warn">${esc(t('spTmsMergeUnclear', 'Several classes match this subject, so check this one before merging.'))}</small>` : '');
+                return `<label class="sp-term-row"><input type="checkbox" data-merge="${i}"${p.status === 'ok' ? ' checked' : ''}${p.status === 'none' ? ' disabled' : ''}>
+                    <span>${head}${body}</span></label>`;
+            }).join('');
+            const update = () => {
+                const n = list.querySelectorAll('input:checked').length;
+                saveBtn.disabled = n === 0;
+                saveBtn.textContent = t('spTmsMergeN', 'Merge {n}', { n });
+            };
+            update();
+            dlg.hidden = false;
+            const done = (val) => {
+                dlg.hidden = true;
+                dlg.removeEventListener('click', onClick);
+                dlg.removeEventListener('change', update);
+                document.removeEventListener('keydown', onKey, true);
+                resolve(val);
+            };
+            function onClick(ev) {
+                if (ev.target === dlg || ev.target.closest('[data-merge-cancel]')) { done(null); return; }
+                if (ev.target.closest('[data-merge-ok]')) {
+                    done(Array.from(list.querySelectorAll('input:checked')).map((x) => plans[Number(x.getAttribute('data-merge'))]));
+                }
+            }
+            function onKey(ev) {
+                if (ev.key === 'Escape') { ev.stopPropagation(); done(null); }
+            }
+            dlg.addEventListener('click', onClick);
+            dlg.addEventListener('change', update);
+            document.addEventListener('keydown', onKey, true);
+        });
+    }
+
+    /**
+     * Apply the chosen merges: the kept class takes every cohort of the group, the others are left out of the
+     * plan (never deleted). Each merge writes what it changed onto the kept class (`tmsMerge`) so it can be undone.
+     */
+    function applyTmsMerges(plans) {
+        const at = new Date().toISOString();
+        setupEdit((data) => {
+            const A = api();
+            plans.forEach((p) => {
+                const primary = (data.classes || []).find((k) => k.id === p.primary.id);
+                if (!primary) return;
+                const all = Array.from(new Set(p.g.cohortIds.concat(A.getClassCohortIds(primary))));
+                const record = {
+                    at,
+                    cohortIds: A.getClassCohortIds(primary).slice(),
+                    cohortId: primary.cohortId || '',
+                    extras: [],
+                    linkedCohorts: []
+                };
+                primary.cohortIds = all;
+                primary.cohortId = all[0];
+                p.extras.forEach((x) => {
+                    const k = (data.classes || []).find((c) => c.id === x.id);
+                    if (!k) return;
+                    record.extras.push({ id: k.id, wasExcluded: k.plannerExcluded === true });
+                    k.plannerExcluded = true;
+                });
+                all.forEach((cid) => {
+                    const c = (data.cohorts || []).find((x) => x.id === cid);
+                    if (c && Array.isArray(c.classIds) && !c.classIds.includes(primary.id)) {
+                        c.classIds.push(primary.id);
+                        record.linkedCohorts.push(cid);
+                    }
+                });
+                primary.tmsMerge = record;
+            });
+        });
+    }
+
+    /** Undo every TMS merge recorded on the calendar's classes. */
+    async function undoTmsMerge() {
+        if (readOnly() || !freshModel()) return;
+        const merged = (M.data.classes || []).filter((k) => k && k.tmsMerge);
+        if (!merged.length) {
+            notice(t('spTmsUndoNone', 'No TMS merge to undo.'), 'info');
+            return;
+        }
+        const names = merged.map((k) => k.name).join(', ');
+        const yes = await confirmBox(t('spTmsUndoAsk', 'Undo the TMS merge of {names}? The classes go back to how they were before.', { names }), t('spTmsUndoDo', 'Undo merge'));
+        if (!yes) return;
+        setupEdit((data) => {
+            (data.classes || []).forEach((k) => {
+                const r = k.tmsMerge;
+                if (!r) return;
+                k.cohortIds = (r.cohortIds || []).slice();
+                k.cohortId = r.cohortId || (k.cohortIds[0] || '');
+                (r.extras || []).forEach((x) => {
+                    const e = (data.classes || []).find((c) => c.id === x.id);
+                    if (e && !x.wasExcluded) delete e.plannerExcluded;
+                });
+                (r.linkedCohorts || []).forEach((cid) => {
+                    const c = (data.cohorts || []).find((y) => y.id === cid);
+                    if (c && Array.isArray(c.classIds)) c.classIds = c.classIds.filter((id) => id !== k.id);
+                });
+                delete k.tmsMerge;
+            });
+        });
+        notice(t('spTmsUndoDone', 'TMS merge undone. Pull from TMS again to refresh the plan.'), 'success');
+        render();
     }
 
     /** "Merged classes in TMS: A + B (Kim), …" for merged classes the calendar does not hold as one class yet. */
@@ -3620,6 +3732,7 @@ ${by.get(cid).map((d) => `
         case 'auto': closeMenus(); openAuto(); break;
         case 'close-auto': closeAuto(); break;
         case 'history': closeMenus(); openHistory(); break;
+        case 'undo-merge': closeMenus(); undoTmsMerge(); break;
         case 'close-history': closeHistory(); break;
         case 'hist-save': historySave(); break;
         case 'hist-restore': historyRestore(el.getAttribute('data-id')); break;
