@@ -27,7 +27,7 @@
             // Generate subjects reads the TMS timetable with the planner's subject and schedule-import rules.
             SCRIPT_PLANNER_CORE,
             SCRIPT_TMS_SCHEDULE_IMPORT,
-            'js/cohort-management.js?v=20261118-gen-subjects',
+            'js/cohort-management.js?v=20261118-migrate',
             'js/setup-board.js?v=20261113-cohort-links',
             'js/cohorts-class-detail.js?v=20261113-cohort-links'
         ],

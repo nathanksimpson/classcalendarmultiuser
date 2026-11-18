@@ -35,6 +35,12 @@
     let transferPlanSourceKey = '';
     /** @type {File[]} */
     let pendingTimetableFiles = [];
+    /** Every teacher's TMS timetable (teacher_time.aspx), pulled with the roster; null when it could not be read. */
+    let scrapedSchedule = null;
+    let scheduleNote = '';
+    /** Classes step: the preview's picks reader, and the picks once the step is left. */
+    let classPreview = null;
+    let classPicks = null;
     let scrapeLoading = false;
     let wizardSettings = {
         newName: '',
@@ -220,6 +226,60 @@
         });
     }
 
+    /** Every teacher's timetable from TMS with the same sign-in (reuses a pull from the last hour). */
+    async function scrapeTmsSchedule(username, password) {
+        const last = global.CCPLastTmsSchedulePull;
+        if (last && last.body && Array.isArray(last.body.placements) && Date.now() - last.at < 60 * 60 * 1000) {
+            return last.body;
+        }
+        if (!global.CCPTmsSync || !global.CCPTmsSync.run) {
+            throw new Error('TMS sync is not available');
+        }
+        const payload = {};
+        if (String(username || '').trim() || password) {
+            payload.username = String(username || '').trim();
+            payload.password = String(password || '');
+        }
+        const body = await global.CCPTmsSync.run('schedule', payload);
+        if (!body || !Array.isArray(body.placements)) {
+            throw new Error('TMS timetables were not loaded');
+        }
+        global.CCPLastTmsSchedulePull = { at: Date.now(), body };
+        return body;
+    }
+
+    const DOW_BY_NAME = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5 };
+
+    /**
+     * TMS classes that are on a teacher's timetable but not in the roster scrape: they become cohorts too
+     * (no students yet), so the term has every class TMS schedules.
+     */
+    function scheduleOnlyCohorts(rosterCohorts, schedule) {
+        const key = (raw) => cleanTmsCohortName(raw).replace(/\s+/g, '').toLowerCase();
+        const known = new Set((rosterCohorts || []).map((c) => key(c.cohortName)));
+        const byKey = new Map();
+        ((schedule && schedule.placements) || []).forEach((p) => {
+            const raw = String(p.cohortName != null ? p.cohortName : p.cohort || '').trim();
+            // Real TMS classes carry a term code; test entries do not.
+            if (!raw || !/\^\d{4}\s*$/.test(raw) || /test|테스트/i.test(raw)) {
+                return;
+            }
+            const k = key(raw);
+            if (!k || known.has(k)) {
+                return;
+            }
+            if (!byKey.has(k)) {
+                byKey.set(k, { cohortName: raw, tmsClassId: '', students: [], fromSchedule: true, scheduleDays: [] });
+            }
+            const dow = DOW_BY_NAME[String(p.day || '').toLowerCase()];
+            const entry = byKey.get(k);
+            if (dow && !entry.scheduleDays.includes(dow)) {
+                entry.scheduleDays.push(dow);
+            }
+        });
+        return Array.from(byKey.values());
+    }
+
     function mapScheduleForApp(schedule, appData) {
         const d = domain();
         if (!d || !d.mapTmsBlockToPeriod || !schedule) {
@@ -250,15 +310,23 @@
         const previous = (appData && appData.cohorts) || [];
         const links = (appData && appData.tmsRosterLinks) || {};
         return (Array.isArray(tmsCohorts) ? tmsCohorts : []).map((c) => {
-            const sched = inferScheduleFromName(c.cohortName);
+            let sched = inferScheduleFromName(c.cohortName);
+            // A cohort found only on the timetables: its days come from there when the name says nothing.
+            if (Array.isArray(c.scheduleDays) && c.scheduleDays.length && !/[MT]\s*(\^|$)/.test(String(c.cohortName || ''))) {
+                const days = c.scheduleDays.slice().sort((a, b) => a - b);
+                sched = { schedulePattern: days.every((d) => d === 2 || d === 4) ? 'tth' : 'mwf', meetingDays: days };
+            }
             const mapped = mapScheduleForApp(c.schedule, appData);
             const match =
                 d && d.matchPreviousCohortForTmsClass
                     ? d.matchPreviousCohortForTmsClass(previous, links, c.tmsClassId, c.cohortName)
                     : { cohort: null, matchedBy: '' };
             const prev = match.cohort;
+            // Level: last term's matching cohort, else the TMS name ("빅키T", "Blue M").
+            const lp = global.CCPLevelProfile;
+            const parsed = lp && lp.parseClassName ? lp.parseClassName(c.cohortName) : null;
             const levelPreset =
-                (prev && (prev.levelPreset || prev.level)) || '';
+                (prev && (prev.levelPreset || prev.level)) || (parsed ? parsed.levelId : '') || '';
             let homeroomTeacherUserId = prev ? String(prev.homeroomTeacherUserId || '') : '';
             let homeroomTeacherName = prev ? String(prev.homeroomTeacherName || '') : '';
             let homeroomDaySuffix = prev ? String(prev.homeroomDaySuffix || '') : '';
@@ -284,6 +352,7 @@
                 tmsSuggestedPeriod: mapped && mapped.period != null ? mapped.period : null,
                 tmsSuggestedTimeSlotId: mapped && mapped.timeSlotId ? mapped.timeSlotId : '',
                 tmsHomeroomName: c.tmsHomeroomName || '',
+                fromSchedule: c.fromSchedule === true,
                 levelPreset: String(levelPreset || ''),
                 matchedPreviousCohortId: prev ? prev.id : '',
                 matchedBy: match.matchedBy || '',
@@ -662,6 +731,81 @@
                 row.homeroomDaySuffix = suffix.value.trim();
             }
         });
+    }
+
+    /** Draft of the new calendar's cohorts, for the Classes preview (ids are the wizard's temporary ids). */
+    function draftCalendarForClasses() {
+        const appData = getAppData() || {};
+        return {
+            cohorts: createdCohortMap.map((spec) => ({
+                id: spec.cohortId,
+                name: spec.cohortName,
+                level: spec.levelPreset || '',
+                levelPreset: spec.levelPreset || '',
+                schedulePattern: spec.schedulePattern,
+                meetingDays: (spec.meetingDays || []).slice(),
+                scheduleBlock: 'primary',
+                subjectSlots: [],
+                students: []
+            })),
+            classes: [],
+            teacherProfiles: appData.teacherProfiles || [],
+            timetableTimeSlots: appData.timetableTimeSlots,
+            periodSlotMap: appData.periodSlotMap,
+            tmsRosterLinks: {}
+        };
+    }
+
+    function classBuilderHooks() {
+        return {
+            t,
+            getLang: () => (hooks && hooks.getLang ? hooks.getLang() : 'en'),
+            generateId: () => newEntityId('cls'),
+            escapeHtml,
+            getSimsonLevelById: (id) => (global.CCPLevelProfile ? global.CCPLevelProfile.getLevelById(id) : null)
+        };
+    }
+
+    /** Step 5, Classes: every cohort's subjects from the TMS timetables (level schedule fallback), one preview. */
+    function renderClassesStep(body) {
+        const CM = global.CCPCohortManagement;
+        if (!CM || !CM.planBatchGeneration || !CM.buildBatchPreviewNode || !CM.withAppData) {
+            classPreview = null;
+            body.innerHTML = `<p class="section-hint">${escapeHtml(t('dataTermMigrateClassesMissing'))}</p>`;
+            return;
+        }
+        const draft = draftCalendarForClasses();
+        const intro = scrapedSchedule
+            ? t('dataTermMigrateClassesHint')
+            : t('dataTermMigrateClassesNoSchedule').replace('{why}', scheduleNote || '—');
+        let preview = null;
+        CM.withAppData(draft, () => {
+            const plans = CM.planBatchGeneration(draft.cohorts, scrapedSchedule, { term: wizardSettings.termCodeFilter || '' });
+            preview = CM.buildBatchPreviewNode(plans, intro);
+        }, classBuilderHooks());
+        classPreview = preview;
+        body.innerHTML = '';
+        body.appendChild(preview.node);
+        // Re-entering the step keeps earlier unticks and picks.
+        if (classPicks) {
+            const byCohort = new Map(classPicks.map((p) => [p.cohortId, p]));
+            preview.node.querySelectorAll('.cohorts-generate-all-cohort').forEach((sec, i) => {
+                const spec = createdCohortMap[i];
+                const saved = spec ? byCohort.get(spec.cohortId) : null;
+                const box = sec.querySelector('input[type=checkbox]');
+                if (box && !saved && !box.disabled) {
+                    box.checked = false;
+                    box.dispatchEvent(new Event('change'));
+                }
+            });
+        }
+    }
+
+    function flushStep5Classes() {
+        if (!classPreview) {
+            return;
+        }
+        classPicks = classPreview.getPicks().map((p) => ({ cohortId: p.cohort.id, rows: p.rows }));
     }
 
     function flushStep5Teaching() {
@@ -1217,126 +1361,12 @@
         }
 
         if (step === 5) {
-            const eventHint = wizardSettings.copyEvents
-                ? t('dataTermMigrateEventsWillCopy').replace(
-                      '{n}',
-                      String(((getAppData() || {}).events || []).length)
-                  )
-                : t('dataTermMigrateEventsSkipped');
-            const cards = createdCohortMap
-                .map((row, idx) => {
-                    let prevOpts = (row.previousClassOptions || [])
-                        .map((c) => {
-                            const sel = row.previousClassId === c.id ? ' selected' : '';
-                            return `<option value="${escapeHtml(c.id)}"${sel}>${escapeHtml(displayName(c.name))}</option>`;
-                        })
-                        .join('');
-                    if (!prevOpts) {
-                        prevOpts = listAllPreviousClassesForUser()
-                            .map((c) => {
-                                const sel = row.previousClassId === c.id ? ' selected' : '';
-                                const label = `${c.cohortName || ''} · ${c.name || c.id}`;
-                                return `<option value="${escapeHtml(c.id)}"${sel}>${escapeHtml(label)}</option>`;
-                            })
-                            .join('');
-                    }
-                    const tracks = listSubjectTracksForRow(row);
-                    const trackOpts = tracks
-                        .map((tr) => {
-                            const sel = row.subjectTrack === tr ? ' selected' : '';
-                            return `<option value="${escapeHtml(tr)}"${sel}>${escapeHtml(tr)}</option>`;
-                        })
-                        .join('');
-                    const teachOn = row.iTeachHere;
-                    return `<div class="form-group term-migrate-teach-card" data-idx="${idx}">
-                      <h3 class="form-section-title">${escapeHtml(row.cohortName)}</h3>
-                      <p class="section-hint">${escapeHtml(row.levelPreset || '—')} · ${escapeHtml(row.schedulePattern || '')}</p>
-                      <label class="checkbox-label selection-chip">
-                        <input type="checkbox" id="termMigrateTeach_${idx}" ${teachOn ? 'checked' : ''} data-teach-idx="${idx}" />
-                        <span>${escapeHtml(t('dataTermMigrateITeachHere'))}</span>
-                      </label>
-                      <div id="termMigrateTeachDetail_${idx}" ${teachOn ? '' : 'hidden'}>
-                        <div class="form-row">
-                          <label class="checkbox-label selection-chip">
-                            <input type="radio" name="termMigrateMode_${idx}" id="termMigrateModeCarry_${idx}" value="carry"
-                              ${row.classMode !== 'new' ? 'checked' : ''} ${prevOpts ? '' : 'disabled'} />
-                            <span>${escapeHtml(t('dataTermMigrateCarryForward'))}</span>
-                          </label>
-                          <label class="checkbox-label selection-chip">
-                            <input type="radio" name="termMigrateMode_${idx}" id="termMigrateModeNew_${idx}" value="new"
-                              ${row.classMode === 'new' || !prevOpts ? 'checked' : ''} />
-                            <span>${escapeHtml(t('dataTermMigrateBuildNew'))}</span>
-                          </label>
-                        </div>
-                        <label class="form-group" for="termMigratePrevClass_${idx}">
-                          <span>${escapeHtml(t('dataTermMigratePrevClass'))}</span>
-                          <select id="termMigratePrevClass_${idx}" class="field-select field-control" ${prevOpts ? '' : 'disabled'}>
-                            ${prevOpts || `<option value="">${escapeHtml(t('dataTermMigrateNoPrevClass'))}</option>`}
-                          </select>
-                        </label>
-                        <label class="form-group" for="termMigrateTrack_${idx}">
-                          <span>${escapeHtml(t('dataTermMigrateSubjectTrack'))}</span>
-                          <select id="termMigrateTrack_${idx}" class="field-select field-control">
-                            <option value="">${escapeHtml(t('dataTermMigratePickTrack'))}</option>
-                            ${trackOpts}
-                          </select>
-                        </label>
-                        <div class="form-row">
-                          <label class="form-group" for="termMigratePeriod_${idx}">
-                            <span>${escapeHtml(t('dataTermMigrateColPeriod'))}</span>
-                            <select id="termMigratePeriod_${idx}" class="field-select field-control">
-                              <option value="">—</option>
-                              ${periodOptionsHtml(row.period)}
-                            </select>
-                          </label>
-                          <label class="form-group" for="termMigrateStart_${idx}">
-                            <span>${escapeHtml(t('dataTermMigrateStartDate'))}</span>
-                            <input type="date" id="termMigrateStart_${idx}" class="field-input field-control" value="${escapeHtml(row.startDate || '')}" />
-                          </label>
-                          <label class="form-group" for="termMigrateEnd_${idx}">
-                            <span>${escapeHtml(t('dataTermMigrateEndDate'))}</span>
-                            <input type="date" id="termMigrateEnd_${idx}" class="field-input field-control" value="${escapeHtml(row.endDate || '')}" />
-                          </label>
-                        </div>
-                      </div>
-                    </div>`;
-                })
-                .join('');
-            body.innerHTML = `
-                <p class="section-hint">${escapeHtml(t('dataTermMigrateStep5Hint'))}</p>
-                <p class="section-hint">${escapeHtml(eventHint)}</p>
-                <div class="term-migrate-teach-list">${cards}</div>
-            `;
-            body.querySelectorAll('input[data-teach-idx]').forEach((cb) => {
-                cb.addEventListener('change', () => {
-                    const idx = Number(cb.getAttribute('data-teach-idx'));
-                    const detail = document.getElementById(`termMigrateTeachDetail_${idx}`);
-                    if (detail) {
-                        detail.hidden = !cb.checked;
-                    }
-                    if (createdCohortMap[idx]) {
-                        createdCohortMap[idx].iTeachHere = cb.checked;
-                        if (cb.checked && !createdCohortMap[idx].classMode) {
-                            createdCohortMap[idx].classMode = createdCohortMap[idx]
-                                .previousClassOptions?.length
-                                ? 'carry'
-                                : 'new';
-                        }
-                    }
-                });
-            });
+            renderClassesStep(body);
             return;
         }
 
         if (step === 6) {
             preloadTimetableLibs();
-            const teachCount = createdCohortMap.filter((r) => r.iTeachHere).length;
-            const carryCount = createdCohortMap.filter(
-                (r) => r.iTeachHere && r.classMode === 'carry'
-            ).length;
-            const newCount = createdCohortMap.filter(
-                (r) => r.iTeachHere && r.classMode === 'new'
-            ).length;
             const hrFilled = createdCohortMap.filter(
                 (r) => r.homeroomTeacherUserId || r.homeroomTeacherName
             ).length;
@@ -1372,10 +1402,9 @@
                   <li>${escapeHtml(t('dataTermMigrateReviewAdds').replace('{n}', String(selectedAdds.size)))}</li>
                   <li>${escapeHtml(t('dataTermMigrateReviewHomeroom').replace('{n}', String(hrFilled)))}</li>
                   <li>${escapeHtml(
-                      t('dataTermMigrateReviewMyClasses')
-                          .replace('{n}', String(teachCount))
-                          .replace('{carry}', String(carryCount))
-                          .replace('{new}', String(newCount))
+                      t('dataTermMigrateReviewClassesMade')
+                          .replace('{cohorts}', String((classPicks || []).length))
+                          .replace('{n}', String((classPicks || []).reduce((n, p) => n + p.rows.length, 0)))
                   )}</li>
                   <li>${escapeHtml(t('dataTermMigrateReviewTerm').replace('{start}', termStart).replace('{end}', termEnd))}</li>
                   <li>${escapeHtml(t('dataTermMigrateReviewEvents').replace('{n}', String(eventCount)))}</li>
@@ -1533,11 +1562,29 @@
             showScrapeProgress(t('dataTermMigrateScraping'));
             try {
                 previousSnapshot = snapshotPreviousStudents(getAppData());
+                // The Classes step uses the cohort tab's class builder and the planner's TMS timetable reader.
+                if (global.CCPTabScripts && global.CCPTabScripts.ensureTabScripts) {
+                    try {
+                        await global.CCPTabScripts.ensureTabScripts('cohorts');
+                    } catch (_e) { /* the Classes step says what is missing */ }
+                }
                 const result = await scrapeTmsRosters(
                     wizardSettings.tmsUser,
                     wizardSettings.tmsPass
                 );
                 scrapedCohortsAll = Array.isArray(result.cohorts) ? result.cohorts.slice() : [];
+                // Same sign-in: every teacher's timetable (teacher_time.aspx) for cohorts and classes.
+                scrapedSchedule = null;
+                scheduleNote = '';
+                classPicks = null;
+                try {
+                    showScrapeProgress(t('dataTermMigrateScrapingSchedule'));
+                    scrapedSchedule = await scrapeTmsSchedule(wizardSettings.tmsUser, wizardSettings.tmsPass);
+                    const extra = scheduleOnlyCohorts(scrapedCohortsAll, scrapedSchedule);
+                    scrapedCohortsAll = scrapedCohortsAll.concat(extra);
+                } catch (schedErr) {
+                    scheduleNote = (schedErr && schedErr.message) || String(schedErr);
+                }
                 refreshDiscoveredTermCodes();
                 const api = tmsNameApi();
                 if (!wizardSettings.termCodeFilter && api && api.pickDefaultTermCode) {
@@ -1610,7 +1657,7 @@
         }
 
         if (step === 5) {
-            flushStep5Teaching();
+            flushStep5Classes();
             step = 6;
             renderStep();
             return;
@@ -1626,7 +1673,7 @@
             return;
         }
         if (step === 5) {
-            flushStep5Teaching();
+            flushStep5Classes();
         }
         if (step === 4) {
             flushStep4Homeroom();
@@ -1722,7 +1769,6 @@
             setStatus(t('dataTermCloneNameRequired'), true);
             return;
         }
-        flushStep5Teaching();
         flushStep4Homeroom();
         flushStep3Transfers();
         if (!transferPlan) {
@@ -1921,25 +1967,31 @@
         });
         cloned.tmsRosterLinks = Object.assign({}, cloned.tmsRosterLinks || {}, links);
 
-        const builtClasses = [];
-        createdCohortMap.forEach((spec) => {
-            const realId = idRemap.get(spec.cohortId);
-            const cohort = finalCohorts.find((c) => c && c.id === realId);
-            if (!cohort || !spec.iTeachHere) {
-                return;
-            }
-            const cls = buildUserClassForCohort(spec, cohort, sourceSnapshot);
-            if (cls) {
-                builtClasses.push(cls);
-                if (!Array.isArray(cohort.classIds)) {
-                    cohort.classIds = [];
-                }
-                if (!cohort.classIds.includes(cls.id)) {
-                    cohort.classIds.push(cls.id);
-                }
-            }
-        });
-        cloned.classes = builtClasses;
+        // Classes: what the Classes step previewed, built on the new calendar (TMS periods and teachers, shared
+        // classes for cohorts taught together), then last term's curriculum copied onto them.
+        cloned.classes = [];
+        const CM = global.CCPCohortManagement;
+        if (CM && CM.applyBatchGeneration && CM.withAppData && classPicks && classPicks.length) {
+            const picks = classPicks
+                .map((p) => ({ cohort: finalCohorts.find((c) => c && c.id === idRemap.get(p.cohortId)), rows: p.rows }))
+                .filter((p) => p.cohort);
+            CM.withAppData(cloned, () => {
+                CM.applyBatchGeneration(picks, scrapedSchedule, { term: wizardSettings.termCodeFilter || '' });
+                const prevByNew = new Map();
+                createdCohortMap.forEach((spec) => {
+                    const realId = idRemap.get(spec.cohortId);
+                    if (realId && spec.matchedPreviousCohortId) {
+                        prevByNew.set(realId, spec.matchedPreviousCohortId);
+                    }
+                });
+                CM.copyCurriculumFromPrevious(
+                    cloned.classes,
+                    sourceSnapshot,
+                    (id) => prevByNew.get(id) || '',
+                    (prev) => (d && d.shiftClassDatesForTerm ? d.shiftClassDatesForTerm(prev, monthShift, shiftIso) : prev)
+                );
+            }, classBuilderHooks());
+        }
 
         if (
             pendingTimetableFiles.length &&
@@ -2107,6 +2159,7 @@
         init,
         open: openModal,
         buildCohortCreateSpecs,
+        scheduleOnlyCohorts,
         mapScheduleForApp,
         scrapeTmsRosters,
         buildTermMigrateTransferPlan: (...args) => {

@@ -1245,11 +1245,11 @@
      * @param {object|null} tmsBody  a TMS schedule pull, or null for the level schedule only
      * @returns {Array<{ cohort, generation: object|null, note: string, hasClasses: boolean }>}
      */
-    function planBatchGeneration(cohorts, tmsBody) {
+    function planBatchGeneration(cohorts, tmsBody, options) {
         const appData = hooks.getAppData();
         const tmsApi = global.CCPTmsScheduleImport;
-        let term = '';
-        if (tmsBody && tmsApi && tmsApi.buildDraftFromTms && plannerApi()) {
+        let term = normalizeStr(options && options.term);
+        if (!term && tmsBody && tmsApi && tmsApi.buildDraftFromTms && plannerApi()) {
             term = tmsApi.buildDraftFromTms(appData, tmsBody).report.term || '';
         }
         return cohorts.map((cohort) => {
@@ -1277,6 +1277,15 @@
 
     /** The combined preview: a section per cohort (its own tick), a row per subject. Resolves to picks or null. */
     function confirmBatchGeneration(plans, why) {
+        const preview = buildBatchPreviewNode(plans, why);
+        return showGenerateModal(t('cohortsGenAllTitle'), preview.node, t('cohortsGenApply'), preview.getPicks);
+    }
+
+    /**
+     * The combined preview as a node (the cohorts tab shows it in a dialog; the term wizard in its Classes step).
+     * @returns {{ node: HTMLElement, getPicks: () => Array<{ cohort, rows: Array<{ track, choice }> }> }}
+     */
+    function buildBatchPreviewNode(plans, why) {
         const box = document.createElement('div');
         box.className = 'cohorts-generate-preview cohorts-generate-all';
         const head = document.createElement('p');
@@ -1353,23 +1362,102 @@
             box.appendChild(sec);
             picks.push({ cohort: p.cohort, cohortBox, rowPicks });
         });
-        return showGenerateModal(t('cohortsGenAllTitle'), box, t('cohortsGenApply'), () => picks
-            .filter((p) => p.cohortBox.checked)
-            .map((p) => ({
-                cohort: p.cohort,
-                rows: p.rowPicks.filter((r) => r.box.checked).map((r) => ({ track: r.track, choice: r.select ? r.select.value : '' }))
-            }))
-            .filter((p) => p.rows.length));
+        return {
+            node: box,
+            getPicks: () => picks
+                .filter((p) => p.cohortBox.checked)
+                .map((p) => ({
+                    cohort: p.cohort,
+                    rows: p.rowPicks.filter((r) => r.box.checked).map((r) => ({ track: r.track, choice: r.select ? r.select.value : '' }))
+                }))
+                .filter((p) => p.rows.length)
+        };
+    }
+
+    /**
+     * Run the generator on another calendar's data (the term wizard's new calendar, before it is saved).
+     * Synchronous only: the cohorts tab's own data is back in place when fn returns.
+     * @param {object} data  { cohorts, classes, teacherProfiles, … }
+     * @param {Function} fn
+     * @param {object} [extraHooks]  t, getLang, generateId … when the cohorts tab has not been opened yet
+     */
+    function withAppData(data, fn, extraHooks) {
+        const prev = hooks;
+        let n = 0;
+        hooks = Object.assign({
+            t: (k) => k,
+            getLang: () => 'en',
+            generateId: () => `cls_${Date.now().toString(36)}_${(n += 1).toString(36)}`,
+            showMessage: () => {}
+        }, prev || {}, extraHooks || {}, {
+            getAppData: () => data,
+            getNextColor: undefined,
+            syncClassCohortLinks: (cohort) => {
+                cohort.classIds = (data.classes || []).filter((k) => classCohortIdsOf(k).includes(cohort.id)).map((k) => k.id);
+            }
+        });
+        try {
+            return fn();
+        } finally {
+            hooks = prev;
+        }
+    }
+
+    /** Curriculum and term settings a new class takes from last term's class of the same subject. */
+    const CARRY_CURRICULUM_FIELDS = ['curriculumId', 'book', 'scheduleModel', 'totalLessons', 'compressionMode',
+        'syllabusUnits', 'syllabusGeneralNotes', 'termCalendarMonths', 'useAutoTermEnd', 'termEndMode',
+        'debateBookPeriods', 'lessonLabelMode', 'homeworkImportMode', 'startDate', 'endDate', 'classTypeId'];
+
+    /**
+     * New classes take last term's curriculum: from the previous cohort's class of the same subject, else from any
+     * class of the same level and subject. Dates are moved by the term shift.
+     * @param {object[]} newClasses
+     * @param {object} prevData  last term's calendar
+     * @param {(cohortId: string) => string} prevCohortIdFor  new cohort id -> matched previous cohort id ('' = none)
+     * @param {(cls: object) => object} shiftClass  copy of a previous class with its dates moved
+     * @returns {number} classes that took a curriculum
+     */
+    function copyCurriculumFromPrevious(newClasses, prevData, prevCohortIdFor, shiftClass) {
+        const prevClasses = ((prevData && prevData.classes) || []).filter((k) => k && k.plannerSpecial !== true);
+        let copied = 0;
+        (newClasses || []).forEach((cls) => {
+            const subj = classSubjectKey(cls);
+            if (!subj) {
+                return;
+            }
+            const ids = classCohortIdsOf(cls);
+            const prevCohortIds = ids.map((id) => prevCohortIdFor(id)).filter(Boolean);
+            const level = normalizeStr(cls.levelPreset || cls.level);
+            const same = (k) => classSubjectKey(k) === subj;
+            const prev = prevClasses.find((k) => same(k) && classCohortIdsOf(k).some((id) => prevCohortIds.includes(id)))
+                || (level ? prevClasses.find((k) => same(k) && normalizeStr(k.levelPreset || k.level) === level) : null);
+            if (!prev) {
+                return;
+            }
+            const moved = shiftClass ? shiftClass(prev) || prev : prev;
+            CARRY_CURRICULUM_FIELDS.forEach((f) => {
+                if (moved[f] === undefined || moved[f] === '' || moved[f] === null) {
+                    return;
+                }
+                if (f === 'classTypeId' && cls.classTypeId) {
+                    return;
+                }
+                cls[f] = JSON.parse(JSON.stringify(moved[f]));
+            });
+            cls.curriculumCarriedFrom = prev.id;
+            copied += 1;
+        });
+        return copied;
     }
 
     /**
      * Apply the batch cohort by cohort. Each cohort is planned again just before it is applied, so a class made
      * for an earlier cohort (taught together in TMS) is found and shared instead of made twice.
      */
-    function applyBatchGeneration(picks, tmsBody) {
+    function applyBatchGeneration(picks, tmsBody, options) {
         const total = { cohorts: 0, created: 0, updated: 0, linked: 0 };
         picks.forEach((pick) => {
-            const plan = planBatchGeneration([pick.cohort], tmsBody)[0];
+            const plan = planBatchGeneration([pick.cohort], tmsBody, options)[0];
             if (!plan.generation) {
                 return;
             }
@@ -3631,6 +3719,9 @@
         applyCohortGeneration,
         planBatchGeneration,
         applyBatchGeneration,
+        buildBatchPreviewNode,
+        withAppData,
+        copyCurriculumFromPrevious,
         generateClassesForCohort,
         importFromClasses,
         inferBlankCohortSchedulesIfNeeded,

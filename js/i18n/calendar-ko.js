@@ -2739,7 +2739,7 @@
         dataTermCloneFailed: '학기 복제 실패',
         dataTermMigrateHeading: '다음 학기로 이전',
         dataTermMigrateHint:
-            'TMS 명단을 가져오고 학생 ID를 유지하며, 담임을 지정하고 내 수업을 이어가거나 새로 만듭니다.',
+            'TMS 명단과 선생님 시간표를 가져오고 학생 ID를 유지하며, 담임을 지정하고 TMS 시간표로 모든 수업을 만듭니다.',
         dataTermMigrateOpen: '다음 학기로 이전…',
         dataTermMigrateContinue: '계속',
         dataTermMigrateScrapeNext: 'TMS 가져오기 후 계속',
@@ -2751,7 +2751,14 @@
             '새 반으로 옮길 학생을 확인하세요. 매칭되지 않은 이전 학생은 보관함으로 갑니다.',
         dataTermMigrateStep4Hint: '각 반의 담임 선생님을 지정하세요.',
         dataTermMigrateStep5Hint:
-            '각 반에서 내가 가르치는지 선택한 뒤, 이전 수업을 이어가거나 새로 만드세요.',
+            'TMS 선생님 시간표로 모든 반의 수업을 만듭니다. 원하지 않는 항목은 체크를 해제하세요. 커리큘럼은 지난 학기에서 복사합니다.',
+        dataTermMigrateScrapingSchedule: 'TMS 선생님 시간표 읽는 중…',
+        dataTermMigrateClassesMissing: '아직 반이 없습니다. 이전 단계에서 명단을 먼저 가져오세요.',
+        dataTermMigrateClassesHint:
+            '각 수업은 TMS 교시와 TMS 선생님으로 배치됩니다. TMS에서 함께 수업하는 반은 수업 하나를 공유합니다. 같은 레벨·과목의 커리큘럼은 지난 학기에서 복사합니다.',
+        dataTermMigrateClassesNoSchedule:
+            'TMS 시간표를 읽지 못해({why}) 기본 레벨 시간표로 만듭니다. 나중에 과목 생성을 다시 실행할 수 있습니다.',
+        dataTermMigrateReviewClassesMade: '반 {cohorts}개에 수업 {n}개',
         dataTermMigrateStep6Hint: '계획을 확인한 뒤 새 학기 캘린더를 만듭니다.',
         dataTermMigrateCopyEvents: '학기 일정 복사(날짜 이동)',
         dataTermMigrateScraping: 'TMS 수업 가져오는 중…',

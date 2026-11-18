@@ -213,4 +213,60 @@ assert.equal(appData.classes.find((c) => c.id === gRow.slot.classId).weeklyFrequ
     assert.ok(fresh[1].subjectSlots.some((sl) => sl.classId === shared.id), 'Teal row points at the shared class');
 }
 
+/* ---------- Migrate to next term: classes built on the unsaved new calendar, curriculum from last term ---------- */
+{
+    const prevData = {
+        cohorts: [{ id: 'old-p', name: 'PinkT^2606' }],
+        classes: [{ id: 'old-g', name: 'PinkT · Grammar', cohortIds: ['old-p'], tmsSubject: 'grammar',
+            curriculumId: 'cur-gram', book: 'Grammar 2', startDate: '2026-06-01' }]
+    };
+    const draft = {
+        cohorts: [
+            { id: 'new-p', name: 'PinkT^2609', meetingDays: [2, 4], schedulePattern: 'tth', students: [] },
+            { id: 'new-q', name: 'TealT^2609', meetingDays: [2, 4], schedulePattern: 'tth', students: [] }
+        ],
+        classes: []
+    };
+    const body = { placements: [
+        row('Han', 'tue', '14:30', 'PinkT^2609', 'Grammar'),
+        row('Han', 'tue', '14:30', 'TealT^2609', 'Grammar'),
+        row('Seo', 'thu', '15:20', 'TealT^2609', 'News')
+    ] };
+    const liveBefore = appData.classes.length;
+    const copied = CM.withAppData(draft, () => {
+        const plans = CM.planBatchGeneration(draft.cohorts, body, { term: '2609' });
+        CM.applyBatchGeneration(plans.map((p) => ({
+            cohort: p.cohort,
+            rows: p.generation.rows.map((r) => ({ track: r.slot.subjectTrack, choice: '' }))
+        })), body, { term: '2609' });
+        return CM.copyCurriculumFromPrevious(draft.classes, prevData, (id) => (id === 'new-p' ? 'old-p' : ''),
+            (k) => Object.assign({}, k, { startDate: '2026-09-01' }));
+    });
+    assert.equal(appData.classes.length, liveBefore, 'the open calendar is not touched');
+    assert.equal(draft.classes.length, 2, 'shared Grammar + Teal News');
+    const gram = draft.classes.find((c) => TT.getClassCohortIds(c).length === 2);
+    assert.ok(gram, 'Grammar shared by both new cohorts');
+    assert.equal(gram.curriculumId, 'cur-gram');
+    assert.equal(gram.startDate, '2026-09-01', 'dates moved by the term shift');
+    assert.equal(gram.curriculumCarriedFrom, 'old-g');
+    assert.equal(copied, 1);
+}
+
+/* ---------- Migrate wizard: cohorts that appear only on teacher timetables ---------- */
+{
+    await import(pathToFileURL(path.join(root, 'js', 'term-migrate-wizard.js')).href);
+    const W = globalThis.CCPTermMigrateWizard;
+    const extra = W.scheduleOnlyCohorts([{ cohortName: 'PinkT^2609' }], { placements: [
+        { cohortName: 'PinkT^2609', day: 'tue' },
+        { cohortName: 'GoldT^2609', day: 'tue' },
+        { cohortName: 'GoldT^2609', day: 'thu' },
+        { cohortName: 'Test class', day: 'mon' },
+        { cohortName: 'TestT^2609', day: 'mon' }
+    ] });
+    assert.equal(extra.length, 1);
+    assert.equal(extra[0].cohortName, 'GoldT^2609');
+    assert.deepEqual(extra[0].scheduleDays, [2, 4]);
+    assert.ok(extra[0].fromSchedule && extra[0].students.length === 0);
+}
+
 console.log('cohort-generate-subjects tests passed');

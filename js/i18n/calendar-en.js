@@ -2739,7 +2739,7 @@
         dataTermCloneFailed: 'Term clone failed',
         dataTermMigrateHeading: 'Migrate to next term',
         dataTermMigrateHint:
-            'Pull TMS rosters, keep student IDs, set homeroom, and carry forward or rebuild your classes.',
+            'Pull TMS rosters and teacher timetables, keep student IDs, set homeroom, and build every class from the TMS schedule.',
         dataTermMigrateOpen: 'Migrate to next term…',
         dataTermMigrateContinue: 'Continue',
         dataTermMigrateScrapeNext: 'Scrape TMS & continue',
@@ -2751,7 +2751,14 @@
             'Confirm which students move into the new cohorts. Unmatched previous students go to the archive.',
         dataTermMigrateStep4Hint: 'Assign a homeroom teacher (담임) for each cohort.',
         dataTermMigrateStep5Hint:
-            'For each cohort, say whether you teach there, then carry forward a previous class or build a new one.',
+            'Classes for every cohort, built from the TMS teacher timetables. Untick anything you do not want. Curriculum is copied from last term.',
+        dataTermMigrateScrapingSchedule: 'Reading teacher timetables from TMS…',
+        dataTermMigrateClassesMissing: 'No cohorts yet. Go back and pull the roster first.',
+        dataTermMigrateClassesHint:
+            'Each class is placed at its TMS periods with its TMS teacher. Cohorts TMS teaches together share one class. Same-level, same-subject curriculum is copied from last term.',
+        dataTermMigrateClassesNoSchedule:
+            'Could not read the TMS timetables ({why}), so classes follow the usual level schedule. You can re-run Generate subjects later.',
+        dataTermMigrateReviewClassesMade: '{n} classes across {cohorts} cohorts',
         dataTermMigrateStep6Hint: 'Review the plan, then create the new term calendar.',
         dataTermMigrateCopyEvents: 'Copy term events from this calendar (shifted)',
         dataTermMigrateScraping: 'Scraping TMS classes…',
