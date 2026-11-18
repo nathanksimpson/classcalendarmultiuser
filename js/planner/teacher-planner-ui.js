@@ -2788,12 +2788,54 @@ ${by.get(cid).map((d) => `
             return { ok: true };
         });
         if (!res) return;
+        state.tmsReport = rep;
         const left = rep.unmatchedCohorts.length + rep.unmatchedClasses.length + rep.unmatchedTeachers.length;
         notice(t('spTmsDone', 'Pulled from TMS (term {term}): {periods} periods on {classes} classes.', {
             term: rep.term || '–', periods: out.draft.assignments.reduce((n, a) => n + (a.meetings || []).length, 0), classes: out.draft.assignments.length
         }) + (left ? ' ' + t('spTmsLeft', 'Left out: {cohorts} cohorts, {classes} classes and {teachers} teachers that are not in this calendar.', {
             cohorts: rep.unmatchedCohorts.length, classes: rep.unmatchedClasses.length, teachers: rep.unmatchedTeachers.length
         }) : '') + (mergedNow ? ' ' + t('spTmsMergedDone', '{n} merged. Undo: Tools menu, Undo TMS merge.', { n: mergedNow }) : '') + mergedNote(rep), left ? 'info' : 'success');
+    }
+
+    /** Tools, TMS import details: every row read from TMS for a teacher, and where it went in this calendar. */
+    function openTmsDetails() {
+        const dlg = $('spTmsDetails');
+        const rep = state.tmsReport;
+        if (!dlg) return;
+        if (!rep || !rep.trace || !rep.trace.length) {
+            notice(t('spTmsDetailsNone', 'Pull from TMS first; then this shows what was read.'), 'info');
+            return;
+        }
+        const sel = $('spTmsDetailsTeacher');
+        const body = $('spTmsDetailsBody');
+        const teachers = Array.from(new Set(rep.trace.map((r) => r.teacher))).sort((a, b) => a.localeCompare(b));
+        sel.innerHTML = teachers.map((x) => `<option value="${esc(x)}">${esc(x)}</option>`).join('');
+        const days = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5 };
+        const dn = dayNames();
+        const label = (st) => ({
+            placed: t('spTmsTracePlaced', 'Placed'),
+            'no-cohort': t('spTmsTraceNoCohort', 'No matching cohort'),
+            'no-class': t('spTmsTraceNoClass', 'Cohort found, no class for this subject'),
+            'other-term': t('spTmsTraceOtherTerm', 'Other term (not imported)'),
+            skipped: t('spTmsTraceSkipped', 'Skipped by you')
+        }[st] || st);
+        const draw = () => {
+            const rows = rep.trace.filter((r) => r.teacher === sel.value)
+                .sort((a, b) => (days[a.day] || 9) - (days[b.day] || 9) || String(a.start).localeCompare(String(b.start)));
+            body.innerHTML = `<table class="sp-trace"><thead><tr><th>${esc(t('spTraceDay', 'Day'))}</th><th>${esc(t('spTraceTime', 'Time'))}</th><th>${esc(t('spTraceTms', 'In TMS'))}</th><th>${esc(t('spTraceResult', 'In this calendar'))}</th></tr></thead><tbody>`
+                + rows.map((r) => `<tr class="is-${esc(r.status)}"><td>${esc(dn[(days[r.day] || 0) % 7] || r.day)}</td><td>${esc(r.start)}${r.period != null ? ` <small>P${esc(r.period)}</small>` : ''}</td>
+                    <td>${esc(r.cohort)} <small>(${esc(r.subject)})</small></td>
+                    <td>${r.status === 'placed' ? esc(r.className) : `<span class="sp-trace-miss">${esc(label(r.status))}</span>`}</td></tr>`).join('')
+                + '</tbody></table>';
+        };
+        sel.onchange = draw;
+        draw();
+        dlg.hidden = false;
+        const close = () => { dlg.hidden = true; dlg.removeEventListener('click', onClick); document.removeEventListener('keydown', onKey, true); };
+        function onClick(ev) { if (ev.target === dlg || ev.target.closest('[data-details-close]')) close(); }
+        function onKey(ev) { if (ev.key === 'Escape') { ev.stopPropagation(); close(); } }
+        dlg.addEventListener('click', onClick);
+        document.addEventListener('keydown', onKey, true);
     }
 
     /**
@@ -3776,6 +3818,7 @@ ${by.get(cid).map((d) => `
         case 'close-auto': closeAuto(); break;
         case 'history': closeMenus(); openHistory(); break;
         case 'undo-merge': closeMenus(); undoTmsMerge(); break;
+        case 'tms-details': closeMenus(); openTmsDetails(); break;
         case 'close-history': closeHistory(); break;
         case 'hist-save': historySave(); break;
         case 'hist-restore': historyRestore(el.getAttribute('data-id')); break;

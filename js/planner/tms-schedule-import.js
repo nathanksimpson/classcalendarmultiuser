@@ -72,6 +72,7 @@
                 dow: DOW[String(p.day || '').toLowerCase()] || 0,
                 start: norm(p.start),
                 subject: norm(p.subject),
+                day: String(p.day || '').toLowerCase(),
                 cohort: c.key,
                 cohortRaw: norm(p.cohortName != null ? p.cohortName : p.cohort),
                 term: c.term
@@ -133,6 +134,7 @@
             unmatchedTeachers: [],
             multiTeacherClasses: [],
             mergedClasses: [],
+            trace: [],
             classesWithoutTms: 0
         };
         const tally = (list, key, extra) => {
@@ -141,11 +143,22 @@
             else list.push(Object.assign({ key, count: 1 }, extra || {}));
         };
 
+        // Row-by-row record of what was read and where it went (shown in Tools, TMS import details).
+        const trace = (r, status, cls) => report.trace.push({
+            teacher: r.teacher, day: r.day, start: r.start, cohort: r.cohortRaw, subject: r.subject, status,
+            className: cls ? cls.name : '', period: periodFor(r.start)
+        });
+        rows.forEach((r) => {
+            if (skipped.has(r.cohort)) trace(r, 'skipped');
+            else if (wantTerm && r.term && r.term !== wantTerm) trace(r, 'other-term');
+        });
+
         // One bucket per calendar class.
         const buckets = new Map();
         used.forEach((r) => {
             const cohort = cohortByKey.get(r.cohort);
             if (!cohort) {
+                trace(r, 'no-cohort');
                 tally(report.unmatchedCohorts, r.cohortRaw, { name: r.cohortRaw, days: [] });
                 const u = report.unmatchedCohorts.find((x) => x.key === r.cohortRaw);
                 if (u && !u.days.includes(r.dow)) u.days.push(r.dow);
@@ -158,9 +171,11 @@
             const candidates = (live.length ? live : mine).filter((k) => api.subjectOfName(k.name) === subject);
             // Several classes of one subject in a cohort: take the first that has no bucket yet, else the first.
             const cls = candidates.find((k) => !buckets.has(k.id)) || candidates[0];
+            if (!cls) { trace(r, 'no-class'); }
             if (!cls) return tally(report.unmatchedClasses, `${r.cohortRaw}|${r.subject}`, { cohort: r.cohortRaw, cohortId: cohort.id, subject: r.subject });
             if (!buckets.has(cls.id)) buckets.set(cls.id, { cls, rows: [] });
             buckets.get(cls.id).rows.push(r);
+            trace(r, 'placed', cls);
             report.matched += 1;
         });
 

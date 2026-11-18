@@ -24566,3 +24566,10 @@ body:not(.planner-page) #spHoldBar {
 
 .sp-term-row small { display: block; }
 .sp-merge-warn { color: var(--warn-text, #b45309); }
+
+.sp-trace { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.sp-trace th, .sp-trace td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border-color); vertical-align: top; }
+.sp-trace th { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.sp-trace small { color: var(--text-muted); }
+.sp-trace-miss { color: var(--warn-text, #b45309); }
+.sp-trace tr.is-other-term, .sp-trace tr.is-skipped { opacity: .55; }

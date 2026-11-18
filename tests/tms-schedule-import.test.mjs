@@ -174,3 +174,13 @@ console.log('tms-schedule-import term choice test passed');
     assert.equal(out.report.unmatchedClasses[0].cohortId, 'co1');
 }
 console.log('tms-schedule-import new-cohort data test passed');
+
+// The trace records every row and where it went.
+{
+    const out = I.buildDraftFromTms(cal, { placements: [
+        row('Lee', 'mon', '15:20', 'BlueM^2609', 'RC'), row('Lee', 'tue', '15:20', 'Nope^2609', 'RC'), row('Lee', 'wed', '15:20', 'BlueM^2609', 'Zzz')
+    ] });
+    assert.deepEqual(out.report.trace.map((x) => x.status).sort(), ['no-class', 'no-cohort', 'placed']);
+    assert.equal(out.report.trace.find((x) => x.status === 'placed').className, 'Blue M · Reading');
+}
+console.log('tms-schedule-import trace test passed');
