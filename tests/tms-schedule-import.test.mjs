@@ -106,3 +106,39 @@ console.log('tms-schedule-import skip test passed');
     assert.equal(both.report.term, '2609');
 }
 console.log('tms-schedule-import term tie-break test passed');
+
+// Two cohorts for the same teacher, day and time = a merged class; reported unless the calendar already merges them.
+{
+    const m = JSON.parse(JSON.stringify(cal));
+    m.cohorts.push({ id: 'co3', name: 'Green M', level: 'Green', meetingDays: [1, 3, 5], students: [] });
+    m.classes.push({ id: 'c5', name: 'Green M · Speaking & Writing', cohortIds: ['co3'], cohortId: 'co3', weeklyFrequency: 3 });
+    const two = [row('Lee', 'mon', '15:20', 'BlueM^2609', 'Wr&Spk'), row('Lee', 'mon', '15:20', 'GreenM^2609', 'Wr&Spk')];
+    const out = I.buildDraftFromTms(m, { placements: two });
+    assert.equal(out.report.mergedClasses.length, 1);
+    assert.equal(out.report.mergedClasses[0].calendarMerged, false);
+    assert.equal(out.draft.assignments.length, 2);
+    // The calendar already holds them as one class: both rows land on it, and it is not flagged.
+    m.classes[0].cohortIds = ['co1', 'co3'];
+    const out2 = I.buildDraftFromTms(m, { placements: two });
+    assert.equal(out2.report.mergedClasses[0].calendarMerged, true);
+    // A merged cohort that is not in this calendar is not a merge here.
+    const out3 = I.buildDraftFromTms(cal, { placements: two });
+    assert.equal(out3.report.mergedClasses.length, 0);
+}
+console.log('tms-schedule-import merged-class test passed');
+
+// The teacher grid parser keeps both cohorts when a cell lists two (shared room line, or one room each).
+{
+    const { createRequire } = await import('node:module');
+    const core = createRequire(import.meta.url)('../shared/tms-roster-core.cjs');
+    const html = (cell) => `<table><tr><td>시간</td><td>월</td></tr><tr><td>15:20~16:10</td><td>${cell}</td></tr></table>`;
+    const shared = core.parseTeacherGrid(html('BlueM^2609(Wr&amp;Spk)<br>GreenM^2609(Wr&amp;Spk)<br>1강의실'));
+    assert.equal(shared.length, 2);
+    assert.deepEqual(shared.map((x) => x.room), ['1강의실', '1강의실']);
+    assert.deepEqual(shared[0].sharedWith, ['GreenM^2609']);
+    const each = core.parseTeacherGrid(html('BlueM^2609(Wr&amp;Spk)<br>1강의실<br>GreenM^2609(Wr&amp;Spk)<br>2강의실'));
+    assert.deepEqual(each.map((x) => [x.cohortName, x.room]), [['BlueM^2609', '1강의실'], ['GreenM^2609', '2강의실']]);
+    const single = core.parseTeacherGrid(html('동아(윤정미)(내신수업)<br>1강의실'));
+    assert.deepEqual(single.map((x) => [x.cohortName, x.subject, x.room]), [['동아(윤정미)', '내신수업', '1강의실']]);
+}
+console.log('tms grid parser multi-cohort test passed');

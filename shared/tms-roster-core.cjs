@@ -3034,20 +3034,38 @@ function parseTeacherGrid(html) {
                 .split(/<br\s*\/?>/i)
                 .map((s) => stripTags(decodeHtmlEntities(s)).replace(/ /g, ' ').trim())
                 .filter(Boolean);
-            for (let k = 0; k < parts.length; k += 2) {
-                const classLine = parts[k];
-                const room = parts[k + 1] || '';
-                // greedy: last (...) is the subject; handles names like 동아(윤정미)(내신수업)
-                const cm = classLine.match(/^(.*)\(([^()]*)\)\s*$/);
-                slots.push({
-                    day: DAYS[i - 1],
-                    start: tm[1],
-                    end: tm[2],
-                    cohortName: cm ? cm[1].trim() : classLine,
-                    subject: cm ? cm[2].trim() : '',
-                    room
+            // A cell lists classes as "cohort(subject)" lines, each followed by its room. When two cohorts are
+            // merged into one class, both cohort lines appear (with one shared room line, or one room each).
+            // So: a line ending in "(…)" is a class; any other line is a room for the classes listed before it.
+            const isClass = (line) => /^(.*)\(([^()]*)\)\s*$/.test(line) || line.indexOf('^') > 0;
+            let pending = [];
+            const flush = (room) => {
+                pending.forEach((slot) => {
+                    slot.room = room;
+                    if (pending.length > 1) {
+                        slot.sharedWith = pending.filter((o) => o !== slot).map((o) => o.cohortName);
+                    }
+                    slots.push(slot);
                 });
-            }
+                pending = [];
+            };
+            parts.forEach((line) => {
+                if (isClass(line)) {
+                    // greedy: last (...) is the subject; handles names like 동아(윤정미)(내신수업)
+                    const cm = line.match(/^(.*)\(([^()]*)\)\s*$/);
+                    pending.push({
+                        day: DAYS[i - 1],
+                        start: tm[1],
+                        end: tm[2],
+                        cohortName: cm ? cm[1].trim() : line,
+                        subject: cm ? cm[2].trim() : '',
+                        room: ''
+                    });
+                } else {
+                    flush(line);
+                }
+            });
+            flush('');
         }
     }
     return slots;

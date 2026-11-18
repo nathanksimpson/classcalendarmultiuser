@@ -3198,6 +3198,7 @@
         spTmsMapSkip: '이 캘린더에 없음 (건너뛰기)',
         spTmsMapSave: '저장하고 계속',
         spTmsNothing: '이 달력의 코호트·수업과 맞는 TMS 수업이 없어 아무것도 바꾸지 않았습니다.',
+        spTmsMerged: 'TMS에서 합반: {list}. 이 캘린더에서는 아직 별도 수업입니다. 두 코호트를 한 수업으로 묶으면 함께 계획할 수 있습니다.',
         spTmsDone: 'TMS에서 가져왔습니다 (학기 {term}): {classes}개 수업, {periods}교시.',
         spTmsLeft: '제외됨: 이 달력에 없는 코호트 {cohorts}개, 수업 {classes}개, 선생님 {teachers}명.',
         spToolHistory: '저장된 버전',

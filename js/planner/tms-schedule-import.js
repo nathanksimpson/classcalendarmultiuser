@@ -132,6 +132,7 @@
             unmatchedClasses: [],
             unmatchedTeachers: [],
             multiTeacherClasses: [],
+            mergedClasses: [],
             classesWithoutTms: 0
         };
         const tally = (list, key, extra) => {
@@ -155,6 +156,34 @@
             buckets.get(cls.id).rows.push(r);
             report.matched += 1;
         });
+
+        // Merged classes: one teacher cannot teach two classes in the same period, so two cohorts listed for the
+        // same teacher, day and time (TMS shows both cohort names in the cell) are one merged class.
+        const atSlot = new Map();
+        used.forEach((r) => {
+            const k = `${r.teacher}|${r.dow}|${r.start}`;
+            if (!atSlot.has(k)) atSlot.set(k, []);
+            atSlot.get(k).push(r);
+        });
+        const mergedBy = new Map();
+        atSlot.forEach((slotRows) => {
+            const byCohort = new Map();
+            slotRows.forEach((r) => { if (!byCohort.has(r.cohort)) byCohort.set(r.cohort, r); });
+            if (byCohort.size < 2) return;
+            const members = Array.from(byCohort.values()).filter((m) => cohortByKey.has(m.cohort));
+            if (members.length < 2) return;
+            const key = `${members[0].teacher}|${members.map((m) => m.cohort).sort().join('+')}|${members.map((m) => api.normalizeSubject(m.subject)).sort().join('+')}`;
+            if (!mergedBy.has(key)) {
+                const cohortObjs = members.map((m) => cohortByKey.get(m.cohort)).filter(Boolean);
+                const together = cohortObjs.length === members.length && classes.some((k) => {
+                    const ids = k.cohortIds || [k.cohortId];
+                    return cohortObjs.every((c) => ids.includes(c.id));
+                });
+                mergedBy.set(key, { teacher: members[0].teacher, cohorts: members.map((m) => m.cohortRaw), subject: members[0].subject, periods: 0, calendarMerged: together });
+            }
+            mergedBy.get(key).periods += 1;
+        });
+        report.mergedClasses = Array.from(mergedBy.values());
 
         const stamp = (opts.now || new Date()).toISOString();
         const assignments = [];
