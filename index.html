@@ -8,7 +8,7 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="stylesheet" href="styles.css?v=20261118-sum">
-    <link rel="stylesheet" href="css/ui-refresh.css?v=20261118-tab-scroll-hint">
+    <link rel="stylesheet" href="css/ui-refresh.css?v=20261118-build-stamp">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <script src="js/boot-prefetch.js?v=20261116-boot-prefetch"></script>
@@ -92,6 +92,7 @@
                     <div class="app-brand">
                         <span class="app-brand-icon">◳</span>
                         <span class="app-brand-name" data-i18n="appTitle">ClassManager</span>
+                        <span id="appBuildStamp" class="app-build-stamp" title="Local copy (not a deployed build)" data-build-stamp="short">dev</span>
                     </div>
                     <h1 class="visually-hidden" data-i18n="appTitle">ClassManager</h1>
                     <button type="button" id="teamCalendarMenuBtn" class="btn btn-outline btn-small header-dropdown-trigger team-calendar-menu-trigger header-calendar-trigger" aria-expanded="false" aria-haspopup="menu" aria-controls="teamCalendarPopover" data-i18n-title="teamCalendarMenuTitle" title="Switch calendar, term settings">
@@ -3443,6 +3444,7 @@
         <a href="help.html" id="helpLink" class="btn btn-outline btn-small btn-help header-dropdown-item" role="menuitem" data-i18n="accountHelpTutorial" data-i18n-title="howToBtnTitle">Help &amp; tutorial</a>
         <button type="button" id="accountHideTabsBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" aria-pressed="false" aria-controls="appZoneNavCluster appZoneSegmentNavRow" data-i18n="accountHideTabs" data-i18n-title="navTabsHideTitle" data-i18n-aria-label="navTabsHideTitle" title="Hide navigation tabs" aria-label="Hide navigation tabs">Hide tabs</button>
         <button type="button" id="headerReloadBtn" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" data-i18n="accountReloadApp" data-i18n-title="uiReloadAppTitle" title="Reload the page to get the latest data and app version">Reload app</button>
+        <p class="header-dropdown-user app-build-line"><span data-i18n="appBuildUpdated">Last update</span> <span id="appBuildStampFull" data-build-stamp="full">dev</span></p>
         <button type="button" id="tmsHelperUninstall" class="btn btn-outline btn-small header-dropdown-item" role="menuitem" hidden data-i18n="tmsHelperUninstall">Uninstall</button>
         <hr class="header-dropdown-divider" aria-hidden="true">
         <a href="/admin" id="teamAdminLink" class="btn btn-outline btn-small btn-header-account header-dropdown-item" role="menuitem" hidden data-i18n="teamAdminLink">Admin</a>

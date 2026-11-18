@@ -1838,6 +1838,7 @@
         headerNewMenuLabel: 'New',
         headerNewNote: 'Note',
         accountHelpTutorial: 'Help & tutorial',
+        appBuildUpdated: 'Last update',
         accountReloadApp: 'Reload app',
         teamCalendarMenuTitle: 'Switch calendar, term settings',
         headerStatusAria: 'Save and sync status',

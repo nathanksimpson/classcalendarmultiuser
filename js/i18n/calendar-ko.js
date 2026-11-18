@@ -1837,6 +1837,7 @@
         headerNewMenuLabel: '새로 만들기',
         headerNewNote: '메모',
         accountHelpTutorial: '도움말 및 튜토리얼',
+        appBuildUpdated: '마지막 업데이트',
         accountReloadApp: '앱 새로 고침',
         teamCalendarMenuTitle: '캘린더 전환, 학기 설정',
         headerStatusAria: '저장 및 동기화 상태',
