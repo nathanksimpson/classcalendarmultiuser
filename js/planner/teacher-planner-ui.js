@@ -212,7 +212,7 @@
         const allDemands = P.buildDemandsFromAppData(data);
         const demands = allDemands.filter((d) => d.includedInDraft !== false);
         const demandById = new Map(allDemands.map((d) => [d.demandId, d]));
-        const classById = new Map((data.classes || []).map((c) => [c.id, c]));
+        const classById = new Map(P.allClasses(data).map((c) => [c.id, c]));
         const asgByDemand = new Map();
         draft.assignments.forEach((a) => { if (!asgByDemand.has(a.demandId)) asgByDemand.set(a.demandId, a); });
 
@@ -718,6 +718,7 @@ ${!clashes && !warns && total && done === total ? `<span class="sp-pill sp-pill-
   <span class="sp-badge${complete ? ' is-done' : ''}">${placed}/${need}</span>
   <span class="sp-card-sub${teacher ? '' : ' is-missing'}">${esc(teacher || t('spNoTeacher', 'No teacher'))}</span>
   ${demand.special ? specialTagHtml(demand) : ''}
+  ${demand.draft ? `<span class="sp-draft-tag">${esc(t('spDraftTag', 'Draft'))}</span>` : ''}
 </div>`;
     }
 
@@ -946,7 +947,7 @@ ${classEditHtml(demand)}`;
 
     /** Duplicate a special class (for another day or time); the copy is not placed yet. */
     function duplicateSpecial(classId) {
-        const src = (M.data.classes || []).find((c) => c.id === classId);
+        const src = api().allClasses(M.data).find((c) => c.id === classId);
         if (!src) return;
         const id = newClassId();
         setupEdit((data) => {
@@ -972,7 +973,7 @@ ${classEditHtml(demand)}`;
 
     /** Delete a special class (only special ones can be deleted here). */
     function deleteSpecial(classId) {
-        const cls = (M.data.classes || []).find((c) => c.id === classId);
+        const cls = api().allClasses(M.data).find((c) => c.id === classId);
         if (!cls || cls.plannerSpecial !== true) return;
         confirmBox(t('spSpecialDeleteConfirm', 'Delete {name}? It is removed from the calendar too.', { name: cls.name }), t('spDelete', 'Delete')).then((yes) => {
             if (!yes) return;
@@ -996,7 +997,7 @@ ${classEditHtml(demand)}`;
      * full class editor, opened in a new tab on the same calendar.
      */
     function classEditHtml(demand) {
-        const cls = (M.data.classes || []).find((c) => c.id === demand.classId);
+        const cls = api().allClasses(M.data).find((c) => c.id === demand.classId);
         if (!cls) return '';
         const fullHref = `/?tab=classes&classId=${encodeURIComponent(cls.id)}`;
         const open = state.editClass === demand.demandId;
@@ -1053,7 +1054,7 @@ ${classEditHtml(demand)}`;
         if (!box || readOnly()) return;
         const id = box.getAttribute('data-class');
         setupEdit((data) => {
-            const cls = (data.classes || []).find((c) => c.id === id);
+            const cls = api().allClasses(data).find((c) => c.id === id);
             if (!cls) return;
             if (kind === 'edit-class-name') {
                 const v = String(el.value || '').trim();
@@ -2780,9 +2781,12 @@ ${by.get(cid).map((d) => `
                     const base = String(cohort.name || '').replace(/\^.*$/, '').trim() || cohort.name;
                     const rec = specialClassRecord({ id, name: `${base} \u00B7 ${u.subject}`, type: '', students: 0, cohortIds: [cohort.id], start: '', end: '' });
                     rec.weeklyFrequency = Math.max(1, Math.min(10, u.count || 1));
-                    d2.classes = d2.classes || [];
-                    d2.classes.push(rec);
-                    if (Array.isArray(cohort.classIds)) cohort.classIds.push(id);
+                    // A draft class: lives in the plan only; Apply to calendar makes it a real class.
+                    delete rec.plannerSpecial;
+                    rec.plannerDraftClass = true;
+                    const plan = ensureDraft(d2);
+                    plan.draftClasses = plan.draftClasses || [];
+                    plan.draftClasses.push(rec);
                     madeClasses += 1;
                 });
             });
@@ -2810,6 +2814,7 @@ ${by.get(cid).map((d) => `
         const res = mutate((data) => {
             const prev = getActiveDraft(data);
             out.draft.id = prev ? prev.id : out.draft.id;
+            if (prev && Array.isArray(prev.draftClasses) && prev.draftClasses.length) out.draft.draftClasses = prev.draftClasses;
             installDraft(data, out.draft);
             // A named copy stays in the calendar's snapshot history so pulls can be compared and restored later.
             if (global.CCPTeacherPlannerSnapshots && global.CCPTeacherPlannerSnapshots.save) {
@@ -2824,7 +2829,7 @@ ${by.get(cid).map((d) => `
             term: rep.term || '–', periods: out.draft.assignments.reduce((n, a) => n + (a.meetings || []).length, 0), classes: out.draft.assignments.length
         }) + (left ? ' ' + t('spTmsLeft', 'Left out: {cohorts} cohorts, {classes} classes and {teachers} teachers that are not in this calendar.', {
             cohorts: rep.unmatchedCohorts.length, classes: rep.unmatchedClasses.length, teachers: rep.unmatchedTeachers.length
-        }) : '') + (madeClasses ? ' ' + t('spTmsClassesMade', '{n} new classes created from TMS.', { n: madeClasses }) : '') + (mergedNow ? ' ' + t('spTmsMergedDone', '{n} merged. Undo: Tools menu, Undo TMS merge.', { n: mergedNow }) : '') + mergedNote(rep), left ? 'info' : 'success');
+        }) : '') + (madeClasses ? ' ' + t('spTmsClassesMade', '{n} draft classes added to the plan.', { n: madeClasses }) : '') + (mergedNow ? ' ' + t('spTmsMergedDone', '{n} merged. Undo: Tools menu, Undo TMS merge.', { n: mergedNow }) : '') + mergedNote(rep), left ? 'info' : 'success');
     }
 
     /** Tools, TMS import details: every row read from TMS for a teacher, and where it went in this calendar. */
@@ -3567,6 +3572,21 @@ ${by.get(cid).map((d) => `
         const data = M.data;
         if (pendingBlocks.length) api().writeCohortBlocks(data);
         const draft = M.draft;
+        // Draft classes become real classes now.
+        let madeReal = 0;
+        if (Array.isArray(draft.draftClasses) && draft.draftClasses.length) {
+            data.classes = data.classes || [];
+            draft.draftClasses.forEach((k) => {
+                delete k.plannerDraftClass;
+                data.classes.push(k);
+                (k.cohortIds || []).forEach((cid) => {
+                    const co = (data.cohorts || []).find((c) => c.id === cid);
+                    if (co && Array.isArray(co.classIds) && !co.classIds.includes(k.id)) co.classIds.push(k.id);
+                });
+                madeReal += 1;
+            });
+            draft.draftClasses = [];
+        }
         const excluded = draft.assignments.filter((a) => {
             const d = M.demandById.get(a.demandId);
             return !d || d.includedInDraft === false;
@@ -3578,7 +3598,8 @@ ${by.get(cid).map((d) => `
         installDraft(data, draft);
         markDirty();
         render();
-        notice(t('spApplied', 'Calendar updated: {n} classes.', { n: result.applied.length }), 'success');
+        notice(t('spApplied', 'Calendar updated: {n} classes.', { n: result.applied.length })
+            + (madeReal ? ' ' + t('spAppliedNew', '{n} draft classes are now real classes.', { n: madeReal }) : ''), 'success');
     }
 
     /* ------------------------------------------------------------------ print */
@@ -4192,7 +4213,7 @@ ${by.get(cid).map((d) => `
         } else if (kind === 'class-include' || kind === 'class-type') {
             const id = row.getAttribute('data-class');
             setupEdit((data) => {
-                const cls = (data.classes || []).find((c) => c.id === id);
+                const cls = api().allClasses(data).find((c) => c.id === id);
                 if (!cls) return;
                 if (kind === 'class-include') {
                     if (el.checked) delete cls.plannerExcluded;
@@ -4239,7 +4260,7 @@ ${by.get(cid).map((d) => `
                 if (kind === 'room-name') r.name = el.value.trim() || r.name;
                 if (kind === 'room-capacity') r.capacity = el.value === '' ? null : num(0, 200, null);
             } else if (kind === 'class-freq') {
-                const cls = (data.classes || []).find((c) => c.id === row.getAttribute('data-class'));
+                const cls = api().allClasses(data).find((c) => c.id === row.getAttribute('data-class'));
                 if (cls) cls.weeklyFrequency = num(1, 10, 1);
             }
         });

@@ -830,6 +830,15 @@
     /**
      * Build a draft from live classTeachers + meeting slots (calendar schedule).
      */
+    /** Real classes plus the draft classes of the active plan (made by a TMS pull; real only after Apply to calendar). */
+    function allClasses(appData) {
+        const base = Array.isArray(appData && appData.classes) ? appData.classes : [];
+        const st = appData && appData.plannerState;
+        const draft = st && (appData.plannerDrafts || []).find((d) => d && d.id === st.activeDraftId);
+        const extra = draft && Array.isArray(draft.draftClasses) ? draft.draftClasses : [];
+        return extra.length ? base.concat(extra) : base;
+    }
+
     function seedDraftFromCalendar(appData, options) {
         const opts = options || {};
         ensurePlannerFields(appData);
@@ -837,7 +846,7 @@
         const filters = opts.filters || (appData.plannerState && appData.plannerState.filters);
         const demands = buildDemandsFromAppData(appData, { filters })
             .filter((d) => d.includedInDraft !== false);
-        const classesById = new Map((appData.classes || []).map((c) => [c.id, c]));
+        const classesById = new Map(allClasses(appData).map((c) => [c.id, c]));
         const assignments = [];
 
         demands.forEach((demand) => {
@@ -961,7 +970,7 @@
 
     function buildDemandsFromAppData(appData, options) {
         const opts = options || {};
-        const classes = Array.isArray(appData && appData.classes) ? appData.classes : [];
+        const classes = allClasses(appData);
         const cohorts = Array.isArray(appData && appData.cohorts) ? appData.cohorts : [];
         const demands = [];
 
@@ -1001,6 +1010,7 @@
                     : inferTeacherRequirement(cls),
                 preferredRoomId: normalizeStr(cls.roomId) || null,
                 includedInDraft: cls.plannerExcluded === true ? false : true,
+                draft: cls.plannerDraftClass === true,
                 // Special / temporary class added in the planner: no cohort needed, one slot a week,
                 // placed by hand only, runs between its own dates.
                 special: cls.plannerSpecial === true,
@@ -2862,7 +2872,7 @@
     function applyDraftToAppData(appData, draft, options) {
         const opts = options || {};
         ensurePlannerFields(appData);
-        const classes = Array.isArray(appData.classes) ? appData.classes : [];
+        const classes = allClasses(appData);
         const applied = [];
         const failed = [];
 
@@ -2980,6 +2990,7 @@
         ensurePlannerFields,
         seedTeacherProfilesFromAppData,
         seedDraftFromCalendar,
+        allClasses,
         findTeacherProfileForClass,
         buildDemandsFromAppData,
         hardRejectReasons,

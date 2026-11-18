@@ -198,3 +198,21 @@ console.log('tms-schedule-import trace test passed');
     assert.ok(out.draft.assignments.length >= 1);
 }
 console.log('tms-schedule-import cohort-named class test passed');
+
+// Draft classes live on the plan only: planner lookups and the importer see them, the calendar's classes do not change.
+{
+    const d = JSON.parse(JSON.stringify(cal));
+    d.classes = [];
+    P.ensurePlannerFields(d);
+    d.plannerDrafts = [{ id: 'dr1', assignments: [], draftClasses: [{ id: 'dc1', name: 'Blue M · Grammar', cohortIds: ['co1'], cohortId: 'co1', weeklyFrequency: 3, plannerDraftClass: true }] }];
+    d.plannerState = Object.assign({}, d.plannerState, { activeDraftId: 'dr1' });
+    assert.equal(d.classes.length, 0);
+    assert.equal(P.allClasses(d).length, 1);
+    const dem = P.buildDemandsFromAppData(d);
+    assert.equal(dem.length, 1);
+    assert.equal(dem[0].draft, true);
+    const out = I.buildDraftFromTms(d, { placements: [row('Lee', 'mon', '15:20', 'BlueM^2609', 'Grammar')] });
+    assert.equal(out.report.unmatchedClasses.length, 0);
+    assert.equal(out.report.matched, 1);
+}
+console.log('tms-schedule-import draft class test passed');

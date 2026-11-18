@@ -23464,6 +23464,24 @@ body.sp-readonly .sp-tile-x {
     color: var(--warning-text, #92400e);
 }
 
+.sp-plan-why {
+    margin: var(--space-2) 0;
+    font-size: var(--text-sm, 0.875rem);
+}
+
+.sp-plan-why summary {
+    cursor: pointer;
+}
+
+.sp-plan-why ul {
+    margin: var(--space-1) 0 0;
+    padding-left: var(--space-4);
+}
+
+.sp-auto-retry {
+    margin: var(--space-3) 0;
+}
+
 .sp-plans {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -24538,6 +24556,43 @@ body:not(.planner-page) #spHoldBar {
     display: none !important;
 }
 
+/* ---- Timetable for teachers: read-only, their own timetable only (management uses the Planner) ---- */
+body.timetable-mine-only #timetableOpenPlannerBtn,
+body.timetable-mine-only #timetablePeriodScheduleBtn,
+body.timetable-mine-only #timetableMyScheduleBtn,
+body.timetable-mine-only #timetableImportXlsBtn,
+body.timetable-mine-only #timetableExportXlsBtn,
+body.timetable-mine-only #timetableConflictBadge,
+body.timetable-mine-only .timetable-sidebar {
+    display: none !important;
+}
+
+body.timetable-mine-only .timetable-layout {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.sp-menu-sep {
+    margin: 4px 0;
+    border: 0;
+    border-top: 1px solid var(--border-color);
+}
+
+.sp-hist-row { display: flex; gap: 8px; align-items: center; }
+.sp-hist-row .field-input { flex: 1; }
+.sp-hist-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.sp-hist-item { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--border, #d7d7d7); border-radius: 8px; }
+.sp-hist-main { display: grid; gap: 4px; flex: 1 1 220px; min-width: 0; }
+.sp-hist-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.drafter-panel { padding: 16px; }
+.drafter-table { border-collapse: collapse; width: 100%; max-width: 760px; margin-top: 12px; }
+.drafter-table th, .drafter-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border, #d7d7d7); }
+.drafter-groups { list-style: none; padding: 0; display: grid; gap: 6px; max-width: 760px; }
+.drafter-band { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border, #d7d7d7); }
+.drafter-band--healthy { border-color: #3a8f5c; }
+.drafter-band--thin { border-color: #c98a1b; }
+.drafter-band--single, .drafter-band--tooSmall, .drafter-band--tooBig { border-color: #c0392b; }
+
 .sp-map-dialog { width: min(40rem, 94vw); max-height: 90vh; display: flex; flex-direction: column; }
 .sp-map-head, .sp-map-row { display: grid; grid-template-columns: minmax(7rem, 2fr) minmax(10rem, 3fr); gap: 10px; align-items: center; }
 .sp-map-head { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; padding: 0 8px; }
@@ -24576,3 +24631,5 @@ body:not(.planner-page) #spHoldBar {
 
 .sp-map-other { margin-top: 8px; border-top: 1px solid var(--border-color); padding-top: 6px; }
 .sp-map-other summary { cursor: pointer; color: var(--text-muted); font-size: 0.8125rem; padding: 4px 8px; }
+
+.sp-draft-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 8px; font-size: 11px; background: #fef3c7; color: #92400e; border: 1px dashed #d97706; }

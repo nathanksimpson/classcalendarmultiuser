@@ -121,7 +121,7 @@
         const profiles = appData.teacherProfiles || [];
         const profileByName = new Map(profiles.map((t) => [nameKey(t.name), t]));
         const periodFor = periodFinder(appData);
-        const classes = appData.classes || [];
+        const classes = api.allClasses ? api.allClasses(appData) : (appData.classes || []);
 
         const report = {
             term: wantTerm,
