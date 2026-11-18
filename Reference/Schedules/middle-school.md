@@ -4,7 +4,7 @@ Source: the academy's printed flyer **심슨어학원 중등 커리큘럼 / Sims
 Machine-readable copy: [`middle-school.json`](middle-school.json).
 Elementary: see [`elementary.md`](elementary.md).
 
-`js/schedule-matrix-data.js` holds these timetables (programTrack `middleSchool`) since Nov 2026: "Debate or RC" defaults to Debate, "LC or VOCA" to LC, 중3 RC 1 is the RC class, and the once-a-week class is pattern `mon`. Generate subjects uses them only when TMS has no timetable for the cohort.
+`js/schedule-matrix-data.js` holds these timetables (programTrack `middleSchool`) since Nov 2026: "Debate or RC", "LC or VOCA" and 중3 "Debate or RC 2" are picked per cohort in the Generate subjects preview, 중3 RC 1 is the RC class, and the once-a-week class is pattern `mon`. Generate subjects uses them only when TMS has no timetable for the cohort.
 
 ## Subjects (과목)
 

@@ -38,6 +38,7 @@
         rc: { en: 'RC', ko: 'RC' },
         lc: { en: 'LC', ko: 'LC' },
         voca: { en: 'Vocabulary', ko: '어휘' },
+        rc2: { en: 'RC 2', ko: 'RC 2' },
         mentoring: { en: 'Mentoring', ko: '멘토링' }
     };
 
@@ -512,6 +513,8 @@
                     trackMap.set(track, {
                         id: hooks.generateId(),
                         subjectTrack: track,
+                        // "debate|rc": either subject, picked per cohort in the Generate subjects preview.
+                        ...(String(track).includes('|') ? { choices: String(track).split('|') } : {}),
                         classId: '',
                         enabled: true,
                         period: slot.period,
@@ -625,18 +628,66 @@
             keys.add(slot.subjectKey);
         }
         add(slot.subjectLabel);
-        const track = normalizeStr(slot.subjectTrack).replace(/^tms:/, '');
-        add(track);
-        const entry = SUBJECT_TRACK_LABELS[track];
-        if (entry) {
-            add(entry.en);
-            add(entry.ko);
-        }
+        const tracks = Array.isArray(slot.choices) && slot.choices.length
+            ? slot.choices
+            : [normalizeStr(slot.subjectTrack).replace(/^tms:/, '')];
+        tracks.forEach((track) => {
+            add(track);
+            const entry = SUBJECT_TRACK_LABELS[track];
+            if (entry) {
+                add(entry.en);
+                add(entry.ko);
+            }
+        });
         return keys;
     }
 
     function slotLabel(slot) {
+        if (Array.isArray(slot.choices) && slot.choices.length) {
+            return slot.choices.map((c) => subjectTrackLabel(c)).join(t('cohortsGenOr'));
+        }
         return normalizeStr(slot.subjectLabel) || subjectTrackLabel(slot.subjectTrack);
+    }
+
+    /**
+     * Either/or rows ("Debate or RC") become the subject picked in the preview (row.choice). When that subject
+     * already has a row, the periods join it (one RC class, one more period); otherwise the row becomes it.
+     */
+    function resolveChoiceRows(cohort, rows) {
+        const appData = hooks.getAppData();
+        const plain = rows.filter((r) => !(r.slot.choices && r.slot.choices.length));
+        const out = plain.slice();
+        rows.forEach((r) => {
+            const choices = r.slot.choices;
+            if (!choices || !choices.length) {
+                return;
+            }
+            const track = choices.includes(r.choice) ? r.choice : choices[0];
+            const host = plain.find((p) => p.slot.subjectTrack === track);
+            if (host) {
+                const pl = (host.slot.placements || []).concat(r.slot.placements || []);
+                host.slot.placements = pl;
+                const byWd = { ...(host.slot.periodByWeekday || {}) };
+                Object.keys(r.slot.periodByWeekday || {}).forEach((d) => {
+                    const p = r.slot.periodByWeekday[d];
+                    if (byWd[d] == null || p < byWd[d]) {
+                        byWd[d] = p;
+                    }
+                });
+                host.slot.periodByWeekday = byWd;
+                r.slot.enabled = false;
+                r.slot.classId = '';
+                return;
+            }
+            r.slot.subjectTrack = track;
+            delete r.slot.choices;
+            const taken = new Set(out.filter((x) => x.cls).map((x) => x.cls.id));
+            const found = findExistingClassForSlot(appData, cohort, r.slot, [], taken);
+            r.cls = found ? found.cls : null;
+            r.how = found ? found.how : 'create';
+            out.push(r);
+        });
+        return out;
     }
 
     /** "BlueT^2609" / "Blue T" -> "bluet": a cohort or class-name prefix compared without spaces or the TMS term. */
@@ -727,7 +778,9 @@
         const slots = mergeSubjectSlots(cohort.subjectSlots, fresh);
         const taken = new Set();
         const rows = [];
-        slots.forEach((slot) => {
+        // Either/or rows last, so a plain subject keeps first claim on its own class.
+        const isChoice = (sl) => !!(sl.choices && sl.choices.length);
+        slots.filter((sl) => !isChoice(sl)).concat(slots.filter(isChoice)).forEach((slot) => {
             if (slot.enabled === false || !fresh.some((f) => f.subjectTrack === slot.subjectTrack)) {
                 return;
             }
@@ -763,6 +816,9 @@
 
     /** Apply the rows the person ticked in the preview. */
     function applyCohortGeneration(cohort, generation, chosenRows) {
+        chosenRows = resolveChoiceRows(cohort, chosenRows);
+        // An either/or row that joined another subject leaves no saved row of its own.
+        generation.slots = generation.slots.filter((s) => s.enabled !== false || s.classId || !(s.choices && s.choices.length));
         const appData = hooks.getAppData();
         if (!Array.isArray(appData.classes)) {
             appData.classes = [];
@@ -1078,6 +1134,7 @@
         table.innerHTML = `<thead><tr><th></th><th>${escapeHtml(t('cohortsSubjectCol'))}</th><th>${escapeHtml(t('cohortsGenWhen'))}</th><th>${escapeHtml(t('cohortsGenTeacher'))}</th><th>${escapeHtml(t('cohortsGenWhat'))}</th></tr></thead>`;
         const tbody = document.createElement('tbody');
         const boxes = [];
+        const selects = [];
         generation.rows.forEach((row) => {
             const tr = document.createElement('tr');
             const what = row.how === 'create'
@@ -1089,10 +1146,16 @@
             const outside = (row.slot.partnersNotInCalendar || []).length
                 ? ' ' + t('cohortsGenOutside').replace('{names}', row.slot.partnersNotInCalendar.join(', '))
                 : '';
-            tr.innerHTML = `<td><input type="checkbox" checked></td><td>${escapeHtml(slotLabel(row.slot))}</td>
+            const choices = row.slot.choices || [];
+            const picked = row.cls ? (choices.find((c) => slotSubjectKeys({ subjectTrack: c }).has(classSubjectKey(row.cls))) || choices[0]) : choices[0];
+            const subjectCell = choices.length
+                ? `<select class="field-select" data-gen-choice>${choices.map((c) => `<option value="${escapeHtml(c)}"${c === picked ? ' selected' : ''}>${escapeHtml(subjectTrackLabel(c))}</option>`).join('')}</select>`
+                : escapeHtml(slotLabel(row.slot));
+            tr.innerHTML = `<td><input type="checkbox" checked></td><td>${subjectCell}</td>
                 <td>${escapeHtml(formatPlacementsShort(row.slot))}</td><td>${escapeHtml(row.slot.tmsTeacherName || '—')}</td>
                 <td>${escapeHtml(what + outside)}</td>`;
             boxes.push(tr.querySelector('input'));
+            selects.push(tr.querySelector('[data-gen-choice]'));
             tbody.appendChild(tr);
         });
         table.appendChild(tbody);
@@ -1106,7 +1169,12 @@
             t('cohortsGenPreviewTitle').replace('{name}', cohortDisplayName(cohort)),
             box,
             t('cohortsGenApply'),
-            () => generation.rows.filter((_r, i) => boxes[i].checked)
+            () => generation.rows.filter((r, i) => {
+                if (selects[i]) {
+                    r.choice = selects[i].value;
+                }
+                return boxes[i].checked;
+            })
         );
     }
 

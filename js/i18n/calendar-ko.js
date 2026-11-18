@@ -2015,6 +2015,7 @@
         cohortsGenerateDone: '과목 수업 {created}개 생성, {updated}개 업데이트.',
         cohortsGenDone: '과목 수업 생성: {created}개 생성, {updated}개 업데이트, {linked}개 연결.',
         cohortsGenPreviewTitle: '{name} 과목 수업 생성',
+        cohortsGenOr: ' 또는 ',
         cohortsGenApply: '선택한 과목 적용',
         cohortsGenNothing: '생성할 과목이 없습니다.',
         cohortsGenWhen: '시간',

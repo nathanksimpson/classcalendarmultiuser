@@ -38,7 +38,8 @@ const TT = globalThis.CCPTeacherTimetable;
     // Middle school: 중1/중2 vs 중3 vs Pre-Basic, and the Mon-only class for Inter-high / Advanced 중2–3.
     assert.deepEqual(slot('빅키', 'mwf', 1).byWeekday, { 1: 'news', 3: 'grammar', 5: 'news' });
     assert.deepEqual(slot('로체', 'mwf', 1).byWeekday, { 1: 'rc', 3: 'rc', 5: 'news' });
-    assert.deepEqual(slot('S2', 'tth', 3).byWeekday, { 2: 'grammar', 4: 'lc' });
+    assert.deepEqual(slot('S2', 'tth', 3).byWeekday, { 2: 'grammar', 4: 'lc|voca' });
+    assert.deepEqual(slot('\uC720\uB9C8', 'mwf', 2).byWeekday, { 1: 'grammar', 3: 'rc', 5: 'debate|rc' });
     assert.equal(M.findSlots({ level: '빅키', patternId: 'mon' }).length, 5);
     assert.equal(M.findSlots({ level: '파보', patternId: 'mon' }).length, 0, '중1 has no Mon-only class');
     assert.equal(M.patternIdFromMeetingDays([1]), 'mon');
@@ -139,12 +140,12 @@ assert.ok(again.rows.every((r) => r.how === 'update'), 'second run only updates'
 const vicci = appData.cohorts[2];
 assert.equal(CM.resolveMatrixLevel(vicci), '빅키');
 const vGen = CM.planCohortGeneration(vicci, { kind: 'matrix' });
-assert.deepEqual(vGen.rows.map((r) => r.slot.subjectTrack).sort(), ['debate', 'grammar', 'news', 'rc']);
+assert.deepEqual(vGen.rows.map((r) => r.slot.subjectTrack).sort(), ['debate|rc', 'grammar', 'news', 'rc']);
 assert.ok(vGen.rows.every((r) => r.how === 'create'));
 const s1 = appData.cohorts[3];
 assert.equal(CM.resolveMatrixLevel(s1), 'S1');
 const sGen = CM.planCohortGeneration(s1, { kind: 'matrix' });
-assert.deepEqual(sGen.rows.map((r) => r.slot.subjectTrack).sort(), ['grammar', 'lc', 'rc']);
+assert.deepEqual(sGen.rows.map((r) => r.slot.subjectTrack).sort(), ['grammar', 'lc|voca', 'rc']);
 // Pre-Basic Tue/Thu has Grammar twice on Tuesday: the class plans 3 periods a week on 2 days.
 s1.schedulePattern = 'tth';
 s1.meetingDays = [2, 4];
@@ -154,5 +155,32 @@ const gRow = tGen.rows.find((r) => r.slot.subjectTrack === 'grammar');
 assert.equal(gRow.slot.placements.length, 3);
 CM.applyCohortGeneration(s1, tGen, [gRow]);
 assert.equal(appData.classes.find((c) => c.id === gRow.slot.classId).weeklyFrequency, 3);
+
+/* ---------- either/or subjects, picked per cohort ---------- */
+{
+    // Picking RC: the Fri period joins the RC class (one class, 3 periods).
+    const vRows = vGen.rows;
+    vRows.find((r) => r.slot.subjectTrack === 'debate|rc').choice = 'rc';
+    const before = appData.classes.length;
+    CM.applyCohortGeneration(vicci, vGen, vRows);
+    const rcCls = appData.classes.find((c) => c.name === '\uBE45\uD0A4T \u00B7 RC');
+    assert.ok(rcCls, 'RC class made');
+    assert.equal(appData.classes.length - before, 3, 'news, grammar, rc: no separate class for the either/or slot');
+    assert.deepEqual(rcCls.periodByWeekday, { 2: 2, 4: 3 });
+    assert.ok(!appData.classes.some((c) => /Debate/.test(c.name) && TT.getClassCohortIds(c).includes('co-v')));
+    // Another cohort picks Debate: its own Debate class on Fri P2.
+    const yuma = { id: 'co-y', name: '\uC720\uB9C8M', meetingDays: [1, 3, 5], schedulePattern: 'mwf', students: [] };
+    appData.cohorts.push(yuma);
+    const yGen = CM.planCohortGeneration(yuma, { kind: 'matrix' });
+    yGen.rows.find((r) => r.slot.subjectTrack === 'debate|rc').choice = 'debate';
+    CM.applyCohortGeneration(yuma, yGen, yGen.rows);
+    const deb = appData.classes.find((c) => c.name === '\uC720\uB9C8M \u00B7 Debate');
+    assert.ok(deb, 'Debate class made');
+    assert.equal(deb.classTypeId, 'builtin-debate');
+    assert.deepEqual(deb.periodByWeekday, { 5: 2 });
+    // Run again: the either/or row finds the Debate class and nothing new is made.
+    const yAgain = CM.planCohortGeneration(yuma, { kind: 'matrix' });
+    assert.ok(yAgain.rows.every((r) => r.how === 'update'), 'second run only updates');
+}
 
 console.log('cohort-generate-subjects tests passed');

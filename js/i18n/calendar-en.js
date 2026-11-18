@@ -2019,6 +2019,7 @@
         cohortsGenerateDone: 'Created {created}, updated {updated} subject class(es).',
         cohortsGenDone: 'Generate subjects: {created} created, {updated} updated, {linked} linked.',
         cohortsGenPreviewTitle: 'Generate subjects for {name}',
+        cohortsGenOr: ' or ',
         cohortsGenApply: 'Apply ticked subjects',
         cohortsGenNothing: 'No subjects to generate.',
         cohortsGenWhen: 'When',
