@@ -27295,3 +27295,6 @@ body.timetable-mine-only .timetable-layout {
 .sp-trace small { color: var(--text-muted); }
 .sp-trace-miss { color: var(--warn-text, #b45309); }
 .sp-trace tr.is-other-term, .sp-trace tr.is-skipped { opacity: .55; }
+
+.sp-map-other { margin-top: 8px; border-top: 1px solid var(--border-color); padding-top: 6px; }
+.sp-map-other summary { cursor: pointer; color: var(--text-muted); font-size: 0.8125rem; padding: 4px 8px; }

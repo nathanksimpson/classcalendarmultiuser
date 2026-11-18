@@ -2522,18 +2522,31 @@ ${by.get(cid).map((d) => `
             const rows = Array.from(seen.values()).map((e) => ({ e, r: D.resolveTmsRosterLink(links, e.raw, cohorts) }));
             // Likely matches first, then the ones that need a decision.
             rows.sort((x, y) => Number(!!y.r.suggestedTargetId) - Number(!!x.r.suggestedTargetId) || x.e.base.localeCompare(y.e.base));
-            rows.forEach(({ e, r }) => {
+            // Real cohorts carry a start code ("BlueM^2609"). Entries without one, or marked test, are tests,
+            // other campuses' classes or special lectures: kept apart and set to "skip" so they are not in the way.
+            const isReal = (e) => /\^\d{4}\s*$/.test(String(e.raw || '')) && !/test|테스트/i.test(e.base);
+            const mainRows = rows.filter(({ e }) => isReal(e));
+            const otherRows = rows.filter(({ e }) => !isReal(e));
+            const rowEl = ({ e, r }, preset) => {
                 const row = document.createElement('div');
                 row.className = 'sp-map-row';
                 row.innerHTML = `<span class="sp-map-name">${esc(e.base)}<small>${esc(t('spTmsMapPeriods', '{n} periods', { n: e.count }))}</small></span>
                     <select class="field-input sp-map-select" data-tms="${esc(e.base)}" aria-label="${esc(e.base)}">
-                        ${opt('', t('spTmsMapChoose', 'Choose cohort…'), !r.suggestedTargetId)}
-                        ${cohorts.map((c) => opt(c.id, c.name, c.id === r.suggestedTargetId)).join('')}
+                        ${opt('', t('spTmsMapChoose', 'Choose cohort…'), !preset && !r.suggestedTargetId)}
+                        ${cohorts.map((c) => opt(c.id, c.name, !preset && c.id === r.suggestedTargetId)).join('')}
                         ${opt('__new__', t('spTmsMapCreate', '+ Create a new cohort'), false)}
-                        ${opt('__skip__', t('spTmsMapSkip', 'Not in this calendar (skip)'), false)}
+                        ${opt('__skip__', t('spTmsMapSkip', 'Not in this calendar (skip)'), preset === 'skip')}
                     </select>`;
-                list.appendChild(row);
-            });
+                return row;
+            };
+            mainRows.forEach((x) => list.appendChild(rowEl(x, '')));
+            if (otherRows.length) {
+                const det = document.createElement('details');
+                det.className = 'sp-map-other';
+                det.innerHTML = `<summary>${esc(t('spTmsMapOther', 'Other TMS entries ({n}): no start code or marked test, skipped', { n: otherRows.length }))}</summary>`;
+                otherRows.forEach((x) => det.appendChild(rowEl(x, 'skip')));
+                list.appendChild(det);
+            }
             const update = () => {
                 let mapped = 0; let skipped = 0; let open = 0;
                 list.querySelectorAll('select').forEach((sel) => {

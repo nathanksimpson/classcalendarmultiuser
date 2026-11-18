@@ -3197,6 +3197,7 @@
         spTmsMapTally: '{mapped} matched · {skipped} skipped · {open} undecided',
         spTmsMapCreate: '+ Create a new cohort',
         spTmsTermMatched: '{n} of your cohorts',
+        spTmsMapOther: 'Other TMS entries ({n}): no start code or marked test, skipped',
         spTmsMapChoose: 'Choose cohort…',
         spTmsMapSkip: 'Not in this calendar (skip)',
         spTmsMapSave: 'Save and continue',
