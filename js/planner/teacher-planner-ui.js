@@ -2707,6 +2707,8 @@ ${by.get(cid).map((d) => `
             notice(t('spTmsFailed', 'Could not pull the schedule from TMS.'), 'error');
             return;
         }
+        // Cohort editor, Generate subjects reuses this pull for an hour instead of reading TMS again.
+        global.CCPLastTmsSchedulePull = { at: Date.now(), body };
         // Several terms in the timetable? Let the person pick (default: the one that fits this calendar best).
         const termCount = new Map();
         body.placements.forEach((pl) => {

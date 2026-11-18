@@ -11,6 +11,7 @@
     const SCRIPT_ROSTER_IMPORT = 'js/roster-import.js?v=20260806-name-marks';
     const SCRIPT_TEACHER_TIMETABLE = 'js/teacher-timetable.js?v=20260909-period8';
     const SCRIPT_PLANNER_CORE = 'js/planner/teacher-planner-core.js?v=20261117-subject';
+    const SCRIPT_TMS_SCHEDULE_IMPORT = 'js/planner/tms-schedule-import.js?v=20261118-gen-subjects';
 
     const TAB_SCRIPTS = {
         // Not a tab: the class editor's clash and warning checks reuse the planner's rules.
@@ -23,7 +24,10 @@
             'js/meeting-days-control.js?v=20260610-setup-board',
             'js/hr-teacher-list.js?v=20261015-p7-level',
             'js/hr-teacher-list-print.js?v=20260909-hr-title',
-            'js/cohort-management.js?v=20261113-cohort-links',
+            // Generate subjects reads the TMS timetable with the planner's subject and schedule-import rules.
+            SCRIPT_PLANNER_CORE,
+            SCRIPT_TMS_SCHEDULE_IMPORT,
+            'js/cohort-management.js?v=20261118-gen-subjects',
             'js/setup-board.js?v=20261113-cohort-links',
             'js/cohorts-class-detail.js?v=20261113-cohort-links'
         ],
@@ -32,8 +36,8 @@
             SCRIPT_PLANNER_CORE,
             'js/planner/teacher-planner-snapshots.js?v=20261116-planner-snap',
             'js/planner/teacher-planner-auto.js?v=20261117-subject',
-            'js/planner/tms-schedule-import.js?v=20261118-sum',
-            'js/planner/teacher-planner-ui.js?v=20261118-sum'
+            SCRIPT_TMS_SCHEDULE_IMPORT,
+            'js/planner/teacher-planner-ui.js?v=20261118-gen-subjects'
         ],
         drafter: [
             'js/level-progression.js?v=20261117-drafter',

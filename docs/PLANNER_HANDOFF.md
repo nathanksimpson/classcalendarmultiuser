@@ -152,6 +152,6 @@ The approach is a greedy pass with scoring, then local repair. That's the right 
 ## 8. Known gaps and next steps
 
 - **TMS sync for the planner:** class info lines already include subjects and every subject's teacher (`최테카[담임](파닉스),…`). The roster scraper currently keeps only the times and the homeroom name. It is read-only, and it only sees what the logged-in account sees.
-- **Generating classes for a cohort:** the cohort editor's "Generate subjects" uses the matrix, but it works one cohort at a time, sets no teacher type, and has **no middle-school data**. Nathan will provide that.
+- **Generating classes for a cohort:** the cohort editor's "Generate subjects" reads every teacher's TMS timetable (Sync Helper, reused for an hour), places the cohort's subjects at TMS's periods with TMS's teacher, shares one class between cohorts TMS teaches together, and links existing classes instead of duplicating them. It shows a preview and changes nothing until confirmed. The flyer matrix (now with middle school) is the fallback. Still one cohort at a time.
 - **Planner-only teachers:** the Timetable lists teachers by account (`userId`), so teachers with no account don't show there.
 - **Later:** a final swap pass to improve breaks; per-weekday clock-in/out; Durable Objects for live sync.

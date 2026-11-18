@@ -43,6 +43,9 @@
         if (key === '2,4') {
             return 'tth';
         }
+        if (key === '1') {
+            return 'mon';
+        }
         if (key === '1,3') {
             return 'mw';
         }

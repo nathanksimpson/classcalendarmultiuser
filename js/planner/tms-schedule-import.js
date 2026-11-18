@@ -306,6 +306,113 @@
         return { draft, report };
     }
 
-    global.CCPTmsScheduleImport = { buildDraftFromTms, cohortKey };
+    /** TMS class key -> calendar cohort, by name and by the links the roster sync saved. */
+    function cohortIndex(appData) {
+        const cohorts = (appData && appData.cohorts) || [];
+        const byKey = new Map(cohorts.map((c) => [nameKey(c.name), c]));
+        // Calendar names may carry the TMS term ("BlueT^2609"): match on the name without it too.
+        cohorts.forEach((c) => {
+            const k = cohortKey(c.name).key;
+            if (k && !byKey.has(k)) byKey.set(k, c);
+        });
+        const byId = new Map(cohorts.map((c) => [String(c.id), c]));
+        const links = appData && appData.tmsRosterLinks && typeof appData.tmsRosterLinks === 'object' ? appData.tmsRosterLinks : {};
+        Object.keys(links).forEach((k) => {
+            const e = links[k];
+            if (!e || e.action !== 'map' || !byId.has(String(e.cohortId))) return;
+            const key = cohortKey(e.tmsClassName || k).key;
+            if (key && !byKey.has(key)) byKey.set(key, byId.get(String(e.cohortId)));
+        });
+        return byKey;
+    }
+
+    /**
+     * Generate subjects for one cohort from the TMS timetables (every teacher's).
+     * Each subject the cohort has in TMS becomes one entry with its exact periods and its teacher. A slot where the
+     * same teacher, day and time also lists another cohort is a shared (combined) class: `partners` names them.
+     * Pure: reads appData, changes nothing.
+     * @param {Object} appData
+     * @param {{ placements: Array }} tms  the Sync Helper's schedule pull
+     * @param {Object} cohort  a calendar cohort
+     * @param {{ term?: string, now?: Date }} [options]
+     * @returns {{ term: string, rows: number, subjects: Array<{ subjectKey: string, subject: string,
+     *   placements: Array<{dow:number, period:number}>, teacher: string, teacherProfile: Object|null,
+     *   partners: Array<{ cohortId: string, name: string }>, partnersNotInCalendar: string[] }> }}
+     */
+    function planCohortSubjectsFromTms(appData, tms, cohort, options) {
+        const api = P();
+        const opts = options || {};
+        const empty = { term: '', rows: 0, subjects: [] };
+        if (!api || !cohort || !tms || !Array.isArray(tms.placements)) return empty;
+        const term = opts.term || buildDraftFromTms(appData, tms, { now: opts.now }).report.term || '';
+        const index = cohortIndex(appData);
+        const rows = tms.placements.map((p) => {
+            const raw = norm(p.cohortName != null ? p.cohortName : p.cohort);
+            const c = cohortKey(raw);
+            return {
+                teacher: norm(p.teacherName != null ? p.teacherName : p.teacher),
+                dow: DOW[String(p.day || '').toLowerCase()] || 0,
+                start: norm(p.start),
+                subject: norm(p.subject),
+                cohort: c.key,
+                cohortRaw: raw,
+                term: c.term
+            };
+        }).filter((r) => r.dow && r.cohort && r.start && (!term || !r.term || r.term === term));
+        const mine = rows.filter((r) => index.get(r.cohort) === cohort);
+        if (!mine.length) return Object.assign(empty, { term });
+
+        const periodFor = periodFinder(appData);
+        const profiles = appData.teacherProfiles || [];
+        const findProfile = (name) => {
+            const keys = nameVariants(name);
+            return profiles.find((t) => nameVariants(t.name).some((k) => keys.includes(k))) || null;
+        };
+        const atSlot = new Map();
+        rows.forEach((r) => {
+            const k = `${nameKey(r.teacher)}|${r.dow}|${r.start}`;
+            if (!atSlot.has(k)) atSlot.set(k, []);
+            atSlot.get(k).push(r);
+        });
+
+        const bySubject = new Map();
+        mine.forEach((r) => {
+            const key = api.normalizeSubject(r.subject);
+            if (!key) return;
+            if (!bySubject.has(key)) {
+                bySubject.set(key, { subjectKey: key, names: new Map(), teachers: new Map(), cells: new Map(), partners: new Map(), outside: new Set() });
+            }
+            const e = bySubject.get(key);
+            e.names.set(r.subject, (e.names.get(r.subject) || 0) + 1);
+            e.teachers.set(r.teacher, (e.teachers.get(r.teacher) || 0) + 1);
+            const period = periodFor(r.start);
+            if (period != null) e.cells.set(`${r.dow}|${period}`, { dow: r.dow, period });
+            // Other cohorts in this teacher's slot at the same time: taught together.
+            (atSlot.get(`${nameKey(r.teacher)}|${r.dow}|${r.start}`) || []).forEach((o) => {
+                if (o.cohort === r.cohort) return;
+                const other = index.get(o.cohort);
+                if (other && other !== cohort) e.partners.set(String(other.id), { cohortId: String(other.id), name: other.name });
+                else if (!other) e.outside.add(o.cohortRaw.replace(/\^.*$/, '').trim());
+            });
+        });
+
+        const top = (m) => Array.from(m.entries()).sort((a, b) => b[1] - a[1])[0];
+        const subjects = Array.from(bySubject.values()).map((e) => {
+            const teacher = top(e.teachers) ? top(e.teachers)[0] : '';
+            return {
+                subjectKey: e.subjectKey,
+                subject: top(e.names)[0],
+                placements: Array.from(e.cells.values()).sort((a, b) => a.dow - b.dow || a.period - b.period),
+                teacher,
+                teacherProfile: teacher ? findProfile(teacher) : null,
+                partners: Array.from(e.partners.values()),
+                partnersNotInCalendar: Array.from(e.outside)
+            };
+        }).filter((s) => s.placements.length)
+            .sort((a, b) => (a.placements[0].dow - b.placements[0].dow) || (a.placements[0].period - b.placements[0].period));
+        return { term, rows: mine.length, subjects };
+    }
+
+    global.CCPTmsScheduleImport = { buildDraftFromTms, cohortKey, cohortIndex, planCohortSubjectsFromTms };
     if (typeof module !== 'undefined' && module.exports) module.exports = global.CCPTmsScheduleImport;
 })(typeof window !== 'undefined' ? window : globalThis);

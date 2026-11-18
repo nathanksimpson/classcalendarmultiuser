@@ -119,18 +119,7 @@ Levels and 기준 점수 (TOEFL Junior):
 | 2 | TOEFL RC(V) | TOEFL RC(V) |
 | 3 | Grammar | Grammar |
 
-## Differences from the app's current matrix (`js/schedule-matrix-data.js`)
+## In the app
 
-Compared with Reading(V) = `ipkV` and TOEFL RC(V) = `toeflRc`. The app data was **not** changed — the flyer is a sample timetable and may not match the real term.
-
-| Level(s) | Slot | Flyer | App |
-|--|--|--|--|
-| Red / Orange / Yellow | Fri 1 | Spk & Wr | phonics |
-| Red / Orange / Yellow | Fri 2 | Animation | spkWr |
-| Purple | Wed 2, Thu 3 | Debate | ipeNative |
-| 샘물 / 여울 | Wed 2, Thu 2 | Debate | ipeNative |
-| 샘물 / 여울 | Fri 1 | Reading(V) | news |
-| 샘물 / 여울 | Fri 2 | Grammar | ipkV |
-| 가람 / 바다 | Thu 1 | News | newsLc |
-
-Everything else matches.
+`js/schedule-matrix-data.js` follows this flyer since Nov 2026 (Reading(V) = `ipkV`, TOEFL RC(V) = `toeflRc`).
+Generate subjects (cohort editor) uses it only when TMS has no timetable for the cohort; otherwise TMS wins.

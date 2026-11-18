@@ -17,7 +17,7 @@
     /** Cohort whose "Link classes" section is expanded in the editor. */
     let classAssignmentOpenForCohortId = '';
 
-    const PATTERN_IDS = ['mwf', 'tth', 'mw', 'wf', 'mf', 'custom'];
+    const PATTERN_IDS = ['mwf', 'tth', 'mon', 'mw', 'wf', 'mf', 'custom'];
     const DOW_LABELS = { en: ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'], ko: ['', '월', '화', '수', '목', '금'] };
 
     const SUBJECT_TRACK_LABELS = {
@@ -28,7 +28,17 @@
         reading: { en: 'Reading', ko: '리딩' },
         debate: { en: 'Debate', ko: '토론' },
         writeNow: { en: 'Write Now', ko: 'Write Now' },
-        writeRight: { en: 'Write Right', ko: 'Write Right' }
+        writeRight: { en: 'Write Right', ko: 'Write Right' },
+        news: { en: 'News', ko: '뉴스' },
+        newsLc: { en: 'News (LC)', ko: '뉴스 (LC)' },
+        ipkV: { en: 'Reading (V)', ko: '리딩 (V)' },
+        ipeNative: { en: 'IPE', ko: 'IPE' },
+        grammar: { en: 'Grammar', ko: '문법' },
+        toeflRc: { en: 'TOEFL RC (V)', ko: 'TOEFL RC (V)' },
+        rc: { en: 'RC', ko: 'RC' },
+        lc: { en: 'LC', ko: 'LC' },
+        voca: { en: 'Vocabulary', ko: '어휘' },
+        mentoring: { en: 'Mentoring', ko: '멘토링' }
     };
 
     function normalizeStr(v) {
@@ -346,19 +356,66 @@
         return normalizeStr(cohort.level);
     }
 
-    function resolveMatrixLevel(cohort) {
-        const display = cohortLevelDisplay(cohort);
-        if (display) {
-            return display;
+    function matrixSlotForLevel(level) {
+        const data = global.CCPScheduleMatrixData;
+        if (!level || !data || !Array.isArray(data.slots)) {
+            return null;
         }
-        return '';
+        return data.slots.find((s) => s.level === level) || null;
+    }
+
+    /**
+     * The level the schedule matrix knows this cohort by: its level setting, else its name
+     * (TMS cohorts often arrive with only a name, e.g. "빅키T^2612", "Blue M", "S1T").
+     */
+    function resolveMatrixLevel(cohort) {
+        const tries = [normalizeStr(cohort.levelPreset), normalizeStr(cohort.level), cohortLevelDisplay(cohort)];
+        const lp = global.CCPLevelProfile;
+        const bareName = normalizeStr(cohort.name).replace(/[\^_].*$/, '').trim();
+        if (lp && lp.parseClassName) {
+            tries.slice().forEach((v) => {
+                const parsed = v ? lp.parseClassName(v) : null;
+                if (parsed && !parsed.pre) {
+                    tries.push(parsed.baseId);
+                }
+            });
+            const fromName = lp.parseClassName(cohort.name);
+            if (fromName && !fromName.pre) {
+                tries.push(fromName.baseId);
+            }
+        }
+        // Middle-school Pre-Basic cohorts are named S1, S2, S3 (중1–중3).
+        const pre = /^S\s*([123])\s*[MT]?$/i.exec(bareName);
+        if (pre) {
+            tries.push('S' + pre[1]);
+        }
+        const hit = tries.find((v) => matrixSlotForLevel(v));
+        if (hit) {
+            return hit;
+        }
+        return cohortLevelDisplay(cohort);
+    }
+
+    function resolveMatrixPatternId(cohort) {
+        const pid = normalizeStr(cohort.schedulePattern);
+        if (pid && pid !== 'custom') {
+            return pid;
+        }
+        const days = Array.isArray(cohort.meetingDays) ? cohort.meetingDays.map(Number).sort((a, b) => a - b) : [];
+        const matrix = getMatrixApi();
+        return (matrix && matrix.patternIdFromMeetingDays(days)) || pid || 'mwf';
     }
 
     function resolveMatrixQuery(cohort) {
         const level = resolveMatrixLevel(cohort);
-        const patternId = normalizeStr(cohort.schedulePattern) || 'mwf';
+        const patternId = resolveMatrixPatternId(cohort);
         let programTrack = '';
         let levelGroup = '';
+        // The matrix's own row for the level first (a level appears in one program only).
+        const own = matrixSlotForLevel(level);
+        if (own) {
+            return { programTrack: own.programTrack || '', levelGroup: own.levelGroup || '', level, patternId };
+        }
         if (hooks.findCurriculumPresetForLevel) {
             const preset = hooks.findCurriculumPresetForLevel(cohort.levelPreset, level);
             if (preset) {
@@ -463,7 +520,12 @@
                     });
                 }
                 const row = trackMap.get(track);
-                row.periodByWeekday[String(dow)] = slot.period;
+                // Every period counts: a subject can meet twice in one day (Pre-Basic Tue Grammar P2 + P3).
+                row.placements.push({ dow: Number(dow), period: slot.period });
+                const prevP = row.periodByWeekday[String(dow)];
+                if (prevP == null || slot.period < prevP) {
+                    row.periodByWeekday[String(dow)] = slot.period;
+                }
                 const p = slot.period;
                 if (p != null && (row.period == null || p < row.period)) {
                     row.period = p;
@@ -473,18 +535,39 @@
         return Array.from(trackMap.values());
     }
 
-    function mergeSubjectSlots(existing, fromMatrix) {
+    /**
+     * Fresh subject rows (from the matrix or TMS) laid over the saved ones: a subject keeps its id, linked class
+     * and on/off choice; its periods are replaced. A saved subject that is gone keeps its class link but is
+     * switched off, so Generate leaves that class alone.
+     */
+    function mergeSubjectSlots(existing, fresh) {
         const byTrack = new Map((existing || []).map((s) => [s.subjectTrack, s]));
-        fromMatrix.forEach((slot) => {
-            if (byTrack.has(slot.subjectTrack)) {
-                const prev = byTrack.get(slot.subjectTrack);
-                prev.period = slot.period;
-                prev.periodByWeekday = { ...slot.periodByWeekday };
-            } else {
-                byTrack.set(slot.subjectTrack, slot);
+        const out = fresh.map((slot) => {
+            const prev = byTrack.get(slot.subjectTrack);
+            byTrack.delete(slot.subjectTrack);
+            if (!prev) {
+                return slot;
+            }
+            return Object.assign({}, slot, {
+                id: prev.id || slot.id,
+                classId: prev.classId || slot.classId || '',
+                enabled: prev.enabled !== false
+            });
+        });
+        byTrack.forEach((prev) => {
+            if (prev.classId) {
+                out.push(Object.assign({}, prev, { enabled: false }));
             }
         });
-        return Array.from(byTrack.values());
+        return out;
+    }
+
+    function refreshSubjectSlotsFromMatrix(cohort) {
+        const fresh = buildSubjectSlotsFromMatrix(cohort);
+        if (fresh.length) {
+            cohort.subjectSlots = mergeSubjectSlots(cohort.subjectSlots, fresh);
+        }
+        return fresh.length;
     }
 
     function subjectTrackLabel(track) {
@@ -501,88 +584,588 @@
         return t(key).replace('{n}', String(n));
     }
 
-    function generateClassesForCohort(cohort, options) {
-        options = options || {};
-        const appData = hooks.getAppData();
-        if (!appData || !cohort) {
-            return { created: 0, updated: 0 };
-        }
-        const meetingDays = getCohortMeetingDays(cohort);
-        cohort.meetingDays = meetingDays;
-        if (!Array.isArray(cohort.subjectSlots)) {
-            cohort.subjectSlots = buildSubjectSlotsFromMatrix(cohort);
-        }
-        let created = 0;
-        let updated = 0;
-        const scheduleBlock = normalizeStr(cohort.scheduleBlock) || 'primary';
-        const levelPreset = normalizeStr(cohort.levelPreset) || normalizeStr(cohort.level);
-        const grade = normalizeStr(cohort.grade);
-        const matrix = getMatrixApi();
+    /* ---------------------------------------------------------------- Generate subjects */
 
-        (cohort.subjectSlots || []).forEach((slot) => {
-            if (!slot.enabled) {
+    /** TMS subjects that are built-in class types. */
+    const BUILTIN_TYPE_BY_SUBJECT = { debate: 'builtin-debate', speakingwriting: 'builtin-wr-sp' };
+    /** A schedule pull from TMS is reused for this long (it reads every teacher's timetable, which takes a while). */
+    const TMS_PULL_REUSE_MS = 60 * 60 * 1000;
+
+    function plannerApi() {
+        return global.CCPTeacherPlanner || null;
+    }
+
+    function subjectKeyOf(text) {
+        const P = plannerApi();
+        if (P && P.normalizeSubject) {
+            return P.normalizeSubject(text);
+        }
+        return normalizeStr(text).toLowerCase().replace(/[^a-z0-9가-힣&]+/g, '');
+    }
+
+    function classSubjectKey(cls) {
+        const name = normalizeStr(cls && cls.name);
+        const P = plannerApi();
+        if (P && P.subjectOfName) {
+            return P.subjectOfName(name);
+        }
+        return subjectKeyOf(name.includes('·') ? name.split('·').pop() : name);
+    }
+
+    /** Every subject word a subject row answers to (its TMS subject, its matrix id and labels). */
+    function slotSubjectKeys(slot) {
+        const keys = new Set();
+        const add = (v) => {
+            const k = v ? subjectKeyOf(v) : '';
+            if (k) {
+                keys.add(k);
+            }
+        };
+        if (slot.subjectKey) {
+            keys.add(slot.subjectKey);
+        }
+        add(slot.subjectLabel);
+        const track = normalizeStr(slot.subjectTrack).replace(/^tms:/, '');
+        add(track);
+        const entry = SUBJECT_TRACK_LABELS[track];
+        if (entry) {
+            add(entry.en);
+            add(entry.ko);
+        }
+        return keys;
+    }
+
+    function slotLabel(slot) {
+        return normalizeStr(slot.subjectLabel) || subjectTrackLabel(slot.subjectTrack);
+    }
+
+    /** "BlueT^2609" / "Blue T" -> "bluet": a cohort or class-name prefix compared without spaces or the TMS term. */
+    function bareNameKey(name) {
+        return normalizeStr(name).replace(/\^.*$/, '').replace(/\s+/g, '').toLowerCase();
+    }
+
+    function classCohortIdsOf(cls) {
+        const api = getTimetableApi();
+        if (api && api.getClassCohortIds) {
+            return api.getClassCohortIds(cls);
+        }
+        return [normalizeStr(cls.cohortId)].filter(Boolean);
+    }
+
+    /**
+     * The class a subject row should use, if one exists: the row's own class, a class of this cohort for the
+     * subject, a partner cohort's class (taught together in TMS), or an unlinked class named for this cohort.
+     */
+    function findExistingClassForSlot(appData, cohort, slot, partnerIds, taken) {
+        const classes = appData.classes || [];
+        const keys = slotSubjectKeys(slot);
+        const free = (k) => k && !taken.has(k.id) && k.plannerDraftClass !== true;
+        const sameSubject = (k) => keys.has(classSubjectKey(k));
+        if (slot.classId) {
+            const own = classes.find((k) => k.id === slot.classId);
+            if (free(own)) {
+                return { cls: own, how: classCohortIdsOf(own).includes(cohort.id) ? 'update' : 'link' };
+            }
+        }
+        let hit = classes.find((k) => free(k) && sameSubject(k) && classCohortIdsOf(k).includes(cohort.id));
+        if (hit) {
+            return { cls: hit, how: 'update' };
+        }
+        for (let i = 0; i < partnerIds.length; i += 1) {
+            hit = classes.find((k) => free(k) && sameSubject(k) && classCohortIdsOf(k).includes(partnerIds[i]));
+            if (hit) {
+                return { cls: hit, how: 'share' };
+            }
+        }
+        const mine = bareNameKey(cohort.name);
+        hit = classes.find((k) => free(k) && sameSubject(k) && !classCohortIdsOf(k).length
+            && bareNameKey(normalizeStr(k.name).split('·')[0]) === mine);
+        if (hit) {
+            return { cls: hit, how: 'link' };
+        }
+        return null;
+    }
+
+    /** Subject rows from a TMS plan (CCPTmsScheduleImport.planCohortSubjectsFromTms). */
+    function subjectSlotsFromTmsPlan(plan) {
+        return (plan.subjects || []).map((s) => {
+            const periodByWeekday = {};
+            s.placements.forEach((p) => {
+                const k = String(p.dow);
+                if (periodByWeekday[k] == null || p.period < periodByWeekday[k]) {
+                    periodByWeekday[k] = p.period;
+                }
+            });
+            return {
+                id: hooks.generateId(),
+                subjectTrack: 'tms:' + s.subjectKey,
+                subjectKey: s.subjectKey,
+                subjectLabel: s.subject,
+                classId: '',
+                enabled: true,
+                period: Math.min(...s.placements.map((p) => p.period)),
+                periodByWeekday,
+                placements: s.placements.map((p) => ({ dow: p.dow, period: p.period })),
+                source: 'tms',
+                tmsTeacherName: s.teacher || '',
+                tmsTeacherUserId: (s.teacherProfile && s.teacherProfile.userId) || '',
+                partnerCohortIds: (s.partners || []).map((p) => p.cohortId),
+                partnersNotInCalendar: (s.partnersNotInCalendar || []).slice()
+            };
+        });
+    }
+
+    /**
+     * What Generate subjects would do, without changing anything.
+     * @param {object} cohort
+     * @param {{ kind: 'tms', plan: object } | { kind: 'matrix' }} source
+     * @returns {{ source: object, slots: object[], rows: Array<{ slot, cls, how: 'create'|'update'|'link'|'share', partners: object[] }> }}
+     */
+    function planCohortGeneration(cohort, source) {
+        const appData = hooks.getAppData();
+        const fresh = source.kind === 'tms' ? subjectSlotsFromTmsPlan(source.plan) : buildSubjectSlotsFromMatrix(cohort);
+        const slots = mergeSubjectSlots(cohort.subjectSlots, fresh);
+        const taken = new Set();
+        const rows = [];
+        slots.forEach((slot) => {
+            if (slot.enabled === false || !fresh.some((f) => f.subjectTrack === slot.subjectTrack)) {
                 return;
             }
-            const track = slot.subjectTrack;
-            const classTypeId = matrix ? matrix.getBuiltinClassTypeIdForSubjectTrack(track) : '';
-            let cls = slot.classId ? appData.classes.find((c) => c.id === slot.classId) : null;
-            const baseName = `${normalizeStr(cohort.name) || 'Cohort'} · ${subjectTrackLabel(track)}`;
-            const periodByWeekday = slot.periodByWeekday || {};
+            const partnerIds = (slot.partnerCohortIds || []).filter((id) => id !== cohort.id);
+            const partners = partnerIds.map((id) => (appData.cohorts || []).find((c) => c.id === id)).filter(Boolean);
+            const found = findExistingClassForSlot(appData, cohort, slot, partnerIds, taken);
+            if (found) {
+                taken.add(found.cls.id);
+            }
+            rows.push({ slot, cls: found ? found.cls : null, how: found ? found.how : 'create', partners });
+        });
+        // A saved row whose class another row now uses would point twice at one class: drop it.
+        const used = new Set(rows.filter((r) => r.cls).map((r) => r.cls.id));
+        const kept = slots.filter((s) => s.enabled !== false || !s.classId || !used.has(s.classId)
+            || rows.some((r) => r.slot === s));
+        return { source, slots: kept, rows };
+    }
+
+    function teacherRowFor(cls, slot) {
+        const name = normalizeStr(slot.tmsTeacherName);
+        const userId = normalizeStr(slot.tmsTeacherUserId);
+        if (!name && !userId) {
+            return null;
+        }
+        const prev = Array.isArray(cls.classTeachers) ? cls.classTeachers[0] : null;
+        const same = prev && ((userId && normalizeStr(prev.userId) === userId)
+            || (!userId && normalizeStr(prev.name).toLowerCase() === name.toLowerCase()));
+        if (same) {
+            return prev;
+        }
+        return { id: hooks.generateId(), userId, name, category: slotLabel(slot) };
+    }
+
+    /** Apply the rows the person ticked in the preview. */
+    function applyCohortGeneration(cohort, generation, chosenRows) {
+        const appData = hooks.getAppData();
+        if (!Array.isArray(appData.classes)) {
+            appData.classes = [];
+        }
+        const matrix = getMatrixApi();
+        const linkApi = getTimetableApi();
+        const meetingDays = getCohortMeetingDays(cohort);
+        const scheduleBlock = normalizeStr(cohort.scheduleBlock) || 'primary';
+        const levelPreset = normalizeStr(cohort.levelPreset) || normalizeStr(cohort.level) || resolveMatrixLevel(cohort);
+        const grade = normalizeStr(cohort.grade);
+        const touchedCohorts = new Set([cohort.id]);
+        let created = 0;
+        let updated = 0;
+        let linked = 0;
+        chosenRows.forEach((row) => {
+            const slot = row.slot;
+            const fromTms = slot.source === 'tms';
+            const placements = (slot.placements || []).filter((p) => p && p.dow && p.period != null);
+            const periodByWeekday = { ...(slot.periodByWeekday || {}) };
+            const days = fromTms
+                ? Array.from(new Set(placements.map((p) => Number(p.dow)))).sort((a, b) => a - b)
+                : meetingDays.slice();
             const periodVals = Object.values(periodByWeekday).filter((v) => v != null);
             const period = slot.period != null ? slot.period : (periodVals.length ? Math.min(...periodVals) : undefined);
-
+            const classTypeId = fromTms
+                ? (BUILTIN_TYPE_BY_SUBJECT[slot.subjectKey] || '')
+                : ((matrix && matrix.getBuiltinClassTypeIdForSubjectTrack(slot.subjectTrack)) || '');
+            let cls = row.cls;
             if (!cls) {
                 const accent = ensureCohortHasColor(cohort, appData);
+                const names = [cohort].concat(row.partners).map((c) => normalizeStr(c.name).replace(/\^.*$/, '').trim() || 'Cohort');
                 cls = {
                     id: hooks.generateId(),
-                    name: baseName,
+                    name: `${names.join(' + ')} · ${slotLabel(slot)}`,
                     levelPreset,
                     level: levelPreset,
                     grade,
-                    meetingDays: meetingDays.slice(),
-                    period,
-                    periodByWeekday: { ...periodByWeekday },
-                    classTypeId: classTypeId || '',
                     cohortId: cohort.id,
                     cohortIds: [cohort.id],
                     scheduleBlock,
                     classTeachers: [],
+                    classTypeId,
                     generatedFromCohort: true,
                     color: accent,
                     textColor: deriveTextColorForClass(accent)
                 };
-                if (!Array.isArray(appData.classes)) {
-                    appData.classes = [];
-                }
                 appData.classes.push(cls);
-                slot.classId = cls.id;
                 created += 1;
-            } else if (options.overwrite || cls.generatedFromCohort) {
-                if (options.overwrite || !normalizeStr(cls.name)) {
-                    cls.name = baseName;
-                }
+            } else if (row.how === 'update') {
+                updated += 1;
+            } else {
+                linked += 1;
+            }
+            const shared = classCohortIdsOf(cls).some((id) => id !== cohort.id) || row.partners.length > 0;
+            if (!shared) {
                 cls.levelPreset = levelPreset;
                 cls.level = levelPreset;
                 cls.grade = grade;
-                cls.meetingDays = meetingDays.slice();
-                cls.period = period;
-                cls.periodByWeekday = { ...periodByWeekday };
-                const linkApi = getTimetableApi();
-                if (linkApi) {
-                    linkApi.addClassCohortId(cls, cohort.id);
-                } else {
-                    cls.cohortId = cohort.id;
-                }
                 cls.scheduleBlock = scheduleBlock;
-                if (classTypeId && !cls.classTypeId) {
-                    cls.classTypeId = classTypeId;
+            }
+            cls.meetingDays = days;
+            cls.period = period;
+            cls.periodByWeekday = periodByWeekday;
+            if (fromTms) {
+                // TMS is the real timetable: its periods are the class's placements (two in a day stay two).
+                cls.placements = placements.map((p) => ({ dow: Number(p.dow), period: Number(p.period) }));
+                cls.weeklyFrequency = placements.length;
+                const teacher = teacherRowFor(cls, slot);
+                if (teacher) {
+                    cls.classTeachers = [teacher];
+                    if (teacher.userId) {
+                        cls.assignedTeacherUserId = teacher.userId;
+                        cls.assignedTeacherName = teacher.name;
+                    }
                 }
-                updated += 1;
+                cls.tmsSubject = slotLabel(slot);
+            } else if (placements.length > days.length) {
+                cls.weeklyFrequency = placements.length;
+            }
+            if (classTypeId && !cls.classTypeId) {
+                cls.classTypeId = classTypeId;
+            }
+            [cohort.id].concat(row.partners.map((c) => c.id)).forEach((cid) => {
+                if (linkApi) {
+                    linkApi.addClassCohortId(cls, cid);
+                } else if (!normalizeStr(cls.cohortId)) {
+                    cls.cohortId = cid;
+                }
+                touchedCohorts.add(cid);
+            });
+            slot.classId = cls.id;
+        });
+        // Saved rows drop the per-pull details that only the preview needs.
+        cohort.subjectSlots = generation.slots.map((s) => {
+            const out = Object.assign({}, s);
+            delete out.partnersNotInCalendar;
+            delete out.tmsTeacherUserId;
+            return out;
+        });
+        cohort.meetingDays = meetingDays;
+        touchedCohorts.forEach((cid) => {
+            const c = (appData.cohorts || []).find((x) => x.id === cid);
+            if (c) {
+                hooks.syncClassCohortLinks(c);
             }
         });
+        return { created, updated, linked };
+    }
 
-        hooks.syncClassCohortLinks(cohort);
-        return { created, updated };
+    /** Older entry point (tests, scripts): generate from the level schedule without a preview. */
+    function generateClassesForCohort(cohort, options) {
+        if (!hooks || !hooks.getAppData() || !cohort) {
+            return { created: 0, updated: 0 };
+        }
+        cohort.meetingDays = getCohortMeetingDays(cohort);
+        const generation = planCohortGeneration(cohort, (options && options.source) || { kind: 'matrix' });
+        const res = applyCohortGeneration(cohort, generation, generation.rows);
+        return { created: res.created, updated: res.updated + res.linked };
+    }
+
+    /* ---- TMS schedule pull for Generate subjects ---- */
+
+    let genModalEl = null;
+
+    function ensureGenerateModal() {
+        if (genModalEl) {
+            return genModalEl;
+        }
+        const wrap = document.createElement('div');
+        wrap.id = 'cohortsGenerateModal';
+        wrap.className = 'modal';
+        wrap.setAttribute('role', 'dialog');
+        wrap.setAttribute('aria-modal', 'true');
+        wrap.hidden = true;
+        wrap.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="cohortsGenerateModalTitle"></h2>
+                    <button type="button" class="modal-close" data-gen-cancel aria-label="Close">&times;</button>
+                </div>
+                <div class="cohorts-generate-body"></div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-outline" data-gen-cancel></button>
+                    <button type="button" class="btn btn-primary" data-gen-ok></button>
+                </div>
+            </div>`;
+        document.body.appendChild(wrap);
+        genModalEl = wrap;
+        return wrap;
+    }
+
+    function showGenerateModal(title, bodyNode, okText, okWhen) {
+        return new Promise((resolve) => {
+            const modal = ensureGenerateModal();
+            modal.querySelector('#cohortsGenerateModalTitle').textContent = title;
+            const body = modal.querySelector('.cohorts-generate-body');
+            body.innerHTML = '';
+            body.appendChild(bodyNode);
+            const ok = modal.querySelector('[data-gen-ok]');
+            ok.textContent = okText;
+            modal.querySelectorAll('[data-gen-cancel]').forEach((b) => {
+                if (b.tagName === 'BUTTON' && !b.classList.contains('modal-close')) {
+                    b.textContent = t('cancel') || 'Cancel';
+                }
+            });
+            const close = (value) => {
+                modal.classList.remove('active', 'is-open');
+                modal.hidden = true;
+                modal.setAttribute('aria-hidden', 'true');
+                if (hooks && hooks.closeModal) {
+                    hooks.closeModal(modal);
+                }
+                modal.removeEventListener('click', onClick);
+                modal.removeEventListener('keydown', onKey);
+                resolve(value);
+            };
+            function onClick(ev) {
+                if (ev.target === modal || ev.target.closest('[data-gen-cancel]')) {
+                    close(null);
+                } else if (ev.target.closest('[data-gen-ok]')) {
+                    close(okWhen ? okWhen() : true);
+                }
+            }
+            function onKey(ev) {
+                if (ev.key === 'Escape') {
+                    ev.stopPropagation();
+                    close(null);
+                } else if (ev.key === 'Enter' && ev.target && ev.target.tagName === 'INPUT' && ev.target.type !== 'checkbox') {
+                    ev.preventDefault();
+                    close(okWhen ? okWhen() : true);
+                }
+            }
+            modal.addEventListener('click', onClick);
+            modal.addEventListener('keydown', onKey);
+            modal.hidden = false;
+            if (hooks.openModal) {
+                hooks.openModal(modal);
+            } else {
+                modal.classList.add('active');
+                modal.setAttribute('aria-hidden', 'false');
+            }
+            const first = body.querySelector('input:not([type=checkbox])');
+            if (first) {
+                first.focus();
+            }
+        });
+    }
+
+    function askTmsLoginForGenerate(problem) {
+        const S = global.CCPTmsSync;
+        const box = document.createElement('div');
+        const saved = S && S.getSavedUsername ? S.getSavedUsername() : '';
+        box.innerHTML = `
+            <p class="section-hint">${escapeHtml(t('cohortsGenTmsLoginHint'))}</p>
+            ${problem ? `<p class="section-hint form-error" role="alert">${escapeHtml(problem)}</p>` : ''}
+            <label class="form-group"><span>${escapeHtml(t('cohortsGenTmsUser'))}</span>
+                <input type="text" class="field-input" data-gen-user autocomplete="username" spellcheck="false" value="${escapeHtml(saved)}"></label>
+            <label class="form-group"><span>${escapeHtml(t('cohortsGenTmsPass'))}</span>
+                <input type="password" class="field-input" data-gen-pass autocomplete="current-password"></label>
+            <p class="section-hint">${escapeHtml(t('cohortsGenTmsSkipHint'))}</p>`;
+        return showGenerateModal(t('cohortsGenTmsLoginTitle'), box, t('cohortsGenTmsSignIn'), () => {
+            const username = normalizeStr(box.querySelector('[data-gen-user]').value);
+            const password = box.querySelector('[data-gen-pass]').value;
+            if (username && S && S.setSavedUsername) {
+                try {
+                    S.setSavedUsername(username);
+                } catch (_e) { /* optional */ }
+            }
+            return { username, password };
+        });
+    }
+
+    /**
+     * Every teacher's timetable from TMS (the Sync Helper reads it; nothing is written to TMS).
+     * A pull from the last hour (here or in the Schedule Planner) is reused.
+     * @returns {Promise<{ body?: object, reason?: string, cancelled?: boolean }>}
+     */
+    async function pullTmsScheduleForGenerate() {
+        const last = global.CCPLastTmsSchedulePull;
+        if (last && last.body && Array.isArray(last.body.placements) && Date.now() - last.at < TMS_PULL_REUSE_MS) {
+            return { body: last.body, reused: true };
+        }
+        const S = global.CCPTmsSync;
+        if (!S || !S.run) {
+            return { reason: t('cohortsGenTmsNoSync') };
+        }
+        try {
+            const st = S.getBridgeState && S.getBridgeState().checked ? S.getBridgeState() : await S.detectBridge();
+            if (!S.isBridgeReady(st) && !(st && st.status === 'outdated')) {
+                return { reason: t('cohortsGenTmsNoHelper') };
+            }
+        } catch (_e) {
+            return { reason: t('cohortsGenTmsNoHelper') };
+        }
+        let problem = '';
+        for (;;) {
+            const creds = await askTmsLoginForGenerate(problem);
+            if (!creds) {
+                return { cancelled: true };
+            }
+            hooks.showMessage(t('cohortsGenTmsPulling'), false);
+            try {
+                const payload = {};
+                if (creds.username || creds.password) {
+                    payload.username = creds.username;
+                    payload.password = creds.password;
+                }
+                const body = await S.run('schedule', payload);
+                if (!body || !Array.isArray(body.placements)) {
+                    return { reason: t('cohortsGenTmsFailed') };
+                }
+                global.CCPLastTmsSchedulePull = { at: Date.now(), body };
+                return { body };
+            } catch (err) {
+                const code = err && err.code;
+                if (code === 'TMS_CREDS_MISSING') {
+                    problem = t('cohortsGenTmsNeedLogin');
+                } else if (code === 'TMS_LOGIN_FAILED' || (err && err.status === 401)) {
+                    problem = t('cohortsGenTmsLoginFailed');
+                } else {
+                    return { reason: (err && err.message) || t('cohortsGenTmsFailed') };
+                }
+            }
+        }
+    }
+
+    function formatPlacementsShort(slot) {
+        const lang = getLang();
+        const labels = DOW_LABELS[lang] || DOW_LABELS.en;
+        const list = (slot.placements && slot.placements.length)
+            ? slot.placements
+            : Object.keys(slot.periodByWeekday || {}).map((d) => ({ dow: Number(d), period: slot.periodByWeekday[d] }));
+        return list.slice().sort((a, b) => a.dow - b.dow || a.period - b.period)
+            .map((p) => `${labels[p.dow] || p.dow} P${p.period}`).join(', ');
+    }
+
+    /** The preview: one tickable row per subject, saying what will happen. Resolves to the ticked rows or null. */
+    function confirmCohortGeneration(cohort, generation, note) {
+        const box = document.createElement('div');
+        box.className = 'cohorts-generate-preview';
+        const head = document.createElement('p');
+        head.className = 'section-hint';
+        head.textContent = note;
+        box.appendChild(head);
+        if (!generation.rows.length) {
+            const p = document.createElement('p');
+            p.className = 'section-hint';
+            p.textContent = t('cohortsGenNothing');
+            box.appendChild(p);
+        }
+        const table = document.createElement('table');
+        table.className = 'cohort-subject-grid';
+        table.innerHTML = `<thead><tr><th></th><th>${escapeHtml(t('cohortsSubjectCol'))}</th><th>${escapeHtml(t('cohortsGenWhen'))}</th><th>${escapeHtml(t('cohortsGenTeacher'))}</th><th>${escapeHtml(t('cohortsGenWhat'))}</th></tr></thead>`;
+        const tbody = document.createElement('tbody');
+        const boxes = [];
+        generation.rows.forEach((row) => {
+            const tr = document.createElement('tr');
+            const what = row.how === 'create'
+                ? (row.partners.length
+                    ? t('cohortsGenCreateShared').replace('{cohorts}', row.partners.map((c) => displayName(c.name)).join(', '))
+                    : t('cohortsGenCreate'))
+                : t(row.how === 'share' ? 'cohortsGenShare' : row.how === 'link' ? 'cohortsGenLink' : 'cohortsGenUpdate')
+                    .replace('{name}', row.cls.name || row.cls.id);
+            const outside = (row.slot.partnersNotInCalendar || []).length
+                ? ' ' + t('cohortsGenOutside').replace('{names}', row.slot.partnersNotInCalendar.join(', '))
+                : '';
+            tr.innerHTML = `<td><input type="checkbox" checked></td><td>${escapeHtml(slotLabel(row.slot))}</td>
+                <td>${escapeHtml(formatPlacementsShort(row.slot))}</td><td>${escapeHtml(row.slot.tmsTeacherName || '—')}</td>
+                <td>${escapeHtml(what + outside)}</td>`;
+            boxes.push(tr.querySelector('input'));
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        if (generation.rows.length) {
+            const wrap = document.createElement('div');
+            wrap.className = 'cohort-subject-grid-wrap';
+            wrap.appendChild(table);
+            box.appendChild(wrap);
+        }
+        return showGenerateModal(
+            t('cohortsGenPreviewTitle').replace('{name}', cohortDisplayName(cohort)),
+            box,
+            t('cohortsGenApply'),
+            () => generation.rows.filter((_r, i) => boxes[i].checked)
+        );
+    }
+
+    async function runGenerateSubjects(cohort) {
+        flushCohortEditorFields();
+        cohort.meetingDays = getCohortMeetingDays(cohort);
+        let source = null;
+        let note = '';
+        const tmsApi = global.CCPTmsScheduleImport;
+        if (!tmsApi || !tmsApi.planCohortSubjectsFromTms || !plannerApi()) {
+            note = t('cohortsGenFromMatrixWhy').replace('{why}', t('cohortsGenTmsNoSync'));
+        } else {
+            const pulled = await pullTmsScheduleForGenerate();
+            if (pulled.body) {
+                const plan = tmsApi.planCohortSubjectsFromTms(hooks.getAppData(), pulled.body, cohort);
+                if (plan.subjects.length) {
+                    source = { kind: 'tms', plan };
+                    note = t('cohortsGenFromTms').replace('{term}', plan.term || '–').replace('{n}', String(plan.subjects.length));
+                } else {
+                    note = t('cohortsGenFromMatrixWhy').replace('{why}', t('cohortsGenTmsNoCohort'));
+                }
+            } else {
+                note = t('cohortsGenFromMatrixWhy').replace('{why}', pulled.cancelled ? t('cohortsGenTmsSkipped') : pulled.reason);
+            }
+        }
+        if (!source) {
+            source = { kind: 'matrix' };
+            if (!resolveMatrixLevel(cohort) || !buildSubjectSlotsFromMatrix(cohort).length) {
+                hooks.showMessage(t('cohortsMatrixNoMatch'), true);
+                return;
+            }
+        }
+        const generation = planCohortGeneration(cohort, source);
+        const chosen = await confirmCohortGeneration(cohort, generation, note);
+        if (!chosen) {
+            return;
+        }
+        const result = applyCohortGeneration(cohort, generation, chosen);
+        hooks.saveData();
+        hooks.invalidateScheduleCache();
+        if (hooks.refreshClassEditorCohortUiIfOpen) {
+            hooks.refreshClassEditorCohortUiIfOpen();
+        } else if (hooks.populateClassCohortSelect) {
+            hooks.populateClassCohortSelect();
+        }
+        let msg = t('cohortsGenDone')
+            .replace('{created}', String(result.created))
+            .replace('{updated}', String(result.updated))
+            .replace('{linked}', String(result.linked));
+        const ttApi = getTimetableApi();
+        if (ttApi && ttApi.findPossibleDuplicatePairsAcrossCohorts) {
+            const dupCount = ttApi.findPossibleDuplicatePairsAcrossCohorts(hooks.getAppData()).length;
+            if (dupCount > 0) {
+                msg += ' ' + t('cohortsReviewDuplicates').replace('{n}', String(dupCount));
+            }
+        }
+        hooks.showMessage(msg, false);
+        updateCohortEditorModalTitle(cohort);
+        renderAll();
     }
 
     function renderSummary() {
@@ -1368,31 +1951,15 @@
                 showTeamLockBlockedMessage();
                 return;
             }
-            flushCohortEditorFields();
-            const hasExisting = (cohort.subjectSlots || []).some((s) => s.classId);
-            if (hasExisting && !global.confirm(t('cohortsRegenerateConfirm'))) {
-                return;
-            }
-            cohort.meetingDays = getCohortMeetingDays(cohort);
-            const result = generateClassesForCohort(cohort, { overwrite: hasExisting });
-            hooks.saveData();
-            hooks.invalidateScheduleCache();
-            if (hooks.refreshClassEditorCohortUiIfOpen) {
-            hooks.refreshClassEditorCohortUiIfOpen();
-        } else if (hooks.populateClassCohortSelect) {
-            hooks.populateClassCohortSelect();
-        }
-            let msg = t('cohortsGenerateDone').replace('{created}', String(result.created)).replace('{updated}', String(result.updated));
-            const ttApi = getTimetableApi();
-            if (ttApi && ttApi.findPossibleDuplicatePairsAcrossCohorts) {
-                const dupCount = ttApi.findPossibleDuplicatePairsAcrossCohorts(hooks.getAppData()).length;
-                if (dupCount > 0) {
-                    msg += ' ' + t('cohortsReviewDuplicates').replace('{n}', String(dupCount));
-                }
-            }
-            hooks.showMessage(msg, false);
-            updateCohortEditorModalTitle(cohort);
-            renderAll();
+            genBtn.disabled = true;
+            runGenerateSubjects(cohort)
+                .catch((err) => {
+                    console.error(err);
+                    hooks.showMessage(t('cohortsGenTmsFailed'), true);
+                })
+                .finally(() => {
+                    genBtn.disabled = false;
+                });
         });
 
         const dupBtn = document.createElement('button');
@@ -1784,6 +2351,9 @@
         }
         if (!Array.isArray(cohort.subjectSlots) || !cohort.subjectSlots.length) {
             cohort.subjectSlots = buildSubjectSlotsFromMatrix(cohort);
+        } else if (!cohort.subjectSlots.some((s) => s.source === 'tms')) {
+            // Saved rows from an older level schedule follow the current one (links and on/off are kept).
+            refreshSubjectSlotsFromMatrix(cohort);
         }
         const lang = getLang();
         const dayLabels = DOW_LABELS[lang] || DOW_LABELS.en;
@@ -1806,7 +2376,7 @@
         (cohort.subjectSlots || []).forEach((slot, idx) => {
             const tr = document.createElement('tr');
             const nameTd = document.createElement('td');
-            nameTd.textContent = subjectTrackLabel(slot.subjectTrack);
+            nameTd.textContent = slotLabel(slot);
             tr.appendChild(nameTd);
             const enTd = document.createElement('td');
             const cb = document.createElement('input');
@@ -1941,6 +2511,13 @@
         const matrix = getMatrixApi();
         const patterns = matrix ? matrix.getPatterns() : {};
         PATTERN_IDS.forEach((pid) => {
+            // Mon-only is the once-a-week middle-school class: offered only to levels that have it.
+            if (pid === 'mon' && cohort.schedulePattern !== 'mon') {
+                const q = resolveMatrixQuery(cohort);
+                if (!matrix || !q.level || !matrix.findSlots({ level: q.level, patternId: 'mon' }).length) {
+                    return;
+                }
+            }
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'cohort-pattern-btn' + ((cohort.schedulePattern || 'mwf') === pid ? ' is-active' : '');
@@ -2773,6 +3350,9 @@
         cohortMatchesSearchQuery,
         setCohortNameFromBoard,
         buildSubjectSlotsFromMatrix,
+        resolveMatrixLevel,
+        planCohortGeneration,
+        applyCohortGeneration,
         generateClassesForCohort,
         importFromClasses,
         inferBlankCohortSchedulesIfNeeded,

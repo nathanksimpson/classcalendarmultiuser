@@ -5,8 +5,8 @@
 (function (global) {
     const EXTENSION_SCRIPTS = [
         'js/syllabus-table.js?v=20261002-essay-list-month',
-        'js/schedule-matrix-data.js',
-        'js/syllabus-schedule-matrix.js',
+        'js/schedule-matrix-data.js?v=20261118-flyers',
+        'js/syllabus-schedule-matrix.js?v=20261118-flyers',
         'js/syllabus-curricula-data.js?v=20261113-hih-tracks',
         'js/syllabus-curricula.js',
         'js/syllabus-presets.js',
