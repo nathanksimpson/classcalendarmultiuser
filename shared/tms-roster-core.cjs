@@ -1787,11 +1787,12 @@ function parseClassPopupHomeroomName(html) {
  * @returns {{ schedulePattern: 'mwf'|'tth'|'', meetingDays: number[] }}
  */
 function inferScheduleFromTmsClassName(name) {
-    const s = cleanTmsCohortDisplayName(name);
-    if (/T\^/i.test(s) || /(?:^|[^A-Za-z])T(?:\d|$)/.test(s)) {
+    // "BlueT^2609", "Navy T", "빅키T", "PavoT2": the last capital T/M before the term code is the class type.
+    const s = cleanTmsCohortDisplayName(name).replace(/\^.*$/, '').replace(/\s*\d+$/, '').trim();
+    if (/(?:^|[^A-Z])T$/.test(s)) {
         return { schedulePattern: 'tth', meetingDays: [2, 4] };
     }
-    if (/M\^/i.test(s) || /(?:^|[^A-Za-z])M(?:\d|$)/.test(s)) {
+    if (/(?:^|[^A-Z])M$/.test(s)) {
         return { schedulePattern: 'mwf', meetingDays: [1, 3, 5] };
     }
     return { schedulePattern: '', meetingDays: [] };

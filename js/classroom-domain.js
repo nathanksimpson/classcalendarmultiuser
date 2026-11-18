@@ -1187,6 +1187,10 @@
         return out;
     }
 
+    function nameIsTth(name) {
+        return /(^|[^A-Z])T$/.test(String(name || '').replace(/\^.*$/, '').replace(/\s*\d+$/, '').trim());
+    }
+
     function createTmsRosterCohort(row, options) {
         const opts = options || {};
         const newCohortId =
@@ -1204,11 +1208,12 @@
             level: normalizeStr(row && row.level),
             levelPreset: normalizeStr(row && row.levelPreset),
             grade: normalizeStr(row && row.grade),
-            schedulePattern: row && row.schedulePattern === 'tth' ? 'tth' : 'mwf',
+            // No pattern from TMS: the name's M/T says it (BlueT -> Tue/Thu); MWF only when the name says nothing.
+            schedulePattern: (row && row.schedulePattern === 'tth') || (!(row && row.schedulePattern) && nameIsTth(row && row.importCohortName)) ? 'tth' : 'mwf',
             meetingDays:
                 Array.isArray(row && row.meetingDays) && row.meetingDays.length
                     ? row.meetingDays.slice()
-                    : row && row.schedulePattern === 'tth'
+                    : (row && row.schedulePattern === 'tth') || (!(row && row.schedulePattern) && nameIsTth(row && row.importCohortName))
                       ? [2, 4]
                       : [1, 3, 5],
             periodCount: 0,

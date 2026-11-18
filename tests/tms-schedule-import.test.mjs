@@ -247,3 +247,18 @@ console.log('tms-schedule-import draft class test passed');
     assert.equal(second.report.matched, 2);
 }
 console.log('tms-schedule-import cohort-free draft class test passed');
+
+// A cohort name's M/T is its class type, even when the record says otherwise.
+{
+    assert.deepEqual(P.daysFromCohortName('BlueT^2609'), [2, 4]);
+    assert.deepEqual(P.daysFromCohortName('PavoT'), [2, 4]);
+    assert.deepEqual(P.daysFromCohortName('Navy M'), [1, 3, 5]);
+    assert.deepEqual(P.daysFromCohortName('빅키T^2612'), [2, 4]);
+    assert.deepEqual(P.daysFromCohortName('Student archive'), []);
+    const d = { cohorts: [{ id: 'x', name: 'BlueT^2609', meetingDays: [1, 3, 5], schedulePattern: 'mwf' }],
+        classes: [{ id: 'k', name: 'BlueT · Grammar', cohortIds: ['x'], cohortId: 'x', weeklyFrequency: 2 }], teacherProfiles: [] };
+    P.ensurePlannerFields(d);
+    assert.deepEqual(P.cohortBlock(d, d.cohorts[0]).days, [2, 4]);
+    assert.equal(P.buildDemandsFromAppData(d)[0].cadence, 'tth');
+}
+console.log('cohort name class-type test passed');

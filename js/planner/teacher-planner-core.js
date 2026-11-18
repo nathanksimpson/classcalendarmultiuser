@@ -370,6 +370,17 @@
      * The planner's own copy (plannerState.cohortBlocks, edited in Setup) wins over the cohort record
      * until it is written back with writeCohortBlocks.
      */
+    /**
+     * The class type a cohort name carries: "BlueT", "Navy T", "빅키T^2612" -> Tue/Thu; "NavyM", "Blue M" -> Mon/Wed/Fri.
+     * The term code (^2609) and a trailing level number are ignored.
+     */
+    function daysFromCohortName(name) {
+        const s = String(name || '').replace(/\^.*$/, '').replace(/\s*\d+$/, '').trim();
+        if (/(^|[^A-Z])T$/.test(s)) return [2, 4];
+        if (/(^|[^A-Z])M$/.test(s)) return [1, 3, 5];
+        return [];
+    }
+
     function cohortBlock(appData, cohort) {
         if (!cohort) return { days: [], start: '', end: '', staged: false };
         const saved = {
@@ -378,6 +389,9 @@
             start: validHHMM(cohort.blockStart) || validHHMM(cohort.tmsBlockStart),
             end: validHHMM(cohort.blockEnd) || validHHMM(cohort.tmsBlockEnd)
         };
+        // The name's M/T wins over recorded days that contradict it (e.g. a T cohort saved as MWF by default).
+        const byName = daysFromCohortName(cohort.name);
+        if (byName.length && (!saved.days.length || saved.days.some((d) => !byName.includes(d)))) saved.days = byName;
         const all = appData && appData.plannerState && appData.plannerState.cohortBlocks;
         const st = all && all[cohort.id];
         if (!st || typeof st !== 'object') return Object.assign(saved, { staged: false });
@@ -613,6 +627,8 @@
         const days = Array.isArray(meetingDays)
             ? meetingDays.map(Number).filter((d) => d >= 1 && d <= 5).sort((a, b) => a - b)
             : [];
+        if (days.join(',') === '1,3,5') return 'mwf';
+        if (days.join(',') === '2,4') return 'tth';
         if (global.CCPTeacherTimetable && global.CCPTeacherTimetable.inferCohortScheduleFromMeetingDays) {
             const inf = global.CCPTeacherTimetable.inferCohortScheduleFromMeetingDays(days);
             return normalizeStr(inf && inf.schedulePattern) || 'custom';
@@ -978,13 +994,11 @@
             if (!cls || !cls.id) return;
             const cohortIds = getClassCohortIds(cls);
             const meetings = collectClassMeetings(cls, appData);
-            const cadence = inferCadence(cls.meetingDays, cls.schedulePattern)
-                || (cohortIds[0]
-                    ? inferCadence(
-                        (cohorts.find((c) => c.id === cohortIds[0]) || {}).meetingDays,
-                        (cohorts.find((c) => c.id === cohortIds[0]) || {}).schedulePattern
-                    )
-                    : '');
+            const firstCohort = cohortIds[0] ? cohorts.find((c) => c.id === cohortIds[0]) : null;
+            // The cohort's days (its name's M/T first) decide the class's days; the class's own only when it has no cohort.
+            const cohortCadence = firstCohort ? inferCadence(cohortBlock(appData, firstCohort).days, '') : '';
+            const cadence = cohortCadence || inferCadence(cls.meetingDays, cls.schedulePattern)
+                || (firstCohort ? inferCadence(firstCohort.meetingDays, firstCohort.schedulePattern) : '');
             const weeklyFrequency = Number(cls.weeklyFrequency) || meetings.length || (Array.isArray(cls.meetingDays) ? cls.meetingDays.length : 0);
             const band = bandFromScheduleBlock(cls.scheduleBlock, cls, cohorts);
             let readiness = 'ready';
@@ -3046,6 +3060,7 @@
         RULES,
         isPurpleCohort,
         cohortBlock,
+        daysFromCohortName,
         classAllowedDays,
         stageCohortBlock,
         pendingCohortBlocks,
