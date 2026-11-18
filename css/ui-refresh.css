@@ -372,10 +372,116 @@ html[data-nav-tabs-collapsed="1"] {
     }
 }
 
-/* Section tabs scroll sideways with a fade instead of being cut off. */
-#appHeaderUnified #appZoneNav {
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+/* Tab rows scroll sideways. When tabs are hidden past an edge, that edge fades
+   and a small chevron appears (app.js sets data-scrollable / data-scroll-start /
+   data-scroll-end on scroll and resize). No fade when everything fits. */
+@property --zone-fade-l {
+    syntax: '<length>';
+    inherits: false;
+    initial-value: 0px;
+}
+
+@property --zone-fade-r {
+    syntax: '<length>';
+    inherits: false;
+    initial-value: 0px;
+}
+
+#appHeaderUnified #appZoneNavCluster,
+#appHeaderUnified .zone-scroll-host {
+    position: relative;
+}
+
+/* The page-tab row scrolls as one strip (#appZoneSegmentNav), so a panel must
+   not shrink and scroll on its own, or the row never reports hidden tabs. */
+#appHeaderUnified .app-zone-segment-panel:not([hidden]) {
+    flex: 0 0 auto;
+    min-width: max-content;
+    overflow: visible;
+}
+
+#appHeaderUnified .zone-scroll-host {
+    display: flex;
+    align-items: stretch;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+#appHeaderUnified #appZoneNav,
+#appHeaderUnified #appZoneSegmentNav {
+    --zone-fade-l: 0px;
+    --zone-fade-r: 0px;
+    transition: --zone-fade-l 0.18s ease, --zone-fade-r 0.18s ease;
+}
+
+#appHeaderUnified #appZoneNav[data-scrollable="1"],
+#appHeaderUnified #appZoneSegmentNav[data-scrollable="1"] {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--zone-fade-l), #000 calc(100% - var(--zone-fade-r)), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 var(--zone-fade-l), #000 calc(100% - var(--zone-fade-r)), transparent);
+}
+
+#appHeaderUnified #appZoneNav[data-scrollable="1"]:not([data-scroll-start="1"]),
+#appHeaderUnified #appZoneSegmentNav[data-scrollable="1"]:not([data-scroll-start="1"]) {
+    --zone-fade-l: 40px;
+}
+
+#appHeaderUnified #appZoneNav[data-scrollable="1"]:not([data-scroll-end="1"]),
+#appHeaderUnified #appZoneSegmentNav[data-scrollable="1"]:not([data-scroll-end="1"]) {
+    --zone-fade-r: 40px;
+}
+
+#appHeaderUnified .zone-scroll-chevron {
+    position: absolute;
+    top: 50%;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    box-shadow: 0 1px 3px rgba(12, 12, 13, 0.12);
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-50%) scale(0.85);
+    transition: opacity 0.18s ease, transform 0.18s ease, color 0.15s ease;
+}
+
+#appHeaderUnified .zone-scroll-chevron--start {
+    left: 2px;
+}
+
+#appHeaderUnified .zone-scroll-chevron--end {
+    right: 2px;
+}
+
+#appHeaderUnified .zone-scroll-chevron:hover {
+    color: var(--primary-dark);
+    border-color: var(--primary);
+}
+
+#appHeaderUnified [data-scrollable="1"]:not([data-scroll-start="1"]) ~ .zone-scroll-chevron--start,
+#appHeaderUnified [data-scrollable="1"]:not([data-scroll-end="1"]) ~ .zone-scroll-chevron--end {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(-50%) scale(1);
+}
+
+/* The bottom section bar never scrolls; hide its cues. */
+html[data-nav-dock="bottom"] #appHeaderUnified #appZoneNavCluster .zone-scroll-chevron {
+    display: none;
+}
+
+@media print {
+    #appHeaderUnified .zone-scroll-chevron {
+        display: none;
+    }
 }
 
 html[data-nav-dock="bottom"] #appHeaderUnified #appZoneNav {
@@ -890,12 +996,6 @@ html[data-nav-dock="bottom"] .now-class-popup-root {
     display: none;
 }
 
-html[data-viewport="phone"] #appHeaderUnified #appZoneSegmentNav,
-html[data-viewport="tablet-sm"] #appHeaderUnified #appZoneSegmentNav {
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-    padding-right: 28px;
-}
 
 /* Phone: the attendance column is narrow, so use a 2 × 2 grid. */
 html[data-viewport="phone"] .classroom-sheet .classroom-student-row-status {

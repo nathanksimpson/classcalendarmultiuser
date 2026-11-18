@@ -15202,22 +15202,51 @@ function syncZoneNavScrollAffordance(scrollEl) {
     if (!scrollEl) {
         return;
     }
-    const overflow = scrollEl.scrollWidth > scrollEl.clientWidth + 1;
+    // A few px of overflow is just trailing spacing, not a hidden tab.
+    const overflow = scrollEl.scrollWidth > scrollEl.clientWidth + 6;
     if (overflow) {
         scrollEl.dataset.scrollable = '1';
     } else {
         delete scrollEl.dataset.scrollable;
     }
-    if (scrollEl.scrollLeft <= 1) {
+    // Scroll snap can park the first/last tab against the edge, past the row's padding;
+    // count that as "at the edge" so no fade or chevron points at nothing.
+    const cs = getComputedStyle(scrollEl);
+    const padStart = (parseFloat(cs.paddingLeft) || 0) + 1;
+    const padEnd = (parseFloat(cs.paddingRight) || 0) + 1;
+    if (scrollEl.scrollLeft <= padStart) {
         scrollEl.dataset.scrollStart = '1';
     } else {
         delete scrollEl.dataset.scrollStart;
     }
-    if (scrollEl.scrollLeft + scrollEl.clientWidth >= scrollEl.scrollWidth - 1) {
+    if (scrollEl.scrollLeft + scrollEl.clientWidth >= scrollEl.scrollWidth - padEnd) {
         scrollEl.dataset.scrollEnd = '1';
     } else {
         delete scrollEl.dataset.scrollEnd;
     }
+}
+
+/** Hidden-tab cue: small chevrons that sit over the faded edge and scroll the row (CSS shows them). */
+function ensureZoneNavScrollChevrons(scrollEl) {
+    if (!scrollEl || scrollEl.dataset.scrollChevrons === '1') {
+        return;
+    }
+    scrollEl.dataset.scrollChevrons = '1';
+    ['end', 'start'].forEach((side) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `zone-scroll-chevron zone-scroll-chevron--${side}`;
+        btn.tabIndex = -1;
+        btn.setAttribute('aria-hidden', 'true');
+        btn.innerHTML = side === 'start'
+            ? '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+            : '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        btn.addEventListener('click', () => {
+            const step = Math.max(120, Math.round(scrollEl.clientWidth * 0.6));
+            scrollEl.scrollBy({ left: side === 'start' ? -step : step, behavior: 'smooth' });
+        });
+        scrollEl.insertAdjacentElement('afterend', btn);
+    });
 }
 
 function syncAllZoneNavScrollAffordances() {
@@ -15226,7 +15255,13 @@ function syncAllZoneNavScrollAffordances() {
     }
     const zoneNav = document.getElementById('appZoneNav');
     if (zoneNav) {
+        ensureZoneNavScrollChevrons(zoneNav);
         syncZoneNavScrollAffordance(zoneNav);
+    }
+    const segmentNav = document.getElementById('appZoneSegmentNav');
+    if (segmentNav) {
+        ensureZoneNavScrollChevrons(segmentNav);
+        syncZoneNavScrollAffordance(segmentNav);
     }
     document.querySelectorAll('.app-zone-segment-panel:not([hidden])').forEach((panel) => {
         syncZoneNavScrollAffordance(panel);
@@ -15263,9 +15298,38 @@ function bindZoneNavScrollListeners() {
     if (zoneNav) {
         zoneNav.addEventListener('scroll', onScroll, { passive: true });
     }
+    const segmentNav = document.getElementById('appZoneSegmentNav');
+    if (segmentNav) {
+        segmentNav.addEventListener('scroll', onScroll, { passive: true });
+    }
     document.querySelectorAll('.app-zone-segment-panel').forEach((panel) => {
         panel.addEventListener('scroll', onScroll, { passive: true });
     });
+    // Tab rows change width with the window, language and web fonts; keep the edge cues current.
+    let pending = 0;
+    const resync = () => {
+        if (pending) {
+            return;
+        }
+        pending = requestAnimationFrame(() => {
+            pending = 0;
+            syncAllZoneNavScrollAffordances();
+        });
+    };
+    if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(resync);
+        [zoneNav, segmentNav].forEach((el) => {
+            if (el) {
+                ro.observe(el);
+            }
+        });
+        document.querySelectorAll('#appZoneNav .app-zone-btn, .app-zone-segment-panel').forEach((el) => ro.observe(el));
+    } else {
+        window.addEventListener('resize', resync, { passive: true });
+    }
+    if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(resync).catch(() => {});
+    }
 }
 
 function bindZoneNavScrollObserver() {

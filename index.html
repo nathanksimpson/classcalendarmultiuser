@@ -8,7 +8,7 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="stylesheet" href="styles.css?v=20261117-pop">
-    <link rel="stylesheet" href="css/ui-refresh.css?v=20261104-float-menu">
+    <link rel="stylesheet" href="css/ui-refresh.css?v=20261118-tab-scroll-hint">
     <script src="js/theme-init.js"></script>
     <script src="js/language-init.js"></script>
     <script src="js/boot-prefetch.js?v=20261116-boot-prefetch"></script>
@@ -218,6 +218,7 @@
                     </div>
                 </div>
                 <div class="app-top-bar-row app-top-bar-row--nav" id="appZoneSegmentNavRow">
+                    <div class="zone-scroll-host" id="appZoneSegmentNavScrollHost">
                     <nav class="app-zone-segment-nav" id="appZoneSegmentNav" role="tablist" aria-label="Section" data-i18n-aria-label="zoneSegmentNavAria">
                         <div id="zoneSegments-schedule" class="app-zone-segment-panel is-active" data-zone="schedule" role="presentation">
                             <button type="button" class="app-zone-segment-btn is-active" role="tab" aria-selected="true" data-segment="calendar" data-tab="calendar" data-i18n="tabCalendar">Calendar</button>
@@ -254,6 +255,7 @@
                             <button type="button" class="app-zone-segment-btn" role="tab" aria-selected="false" data-segment="speaking-test" data-tab="speaking-test" data-i18n="classroomTabSpeakingTest">Speaking Test</button>
                         </div>
                     </nav>
+                    </div>
                     <button type="button" id="termSummaryStrip" class="term-summary-strip" hidden aria-haspopup="dialog" aria-controls="termSettingsModal" data-i18n-title="termSummaryStripTitle" title="Open term settings">
                         <span id="termSummaryName" class="term-summary-strip__name"></span>
                         <span class="term-summary-strip__sep" aria-hidden="true">&middot;</span>
@@ -3461,7 +3463,7 @@
     <script defer src="js/class-color-tile.js?v=20261114-pinned-save"></script>
     <script defer src="js/print-center.js?v=20261014-p6-hierarchy"></script>
     <script defer src="js/class-one-teacher.js?v=20261115-one-teacher"></script>
-    <script defer src="app.js?v=20261117-drafter"></script>
+    <script defer src="app.js?v=20261118-tab-scroll-hint"></script>
 </body>
 </html>
 
