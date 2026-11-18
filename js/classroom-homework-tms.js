@@ -2,7 +2,6 @@
  * TMS 숙제확인 → Classroom Homework completions (this class / selected assignment).
  */
 (function (global) {
-    const USERNAME_KEY = 'ccp.tmsRosterUsername';
     const BRIDGE_TIMEOUT_MS = 120000;
     const STILL_LOADING_MS = 15000;
 
@@ -55,53 +54,6 @@
         }
     }
 
-    function hydrateCredForm() {
-        const userEl = document.getElementById('homeworkTmsUsername');
-        const rememberEl = document.getElementById('homeworkTmsRememberUser');
-        let saved = '';
-        try {
-            saved = String(localStorage.getItem(USERNAME_KEY) || '');
-        } catch (_) {
-            saved = '';
-        }
-        if (userEl && !userEl.value && saved) {
-            userEl.value = saved;
-        }
-        if (rememberEl) {
-            rememberEl.checked = Boolean(saved);
-        }
-    }
-
-    function readCreds() {
-        const userEl = document.getElementById('homeworkTmsUsername');
-        const passEl = document.getElementById('homeworkTmsPassword');
-        const rememberEl = document.getElementById('homeworkTmsRememberUser');
-        const dom = {
-            username: userEl ? String(userEl.value || '').trim() : '',
-            password: passEl ? String(passEl.value || '') : '',
-            rememberUser: Boolean(rememberEl && rememberEl.checked)
-        };
-        if ((userEl || passEl) && (dom.username || dom.password)) {
-            return dom;
-        }
-        if (global.CCPTmsSyncCenter && global.CCPTmsSyncCenter.getCredentials) {
-            return global.CCPTmsSyncCenter.getCredentials();
-        }
-        return dom;
-    }
-
-    function persistUsername(username, remember) {
-        try {
-            if (remember && username) {
-                localStorage.setItem(USERNAME_KEY, username);
-            } else if (!remember) {
-                localStorage.removeItem(USERNAME_KEY);
-            }
-        } catch (_) {
-            /* ignore */
-        }
-    }
-
     function linkedTmsClassIds() {
         const d = domain();
         const classId = ctxApi && ctxApi.getClassId ? ctxApi.getClassId() : '';
@@ -128,7 +80,6 @@
         setError('');
         setStatus('');
         setConfirmEnabled(false);
-        hydrateCredForm();
         const classId = ctxApi && ctxApi.getClassId ? ctxApi.getClassId() : '';
         const syllabusRowId = ctxApi && ctxApi.getSyllabusRowId ? ctxApi.getSyllabusRowId() : '';
         if (!classId || !syllabusRowId) {
@@ -159,8 +110,7 @@
             setError(t('classroomHomeworkTmsSyncNeedAssignment'));
             return;
         }
-        const creds = readCreds();
-        persistUsername(creds.username, creds.rememberUser);
+        const creds = global.CCPTmsSync.credentialsForSync();
         plan = null;
         loading = true;
         setError('');
@@ -330,12 +280,6 @@
         });
         document.getElementById('homeworkTmsLoadBtn')?.addEventListener('click', () => {
             void loadPreview();
-        });
-        document.getElementById('homeworkTmsPassword')?.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                void loadPreview();
-            }
         });
         document.getElementById('homeworkTmsSyncConfirmBtn')?.addEventListener('click', () => {
             void applyPreview();

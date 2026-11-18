@@ -77,8 +77,14 @@
         if (passEl) {
             password = String(passEl.value || '');
         }
+        const username = userEl ? String(userEl.value || '').trim() : '';
+        // Nothing typed here yet: use the TMS sign-in another screen in this tab already made.
+        const session = !password && syncApi() && syncApi().getSessionCredentials ? syncApi().getSessionCredentials() : null;
+        if (session && (!username || username === session.username)) {
+            return { username: session.username, password: session.password, rememberUser: Boolean(rememberEl && rememberEl.checked) };
+        }
         return {
-            username: userEl ? String(userEl.value || '').trim() : '',
+            username,
             password: password,
             rememberUser: Boolean(rememberEl && rememberEl.checked)
         };

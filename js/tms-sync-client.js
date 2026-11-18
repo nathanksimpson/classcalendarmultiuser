@@ -261,15 +261,21 @@
         const contentType = String(res.headers.get('content-type') || '').toLowerCase();
         const body = contentType.includes('application/json') ? await res.json().catch(() => null) : null;
         if (!res.ok) {
-            throw fail(
+            const err = fail(
                 (body && body.error) || 'TMS sync failed',
                 (body && body.code) || '',
                 res.status
             );
+            if (isSignInError(err)) {
+                forgetSessionCredentials();
+            }
+            throw err;
         }
         if (!body || typeof body !== 'object') {
             throw fail('TMS sync failed', 'TMS_SCRAPE_FAILED', res.status);
         }
+        // A sign-in TMS accepted is reused by every other TMS screen in this tab (see runWithSignIn).
+        rememberSessionCredentials(payload);
         recordLastSync(kind);
         return body;
     }
@@ -432,8 +438,290 @@
         return { ok: false, reason: 'timeout' };
     }
 
+    // ---- One TMS sign-in, one error wording, one timetable pull for every screen ----------
+
+    /** Reuse a timetable pull this long (Planner, Generate subjects and the term wizard share it). */
+    const SCHEDULE_REUSE_MS = 60 * 60 * 1000;
+    /** The last TMS sign-in that worked, for this open tab only. Never written to storage. */
+    let sessionCreds = null;
+    let lastSchedulePull = null;
+
+    function tr(key, fallback) {
+        try {
+            if (typeof global.t === 'function') {
+                const val = global.t(key);
+                if (val && val !== key) {
+                    return val;
+                }
+            }
+        } catch (_) {
+            /* ignore */
+        }
+        return fallback || key;
+    }
+
+    function getSessionCredentials() {
+        return sessionCreds ? { username: sessionCreds.username, password: sessionCreds.password } : null;
+    }
+
+    function rememberSessionCredentials(creds) {
+        const username = String((creds && creds.username) || '').trim();
+        const password = String((creds && creds.password) || '');
+        if (username && password) {
+            sessionCreds = { username, password };
+        }
+    }
+
+    function forgetSessionCredentials() {
+        sessionCreds = null;
+    }
+
+    /**
+     * The TMS sign-in for a tab's Sync button: what is typed in the Sync Center, else this tab's last
+     * sign-in TMS accepted, else just the remembered username.
+     */
+    function currentCredentials() {
+        const center = global.CCPTmsSyncCenter;
+        if (center && typeof center.getCredentials === 'function') {
+            return center.getCredentials();
+        }
+        const saved = getSavedUsername();
+        const session = getSessionCredentials();
+        return {
+            username: session ? session.username : saved,
+            password: session ? session.password : '',
+            rememberUser: Boolean(saved)
+        };
+    }
+
+    /** currentCredentials(), also keeping (or forgetting) the username on this computer as ticked. */
+    function credentialsForSync() {
+        const creds = currentCredentials();
+        setSavedUsername(creds.username, creds.rememberUser);
+        return creds;
+    }
+
+    /** True when TMS refused the sign-in (or none was given), so asking again can help. */
+    function isSignInError(err) {
+        const code = err && err.code;
+        return code === 'TMS_CREDS_MISSING' || code === 'TMS_LOGIN_FAILED' || Boolean(err && err.status === 401);
+    }
+
+    function isHelperMissingError(err) {
+        const code = err && err.code;
+        return (
+            code === 'TMS_HELPER_MISSING' ||
+            code === 'TMS_BRIDGE_REQUIRED' ||
+            Boolean(err && /failed to fetch|networkerror|load failed/i.test(String(err.message || '')))
+        );
+    }
+
+    /** The same message for the same TMS problem on every screen. */
+    function errorText(err, fallback) {
+        const code = err && err.code;
+        if (code === 'TMS_CREDS_MISSING') {
+            return tr('cohortsGenTmsNeedLogin', 'Enter your TMS username and password.');
+        }
+        if (code === 'TMS_LOGIN_FAILED' || (err && err.status === 401)) {
+            return tr('cohortsGenTmsLoginFailed', 'Could not sign in to TMS. Check the username and password.');
+        }
+        if (code === 'TMS_BRIDGE_OUTDATED') {
+            return tr('tmsSyncOutdatedHint', 'Update the local ClassManager (restart npm start).');
+        }
+        if (isHelperMissingError(err)) {
+            return tr('tmsHelperNotRunning', 'The Sync Helper is not running on this computer. Open Sync from TMS to set it up.');
+        }
+        return (err && err.message) || fallback || 'TMS sync failed';
+    }
+
+    function escapeText(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    /**
+     * The one TMS sign-in popup. Resolves to { username, password } or null when cancelled.
+     * The username can be remembered on this computer; the password is only kept for this tab.
+     * @param {{ title?: string, hint?: string, note?: string, problem?: string, submitLabel?: string }} [opts]
+     */
+    function askSignIn(opts) {
+        const o = opts || {};
+        if (typeof document === 'undefined' || !document.body) {
+            return Promise.resolve(null);
+        }
+        return new Promise((resolve) => {
+            const saved = getSavedUsername();
+            const start = (sessionCreds && sessionCreds.username) || saved;
+            const overlay = document.createElement('div');
+            overlay.className = 'sp-overlay sp-overlay--confirm tms-signin-overlay';
+            overlay.innerHTML = `
+                <form class="sp-dialog sp-dialog--pop tms-signin-dialog" role="dialog" aria-modal="true" aria-labelledby="tmsSignInTitle" autocomplete="on">
+                    <header class="sp-dialog-head">
+                        <h2 id="tmsSignInTitle">${escapeText(o.title || tr('cohortsGenTmsLoginTitle', 'Sign in to TMS'))}</h2>
+                        <button type="button" class="modal-close" data-tms-cancel aria-label="${escapeText(tr('closeAria', 'Close'))}">&times;</button>
+                    </header>
+                    <div class="sp-dialog-body">
+                        ${o.hint ? `<p class="sp-hint">${escapeText(o.hint)}</p>` : ''}
+                        <p class="sp-hint sp-auto-error" role="alert" data-tms-problem ${o.problem ? '' : 'hidden'}>${escapeText(o.problem || '')}</p>
+                        <label class="sp-field"><span>${escapeText(tr('rosterTmsUsernameLabel', 'TMS username'))}</span>
+                            <input type="text" class="field-input" data-tms-user autocomplete="username" spellcheck="false" value="${escapeText(start)}"></label>
+                        <label class="sp-field"><span>${escapeText(tr('rosterTmsPasswordLabel', 'TMS password'))}</span>
+                            <input type="password" class="field-input" data-tms-pass autocomplete="current-password"></label>
+                        <label class="checkbox-label"><input type="checkbox" data-tms-remember ${saved ? 'checked' : ''}> <span>${escapeText(tr('spTmsRemember', 'Remember my username on this computer'))}</span></label>
+                        ${o.note ? `<p class="sp-hint">${escapeText(o.note)}</p>` : ''}
+                    </div>
+                    <footer class="sp-dialog-foot">
+                        <button type="button" class="btn btn-outline btn-small" data-tms-cancel>${escapeText(tr('spCancel', 'Cancel'))}</button>
+                        <button type="submit" class="btn btn-primary btn-small">${escapeText(o.submitLabel || tr('cohortsGenTmsSignIn', 'Sign in'))}</button>
+                    </footer>
+                </form>`;
+            const form = overlay.querySelector('form');
+            const user = overlay.querySelector('[data-tms-user]');
+            const pass = overlay.querySelector('[data-tms-pass]');
+            const remember = overlay.querySelector('[data-tms-remember]');
+            const done = (val) => {
+                pass.value = '';
+                document.removeEventListener('keydown', onKey, true);
+                overlay.remove();
+                resolve(val);
+            };
+            function onKey(ev) {
+                if (ev.key === 'Escape') {
+                    ev.stopPropagation();
+                    done(null);
+                }
+            }
+            form.addEventListener('submit', (ev) => {
+                ev.preventDefault();
+                const username = String(user.value || '').trim();
+                setSavedUsername(username, remember.checked);
+                done({ username, password: String(pass.value || '') });
+            });
+            overlay.addEventListener('click', (ev) => {
+                if (ev.target === overlay || ev.target.closest('[data-tms-cancel]')) {
+                    done(null);
+                }
+            });
+            document.addEventListener('keydown', onKey, true);
+            document.body.appendChild(overlay);
+            (user.value ? pass : user).focus();
+        });
+    }
+
+    /**
+     * Run a TMS job with the tab's sign-in, asking only when there is none yet or TMS refuses it.
+     * Resolves to the job's body, or null when the person cancels the sign-in.
+     * Other failures are thrown (use errorText for the message).
+     * @param {string} kind
+     * @param {object} [payload]
+     * @param {{ timeoutMs?: number, signIn?: object, onSignedIn?: function }} [opts]
+     */
+    async function runWithSignIn(kind, payload, opts) {
+        const o = opts || {};
+        let problem = '';
+        let creds = getSessionCredentials();
+        for (;;) {
+            if (!creds) {
+                creds = await askSignIn(Object.assign({}, o.signIn || {}, { problem }));
+                if (!creds) {
+                    return null;
+                }
+            }
+            if (typeof o.onSignedIn === 'function') {
+                o.onSignedIn();
+            }
+            const body = Object.assign({}, payload || {});
+            if (creds.username || creds.password) {
+                body.username = creds.username;
+                body.password = creds.password;
+            }
+            try {
+                return await run(kind, body, { timeoutMs: o.timeoutMs });
+            } catch (err) {
+                if (!isSignInError(err)) {
+                    throw err;
+                }
+                problem = errorText(err);
+                creds = null;
+            }
+        }
+    }
+
+    /** The last timetable pull, when it is recent enough to reuse (null otherwise). */
+    function recentSchedule(maxAgeMs) {
+        const age = Number(maxAgeMs) >= 0 ? Number(maxAgeMs) : SCHEDULE_REUSE_MS;
+        const last = lastSchedulePull;
+        if (last && last.body && Array.isArray(last.body.placements) && Date.now() - last.at < age) {
+            return last.body;
+        }
+        return null;
+    }
+
+    function rememberSchedule(body) {
+        if (body && Array.isArray(body.placements)) {
+            lastSchedulePull = { at: Date.now(), body };
+        }
+    }
+
+    /**
+     * Every teacher's timetable from TMS (read-only). One function for the Planner, Generate subjects and the
+     * term wizard: reuses a pull from the last hour unless opts.fresh, signs in once per tab.
+     * @param {{ fresh?: boolean, credentials?: {username:string,password:string}, timeoutMs?: number,
+     *   signIn?: object, onSignedIn?: function }} [opts]
+     * @returns {Promise<{ body?: object, reused?: boolean, cancelled?: boolean }>} throws on other failures.
+     */
+    async function pullSchedule(opts) {
+        const o = opts || {};
+        if (!o.fresh) {
+            const recent = recentSchedule();
+            if (recent) {
+                return { body: recent, reused: true };
+            }
+        }
+        // No helper check here: run() uses the helper when there is one, else the server (which can read the
+        // timetable itself, or answers TMS_BRIDGE_REQUIRED).
+        let body;
+        if (o.credentials) {
+            const payload = {};
+            const username = String(o.credentials.username || '').trim();
+            const password = String(o.credentials.password || '');
+            if (username || password) {
+                payload.username = username;
+                payload.password = password;
+            }
+            body = await run('schedule', payload, { timeoutMs: o.timeoutMs });
+        } else {
+            body = await runWithSignIn('schedule', {}, o);
+            if (body === null) {
+                return { cancelled: true };
+            }
+        }
+        if (!body || !Array.isArray(body.placements)) {
+            throw fail(tr('cohortsGenTmsFailed', 'Could not pull the timetables from TMS.'), 'TMS_SCRAPE_FAILED', 0);
+        }
+        rememberSchedule(body);
+        return { body };
+    }
+
     global.CCPTmsSync = {
         HELPER_PORTS: HELPER_PORTS,
+        SCHEDULE_REUSE_MS: SCHEDULE_REUSE_MS,
+        askSignIn: askSignIn,
+        currentCredentials: currentCredentials,
+        credentialsForSync: credentialsForSync,
+        runWithSignIn: runWithSignIn,
+        pullSchedule: pullSchedule,
+        recentSchedule: recentSchedule,
+        rememberSchedule: rememberSchedule,
+        errorText: errorText,
+        isSignInError: isSignInError,
+        isHelperMissingError: isHelperMissingError,
+        getSessionCredentials: getSessionCredentials,
+        rememberSessionCredentials: rememberSessionCredentials,
+        forgetSessionCredentials: forgetSessionCredentials,
         STALE_SYNC_MS: STALE_SYNC_MS,
         detectBridge: detectBridge,
         stopHelper: stopHelper,

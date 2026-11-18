@@ -2441,12 +2441,6 @@ ${by.get(cid).map((d) => `
         });
     }
 
-    /**
-     * Sign-in popout for the TMS pull. The password is only held for this one request (never stored);
-     * the username can be remembered on this computer. Both may stay empty when this computer's
-     * ClassManager already has a TMS sign-in set up.
-     * @returns {Promise<{username:string,password:string}|null>} null when cancelled.
-     */
     /** TMS holds several terms in one timetable (e.g. 2609 and 2612): let the person choose which to import. */
     function askTmsTerm(terms, suggested) {
         return new Promise((resolve) => {
@@ -2492,159 +2486,6 @@ ${by.get(cid).map((d) => `
         });
     }
 
-    /** Ask which calendar cohort each unmatched TMS class belongs to (same links the roster sync remembers). */
-    function askTmsMapping(unmatched, summary) {
-        return new Promise((resolve) => {
-            const dlg = $('spTmsMap');
-            const D = global.CCPClassroomDomain;
-            if (!dlg || !D || !D.resolveTmsRosterLink) { resolve(null); return; }
-            const cohorts = (M.data.cohorts || []).filter((c) => c && !(D.isArchiveCohort && D.isArchiveCohort(c)));
-            const links = M.data.tmsRosterLinks || {};
-            const list = $('spTmsMapList');
-            const tally = $('spTmsMapTally');
-            const saveBtn = dlg.querySelector('[data-map-save]');
-            const sum = $('spTmsMapSummary');
-            if (sum) {
-                sum.hidden = !summary;
-                if (summary) sum.textContent = t('spTmsMapSummary', '{used} periods read from TMS for this term: {matched} fit existing classes, {draft} will become draft classes, {open} need a cohort (below).', summary);
-            }
-            list.innerHTML = '';
-            // One row per TMS class (term suffix dropped: 샘물M^2609 and 샘물M^2612 are the same class). When TMS
-            // lists several terms, only the newest one matters for this schedule.
-            const termOf = (n) => (String(n || '').match(/\^([^\s^]+)\s*$/) || [])[1] || '';
-            const terms = unmatched.map((u) => termOf(u.name)).filter(Boolean).sort();
-            const newest = terms.length ? terms[terms.length - 1] : '';
-            const seen = new Map();
-            unmatched.forEach((u) => {
-                if (newest && termOf(u.name) && termOf(u.name) !== newest) return;
-                const base = String(u.name || '').replace(/\^.*$/, '').trim();
-                if (!base) return;
-                const k = base.toLowerCase();
-                const prev = seen.get(k);
-                if (prev) prev.count += u.count || 1;
-                else seen.set(k, { base, raw: u.name, count: u.count || 1 });
-            });
-            const opt = (v, label, sel) => `<option value="${esc(v)}"${sel ? ' selected' : ''}>${esc(label)}</option>`;
-            const rows = Array.from(seen.values()).map((e) => ({ e, r: D.resolveTmsRosterLink(links, e.raw, cohorts) }));
-            // Likely matches first, then the ones that need a decision.
-            rows.sort((x, y) => Number(!!y.r.suggestedTargetId) - Number(!!x.r.suggestedTargetId) || x.e.base.localeCompare(y.e.base));
-            // Real cohorts carry a start code ("BlueM^2609"). Entries without one, or marked test, are tests,
-            // other campuses' classes or special lectures: kept apart and set to "skip" so they are not in the way.
-            const isReal = (e) => /\^\d{4}\s*$/.test(String(e.raw || '')) && !/test|테스트/i.test(e.base);
-            const mainRows = rows.filter(({ e }) => isReal(e));
-            const otherRows = rows.filter(({ e }) => !isReal(e));
-            const rowEl = ({ e, r }, preset) => {
-                const row = document.createElement('div');
-                row.className = 'sp-map-row';
-                row.innerHTML = `<span class="sp-map-name">${esc(e.base)}<small>${esc(t('spTmsMapPeriods', '{n} periods', { n: e.count }))}</small></span>
-                    <select class="field-input sp-map-select" data-tms="${esc(e.base)}" aria-label="${esc(e.base)}">
-                        ${opt('', t('spTmsMapChoose', 'Choose cohort…'), !preset && !r.suggestedTargetId)}
-                        ${cohorts.map((c) => opt(c.id, c.name, !preset && c.id === r.suggestedTargetId)).join('')}
-                        ${opt('__new__', t('spTmsMapCreate', '+ Create a new cohort'), false)}
-                        ${opt('__skip__', t('spTmsMapSkip', 'Not in this calendar (skip)'), preset === 'skip')}
-                    </select>`;
-                return row;
-            };
-            mainRows.forEach((x) => list.appendChild(rowEl(x, '')));
-            if (otherRows.length) {
-                const det = document.createElement('details');
-                det.className = 'sp-map-other';
-                det.innerHTML = `<summary>${esc(t('spTmsMapOther', 'Other TMS entries ({n}): no start code or marked test, skipped', { n: otherRows.length }))}</summary>`;
-                otherRows.forEach((x) => det.appendChild(rowEl(x, 'skip')));
-                list.appendChild(det);
-            }
-            const update = () => {
-                let mapped = 0; let skipped = 0; let open = 0;
-                list.querySelectorAll('select').forEach((sel) => {
-                    sel.closest('.sp-map-row').classList.toggle('is-open', !sel.value);
-                    if (!sel.value) open += 1; else if (sel.value === '__skip__') skipped += 1; else mapped += 1;
-                });
-                tally.textContent = t('spTmsMapTally', '{mapped} matched · {skipped} skipped · {open} undecided', { mapped, skipped, open });
-                saveBtn.disabled = mapped + skipped === 0;
-            };
-            update();
-            dlg.hidden = false;
-            const firstOpen = list.querySelector('.sp-map-row.is-open select') || list.querySelector('select');
-            if (firstOpen) firstOpen.focus();
-            const done = (val) => {
-                dlg.hidden = true;
-                dlg.removeEventListener('click', onClick);
-                dlg.removeEventListener('change', update);
-                document.removeEventListener('keydown', onKey, true);
-                resolve(val);
-            };
-            function onClick(ev) {
-                if (ev.target === dlg || ev.target.closest('[data-map-cancel]')) { done(null); return; }
-                if (ev.target.closest('[data-map-skip-rest]')) {
-                    list.querySelectorAll('select').forEach((sel) => { if (!sel.value) sel.value = '__skip__'; });
-                    update();
-                    return;
-                }
-                if (ev.target.closest('[data-map-save]')) {
-                    const out = [];
-                    list.querySelectorAll('select').forEach((sel) => {
-                        if (!sel.value) return;
-                        out.push(sel.value === '__skip__'
-                            ? { importCohortName: sel.dataset.tms, userAction: 'skip' }
-                            : sel.value === '__new__'
-                                ? { importCohortName: sel.dataset.tms, userAction: 'create' }
-                                : { importCohortName: sel.dataset.tms, userAction: 'map', userTargetId: sel.value });
-                    });
-                    done(out);
-                }
-            }
-            function onKey(ev) {
-                if (ev.key === 'Escape') { ev.stopPropagation(); done(null); }
-            }
-            dlg.addEventListener('click', onClick);
-            dlg.addEventListener('change', update);
-            document.addEventListener('keydown', onKey, true);
-        });
-    }
-
-    function askTmsLogin(errorText) {
-        return new Promise((resolve) => {
-            const dlg = $('spTmsLogin');
-            if (!dlg) { resolve({ username: '', password: '' }); return; }
-            const S = global.CCPTmsSync;
-            const user = $('spTmsUser');
-            const pass = $('spTmsPass');
-            const remember = $('spTmsRemember');
-            const err = $('spTmsLoginError');
-            const saved = S && S.getSavedUsername ? S.getSavedUsername() : '';
-            if (!user.value) user.value = saved;
-            remember.checked = !!saved || remember.checked;
-            pass.value = '';
-            err.textContent = errorText || '';
-            err.hidden = !errorText;
-            dlg.hidden = false;
-            (user.value ? pass : user).focus();
-            const done = (val) => {
-                dlg.hidden = true;
-                pass.value = '';
-                dlg.removeEventListener('click', onClick);
-                dlg.removeEventListener('submit', onSubmit);
-                document.removeEventListener('keydown', onKey, true);
-                resolve(val);
-            };
-            function onSubmit(ev) {
-                ev.preventDefault();
-                const name = user.value.trim();
-                if (S && S.setSavedUsername) S.setSavedUsername(name, remember.checked);
-                done({ username: name, password: pass.value });
-            }
-            function onClick(ev) {
-                if (ev.target === dlg || ev.target.closest('[data-tms-cancel]')) done(null);
-            }
-            function onKey(ev) {
-                if (ev.key === 'Escape') { ev.stopPropagation(); done(null); }
-            }
-            dlg.addEventListener('click', onClick);
-            dlg.addEventListener('submit', onSubmit);
-            document.addEventListener('keydown', onKey, true);
-        });
-    }
-
     /**
      * Pull the term schedule from TMS (read-only) and put it on the board as a draft: it is matched to this
      * calendar's own cohorts, classes and teachers; whatever does not match is reported and left out.
@@ -2680,35 +2521,24 @@ ${by.get(cid).map((d) => `
                 return;
             }
         } catch (e) { /* the pull below reports a missing helper itself */ }
+        // The shared TMS pull: one sign-in per tab; Generate subjects and the term wizard reuse this pull for an hour.
         let body = null;
-        let problem = '';
-        for (;;) {
-            const creds = await askTmsLogin(problem);
-            if (!creds) return;
-            notice(t('spTmsPulling', 'Pulling the schedule from TMS…'), 'info');
-            try {
-                const payload = {};
-                if (creds.username || creds.password) { payload.username = creds.username; payload.password = creds.password; }
-                body = await S.run('schedule', payload);
-                break;
-            } catch (err) {
-                const code = err && err.code;
-                if (code === 'TMS_CREDS_MISSING') problem = t('spTmsNeedLogin', 'Enter your TMS username and password.');
-                else if (code === 'TMS_LOGIN_FAILED' || (err && err.status === 401)) problem = t('rosterTmsSyncLoginFailed', 'Could not sign in to TMS. Check the username and password.');
-                else {
-                    notice(code === 'TMS_BRIDGE_OUTDATED' ? t('tmsSyncOutdatedHint', 'Update the local ClassManager (restart npm start).')
-                        : code === 'TMS_BRIDGE_REQUIRED' ? t('tmsSyncMissingHint', 'Install the Sync helper first.')
-                            : (err && err.message) || t('spTmsFailed', 'Could not pull the schedule from TMS.'), 'error');
-                    return;
-                }
-            }
-        }
-        if (!body || !Array.isArray(body.placements)) {
-            notice(t('spTmsFailed', 'Could not pull the schedule from TMS.'), 'error');
+        try {
+            const pulled = await S.pullSchedule({
+                fresh: true,
+                signIn: {
+                    title: t('spTmsLoginTitle', 'Sign in to TMS'),
+                    hint: t('spTmsLoginHint', 'Read-only: ClassManager only reads the schedule and never changes anything in TMS.'),
+                    submitLabel: t('spTmsSignIn', 'Sign in and pull')
+                },
+                onSignedIn: () => notice(t('spTmsPulling', 'Pulling the schedule from TMS…'), 'info')
+            });
+            if (pulled.cancelled) return;
+            body = pulled.body;
+        } catch (err) {
+            notice(S.errorText(err, t('spTmsFailed', 'Could not pull the schedule from TMS.')), 'error');
             return;
         }
-        // Cohort editor, Generate subjects reuses this pull for an hour instead of reading TMS again.
-        global.CCPLastTmsSchedulePull = { at: Date.now(), body };
         // Several terms in the timetable? Let the person pick (default: the one that fits this calendar best).
         const termCount = new Map();
         body.placements.forEach((pl) => {
@@ -2727,43 +2557,6 @@ ${by.get(cid).map((d) => `
         }
         let out = I.buildDraftFromTms(freshModel().data, body, buildOpts);
         let rep = out.report;
-        // TMS class names rarely equal cohort names: let the person map them once; the links are remembered
-        // (the same ones the roster sync uses).
-        const createdIds = new Set();
-        // Matching to calendar cohorts is optional now: TMS classes without a cohort become draft classes below.
-        const askMapping = false;
-        if (askMapping && rep.unmatchedCohorts.length && freshModel() && !readOnly()) {
-            const unmatchedNow = rep.unmatchedCohorts;
-            const picks = await askTmsMapping(unmatchedNow, { used: rep.used, matched: rep.matched, draft: (rep.unmatchedClasses || []).reduce((n, x) => n + (x.count || 0), 0), open: rep.unmatchedCohorts.reduce((n, x) => n + (x.count || 0), 0) });
-            if (picks && picks.length) {
-                const D = global.CCPClassroomDomain;
-                const data = freshModel().data;
-                // "Create a new cohort": a plain cohort named after the TMS class; its classes are made below.
-                picks.filter((p) => p.userAction === 'create').forEach((p) => {
-                    const days = [];
-                    unmatchedNow.forEach((u) => {
-                        if (String(u.name || '').replace(/\^.*$/, '').trim() === p.importCohortName) (u.days || []).forEach((d) => { if (!days.includes(d)) days.push(d); });
-                    });
-                    const tth = days.length > 0 && days.every((d) => d === 2 || d === 4);
-                    const created = D.createTmsRosterCohort({
-                        importCohortName: p.importCohortName,
-                        schedulePattern: tth ? 'tth' : 'mwf',
-                        meetingDays: tth ? [2, 4] : [1, 3, 5]
-                    });
-                    created.color = '#94a3b8';
-                    setupEdit((d2) => { d2.cohorts = d2.cohorts || []; d2.cohorts.push(created); });
-                    createdIds.add(created.id);
-                    p.userAction = 'map';
-                    p.userTargetId = created.id;
-                });
-                data.tmsRosterLinks = D.upsertTmsRosterLinks(data.tmsRosterLinks, picks, data.cohorts || []);
-                if (typeof global.saveClassroomPartial === 'function') {
-                    try { await global.saveClassroomPartial({ tmsRosterLinks: data.tmsRosterLinks }); } catch (e) { /* kept in memory; saved with the next save */ }
-                }
-                out = I.buildDraftFromTms(freshModel().data, body, buildOpts);
-                rep = out.report;
-            }
-        }
         // The calendar has the cohort but no class for a subject TMS teaches it: make one per subject (sized by TMS's
         // periods), so the pull builds the classes as well as the timetable.
         let madeClasses = 0;

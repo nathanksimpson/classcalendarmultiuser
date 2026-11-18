@@ -1,6 +1,7 @@
 /**
- * Migrate to next term — Data zone wizard (TMS cohorts + CCMU student continuity +
- * homeroom + per-cohort teaching decisions for the logged-in teacher).
+ * Migrate to next term — Data zone wizard: one TMS sign-in pulls rosters + teacher
+ * timetables, then cohorts, student continuity, homeroom, and the batch Generate
+ * subjects preview for every class.
  */
 (function (global) {
     /** Class/cohort name with its level in the UI language (display only). */
@@ -128,60 +129,12 @@
             .replace(/"/g, '&quot;');
     }
 
-    function cleanTmsCohortName(name) {
-        const api = tmsNameApi();
-        if (api && api.parseTmsClassNameMeta) {
-            const meta = api.parseTmsClassNameMeta(name);
-            if (meta.baseName) {
-                return meta.baseName;
-            }
-        }
-        const stripped = String(name || '')
-            .replace(/^\[[^\]]+\]\s*/u, '')
-            .replace(/\s+/g, ' ')
-            .trim();
-        return (stripped.split('^')[0] || stripped).trim();
-    }
-
-    function inferScheduleFromName(name) {
-        const api = tmsNameApi();
-        if (api && api.parseTmsClassNameMeta) {
-            const meta = api.parseTmsClassNameMeta(name);
-            if (meta.schedulePattern) {
-                return {
-                    schedulePattern: meta.schedulePattern,
-                    meetingDays: meta.meetingDays.slice()
-                };
-            }
-        }
-        const core = cleanTmsCohortName(name).split('^')[0] || '';
-        if (/T\s*$/i.test(core) || /T_\d/i.test(core)) {
-            return { schedulePattern: 'tth', meetingDays: [2, 4] };
-        }
-        return { schedulePattern: 'mwf', meetingDays: [1, 3, 5] };
-    }
-
-    function isLocalHost() {
-        try {
-            const h = String((global.location && global.location.hostname) || '').toLowerCase();
-            return h === 'localhost' || h === '127.0.0.1' || h === '[::1]';
-        } catch (_) {
-            return false;
-        }
-    }
-
     function getAppData() {
         return hooks && hooks.getAppData ? hooks.getAppData() : null;
     }
 
     function currentUserId() {
         return hooks && hooks.getCurrentUserId ? String(hooks.getCurrentUserId() || '') : '';
-    }
-
-    function currentUserDisplayName() {
-        return hooks && hooks.getCurrentUserDisplayName
-            ? String(hooks.getCurrentUserDisplayName() || '')
-            : '';
     }
 
     function shiftIso(dateStr, monthDelta) {
@@ -197,18 +150,13 @@
     }
 
     /** Plain-language reason for a TMS failure, shown inside the wizard. */
+    /** The shared TMS wording; a missing helper keeps the short phrase that fills "{why}". */
     function tmsErrorText(err) {
-        const code = err && err.code;
-        if (code === 'TMS_CREDS_MISSING') {
-            return t('cohortsGenTmsNeedLogin');
-        }
-        if (code === 'TMS_LOGIN_FAILED') {
-            return t('cohortsGenTmsLoginFailed');
-        }
-        if (code === 'TMS_HELPER_MISSING' || (err && /failed to fetch|networkerror|load failed/i.test(String(err.message || '')))) {
+        const S = global.CCPTmsSync;
+        if (S && S.isHelperMissingError && S.isHelperMissingError(err)) {
             return t('cohortsGenTmsNoHelper');
         }
-        return (err && err.message) || String(err);
+        return S && S.errorText ? S.errorText(err) : (err && err.message) || String(err);
     }
 
     /**
@@ -245,26 +193,14 @@
         return S.run('roster', payload, { timeoutMs: 300000 });
     }
 
-    /** Every teacher's timetable from TMS with the same sign-in (reuses a pull from the last hour). */
+    /** Every teacher's timetable from TMS with the same sign-in (the shared pull reuses one from the last hour). */
     async function scrapeTmsSchedule(username, password) {
-        const last = global.CCPLastTmsSchedulePull;
-        if (last && last.body && Array.isArray(last.body.placements) && Date.now() - last.at < 60 * 60 * 1000) {
-            return last.body;
+        const S = global.CCPTmsSync;
+        if (!S || !S.pullSchedule) {
+            throw new Error(t('cohortsGenTmsNoSync'));
         }
-        if (!global.CCPTmsSync || !global.CCPTmsSync.run) {
-            throw new Error('TMS sync is not available');
-        }
-        const payload = {};
-        if (String(username || '').trim() || password) {
-            payload.username = String(username || '').trim();
-            payload.password = String(password || '');
-        }
-        const body = await global.CCPTmsSync.run('schedule', payload, { timeoutMs: 300000 });
-        if (!body || !Array.isArray(body.placements)) {
-            throw new Error('TMS timetables were not loaded');
-        }
-        global.CCPLastTmsSchedulePull = { at: Date.now(), body };
-        return body;
+        const pulled = await S.pullSchedule({ credentials: { username, password }, timeoutMs: 300000 });
+        return pulled.body;
     }
 
     const DOW_BY_NAME = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5 };
@@ -274,7 +210,7 @@
      * (no students yet), so the term has every class TMS schedules.
      */
     function scheduleOnlyCohorts(rosterCohorts, schedule) {
-        const key = (raw) => cleanTmsCohortName(raw).replace(/\s+/g, '').toLowerCase();
+        const key = (raw) => global.CCPTmsClassName.cohortNameFromTms(raw).replace(/\s+/g, '').toLowerCase();
         const known = new Set((rosterCohorts || []).map((c) => key(c.cohortName)));
         const byKey = new Map();
         ((schedule && schedule.placements) || []).forEach((p) => {
@@ -329,7 +265,7 @@
         const previous = (appData && appData.cohorts) || [];
         const links = (appData && appData.tmsRosterLinks) || {};
         return (Array.isArray(tmsCohorts) ? tmsCohorts : []).map((c) => {
-            let sched = inferScheduleFromName(c.cohortName);
+            let sched = global.CCPTmsClassName.scheduleForNewCohort(c.cohortName);
             // A cohort found only on the timetables: its days come from there when the name says nothing.
             if (Array.isArray(c.scheduleDays) && c.scheduleDays.length && !/[MT]\s*(\^|$)/.test(String(c.cohortName || ''))) {
                 const days = c.scheduleDays.slice().sort((a, b) => a - b);
@@ -356,7 +292,7 @@
             }
             return {
                 tmsClassId: String(c.tmsClassId || ''),
-                cohortName: cleanTmsCohortName(c.cohortName),
+                cohortName: global.CCPTmsClassName.cohortNameFromTms(c.cohortName),
                 rawName: c.cohortName || '',
                 tmsTermCode:
                     api && api.parseTmsClassNameMeta
@@ -547,28 +483,6 @@
             .join('');
     }
 
-    function listAllPreviousClassesForUser() {
-        const d = domain();
-        const appData = getAppData() || {};
-        const uid = currentUserId();
-        if (!d || !d.findPreviousClassesForUser) {
-            return [];
-        }
-        const out = [];
-        listPreviousCohortsForPicker().forEach((cohort) => {
-            d.findPreviousClassesForUser(appData, cohort.id, uid).forEach((cls) => {
-                out.push({
-                    id: cls.id,
-                    name: cls.name,
-                    cohortName: cohort.name,
-                    cohortId: cohort.id,
-                    period: cls.period
-                });
-            });
-        });
-        return out;
-    }
-
     function setModalActionsDisabled(disabled) {
         ['termMigrateNextBtn', 'termMigrateBackBtn', 'termMigrateCancelBtn', 'termMigrateModalClose'].forEach(
             (id) => {
@@ -635,36 +549,6 @@
         }
         el.textContent = msg || '';
         el.classList.toggle('is-error', Boolean(isError));
-    }
-
-    function listSubjectTracksForRow(row) {
-        const matrix = global.CCPScheduleMatrix;
-        if (!matrix || !matrix.findSlots || !row.levelPreset) {
-            return [];
-        }
-        const patternId = row.schedulePattern === 'tth' ? 'tth' : 'mwf';
-        const slots = matrix.findSlots({
-            level: row.levelPreset,
-            patternId
-        });
-        const tracks = new Set();
-        (slots || []).forEach((slot) => {
-            Object.values(slot.byWeekday || {}).forEach((track) => {
-                if (track) {
-                    tracks.add(track);
-                }
-            });
-        });
-        return Array.from(tracks);
-    }
-
-    function periodOptionsHtml(selected) {
-        const opts = [];
-        for (let p = 1; p <= 8; p += 1) {
-            const sel = Number(selected) === p ? ' selected' : '';
-            opts.push(`<option value="${p}"${sel}>P${p}</option>`);
-        }
-        return opts.join('');
     }
 
     function flushStep2PrevCohort() {
@@ -1103,39 +987,6 @@
         classPicks = classPreview.getPicks().map((p) => ({ cohortId: p.cohort.id, rows: p.rows }));
     }
 
-    function flushStep5Teaching() {
-        createdCohortMap.forEach((row, idx) => {
-            const teachCb = document.getElementById(`termMigrateTeach_${idx}`);
-            row.iTeachHere = Boolean(teachCb && teachCb.checked);
-            if (!row.iTeachHere) {
-                row.classMode = null;
-                return;
-            }
-            const modeCarry = document.getElementById(`termMigrateModeCarry_${idx}`);
-            row.classMode = modeCarry && modeCarry.checked ? 'carry' : 'new';
-            const prevSel = document.getElementById(`termMigratePrevClass_${idx}`);
-            if (prevSel) {
-                row.previousClassId = prevSel.value || '';
-            }
-            const trackSel = document.getElementById(`termMigrateTrack_${idx}`);
-            if (trackSel) {
-                row.subjectTrack = trackSel.value || '';
-            }
-            const periodSel = document.getElementById(`termMigratePeriod_${idx}`);
-            if (periodSel && periodSel.value) {
-                row.period = Number(periodSel.value);
-            }
-            const startEl = document.getElementById(`termMigrateStart_${idx}`);
-            const endEl = document.getElementById(`termMigrateEnd_${idx}`);
-            if (startEl) {
-                row.startDate = startEl.value || '';
-            }
-            if (endEl) {
-                row.endDate = endEl.value || '';
-            }
-        });
-    }
-
     function renderStep() {
         const body = document.getElementById('termMigrateBody');
         const title = document.getElementById('termMigrateModalTitle');
@@ -1233,7 +1084,17 @@
                 userEl.value = wizardSettings.tmsUser || saved || '';
             }
             if (passEl) {
-                passEl.value = wizardSettings.tmsPass || '';
+                // The tab's TMS sign-in (if any screen already signed in) so the teacher does not retype it.
+                const session =
+                    global.CCPTmsSync && global.CCPTmsSync.getSessionCredentials
+                        ? global.CCPTmsSync.getSessionCredentials()
+                        : null;
+                passEl.value =
+                    wizardSettings.tmsPass ||
+                    (session && (!userEl || !userEl.value || userEl.value === session.username) ? session.password : '');
+                if (session && userEl && !userEl.value) {
+                    userEl.value = session.username;
+                }
             }
             const termEl = document.getElementById('termMigrateTermCodeFilter');
             if (termEl) {
@@ -1763,68 +1624,6 @@
             return global.CCPUtils.newId(prefix);
         }
         return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-    }
-
-    function buildUserClassForCohort(spec, newCohort, sourceAppData) {
-        const d = domain();
-        const uid = currentUserId();
-        const monthShift = Number(wizardSettings.monthShift) || 0;
-        if (!spec.iTeachHere || !newCohort) {
-            return null;
-        }
-        if (spec.classMode === 'carry' && spec.previousClassId && d && d.carryForwardClassForTerm) {
-            const prev = ((sourceAppData && sourceAppData.classes) || []).find(
-                (c) => c && c.id === spec.previousClassId
-            );
-            if (prev) {
-                return d.carryForwardClassForTerm(prev, newCohort, monthShift, uid, {
-                    shiftIsoDate: shiftIso,
-                    newClassId: () => newEntityId('cls'),
-                    teacherName: currentUserDisplayName(),
-                    startDate: spec.startDate || '',
-                    endDate: spec.endDate || '',
-                    period: spec.period
-                });
-            }
-        }
-        if (hooks && hooks.generateSingleClassForCohort) {
-            return hooks.generateSingleClassForCohort(newCohort, spec.subjectTrack || '', {
-                period: spec.period,
-                startDate: spec.startDate,
-                endDate: spec.endDate,
-                userId: uid,
-                teacherName: currentUserDisplayName()
-            });
-        }
-        // Minimal fallback class when hooks are missing.
-        const track = spec.subjectTrack || 'class';
-        return {
-            id: newEntityId('cls'),
-            name: `${newCohort.name} · ${track}`,
-            levelPreset: newCohort.levelPreset || '',
-            level: newCohort.levelPreset || '',
-            meetingDays: (newCohort.meetingDays || []).slice(),
-            period: spec.period != null ? Number(spec.period) : undefined,
-            cohortId: newCohort.id,
-            cohortIds: [newCohort.id],
-            scheduleBlock: newCohort.scheduleBlock || 'primary',
-            startDate: spec.startDate || '',
-            endDate: spec.endDate || '',
-            classTeachers: uid
-                ? [
-                      {
-                          id: newEntityId('ct'),
-                          userId: uid,
-                          name: currentUserDisplayName(),
-                          category: ''
-                      }
-                  ]
-                : [],
-            assignedTeacherUserId: uid,
-            assignedTeacherName: currentUserDisplayName(),
-            generatedFromCohort: true,
-            syllabusRows: []
-        };
     }
 
     async function submitMigrate() {

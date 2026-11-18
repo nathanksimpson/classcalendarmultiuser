@@ -5,7 +5,6 @@
 (function (global) {
     const SESSION_ROWS_KEY = 'ccmu_essay_scrape_rows';
     const SESSION_BATCH_KEY = 'ccmu_essay_batch';
-    const USERNAME_KEY = 'ccp.tmsRosterUsername';
     const BRIDGE_TIMEOUT_MS = 120000;
     const STILL_LOADING_MS = 15000;
 
@@ -320,38 +319,18 @@
         if ((userEl || passEl) && (dom.username || dom.password)) {
             return dom;
         }
-        if (global.CCPTmsSyncCenter && global.CCPTmsSyncCenter.getCredentials) {
-            return global.CCPTmsSyncCenter.getCredentials();
-        }
-        return dom;
+        return global.CCPTmsSync.currentCredentials();
     }
 
     function hydrateCreds() {
         const userEl = document.getElementById('essayScrapeUsername');
         const rememberEl = document.getElementById('essayScrapeRememberUser');
-        let saved = '';
-        try {
-            saved = String(localStorage.getItem(USERNAME_KEY) || '');
-        } catch (_) {
-            saved = '';
-        }
+        const saved = global.CCPTmsSync.getSavedUsername();
         if (userEl && !userEl.value && saved) {
             userEl.value = saved;
         }
         if (rememberEl) {
             rememberEl.checked = Boolean(saved);
-        }
-    }
-
-    function persistUsername(username, remember) {
-        try {
-            if (remember && username) {
-                localStorage.setItem(USERNAME_KEY, username);
-            } else if (!remember) {
-                localStorage.removeItem(USERNAME_KEY);
-            }
-        } catch (_) {
-            /* ignore */
         }
     }
 
@@ -697,7 +676,7 @@
             return;
         }
         const creds = readCreds();
-        persistUsername(creds.username, creds.rememberUser);
+        global.CCPTmsSync.setSavedUsername(creds.username, creds.rememberUser);
         loading = true;
         setError('');
         setStatus(t('classroomEssayScrapeLoading'));
@@ -783,7 +762,7 @@
             return;
         }
         const creds = readCreds();
-        persistUsername(creds.username, creds.rememberUser);
+        global.CCPTmsSync.setSavedUsername(creds.username, creds.rememberUser);
         fetchingBodies = true;
         setError('');
         setStatus(

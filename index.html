@@ -1467,28 +1467,6 @@
                 </div>
             </div>
 
-            <div id="spTmsLogin" class="sp-overlay sp-overlay--confirm" hidden>
-                <form class="sp-dialog sp-dialog--pop" role="dialog" aria-modal="true" aria-labelledby="spTmsLoginTitle" autocomplete="on">
-                    <header class="sp-dialog-head">
-                        <h2 id="spTmsLoginTitle" data-i18n="spTmsLoginTitle">Sign in to TMS</h2>
-                        <button type="button" class="modal-close" data-tms-cancel data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
-                    </header>
-                    <div class="sp-dialog-body">
-                        <p class="sp-hint" data-i18n="spTmsLoginHint">Read-only: ClassManager only reads the schedule and never changes anything in TMS. Your password is used for this pull only and is not saved.</p>
-                        <p id="spTmsLoginError" class="sp-hint sp-auto-error" role="alert" hidden></p>
-                        <label class="sp-field"><span data-i18n="spTmsUser">TMS username</span>
-                            <input type="text" id="spTmsUser" class="field-input" autocomplete="username" spellcheck="false"></label>
-                        <label class="sp-field"><span data-i18n="spTmsPass">TMS password</span>
-                            <input type="password" id="spTmsPass" class="field-input" autocomplete="current-password"></label>
-                        <label class="sp-field sp-check"><input type="checkbox" id="spTmsRemember"> <span data-i18n="spTmsRemember">Remember my username on this computer</span></label>
-                    </div>
-                    <footer class="sp-dialog-foot">
-                        <button type="button" class="btn btn-outline btn-small" data-tms-cancel data-i18n="spCancel">Cancel</button>
-                        <button type="submit" class="btn btn-primary btn-small" data-i18n="spTmsSignIn">Sign in and pull</button>
-                    </footer>
-                </form>
-            </div>
-
             <div id="spTmsDetails" class="sp-overlay sp-overlay--confirm" hidden>
                 <div class="sp-dialog sp-dialog--pop sp-map-dialog" role="dialog" aria-modal="true" aria-labelledby="spTmsDetailsTitle">
                     <header class="sp-dialog-head">
@@ -1537,27 +1515,6 @@
                     <footer class="sp-dialog-foot">
                         <button type="button" class="btn btn-outline btn-small" data-term-cancel data-i18n="spCancel">Cancel</button>
                         <button type="button" class="btn btn-primary btn-small" data-term-ok data-i18n="spTmsTermImport">Import this term</button>
-                    </footer>
-                </div>
-            </div>
-
-            <div id="spTmsMap" class="sp-overlay sp-overlay--confirm" hidden>
-                <div class="sp-dialog sp-dialog--pop sp-map-dialog" role="dialog" aria-modal="true" aria-labelledby="spTmsMapTitle">
-                    <header class="sp-dialog-head">
-                        <h2 id="spTmsMapTitle" data-i18n="spTmsMapTitle">Match TMS classes to cohorts</h2>
-                        <button type="button" class="modal-close" data-map-cancel data-i18n-aria-label="closeAria" aria-label="Close">&times;</button>
-                    </header>
-                    <div class="sp-dialog-body">
-                        <p class="sp-hint" data-i18n="spTmsMapHint">Pick the cohort for each TMS class, or skip classes that are not in this calendar. Choices are remembered, also for the roster sync.</p>
-                        <p id="spTmsMapSummary" class="sp-hint" hidden></p>
-                        <div class="sp-map-head"><span data-i18n="spTmsMapColTms">TMS class</span><span data-i18n="spTmsMapColCohort">Cohort in this calendar</span></div>
-                        <div id="spTmsMapList" class="sp-map-list"></div>
-                    </div>
-                    <footer class="sp-dialog-foot">
-                        <span id="spTmsMapTally" class="sp-hint" aria-live="polite"></span>
-                        <button type="button" class="btn btn-outline btn-small" data-map-skip-rest data-i18n="spTmsMapSkipRest">Skip the undecided</button>
-                        <button type="button" class="btn btn-outline btn-small" data-map-cancel data-i18n="spCancel">Cancel</button>
-                        <button type="button" class="btn btn-primary btn-small" data-map-save data-i18n="spTmsMapSave">Save and continue</button>
                     </footer>
                 </div>
             </div>
