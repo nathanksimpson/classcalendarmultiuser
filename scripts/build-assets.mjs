@@ -7,6 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { createHash } from 'crypto';
 import { createRequire } from 'module';
+import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import * as esbuild from 'esbuild';
 import { concatCssForDist } from './split-styles.mjs';
@@ -305,6 +306,64 @@ function stampContentHashes() {
     console.log(`Cache strings: ${jsRefs} ref(s) in JS loaders, ${htmlRefs} ref(s) in HTML stamped with content hashes`);
 }
 
+// ---- Build stamp: deploy date/time (KST) + commit on the top bar ---------------------------
+
+/** Short commit hash: Workers Builds env first, then local git, else ''. */
+function buildCommit() {
+    const env = process.env.WORKERS_CI_COMMIT_SHA || process.env.GITHUB_SHA || '';
+    if (env) {
+        return env.slice(0, 7);
+    }
+    try {
+        return execSync('git rev-parse --short=7 HEAD', { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] })
+            .toString()
+            .trim();
+    } catch {
+        return '';
+    }
+}
+
+/** Date parts in Korea time (UTC+9, no DST). */
+function kstParts(date) {
+    const k = new Date(date.getTime() + 9 * 3600 * 1000);
+    const pad = (n) => String(n).padStart(2, '0');
+    return {
+        y: k.getUTCFullYear(),
+        mo: pad(k.getUTCMonth() + 1),
+        d: pad(k.getUTCDate()),
+        h: pad(k.getUTCHours()),
+        mi: pad(k.getUTCMinutes())
+    };
+}
+
+/** Escape text for an HTML attribute / text node. */
+function escHtml(str) {
+    return String(str).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+}
+
+/** Rewrite data-build-stamp spans (text + title) in every dist HTML file. */
+function stampBuildInfo(now = new Date()) {
+    const t = kstParts(now);
+    const commit = buildCommit();
+    const short = `${t.mo}/${t.d} ${t.h}:${t.mi}`;
+    const full = `${t.y}-${t.mo}-${t.d} ${t.h}:${t.mi} KST` + (commit ? ` · ${commit}` : '');
+    const title = `Last update: ${full}`;
+    const spanRe = /<span\b([^>]*\bdata-build-stamp="(short|full)"[^>]*)>[^<]*<\/span>/g;
+    let count = 0;
+    for (const f of listDistFiles(dist, /\.html$/i)) {
+        const html = fs.readFileSync(f, 'utf8');
+        const next = html.replace(spanRe, (m, attrs, kind) => {
+            count += 1;
+            const cleaned = attrs.replace(/\s+title="[^"]*"/, '');
+            return `<span${cleaned} title="${escHtml(title)}">${escHtml(kind === 'short' ? short : full)}</span>`;
+        });
+        if (next !== html) {
+            fs.writeFileSync(f, next, 'utf8');
+        }
+    }
+    console.log(`Build stamp: ${full} (${count} label(s))`);
+}
+
 async function minifyFiles() {
     for (const rel of MINIFY_JS) {
         const inFile = path.join(dist, rel);
@@ -371,6 +430,7 @@ async function main() {
         console.warn('CSS flatten from styles.css failed, using copied styles.css:', err.message);
     }
     await minifyFiles();
+    stampBuildInfo();
     stampContentHashes();
     // Production root alias — Cloudflare SPA would otherwise serve index.html for /essay-batch-editor.html
     try {

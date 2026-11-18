@@ -1559,3 +1559,28 @@ details.toolbar-menu .classroom-essay-reports-item:disabled {
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* ---------- Build stamp (deploy date/time, set by scripts/build-assets.mjs) ---------- */
+
+#appHeaderUnified .app-build-stamp,
+.app-build-stamp {
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1;
+    color: var(--text-muted, var(--text-secondary));
+    opacity: 0.7;
+    letter-spacing: 0.01em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    align-self: center;
+    cursor: default;
+    user-select: all;
+}
+
+#teamAccountPopover .app-build-line {
+    font-size: 11px;
+    font-weight: 400;
+    opacity: 0.75;
+    font-variant-numeric: tabular-nums;
+    margin: 4px 0 0;
+}
