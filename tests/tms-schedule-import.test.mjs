@@ -184,3 +184,17 @@ console.log('tms-schedule-import new-cohort data test passed');
     assert.equal(out.report.trace.find((x) => x.status === 'placed').className, 'Blue M · Reading');
 }
 console.log('tms-schedule-import trace test passed');
+
+// A class named after its cohort alone ("Blue M") takes whatever subject TMS lists for that cohort.
+{
+    const bare = JSON.parse(JSON.stringify(cal));
+    bare.classes = [{ id: 'b1', name: 'Blue M', cohortIds: ['co1'], cohortId: 'co1', weeklyFrequency: 3 }];
+    P.ensurePlannerFields(bare);
+    const out = I.buildDraftFromTms(bare, { placements: [
+        row('Lee', 'mon', '15:20', 'BlueM^2609', 'Grammar'), row('Kim', 'tue', '15:20', 'BlueM^2609', 'RC')
+    ] });
+    assert.equal(out.report.unmatchedClasses.length, 0);
+    assert.equal(out.report.matched, 2);
+    assert.ok(out.draft.assignments.length >= 1);
+}
+console.log('tms-schedule-import cohort-named class test passed');

@@ -168,7 +168,10 @@
             const mine = classes.filter((k) => (k.cohortIds || [k.cohortId]).includes(cohort.id));
             // Classes left out of the plan (e.g. the extra class of a merged pair) only count when nothing else fits.
             const live = mine.filter((k) => k.plannerExcluded !== true);
-            const candidates = (live.length ? live : mine).filter((k) => api.subjectOfName(k.name) === subject);
+            const pool = live.length ? live : mine;
+            let candidates = pool.filter((k) => api.subjectOfName(k.name) === subject);
+            // Classes named after the cohort alone ("Blue M", no "· Subject") carry every subject TMS lists for it.
+            if (!candidates.length) candidates = pool.filter((k) => !String(k.name || '').includes('\u00B7') && !/\bnews\b|debate|zoom/i.test(String(k.name || '')));
             // Several classes of one subject in a cohort: take the first that has no bucket yet, else the first.
             const cls = candidates.find((k) => !buckets.has(k.id)) || candidates[0];
             if (!cls) { trace(r, 'no-class'); }

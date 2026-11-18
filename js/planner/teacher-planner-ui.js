@@ -2790,7 +2790,7 @@ ${by.get(cid).map((d) => `
             }
         }
         if (!out.draft.assignments.length) {
-            const names = rep.unmatchedCohorts.slice(0, 5).map((x) => x.name).join(', ');
+            const names = rep.unmatchedCohorts.concat(rep.unmatchedClasses || []).slice(0, 5).map((x) => x.name || `${x.cohort} (${x.subject})`).join(', ');
             notice(t('spTmsNothing', 'No TMS class matched this calendar’s cohorts and classes, so nothing was changed.')
                 + (names ? ' ' + t('spTmsNothingHint', 'TMS has: {names}. Link them to this calendar’s cohorts in Sync from TMS (roster), then pull again.', { names }) : ''), 'error');
             return;
