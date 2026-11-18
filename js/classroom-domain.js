@@ -10980,6 +10980,7 @@
         normalizeTmsRosterLinks,
         resolveTmsRosterLink,
         upsertTmsRosterLinks,
+        createTmsRosterCohort,
         isArchiveCohort,
         findArchiveCohort,
         ensureArchiveCohort,

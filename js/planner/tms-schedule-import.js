@@ -145,7 +145,12 @@
         const buckets = new Map();
         used.forEach((r) => {
             const cohort = cohortByKey.get(r.cohort);
-            if (!cohort) return tally(report.unmatchedCohorts, r.cohortRaw, { name: r.cohortRaw });
+            if (!cohort) {
+                tally(report.unmatchedCohorts, r.cohortRaw, { name: r.cohortRaw, days: [] });
+                const u = report.unmatchedCohorts.find((x) => x.key === r.cohortRaw);
+                if (u && !u.days.includes(r.dow)) u.days.push(r.dow);
+                return;
+            }
             const subject = api.normalizeSubject(r.subject);
             const mine = classes.filter((k) => (k.cohortIds || [k.cohortId]).includes(cohort.id));
             // Classes left out of the plan (e.g. the extra class of a merged pair) only count when nothing else fits.
@@ -153,7 +158,7 @@
             const candidates = (live.length ? live : mine).filter((k) => api.subjectOfName(k.name) === subject);
             // Several classes of one subject in a cohort: take the first that has no bucket yet, else the first.
             const cls = candidates.find((k) => !buckets.has(k.id)) || candidates[0];
-            if (!cls) return tally(report.unmatchedClasses, `${r.cohortRaw}|${r.subject}`, { cohort: r.cohortRaw, subject: r.subject });
+            if (!cls) return tally(report.unmatchedClasses, `${r.cohortRaw}|${r.subject}`, { cohort: r.cohortRaw, cohortId: cohort.id, subject: r.subject });
             if (!buckets.has(cls.id)) buckets.set(cls.id, { cls, rows: [] });
             buckets.get(cls.id).rows.push(r);
             report.matched += 1;

@@ -3194,6 +3194,8 @@
         spTmsMapSkipRest: '미정 항목 건너뛰기',
         spTmsMapPeriods: '{n}교시',
         spTmsMapTally: '연결 {mapped} · 건너뜀 {skipped} · 미정 {open}',
+        spTmsMapCreate: '+ 새 코호트 만들기',
+        spTmsTermMatched: '내 코호트 {n}개',
         spTmsMapChoose: '코호트 선택…',
         spTmsMapSkip: '이 캘린더에 없음 (건너뛰기)',
         spTmsMapSave: '저장하고 계속',

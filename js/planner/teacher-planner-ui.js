@@ -2467,7 +2467,7 @@ ${by.get(cid).map((d) => `
                 const tag = Number(x.term) === nowYm || (Number(x.term) <= nowYm && !terms.some((y) => Number(y.term) > Number(x.term) && Number(y.term) <= nowYm))
                     ? ' · ' + t('spTmsTermRunning', 'running now') : (Number(x.term) > nowYm ? ' · ' + t('spTmsTermNext', 'upcoming') : '');
                 return `<label class="sp-term-row"><input type="radio" name="spTmsTermPick" value="${esc(x.term)}"${x.term === suggested ? ' checked' : ''}>
-                    <span>${esc(label(x.term))}<small>${esc(t('spTmsMapPeriods', '{n} periods', { n: x.count }) + tag)}</small></span></label>`;
+                    <span>${esc(label(x.term))}<small>${esc(t('spTmsMapPeriods', '{n} periods', { n: x.count }) + ' · ' + t('spTmsTermMatched', '{n} of your cohorts', { n: x.matched }) + tag)}</small></span></label>`;
             }).join('') + `<label class="sp-term-row"><input type="radio" name="spTmsTermPick" value="all"><span>${esc(t('spTmsTermAll', 'All terms together'))}</span></label>`;
             dlg.hidden = false;
             const done = (val) => {
@@ -2529,6 +2529,7 @@ ${by.get(cid).map((d) => `
                     <select class="field-input sp-map-select" data-tms="${esc(e.base)}" aria-label="${esc(e.base)}">
                         ${opt('', t('spTmsMapChoose', 'Choose cohort…'), !r.suggestedTargetId)}
                         ${cohorts.map((c) => opt(c.id, c.name, c.id === r.suggestedTargetId)).join('')}
+                        ${opt('__new__', t('spTmsMapCreate', '+ Create a new cohort'), false)}
                         ${opt('__skip__', t('spTmsMapSkip', 'Not in this calendar (skip)'), false)}
                     </select>`;
                 list.appendChild(row);
@@ -2566,7 +2567,9 @@ ${by.get(cid).map((d) => `
                         if (!sel.value) return;
                         out.push(sel.value === '__skip__'
                             ? { importCohortName: sel.dataset.tms, userAction: 'skip' }
-                            : { importCohortName: sel.dataset.tms, userAction: 'map', userTargetId: sel.value });
+                            : sel.value === '__new__'
+                                ? { importCohortName: sel.dataset.tms, userAction: 'create' }
+                                : { importCohortName: sel.dataset.tms, userAction: 'map', userTargetId: sel.value });
                     });
                     done(out);
                 }
@@ -2693,8 +2696,10 @@ ${by.get(cid).map((d) => `
         });
         const buildOpts = {};
         if (termCount.size > 1) {
-            const guess = I.buildDraftFromTms(freshModel().data, body).report.term;
-            const terms = Array.from(termCount.entries()).map(([term, count]) => ({ term, count })).sort((a, b) => (a.term < b.term ? -1 : 1));
+            const guessReport = I.buildDraftFromTms(freshModel().data, body).report;
+            const guess = guessReport.term;
+            const matchedBy = new Map((guessReport.terms || []).map((x) => [x.term, x.cohorts]));
+            const terms = Array.from(termCount.entries()).map(([term, count]) => ({ term, count, matched: matchedBy.get(term) || 0 })).sort((a, b) => (a.term < b.term ? -1 : 1));
             const picked = await askTmsTerm(terms, guess);
             if (picked === null) return;
             buildOpts.term = picked;
@@ -2703,15 +2708,65 @@ ${by.get(cid).map((d) => `
         let rep = out.report;
         // TMS class names rarely equal cohort names: let the person map them once; the links are remembered
         // (the same ones the roster sync uses).
+        const createdIds = new Set();
         if (rep.unmatchedCohorts.length && freshModel() && !readOnly()) {
-            const picks = await askTmsMapping(rep.unmatchedCohorts);
+            const unmatchedNow = rep.unmatchedCohorts;
+            const picks = await askTmsMapping(unmatchedNow);
             if (picks && picks.length) {
                 const D = global.CCPClassroomDomain;
                 const data = freshModel().data;
+                // "Create a new cohort": a plain cohort named after the TMS class; its classes are made below.
+                picks.filter((p) => p.userAction === 'create').forEach((p) => {
+                    const days = [];
+                    unmatchedNow.forEach((u) => {
+                        if (String(u.name || '').replace(/\^.*$/, '').trim() === p.importCohortName) (u.days || []).forEach((d) => { if (!days.includes(d)) days.push(d); });
+                    });
+                    const tth = days.length > 0 && days.every((d) => d === 2 || d === 4);
+                    const created = D.createTmsRosterCohort({
+                        importCohortName: p.importCohortName,
+                        schedulePattern: tth ? 'tth' : 'mwf',
+                        meetingDays: tth ? [2, 4] : [1, 3, 5]
+                    });
+                    created.color = '#94a3b8';
+                    setupEdit((d2) => { d2.cohorts = d2.cohorts || []; d2.cohorts.push(created); });
+                    createdIds.add(created.id);
+                    p.userAction = 'map';
+                    p.userTargetId = created.id;
+                });
                 data.tmsRosterLinks = D.upsertTmsRosterLinks(data.tmsRosterLinks, picks, data.cohorts || []);
                 if (typeof global.saveClassroomPartial === 'function') {
                     try { await global.saveClassroomPartial({ tmsRosterLinks: data.tmsRosterLinks }); } catch (e) { /* kept in memory; saved with the next save */ }
                 }
+                out = I.buildDraftFromTms(freshModel().data, body, buildOpts);
+                rep = out.report;
+                // New cohorts have no classes yet: make one per subject TMS teaches them, sized by TMS's periods.
+                const fresh = rep.unmatchedClasses.filter((u) => createdIds.has(u.cohortId));
+                if (fresh.length) {
+                    setupEdit((d2) => {
+                        fresh.forEach((u) => {
+                            const cohort = (d2.cohorts || []).find((c) => c.id === u.cohortId);
+                            if (!cohort) return;
+                            const id = newClassId();
+                            const rec = specialClassRecord({ id, name: `${cohort.name} · ${u.subject}`, type: '', students: 0, cohortIds: [cohort.id], start: '', end: '' });
+                            rec.weeklyFrequency = Math.max(1, Math.min(10, u.count || 1));
+                            d2.classes = d2.classes || [];
+                            d2.classes.push(rec);
+                            if (Array.isArray(cohort.classIds)) cohort.classIds.push(id);
+                        });
+                    });
+                    out = I.buildDraftFromTms(freshModel().data, body, buildOpts);
+                    rep = out.report;
+                }
+            }
+        }
+        // Cohorts TMS teaches together but the calendar keeps as separate classes: preview, then merge on request.
+        const openMerges = (rep.mergedClasses || []).filter((m) => !m.calendarMerged && m.cohortIds && m.cohortIds.length > 1);
+        let mergedNow = 0;
+        if (openMerges.length && !readOnly()) {
+            const chosen = await askTmsMerge(planTmsMerges(openMerges));
+            if (chosen && chosen.length) {
+                applyTmsMerges(chosen);
+                mergedNow = chosen.length;
                 out = I.buildDraftFromTms(freshModel().data, body, buildOpts);
                 rep = out.report;
             }
@@ -2733,18 +2788,6 @@ ${by.get(cid).map((d) => `
             return { ok: true };
         });
         if (!res) return;
-        // Cohorts TMS teaches together but the calendar keeps as separate classes: preview, then merge on request.
-        const openMerges = (rep.mergedClasses || []).filter((m) => !m.calendarMerged && m.cohortIds && m.cohortIds.length > 1);
-        let mergedNow = 0;
-        if (openMerges.length && !readOnly()) {
-            const chosen = await askTmsMerge(planTmsMerges(openMerges));
-            if (chosen && chosen.length) {
-                applyTmsMerges(chosen);
-                mergedNow = chosen.length;
-                out = I.buildDraftFromTms(freshModel().data, body, buildOpts);
-                rep = out.report;
-            }
-        }
         const left = rep.unmatchedCohorts.length + rep.unmatchedClasses.length + rep.unmatchedTeachers.length;
         notice(t('spTmsDone', 'Pulled from TMS (term {term}): {periods} periods on {classes} classes.', {
             term: rep.term || '–', periods: out.draft.assignments.reduce((n, a) => n + (a.meetings || []).length, 0), classes: out.draft.assignments.length

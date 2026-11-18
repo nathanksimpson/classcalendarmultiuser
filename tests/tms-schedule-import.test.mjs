@@ -148,3 +148,29 @@ console.log('tms-schedule-import merged-class test passed');
     assert.deepEqual(single.map((x) => [x.cohortName, x.subject, x.room]), [['동아(윤정미)', '내신수업', '1강의실']]);
 }
 console.log('tms grid parser multi-cohort test passed');
+
+// Choosing a term changes what is imported.
+{
+    const tms = { placements: [
+        row('Lee', 'mon', '15:20', 'BlueM^2609', 'Wr&Spk'),
+        row('Lee', 'tue', '16:10', 'BlueM^2612', 'Wr&Spk')
+    ] };
+    const a = I.buildDraftFromTms(cal, tms, { term: '2609' });
+    const b = I.buildDraftFromTms(cal, tms, { term: '2612' });
+    const dows = (o) => o.draft.assignments.flatMap((x) => x.meetings.map((m) => m.dow)).join(',');
+    assert.notEqual(dows(a), dows(b));
+    assert.equal(a.report.term, '2609');
+    assert.equal(b.report.term, '2612');
+}
+console.log('tms-schedule-import term choice test passed');
+
+// Unmatched cohorts carry their meeting days; unmatched classes carry the cohort id (used to create new cohorts/classes).
+{
+    const out = I.buildDraftFromTms(cal, { placements: [
+        row('Lee', 'tue', '15:20', 'NewT^2609', 'Wr&Spk'), row('Lee', 'thu', '15:20', 'NewT^2609', 'Wr&Spk'),
+        row('Lee', 'mon', '15:20', 'BlueM^2609', 'Zzz')
+    ] });
+    assert.deepEqual(out.report.unmatchedCohorts[0].days.sort(), [2, 4]);
+    assert.equal(out.report.unmatchedClasses[0].cohortId, 'co1');
+}
+console.log('tms-schedule-import new-cohort data test passed');

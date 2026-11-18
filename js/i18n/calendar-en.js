@@ -3195,6 +3195,8 @@
         spTmsMapSkipRest: 'Skip the undecided',
         spTmsMapPeriods: '{n} periods',
         spTmsMapTally: '{mapped} matched · {skipped} skipped · {open} undecided',
+        spTmsMapCreate: '+ Create a new cohort',
+        spTmsTermMatched: '{n} of your cohorts',
         spTmsMapChoose: 'Choose cohort…',
         spTmsMapSkip: 'Not in this calendar (skip)',
         spTmsMapSave: 'Save and continue',
