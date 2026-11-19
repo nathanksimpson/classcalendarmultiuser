@@ -947,7 +947,7 @@
         return links;
     }
 
-    const SAVED_BATCH_EDITOR_URL = '/tools/essay-batch-editor.html?v=20261028-open-saved-editor';
+    const SAVED_BATCH_EDITOR_URL = '/tools/essay-batch-editor.html?v=20261119-essay-status-sync';
 
     function openSavedBatchEditor() {
         let win = null;
@@ -1006,7 +1006,7 @@
                 return;
             }
             const editorUrl =
-                `${location.origin}/tools/essay-batch-editor.html?v=20261007-essay-note-no-ai` +
+                `${location.origin}/tools/essay-batch-editor.html?v=20261119-essay-status-sync` +
                 `&batchType=${encodeURIComponent(essayType)}` +
                 `&batchId=${encodeURIComponent(batchId)}`;
             let win = null;

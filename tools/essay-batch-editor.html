@@ -912,8 +912,8 @@
     <script src="/js/calendar-mutations.js?v=20261006-essay-list-chips"></script>
     <script src="/js/conflict-merge.js?v=20261027-essay-conflict"></script>
     <script src="/js/calendar-sync.js?v=20261028-essay-batch-draft"></script>
-    <script src="/js/classroom-domain.js?v=20261007-essay-note-sync"></script>
-    <script src="/js/essay-batch-grader-calendar.js?v=20261006-essay-status-sync"></script>
+    <script src="/js/classroom-domain.js?v=20261119-essay-status-sync"></script>
+    <script src="/js/essay-batch-grader-calendar.js?v=20261119-essay-status-sync"></script>
     <script src="/js/essay-batch-draft-sync.js?v=20261028-essay-batch-draft2"></script>
     <script>
         // ==========================================
@@ -2763,6 +2763,7 @@ Base Context: {{baseRubric}}
             } finally {
                 listStatusCalendarReady = true;
                 refreshAllListStatus();
+                startEssayListWatch();
             }
         }
 
@@ -4388,6 +4389,9 @@ Requirement: "${ruleDescription}"`;
                 }
                 updateStatusVisuals();
                 persistStatusAndRefresh();
+                if (!checklistSyncing) {
+                    queueChecklistListStatus(card, data);
+                }
             });
 
             resubmitCheckbox.addEventListener('change', (e) => {
@@ -4398,6 +4402,9 @@ Requirement: "${ruleDescription}"`;
                 }
                 updateStatusVisuals();
                 persistStatusAndRefresh();
+                if (!checklistSyncing) {
+                    queueChecklistListStatus(card, data);
+                }
             });
 
             if (!data.isDone && !data.isResubmit && !data.isFailed) card.classList.add('bg-white', 'border-slate-200');
@@ -4439,7 +4446,8 @@ Requirement: "${ruleDescription}"`;
             const found = domainApi.findUniqueEssayListLink(calendar, {
                 studentName: data.studentName,
                 className: data.className,
-                title: data.essayTitle || ''
+                title: data.essayTitle || '',
+                lessonDate: data.lessonDate || data.assignedDate || ''
             });
             if (!found) {
                 return null;
@@ -4651,9 +4659,16 @@ Requirement: "${ruleDescription}"`;
 
         let essayListWriteChain = Promise.resolve();
 
+        let essayListWrites = 0;
+
         function enqueueEssayListWrite(task) {
+            essayListWrites += 1;
             const run = essayListWriteChain.then(task, task);
-            essayListWriteChain = run.then(function () {}, function () {});
+            essayListWriteChain = run.then(function () {
+                essayListWrites = Math.max(0, essayListWrites - 1);
+            }, function () {
+                essayListWrites = Math.max(0, essayListWrites - 1);
+            });
             return run;
         }
 
@@ -4926,22 +4941,52 @@ Requirement: "${ruleDescription}"`;
             box.dispatchEvent(new Event('change', { bubbles: true }));
         }
 
+        let checklistSyncing = false;
+
         function syncLocalChecklist(card, status) {
             if (!card) {
                 return;
             }
-            if (status === 'submitted') {
+            checklistSyncing = true;
+            try {
+                if (status === 'resubmit_required') {
+                    setLocalChecklistBox(card, 'doneCheckbox', false);
+                    setLocalChecklistBox(card, 'resubmitCheckbox', true);
+                    return;
+                }
+                if (status === 'complete' || status === 'demerit') {
+                    setLocalChecklistBox(card, 'resubmitCheckbox', false);
+                    setLocalChecklistBox(card, 'doneCheckbox', true);
+                    return;
+                }
                 setLocalChecklistBox(card, 'doneCheckbox', false);
                 setLocalChecklistBox(card, 'resubmitCheckbox', false);
+            } finally {
+                checklistSyncing = false;
+            }
+        }
+
+        function queueChecklistListStatus(card, data) {
+            const link = resolveCardListLink(data);
+            if (!link || !calendarEssayData() || !data) {
                 return;
             }
-            const role = status === 'resubmit_required'
-                ? 'resubmitCheckbox'
-                : (status === 'complete' || status === 'demerit' ? 'doneCheckbox' : '');
-            if (!role) {
+            let next = '';
+            if (data.isResubmit) {
+                next = 'resubmit_required';
+            } else if (data.isDone) {
+                next = data.listStatus === 'demerit' ? 'demerit' : 'complete';
+            } else if (
+                data.listStatus === 'complete' ||
+                data.listStatus === 'resubmit_required' ||
+                data.listStatus === 'demerit'
+            ) {
+                next = 'submitted';
+            }
+            if (!next || next === data.listStatus) {
                 return;
             }
-            setLocalChecklistBox(card, role, true);
+            void applyListStatusChoice(card, data, next, null);
         }
 
         function bindListStatus(card, data) {
@@ -4965,6 +5010,7 @@ Requirement: "${ruleDescription}"`;
                     noteEl.textContent = 'Updated from the Essays list';
                     noteEl.classList.remove('hidden');
                 } else {
+                    noteEl.textContent = '';
                     noteEl.classList.add('hidden');
                 }
             }
@@ -5011,6 +5057,9 @@ Requirement: "${ruleDescription}"`;
                 flagsEl.classList.add('hidden');
             }
             syncListNoteBox(card, data, linked ? link : null);
+            if (linked) {
+                syncLocalChecklist(card, data.listStatus || 'not_submitted');
+            }
         }
 
         function snapshotListStatus(data) {
@@ -5127,12 +5176,37 @@ Requirement: "${ruleDescription}"`;
             document.querySelectorAll('.result-card').forEach((card) => {
                 const resultId = card.dataset.resultId;
                 const data = (appState.results || []).find((row) => row && row.resultId === resultId);
-                if (!data) {
+                if (!data || data.listNoteDirty) {
                     return;
                 }
                 data.listStatusHydrated = false;
                 bindListStatus(card, data);
             });
+        }
+
+        function startEssayListWatch() {
+            if (startEssayListWatch.started || !globalThis.CCPEssayBatchGraderCalendar) {
+                return;
+            }
+            startEssayListWatch.started = true;
+            const pull = async () => {
+                if (document.hidden || essayListWrites > 0) {
+                    return;
+                }
+                if (typeof CCPEssayBatchGraderCalendar.reloadEssaySubmissions !== 'function') {
+                    return;
+                }
+                try {
+                    const changed = await CCPEssayBatchGraderCalendar.reloadEssaySubmissions();
+                    if (changed && essayListWrites === 0) {
+                        remoteListStatus.clear();
+                        refreshAllListStatus();
+                    }
+                } catch (_) {
+                    /* the next tick tries again */
+                }
+            };
+            setInterval(pull, 8000);
         }
 
         function setupCardStatsAndWarnings(card, data) {

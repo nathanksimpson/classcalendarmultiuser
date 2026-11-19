@@ -8,6 +8,7 @@
     let saveTimer = null;
     let calendarName = '';
     let calendarId = '';
+    let calendarRevision = 0;
     let loaded = false;
     let calendarData = null;
 
@@ -99,6 +100,7 @@
 
         const data = (doc && doc.data) || {};
         calendarData = data;
+        calendarRevision = Number(doc && doc.revision) || 0;
         calendarName = String(data.calendarName || doc.name || '').trim();
         let settings = data.essayGraderSettings;
         let migrated = false;
@@ -221,6 +223,25 @@
             if (data && typeof data === 'object') {
                 calendarData = data;
             }
+        },
+        /**
+         * Pull essay rows when another window saved. Returns true when the list changed.
+         * Grader settings on this page are left as they are.
+         */
+        async reloadEssaySubmissions() {
+            if (!calendarId || !calendarData || typeof global.CalendarSync === 'undefined' || typeof global.CalendarSync.loadCalendar !== 'function') {
+                return false;
+            }
+            const doc = await global.CalendarSync.loadCalendar(calendarId);
+            const rev = Number(doc && doc.revision) || 0;
+            if (!doc || rev === calendarRevision) {
+                return false;
+            }
+            calendarRevision = rev;
+            const next = doc.data && Array.isArray(doc.data.essaySubmissions) ? doc.data.essaySubmissions : [];
+            const prev = JSON.stringify(calendarData.essaySubmissions || []);
+            calendarData.essaySubmissions = next;
+            return JSON.stringify(next) !== prev;
         },
         isLoaded: () => loaded
     };
