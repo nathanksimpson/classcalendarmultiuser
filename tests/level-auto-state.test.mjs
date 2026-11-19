@@ -128,9 +128,12 @@ const migrateClassroomData = functionBody(domainSrc, 'migrateClassroomData');
     assert(!migrateData.includes(field), `migrateData must not touch ${field}`);
     assert(!migrateClassroomData.includes(field), `migrateClassroomData must not touch ${field}`);
 });
-const submit = functionBody(appSrc, 'handleClassSubmit');
-assert(/classData\.levelOverrides\s*=/.test(submit), 'handleClassSubmit assigns levelOverrides');
-assert(/classData\.levelProfileMigrated\s*=/.test(submit), 'handleClassSubmit assigns levelProfileMigrated');
+// Save body lives in persistClassFormFromEditor (handleClassSubmit is a thin wrapper for autosave).
+const submit = functionBody(appSrc, 'persistClassFormFromEditor');
+assert(/classData\.levelOverrides\s*=/.test(submit), 'persistClassFormFromEditor assigns levelOverrides');
+assert(/classData\.levelProfileMigrated\s*=/.test(submit), 'persistClassFormFromEditor assigns levelProfileMigrated');
+assert(functionBody(appSrc, 'handleClassSubmit').includes('persistClassFormFromEditor'),
+    'handleClassSubmit still calls persistClassFormFromEditor');
 const suggestion = functionBody(appSrc, 'selectClassSuggestion');
 assert(!suggestion.includes('levelOverrides'), 'class-name autocomplete never copies levelOverrides');
 

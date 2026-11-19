@@ -501,7 +501,16 @@
             return '';
         }
         const month = getUiToggles().debateRecMonth || '';
-        const c = d.debateRecAlertCountsForClass(getAppData(), classData, month ? { month } : undefined);
+        // Tests (and rare hosts) may pin "today" so Day 4 cutoffs stay stable across calendar time.
+        const todayIso = hooks && typeof hooks.getTodayIso === 'function' ? hooks.getTodayIso() : '';
+        const countOpts = {};
+        if (month) {
+            countOpts.month = month;
+        }
+        if (todayIso) {
+            countOpts.todayIso = todayIso;
+        }
+        const c = d.debateRecAlertCountsForClass(getAppData(), classData, countOpts);
         // Ordered and coloured by importance: absent / not verified (red) → needs confirmation (amber).
         const pill = (level, title, text) =>
             `<span class="classroom-essay-alert-badge debate-rec-alert debate-rec-alert--${level}" title="${escapeAttr(title)}">${escapeHtml(text)}</span>`;

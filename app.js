@@ -31312,10 +31312,10 @@ function handleClassSubmit(e) {
 
 /**
  * Write the open class form onto appData.classes and saveData().
- * @param {{ quiet?: boolean }} options quiet=true skips alerts/modal close (autosave).
+ * @param {{ quiet?: boolean }} [options] quiet=true skips alerts/modal close (autosave).
  * @returns {boolean} whether a save happened
  */
-function persistClassFormFromEditor(options = {}) {
+function persistClassFormFromEditor(options) {
     const quiet = !!(options && options.quiet);
     if (isTeamCalendarViewOnly()) {
         return false;
