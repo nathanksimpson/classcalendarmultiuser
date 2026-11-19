@@ -3015,6 +3015,7 @@
         spTeacherTypeNeeded: 'Teacher type',
         spInPlanLong: 'Include in this plan',
         spEditClassFull: 'Open the full class editor ↗',
+        spEditClassFullNeedsApply: 'Apply this draft class to the calendar first, then open the full editor.',
         spUndoTip: 'Undo (Ctrl+Z)',
         spRedoTip: 'Redo (Ctrl+Y)',
         spWhyCohortDay: 'Students are only here 2 periods on Mon/Wed/Fri and 3 on Tue/Thu',

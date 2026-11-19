@@ -3014,6 +3014,7 @@
         spTeacherTypeNeeded: '선생님 유형',
         spInPlanLong: '이 계획에 포함',
         spEditClassFull: '전체 수업 편집기 열기 ↗',
+        spEditClassFullNeedsApply: '먼저 이 초안 수업을 달력에 적용한 뒤 전체 편집기를 여세요.',
         spUndoTip: '실행 취소 (Ctrl+Z)',
         spRedoTip: '다시 실행 (Ctrl+Y)',
         spWhyCohortDay: '학생들은 월수금 2교시, 화목 3교시만 학원에 있습니다',
