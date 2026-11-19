@@ -4445,6 +4445,10 @@ function writeMeetingDaysInFormScope(formRootSelector, inputName, days) {
     root.querySelectorAll(`input[name="${inputName}"]`).forEach(cb => {
         cb.checked = set.has(parseInt(cb.value, 10));
     });
+    // Day chips do not fire "change" when set in code — always redraw period rows for the class form.
+    if (inputName === MEETING_DAY_INPUT_CLASS) {
+        syncPeriodByDayUi();
+    }
 }
 
 function updateMeetingDayChipLabels() {
@@ -30973,10 +30977,18 @@ function openClassEditorFromPlanner(classId) {
         return;
     }
     const cls = (appData.classes || []).find((c) => c && c.id === id);
-    if (!cls) {
+    if (cls) {
+        openClassEditor(cls, 'tab');
         return;
     }
-    openClassEditor(cls, 'tab');
+    // TMS / planner draft classes live only on the active draft until Apply to calendar.
+    const P = window.CCPTeacherPlanner;
+    const draftCls = P && typeof P.allClasses === 'function'
+        ? P.allClasses(appData).find((c) => c && c.id === id)
+        : null;
+    if (draftCls && draftCls.plannerDraftClass === true) {
+        showSyncToast(t('spEditClassFullNeedsApply'), true);
+    }
 }
 window.openClassEditorFromPlanner = openClassEditorFromPlanner;
 
