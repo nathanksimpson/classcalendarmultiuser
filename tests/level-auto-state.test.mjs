@@ -40,7 +40,7 @@ st = lp.deriveAutoState({ levelPreset: 'Navy', grade: '\uCD084', color: '#123456
 assert(st.grade === 'custom' && st.colors === 'custom', 'different values → custom');
 st = lp.deriveAutoState({ levelPreset: 'Navy' }, navy);
 assert(st.grade === 'auto', 'empty grade + elementary → auto');
-st = lp.deriveAutoState({ levelPreset: YUMA, grade: MID1, color: '#fef08a' }, yuma);
+st = lp.deriveAutoState({ levelPreset: YUMA, grade: MID1, color: '#dc2626' }, yuma);
 assert(st.grade === 'auto' && st.colors === 'auto', 'middle school grade + color → auto');
 st = lp.deriveAutoState({ levelCustom: 'Foo', grade: 'x' }, profile(''));
 assert(st.grade === 'none' && st.colors === 'none', 'unknown level → none');
@@ -73,7 +73,7 @@ assert(res.values.color === '#1e3a8a' && res.changed.length === 0, 'Custom color
 assert(res.autoState.colors === 'custom', 'Custom state kept');
 
 res = lp.applyLevelChange({ grade: '', color: '#1e3a8a' }, { grade: 'auto', colors: 'auto' }, yuma);
-assert(res.values.grade === MID1 && res.values.color === '#fef08a', 'Navy → 유마 fills grade + color');
+assert(res.values.grade === MID1 && res.values.color === '#dc2626', 'Navy → 유마 fills grade + color');
 assert(res.changed.length === 2, 'two settings changed');
 
 res = lp.applyLevelChange({ grade: '\uCD084', color: '#123456' }, { grade: 'auto', colors: 'auto' }, profile('Foo'));

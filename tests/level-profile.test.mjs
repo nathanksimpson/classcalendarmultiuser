@@ -52,21 +52,26 @@ all.filter((l) => l.preOf).forEach((l) => {
 assert(lp.getLevelById('  Navy ').id === 'Navy', 'getLevelById trims');
 assert(lp.getLevelById('navy') === null, 'getLevelById is case-sensitive');
 
-// ---- Old getDefaultSimsonLevelColors values (pre-Phase-7 app.js), one per level ----
+// ---- Default Auto colors (one per level); middle = grade × Basic→Advanced rainbow ----
 const OLD_COLORS = {
     Red: '#dc2626', Orange: '#ea580c', Yellow: '#facc15', Green: '#16a34a', Blue: '#2563eb',
     Navy: '#1e3a8a', Purple: '#9333ea', Yeoul: '#e8b8c4', Saemmul: '#d9a3a3', Garam: '#16a34a',
-    Bada: '#16a34a', Byeolmaru: '#2563eb', Mirinae: '#2563eb'
+    Bada: '#16a34a', Byeolmaru: '#4f46e5', Mirinae: '#4f46e5'
 };
-const gradeColor = { [MID1]: '#fef08a', [MID2]: '#bbf7d0', [MID3]: '#bfdbfe' };
+const MIDDLE_RAINBOW = [
+    '#dc2626', '#ea580c', '#f97316', '#eab308',
+    '#84cc16', '#16a34a', '#0d9488', '#0ea5e9',
+    '#2563eb', '#4f46e5', '#7c3aed', '#9333ea'
+];
 const OLD_GRADES = {};
 MID.forEach((id, i) => {
     const grade = i < 4 ? MID1 : i < 8 ? MID2 : MID3;
     OLD_GRADES[id] = grade;
-    OLD_COLORS[id] = gradeColor[grade];
-    OLD_COLORS[`Pre ${id}`] = gradeColor[grade];
+    OLD_COLORS[id] = MIDDLE_RAINBOW[i];
+    OLD_COLORS[`Pre ${id}`] = MIDDLE_RAINBOW[i];
 });
-assert(Object.keys(OLD_COLORS).length === 37, 'old color snapshot covers 37 levels');
+assert(Object.keys(OLD_COLORS).length === 37, 'color snapshot covers 37 levels');
+assert(OLD_COLORS[MID[0]] === '#dc2626' && OLD_COLORS[MID[11]] === '#9333ea', 'middle rainbow ends at purple');
 
 const readable = (hex) => `text-on-${hex}`;
 all.forEach((level) => {

@@ -74,9 +74,23 @@
             Saemmul: '#d9a3a3',
             Garam: '#16a34a',
             Bada: '#16a34a',
-            Byeolmaru: '#2563eb',
-            Mirinae: '#2563eb'
+            Byeolmaru: '#4f46e5',
+            Mirinae: '#4f46e5',
+            // Middle school: grade × Basic→Advanced rainbow (lowest = red).
+            '\uC720\uB9C8': '#dc2626',
+            '\uB808\uC624': '#ea580c',
+            '\uD30C\uBCF4': '#f97316',
+            '\uD3F4\uB77C': '#eab308',
+            '\uD649\uC2A4': '#84cc16',
+            '\uD2F0\uCE74': '#16a34a',
+            '\uBE45\uD0A4': '#0d9488',
+            '\uBC14\uC774\uCEEC': '#0ea5e9',
+            '\uC548\uB098': '#2563eb',
+            '\uB0AD\uAC00': '#4f46e5',
+            '\uB85C\uCCB4': '#7c3aed',
+            '\uCE89\uCCB8': '#9333ea'
         },
+        // Legacy grade pastels — unused while byLevel covers middle ids; kept for older callers.
         byGrade: {
             [MID1]: '#fef08a',
             [MID2]: '#bbf7d0',
@@ -214,14 +228,17 @@
         }
         if (def.preOf) {
             const linked = getLevelById(def.preOf);
-            if (linked && linked.grade) {
+            if (linked) {
                 return levelColorHex(linked);
             }
+        }
+        if (LEVEL_COLORS.byLevel[def.id]) {
+            return LEVEL_COLORS.byLevel[def.id];
         }
         if (def.grade && LEVEL_COLORS.byGrade[def.grade]) {
             return LEVEL_COLORS.byGrade[def.grade];
         }
-        return LEVEL_COLORS.byLevel[def.id] || '';
+        return '';
     }
 
     /** @returns {({ color: string, textColor: string }) | null} */
