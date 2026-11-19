@@ -2059,8 +2059,12 @@ function syncPeriodByDayUi() {
 }
 
 function writePeriodByWeekdayToForm(periodByWeekday, meetingDays) {
+    const map = normalizePeriodByWeekday(periodByWeekday) || {};
+    // Keep the visible Days-and-periods editor on the same map the schedule matrix / planner use.
+    applyPeriodMapToClassTimesDraft(map, elements.classPeriod ? parseClassPeriodFromInput(elements.classPeriod) : null);
     const variesCb = document.getElementById('classPeriodVariesByDay');
     if (!variesCb) {
+        syncPeriodByDayUi();
         return;
     }
     variesCb.checked = periodVariesFromMap(periodByWeekday, meetingDays);
@@ -2068,7 +2072,6 @@ function writePeriodByWeekdayToForm(periodByWeekday, meetingDays) {
     if (!variesCb.checked) {
         return;
     }
-    const map = normalizePeriodByWeekday(periodByWeekday) || {};
     document.querySelectorAll('#classPeriodByDayRow select.class-period-by-day').forEach(sel => {
         const d = sel.dataset.weekday;
         if (map[d] !== undefined) {
@@ -3391,6 +3394,7 @@ function applyScheduleMatrixSuggestion(def, isNewClass) {
             const meetingDays = readMeetingDaysFromFormScope('#classForm', MEETING_DAY_INPUT_CLASS);
             writePeriodByWeekdayToForm(suggestion.periodByWeekday, meetingDays);
         } else {
+            applyPeriodMapToClassTimesDraft(null, suggestion.period);
             syncPeriodByDayUi();
         }
     }
@@ -4346,6 +4350,7 @@ function buildMeetingDayPresetButtons(containerEl, formRootSelector, inputName) 
             writeMeetingDaysInFormScope(formRootSelector, inputName, preset.days);
             if (inputName === MEETING_DAY_INPUT_CLASS) {
                 syncPeriodByDayUi();
+                scheduleClassFormAutosave();
             }
         });
         containerEl.appendChild(btn);
@@ -4965,6 +4970,7 @@ function setupClassMeetingDaysUI() {
             if (e.target.matches(`input[name="${MEETING_DAY_INPUT_CLASS}"]`)) {
                 tryAutoDistributeSyllabusFromPreset(getSelectedClassTypeDefinitionFromForm());
                 syncPeriodByDayUi();
+                scheduleClassFormAutosave();
             }
         });
     }
@@ -29682,6 +29688,17 @@ function syncEventNotifyUi(isRange) {
 }
 
 function populateClassForm(classData = null, options = {}) {
+    classFormPopulating = true;
+    clearTimeout(classFormAutosaveTimer);
+    try {
+        populateClassFormBody(classData, options);
+    } finally {
+        classFormPopulating = false;
+        setClassFormAutosaveStatus('idle');
+    }
+}
+
+function populateClassFormBody(classData = null, options = {}) {
     ensureClassModalLayout();
     ensureClassPeriodMarkup();
     if (classData) {
@@ -30504,6 +30521,43 @@ function classFormSelectedDays() {
     return CLASS_FORM_DAY_ORDER.filter((d) => days.includes(d));
 }
 
+/**
+ * Push a period-by-weekday map (and optional fallback) into the live class-times draft so the
+ * Days-and-periods rows and the planner's collectClassMeetings share the same numbers.
+ */
+function applyPeriodMapToClassTimesDraft(periodByWeekday, fallbackPeriod) {
+    const days = classFormSelectedDays();
+    const map = periodByWeekday && typeof periodByWeekday === 'object' ? periodByWeekday : null;
+    const fallback = fallbackPeriod != null && fallbackPeriod !== ''
+        ? parseInt(fallbackPeriod, 10)
+        : null;
+    days.forEach((dow) => {
+        const raw = map && (map[String(dow)] != null ? map[String(dow)] : map[dow]);
+        const fromMap = raw != null && raw !== '' ? parseInt(raw, 10) : NaN;
+        const p = !Number.isNaN(fromMap) && fromMap >= 1
+            ? fromMap
+            : (fallback != null && !Number.isNaN(fallback) ? fallback : null);
+        if (!classTimesDraft[dow]) {
+            classTimesDraft[dow] = {
+                periods: p != null ? [p] : [],
+                roomId: classTimesDefaultRoom()
+            };
+            return;
+        }
+        if (p == null) {
+            return;
+        }
+        if (!classTimesDraft[dow].periods.length) {
+            classTimesDraft[dow].periods = [p];
+        } else if (!Number.isNaN(fromMap) && fromMap >= 1) {
+            // Matrix / per-day map wins for the first period on that day.
+            classTimesDraft[dow].periods[0] = fromMap;
+            classTimesDraft[dow].periods = [...new Set(classTimesDraft[dow].periods.filter((x) => x != null))];
+        }
+    });
+    syncHiddenPeriodFromClassTimes();
+}
+
 /** One row per meeting day: its period(s) and, when the calendar has rooms, its room. */
 function renderClassTimesEditor() {
     const mount = document.getElementById('classTimesRows');
@@ -30514,9 +30568,13 @@ function renderClassTimesEditor() {
     const days = classFormSelectedDays();
     const hiddenPeriod = elements.classPeriod ? parseClassPeriodFromInput(elements.classPeriod) : null;
     days.forEach((dow) => {
+        // Always give each selected day a period picker value so the row is usable and the planner
+        // sees the same schedule matrix (days + periods) once autosave runs.
+        const fallback = classTimesFirstKnownPeriod() ?? hiddenPeriod ?? 1;
         if (!classTimesDraft[dow]) {
-            const p = classTimesFirstKnownPeriod() ?? hiddenPeriod;
-            classTimesDraft[dow] = { periods: p != null ? [p] : [], roomId: classTimesDefaultRoom() };
+            classTimesDraft[dow] = { periods: [fallback], roomId: classTimesDefaultRoom() };
+        } else if (!classTimesDraft[dow].periods.length) {
+            classTimesDraft[dow].periods = [fallback];
         }
     });
     mount.hidden = !days.length;
@@ -30576,10 +30634,12 @@ function bindClassTimesEditor(mount) {
             }
             classTimesDraft[dow].periods = [...new Set(list.filter((x) => x != null))];
             renderClassTimesEditor();
+            scheduleClassFormAutosave();
         } else if (sel.classList.contains('class-times-room-select')) {
             classTimesDraft[dow].roomId = sel.value || '';
             classTimesHasRoomFields = true;
             scheduleClassFormChecks();
+            scheduleClassFormAutosave();
         }
     });
     mount.addEventListener('click', (e) => {
@@ -30603,6 +30663,7 @@ function bindClassTimesEditor(mount) {
             entry.periods.splice(parseInt(btn.dataset.idx, 10) || 0, 1);
         }
         renderClassTimesEditor();
+        scheduleClassFormAutosave();
     });
 }
 
@@ -30834,6 +30895,91 @@ function scheduleClassFormChecks() {
     classFormChecksTimer = setTimeout(renderClassFormChecks, 150);
 }
 
+let classFormAutosaveTimer = null;
+let classFormAutosaveInFlight = false;
+let classFormPopulating = false;
+const CLASS_FORM_AUTOSAVE_MS = 450;
+
+/** True when the form is editing a saved class (autosave applies; new classes still need Create/Save once). */
+function classFormHasSavedClassId() {
+    return !!(elements.classId && String(elements.classId.value || '').trim());
+}
+
+function setClassFormAutosaveStatus(state) {
+    const btn = document.querySelector('#classForm button[type="submit"].editor-header-save-btn')
+        || document.querySelector('#classForm button[type="submit"]');
+    if (!btn) {
+        return;
+    }
+    if (!btn.dataset.defaultSaveLabel) {
+        btn.dataset.defaultSaveLabel = btn.textContent || t('saveClass');
+    }
+    if (state === 'pending') {
+        btn.textContent = t('classAutosavePending') || 'Saving…';
+        btn.classList.add('is-autosaving');
+    } else if (state === 'saved') {
+        btn.textContent = t('classAutosaveSaved') || 'Saved';
+        btn.classList.add('is-autosaving');
+        clearTimeout(setClassFormAutosaveStatus._reset);
+        setClassFormAutosaveStatus._reset = setTimeout(() => {
+            btn.textContent = btn.dataset.defaultSaveLabel || t('saveClass');
+            btn.classList.remove('is-autosaving');
+        }, 1200);
+    } else if (state === 'idle') {
+        btn.textContent = btn.dataset.defaultSaveLabel || t('saveClass');
+        btn.classList.remove('is-autosaving');
+    }
+}
+
+/**
+ * Debounced quiet save for an existing class so the planner and full editor stay on the same
+ * placements / days / teacher-type data without clicking Save Class.
+ */
+function scheduleClassFormAutosave() {
+    if (classFormPopulating || isTeamCalendarViewOnly() || !classFormHasSavedClassId()) {
+        return;
+    }
+    setClassFormAutosaveStatus('pending');
+    clearTimeout(classFormAutosaveTimer);
+    classFormAutosaveTimer = setTimeout(() => {
+        void runClassFormAutosave();
+    }, CLASS_FORM_AUTOSAVE_MS);
+}
+
+async function runClassFormAutosave() {
+    if (classFormAutosaveInFlight || isTeamCalendarViewOnly() || !classFormHasSavedClassId()) {
+        return;
+    }
+    classFormAutosaveInFlight = true;
+    try {
+        const ok = persistClassFormFromEditor({ quiet: true });
+        if (ok) {
+            setClassFormAutosaveStatus('saved');
+        } else {
+            setClassFormAutosaveStatus('idle');
+        }
+    } catch (err) {
+        console.warn('class form autosave', err);
+        setClassFormAutosaveStatus('idle');
+    } finally {
+        classFormAutosaveInFlight = false;
+    }
+}
+
+/** Planner side panel → full class editor on the same calendar data (no new tab). */
+function openClassEditorFromPlanner(classId) {
+    const id = String(classId || '').trim();
+    if (!id) {
+        return;
+    }
+    const cls = (appData.classes || []).find((c) => c && c.id === id);
+    if (!cls) {
+        return;
+    }
+    openClassEditor(cls, 'tab');
+}
+window.openClassEditorFromPlanner = openClassEditorFromPlanner;
+
 /** The class as the form currently has it, for the planner's checks (nothing is saved). */
 function buildClassFormCheckDraft() {
     const id = (elements.classId && elements.classId.value) || '__class-form-draft__';
@@ -30849,10 +30995,11 @@ function buildClassFormCheckDraft() {
     });
     draft.cohortId = draft.cohortIds[0] || '';
     const type = (document.getElementById('classTeacherRequirementType')?.value || '').trim();
-    if (type) {
+    if (type === 'korean' || type === 'native' || type === 'either') {
         draft.teacherRequirementType = type;
     } else {
-        delete draft.teacherRequirementType;
+        // Blank option means explicit "any teacher" — same as either.
+        draft.teacherRequirementType = 'either';
     }
     const cohort = classFormPrimaryCohort();
     if (cohort) {
@@ -30994,13 +31141,17 @@ function populateClassFormSimpleParts(classData) {
     seedClassTimesDraft(classData);
     const typeSel = document.getElementById('classTeacherRequirementType');
     if (typeSel) {
+        // Stored either / blank / missing → "Any teacher" in the form (value "").
         const need = classData && (classData.teacherRequirementType === 'korean' || classData.teacherRequirementType === 'native')
             ? classData.teacherRequirementType
             : '';
         typeSel.value = need;
         if (typeSel.dataset.bound !== '1') {
             typeSel.dataset.bound = '1';
-            typeSel.addEventListener('change', scheduleClassFormChecks);
+            typeSel.addEventListener('change', () => {
+                scheduleClassFormChecks();
+                scheduleClassFormAutosave();
+            });
         }
     }
     const plannerCb = document.getElementById('classPlannerIncluded');
@@ -31076,15 +31227,42 @@ function bindClassFormSimpleListeners() {
         if (e.target === elements.classColor) {
             refreshClassColorSwatch();
         }
+        // Day chips, teacher type, cohorts, rooms, etc. — same data the planner reads.
+        if (e.target.matches
+            && (e.target.matches(`input[name="${MEETING_DAY_INPUT_CLASS}"]`)
+                || e.target.id === 'classTeacherRequirementType'
+                || e.target.id === 'classPlannerIncluded'
+                || e.target.closest('#classCohortMulti')
+                || e.target.closest('#classTeachersRows')
+                || e.target.closest('#classTimesRows'))) {
+            scheduleClassFormAutosave();
+        } else if (!e.target.closest('#classMoreOptions')) {
+            scheduleClassFormAutosave();
+        }
     });
     form.addEventListener('input', (e) => {
         if (e.target === elements.classNotes || e.target === elements.classLevelCustom) {
             refreshClassMoreOptionsStatus();
         }
+        if (e.target === elements.className
+            || e.target === elements.classStartDate
+            || e.target === elements.classEndDate
+            || e.target === elements.classTermMonths
+            || e.target === elements.classTotalLessons
+            || e.target === elements.classLevel
+            || e.target === elements.classLevelCustom
+            || e.target === elements.classNotes) {
+            scheduleClassFormAutosave();
+        }
     });
     const palette = document.getElementById('classColorPaletteGrid');
     if (palette) {
-        palette.addEventListener('click', () => setTimeout(refreshClassColorSwatch, 0));
+        palette.addEventListener('click', () => {
+            setTimeout(() => {
+                refreshClassColorSwatch();
+                scheduleClassFormAutosave();
+            }, 0);
+        });
     }
 }
 
@@ -31117,11 +31295,21 @@ function validateClassTeacherAccountsBeforeSave() {
 
 function handleClassSubmit(e) {
     e.preventDefault();
+    persistClassFormFromEditor({ quiet: false });
+}
+
+/**
+ * Write the open class form onto appData.classes and saveData().
+ * @param {{ quiet?: boolean }} options quiet=true skips alerts/modal close (autosave).
+ * @returns {boolean} whether a save happened
+ */
+function persistClassFormFromEditor(options = {}) {
+    const quiet = !!(options && options.quiet);
     if (isTeamCalendarViewOnly()) {
-        return;
+        return false;
     }
     if (!validateClassTeacherAccountsBeforeSave()) {
-        return;
+        return false;
     }
 
     const scheduleModel = getScheduleModelFromForm();
@@ -31131,8 +31319,10 @@ function handleClassSubmit(e) {
     const levelPreset = elements.classLevel.value;
     const levelCustom = (elements.classLevelCustom.value || '').trim();
     if (!levelPreset && !levelCustom) {
-        alert(t('levelRequired'));
-        return;
+        if (!quiet) {
+            alert(t('levelRequired'));
+        }
+        return false;
     }
     const levelDisplay = getClassLevelDisplayFromParts(levelPreset, levelCustom);
     
@@ -31160,8 +31350,10 @@ function handleClassSubmit(e) {
     const compressionMode = compressionFields.compressionMode;
     const meetingDays = readMeetingDaysFromFormScope('#classForm', MEETING_DAY_INPUT_CLASS);
     if (!isCustomSchedule && meetingDays.length === 0) {
-        alert(t('meetingDaysRequired'));
-        return;
+        if (!quiet) {
+            alert(t('meetingDaysRequired'));
+        }
+        return false;
     }
     const normalizedMeetings = isCustomSchedule ? [] : normalizeMeetingDaysArray(meetingDays);
     const singleDow = normalizedMeetings.length === 1 ? normalizedMeetings[0] : null;
@@ -31212,8 +31404,8 @@ function handleClassSubmit(e) {
         scheduleModel,
         customSchedule: isCustomSchedule ? { enabled: true } : null
     };
-    if (!isCustomSchedule && !maybeConfirmScheduleAdjustments(draftForConfirm)) {
-        return;
+    if (!quiet && !isCustomSchedule && !maybeConfirmScheduleAdjustments(draftForConfirm)) {
+        return false;
     }
     const compressionMergesFinal = draftForConfirm.compressionMerges ?? compressionFields.compressionMerges;
     const skippedLessonsFinal = draftForConfirm.skippedLessons ?? compressionFields.skippedLessons;
@@ -31284,10 +31476,11 @@ function handleClassSubmit(e) {
     // Days and periods (with rooms) are the class's own; one teacher, one curriculum.
     applyClassTimesToClassObject(classData);
     const teacherType = (document.getElementById('classTeacherRequirementType')?.value || '').trim();
+    // Persist "either"/blank so the planner does not re-infer Korean/native from the class name.
     if (teacherType === 'korean' || teacherType === 'native') {
         classData.teacherRequirementType = teacherType;
     } else {
-        delete classData.teacherRequirementType;
+        classData.teacherRequirementType = 'either';
     }
     const plannerCb = document.getElementById('classPlannerIncluded');
     if (plannerCb && !plannerCb.checked) {
@@ -31301,7 +31494,8 @@ function handleClassSubmit(e) {
     if (curriculumLinkChanged) {
         const editor = window.CCPBooksEditor;
         const skipPush = editor && editor.isNoCurriculum(classData.curriculumId);
-        if (!skipPush) {
+        // Autosave must not pop the curriculum-replace confirm; manual Save still asks.
+        if (!skipPush && !quiet) {
             const pushResult = pushCurriculumToClassSyllabus(classData, {
                 skipConfirm: false,
                 force: true,
@@ -31367,16 +31561,23 @@ function handleClassSubmit(e) {
         pendingCalendarForceFull = true;
         renderCalendarNow({ forceFull: true });
     }
-    if (isUpdate) {
-        setAppStatusMessage(t('classSaved'), false);
-    } else if (savedWithoutCohort) {
-        setAppStatusMessage(t('classSavedLinkCohortHint'), false);
-    }
-    if (classEditorMount === 'tab') {
+    if (!quiet) {
+        if (isUpdate) {
+            setAppStatusMessage(t('classSaved'), false);
+        } else if (savedWithoutCohort) {
+            setAppStatusMessage(t('classSavedLinkCohortHint'), false);
+        }
+        if (classEditorMount === 'tab') {
+            updateClassEditorEmptyState();
+        } else {
+            closeModal(elements.classModal);
+        }
+    } else if (isUpdate) {
+        // Keep list/planner in sync without tearing down the open form.
+        renderClassList();
         updateClassEditorEmptyState();
-    } else {
-        closeModal(elements.classModal);
     }
+    return true;
 }
 
 function deleteClass() {

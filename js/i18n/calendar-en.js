@@ -2635,6 +2635,8 @@
         save: 'Save',
         saved: 'Saved',
         saveClass: 'Save Class',
+        classAutosavePending: 'Saving…',
+        classAutosaveSaved: 'Saved',
         classSaved: 'Class saved.',
         classCohortRecommended: '(recommended)',
         customScheduleEnable: 'Enable custom schedule',

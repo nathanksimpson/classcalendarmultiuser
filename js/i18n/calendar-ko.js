@@ -2635,6 +2635,8 @@
         save: '저장',
         saved: '저장됨',
         saveClass: '수업 저장',
+        classAutosavePending: '저장 중…',
+        classAutosaveSaved: '저장됨',
         classCohortRecommended: '(권장)',
         customScheduleEnable: '맞춤 일정 사용',
         idleWarningBanner: '비활성 {minutes}분 후 로그아웃됩니다. 마우스를 움직이거나 키를 눌러 로그인 상태를 유지하세요.',
