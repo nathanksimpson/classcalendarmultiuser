@@ -72,9 +72,9 @@
             'js/classroom-essay-class-summary.js?v=20261006-essay-report-filters',
             'js/classroom-essay-class-summary-print.js?v=20261005-essay-demerit',
             'js/classroom-header.js?v=20260807-hr-tools',
-            'js/classroom-essay-scrape-editor.js?v=20261028-open-saved-editor',
+            'js/classroom-essay-scrape-editor.js?v=20261119-essay-status-sync',
             'js/classroom-parent-messages.js?v=20261024-ko-template',
-            'js/classroom-essays.js?v=20261024-parent-msg-ko'
+            'js/classroom-essays.js?v=20261119-essay-status-sync'
         ],
         ledger: [
             'js/classroom-access.js?v=20260911-essay-groups',

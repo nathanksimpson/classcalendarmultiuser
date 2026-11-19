@@ -610,6 +610,33 @@ const { CCPClassroomEssays } = sandbox.window;
     assert(entered.retestAssigned === false && entered.retestPassed === false, 'entering demerit starts unchecked');
 }
 
+{
+    const local = [
+        { studentId: 's1', status: 'not_submitted', note: 'typed locally', submissionLate: false },
+        { studentId: 's2', status: 'submitted', note: '', submissionLate: false }
+    ];
+    const baseline = [
+        { studentId: 's1', status: 'not_submitted', note: '', submissionLate: false },
+        { studentId: 's2', status: 'submitted', note: '', submissionLate: false }
+    ];
+    const server = [
+        { studentId: 's1', status: 'complete', note: '', submissionLate: false },
+        { studentId: 's2', status: 'complete', note: 'from editor', submissionLate: true }
+    ];
+    const merged = CCPClassroomEssays.mergeEssayDraftFromServer(local, baseline, server);
+    const s1 = merged.records.find((row) => row.studentId === 's1');
+    const s2 = merged.records.find((row) => row.studentId === 's2');
+    assert(s1.status === 'complete', 'server completion applies when this page did not change status');
+    assert(s1.note === 'typed locally', 'a local note is kept when the server completion arrives');
+    assert(s2.status === 'complete' && s2.note === 'from editor' && s2.submissionLate === true, 'untouched row takes the server record');
+    assert(merged.changedIds.indexOf('s1') >= 0 && merged.changedIds.indexOf('s2') >= 0, 'both rows are reported changed');
+
+    const again = CCPClassroomEssays.mergeEssayDraftFromServer(merged.records, merged.baselineRecords, server);
+    const s1b = again.records.find((row) => row.studentId === 's1');
+    assert(s1b.status === 'complete' && s1b.note === 'typed locally', 'a second merge does not drop the local note');
+    assert(again.changedIds.length === 0, 'nothing else changed on the second merge');
+}
+
 console.log('classroom-essays.test.mjs: all passed');
 
 

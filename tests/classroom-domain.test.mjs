@@ -1789,6 +1789,45 @@ assert(scheduledFallback[0].date === '2026-05-26', 'fallback first debate date')
         ) === null,
         'two assignments without a title are not linked'
     );
+    const customClass = Object.assign({}, essayClass, {
+        syllabusRows: [
+            {
+                id: 'custom1',
+                kind: 'lesson',
+                date: today,
+                planTitle: 'Opinion draft',
+                trackEssay: true,
+                customEssay: true
+            }
+        ]
+    });
+    const customLink = d.findUniqueEssayListLink(
+        { classes: [customClass], cohorts, essaySubmissions: [] },
+        { studentName: 'Kim', className: '3M Essay', title: 'Opinion draft' }
+    );
+    assert(
+        customLink && customLink.syllabusRowId === 'custom1' && customLink.studentId === 's1',
+        'a hand-added essay links by title when the editor has no due date'
+    );
+    const twinCustom = Object.assign({}, customClass, {
+        syllabusRows: customClass.syllabusRows.concat([
+            {
+                id: 'custom2',
+                kind: 'lesson',
+                date: today,
+                planTitle: 'Opinion draft',
+                trackEssay: true,
+                customEssay: true
+            }
+        ])
+    });
+    assert(
+        d.findUniqueEssayListLink(
+            { classes: [twinCustom], cohorts, essaySubmissions: [] },
+            { studentName: 'Kim', className: '3M Essay', title: 'Opinion draft' }
+        ) === null,
+        'two hand-added essays with the same title are not linked'
+    );
 }
 
 {

@@ -8846,8 +8846,19 @@
         const essayRows = getEssayRowsFromSyllabus(classData.syllabusRows, { classData });
         let row = null;
         if (normalizeStr(q.title)) {
-            const matched = matchEssayAssignmentRow(classData, q.title, q.lessonDate || '', {});
+            const when = normalizeStr(q.assignedDate || q.lessonDate);
+            const matched = matchEssayAssignmentRow(classData, q.title, when, { assignedDate: when });
             row = matched && matched.row ? matched.row : null;
+            if (!row) {
+                const titleKey = normalizeEssayTitleKey(q.title);
+                const titled = essayRows.filter((candidate) => {
+                    const planKey = normalizeEssayTitleKey(candidate && candidate.planTitle);
+                    return titleKey && planKey === titleKey;
+                });
+                if (titled.length === 1) {
+                    row = titled[0];
+                }
+            }
         } else if (essayRows.length === 1) {
             row = essayRows[0];
         }

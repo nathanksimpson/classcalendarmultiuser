@@ -22951,6 +22951,9 @@ function refreshCalendarScopedUi() {
     if (typeof CCPSetupBoard !== 'undefined' && CCPSetupBoard.onCalendarDataChanged) {
         CCPSetupBoard.onCalendarDataChanged();
     }
+    if (typeof CCPClassroomEssays !== 'undefined' && CCPClassroomEssays.onCalendarDataChanged) {
+        CCPClassroomEssays.onCalendarDataChanged();
+    }
     updateSetupGuideBanner();
     refreshClassEditorCohortUiIfOpen();
     if (getActiveTab() === 'homework' || isWorkspacePage()) {
