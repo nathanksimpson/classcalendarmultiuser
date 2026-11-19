@@ -933,7 +933,9 @@ ${classEditHtml(demand)}`;
             scheduleBlock: '',
             meetingDays: [],
             weeklyFrequency: 1,
-            teacherRequirementType: o.type === 'korean' || o.type === 'native' ? o.type : undefined,
+            teacherRequirementType: o.type === 'korean' || o.type === 'native' || o.type === 'either'
+                ? o.type
+                : undefined,
             plannerStudents: o.students > 0 ? o.students : undefined,
             classTeachers: [],
             color: '#64748b',
@@ -999,7 +1001,6 @@ ${classEditHtml(demand)}`;
     function classEditHtml(demand) {
         const cls = api().allClasses(M.data).find((c) => c.id === demand.classId);
         if (!cls) return '';
-        const fullHref = `/?tab=classes&classId=${encodeURIComponent(cls.id)}`;
         const open = state.editClass === demand.demandId;
         const ro = readOnly();
         if (!open) {
@@ -1008,7 +1009,11 @@ ${classEditHtml(demand)}`;
 </div>`;
         }
         const mine = api().getClassCohortIds(cls);
-        const need = cls.teacherRequirementType === 'korean' || cls.teacherRequirementType === 'native' ? cls.teacherRequirementType : 'either';
+        // Prefer the stored choice (incl. explicit "either"); only fall back when unset.
+        const need = cls.teacherRequirementType === 'korean' || cls.teacherRequirementType === 'native'
+            || cls.teacherRequirementType === 'either'
+            ? cls.teacherRequirementType
+            : 'either';
         return `<section class="sp-insp-edit" data-class="${esc(cls.id)}" aria-label="${esc(t('spEditClass', 'Edit class'))}">
   <div class="sp-insp-edit-head">
     <strong>${esc(t('spEditClass', 'Edit class'))}</strong>
@@ -1044,7 +1049,7 @@ ${classEditHtml(demand)}`;
     <button type="button" class="btn btn-outline btn-small" data-act="special-duplicate">${esc(t('spDuplicate', 'Duplicate'))}</button>
     <button type="button" class="btn btn-outline btn-small sp-danger" data-act="special-delete">${esc(t('spDeleteClass', 'Delete class'))}</button>
   </div>` : ''}
-  <a class="sp-link sp-insp-full" href="${esc(fullHref)}" target="_blank" rel="noopener">${esc(t('spEditClassFull', 'Open the full class editor ↗'))}</a>
+  <button type="button" class="sp-link sp-insp-full" data-act="edit-class-full" data-class-id="${esc(cls.id)}">${esc(t('spEditClassFull', 'Open the full class editor ↗'))}</button>
 </section>`;
     }
 
@@ -1060,8 +1065,12 @@ ${classEditHtml(demand)}`;
                 const v = String(el.value || '').trim();
                 if (v) cls.name = v;
             } else if (kind === 'edit-class-type') {
-                if (el.value === 'either') delete cls.teacherRequirementType;
-                else cls.teacherRequirementType = el.value;
+                // Persist "either" so the planner does not re-infer Korean/native from the class name.
+                if (el.value === 'korean' || el.value === 'native' || el.value === 'either') {
+                    cls.teacherRequirementType = el.value;
+                } else {
+                    delete cls.teacherRequirementType;
+                }
             } else if (kind === 'edit-class-freq') {
                 const n = Math.round(Number(el.value));
                 if (n >= 1 && n <= 10) cls.weeklyFrequency = n;
@@ -3807,6 +3816,16 @@ ${by.get(cid).map((d) => `
             state.editClass = null;
             renderInspector();
             break;
+        case 'edit-class-full': {
+            // Same-tab open so planner and full editor share the live calendar (placements / days / teacher type).
+            const classId = el.getAttribute('data-class-id');
+            if (classId && typeof global.openClassEditorFromPlanner === 'function') {
+                global.openClassEditorFromPlanner(classId);
+            } else if (classId && typeof global.navigateToTab === 'function') {
+                global.navigateToTab('classes', { classId });
+            }
+            break;
+        }
         case 'jump-issue': jumpToIssue(el.getAttribute('data-issue')); break;
         case 'jump-slot': showSlot(state.selected, Number(el.getAttribute('data-dow')), el.getAttribute('data-period')); break;
         case 'remove-period': {
@@ -4023,8 +4042,11 @@ ${by.get(cid).map((d) => `
                     if (el.checked) delete cls.plannerExcluded;
                     else cls.plannerExcluded = true;
                     row.classList.toggle('is-off', !el.checked);
-                } else if (el.value === 'either') delete cls.teacherRequirementType;
-                else cls.teacherRequirementType = el.value;
+                } else if (el.value === 'korean' || el.value === 'native' || el.value === 'either') {
+                    cls.teacherRequirementType = el.value;
+                } else {
+                    delete cls.teacherRequirementType;
+                }
             });
         }
     }
