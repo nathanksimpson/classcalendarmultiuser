@@ -328,11 +328,11 @@ Paste this file **and** [`CLAUDE_DESIGN_SCENES.md`](CLAUDE_DESIGN_SCENES.md) (sc
 | What | Path |
 |------|------|
 | Scenes, workflows, and IA (for redesign mockups) | [`CLAUDE_DESIGN_SCENES.md`](CLAUDE_DESIGN_SCENES.md) |
-| UI implementation rules + cookbook | [`UI_STYLE_GUIDE.md`](UI_STYLE_GUIDE.md) |
+| UI implementation rules + cookbook | [`UI_STYLE_GUIDE.md`](UI_STYLE_GUIDE.md) (scroll/sticky/layout: same file, § *Scroll, sticky, and layout stability*) |
 | Syllabus A4 print only (not on-screen UI) | [`Syllabus Style Guide.md`](Syllabus%20Style%20Guide.md) |
 | Token definitions (source of truth) | [`styles.css`](styles.css) `:root` |
 | Dev workflow | [`DEVELOPER.md`](DEVELOPER.md) |
 
 ---
 
-*Aligned with `styles.css` and `UI_STYLE_GUIDE.md` — June 2026.*
+*Aligned with `styles.css` and `UI_STYLE_GUIDE.md` — tokens June 2026; implementation patterns Nov 2026.*

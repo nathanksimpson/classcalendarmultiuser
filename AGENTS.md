@@ -2,6 +2,20 @@
 
 Use this with [DEVELOPER.md](DEVELOPER.md) for day-to-day edits and deploy steps.
 
+## How to work (read this first)
+
+**Full rules:** [docs/AGENT_WORKING_RULES.md](docs/AGENT_WORKING_RULES.md) — investigate, fix root cause, minimal diffs, prove with tests and UI checks, data safety, Nathan’s product UX, and how to report back.
+
+| | |
+|--|--|
+| **Goal** | Right answer + evidence it works — not plausible-looking code. |
+| **Before edit** | Search defs/usages; trace create → save → load → UI; read AGENTS / DEVELOPER / UI_STYLE_GUIDE / SCHEMA. |
+| **Bugs** | Reproduce first; fix cause; revert failed fixes; grep sibling save paths. |
+| **Scope** | Smallest correct change; `shared/*.cjs` + worker + server + en/ko + SCHEMA/tests when needed. |
+| **Done** | `npm test`; visual check (light/dark/narrow); say what was not tested (e.g. TMS at school). |
+| **Safety** | TMS read-only; no real student names in git; confirm destructive migrations; branch + PR — `main` deploys live. |
+| **UX** | Warn don’t block; scope-ordered chrome; drag-only reorder; tokens + plain copy — [UI_STYLE_GUIDE.md](UI_STYLE_GUIDE.md). |
+
 ## Project
 
 | | |
@@ -110,7 +124,7 @@ The calendar edit lock is retired. Everyone with edit access edits at the same t
 | Worker API | `worker/src/index.js`, `worker/src/app-settings.js`, `worker/src/calendar-access.js` |
 | Local server | `server/index.js`, `server/users.js`, `server/calendars.js`, `server/app-settings.js` |
 | Client sync | `js/calendar-sync.js`, `js/team-auth.js`, `js/day-notes-save.js` (`CCPDayNotesSave` → `saveDayNotesOnly`) |
-| Client UI | `app.js`, `index.html`, `styles.css` — follow [UI_STYLE_GUIDE.md](UI_STYLE_GUIDE.md); AI mockups: [CLAUDE_DESIGN_BRIEF.md](CLAUDE_DESIGN_BRIEF.md); syllabus print also needs [Syllabus Style Guide.md](Syllabus%20Style%20Guide.md) |
+| Client UI | `app.js`, `index.html`, `styles.css` — follow [UI_STYLE_GUIDE.md](UI_STYLE_GUIDE.md) (scroll/sticky: same guide § *Scroll, sticky, and layout stability*); AI mockups: [CLAUDE_DESIGN_BRIEF.md](CLAUDE_DESIGN_BRIEF.md); syllabus print also needs [Syllabus Style Guide.md](Syllabus%20Style%20Guide.md) |
 | Debate book periods | `js/debate-periods.js` — start-date book periods (not calendar month only) |
 | Kakao / waiting | `login.html`, `pending-access.html`, `server/kakao.js`, `server/users.js` (`resolveKakaoLoginUser`) |
 | Admin | `admin.html`, `js/admin.js` |
@@ -153,3 +167,13 @@ Stopping local dev does **not** affect the production Cloudflare worker.
 4. For lock bugs: reproduce with `?lockDebug=1`, compare `calendarId` on both browsers
 5. Match worker + server; `npm run deploy` from one PC (cache strings are stamped automatically), then `git push`
 6. **UI updates:** follow [UI_STYLE_GUIDE.md](UI_STYLE_GUIDE.md); update [CLAUDE_DESIGN_BRIEF.md](CLAUDE_DESIGN_BRIEF.md) when tokens or shell layout change; syllabus print layout also needs [Syllabus Style Guide.md](Syllabus%20Style%20Guide.md)
+
+## UI work (scroll, sticky, layout)
+
+Before changing setup tabs, editors, or satellite pages, read **Scroll, sticky, and layout stability** in [UI_STYLE_GUIDE.md](UI_STYLE_GUIDE.md). Short defaults:
+
+- **One primary scroller** per screen — usually the page; inner `overflow: auto` only for grids/lists/modals (planner `.sp-board-scroll`, picker lists). Do not fix wheel traps with tab-wide `wheel` JS.
+- **Sticky** headers use `--app-chrome-sticky-top` plus local toolbar height; class form uses **`overflow: clip`**, not `hidden`, so Save stays pinned.
+- **No layout jump** — reserve lock/sync bar space; keep disabled toolbars in the DOM (Cohorts).
+- **Ship UI** with en+ko i18n, token-only dark theme, `?v=` on touched assets, and CSS comments when scroll choice is easy to regress.
+- **References:** Cohorts + Homework (`styles.css`), `css/design-fidelity-append.css`, `planner.html` / `.sp-*`, `.team-lock-sync-bar--inline`.

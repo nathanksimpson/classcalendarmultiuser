@@ -4,6 +4,8 @@ Quick reference for editing this repo and pushing updates. Teachers use [FOR TEA
 
 **Project location:** `D:\Simson USB\Class Calendar Multi User` on the **Simson USB** stick (drive letter may be `D:`, `E:`, etc.). **GitHub** holds committed code; **production** holds what users see after `npm run deploy`. Those three can disagree briefly (e.g. deployed on work PC but not yet pushed). See [AGENTS.md](AGENTS.md) → *USB portable workflow*.
 
+**AI agents:** working rules (investigate, verify, safety, UX) → [docs/AGENT_WORKING_RULES.md](docs/AGENT_WORKING_RULES.md).
+
 ## Local setup
 
 **Preview requires the server** — opening HTML files directly (or static-only preview) will not load team calendars or save data. Always use `npm start` and http://localhost:8080.
