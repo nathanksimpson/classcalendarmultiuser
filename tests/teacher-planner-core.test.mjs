@@ -484,3 +484,42 @@ await import(pathToFileURL(path.join(root, 'js', 'timetable-periods.js')).href);
     assert(tt === '2:5 2:6 4:5', `timetable reads class placements: ${tt}`);
     console.log('one-teacher class tests passed');
 }
+
+// Explicit "any teacher" (either) must not be re-inferred as Korean from a Grammar-like name.
+{
+    const data = {
+        cohorts: [{ id: 'g', name: 'Green M', meetingDays: [1, 3, 5], schedulePattern: 'mwf', scheduleBlock: 'primary' }],
+        classes: [{
+            id: 'gram-either',
+            name: 'Green M · Grammar',
+            classTypeId: 'builtin-grammar',
+            cohortIds: ['g'],
+            meetingDays: [1, 3, 5],
+            period: 2,
+            placements: [
+                { dow: 1, period: 2 },
+                { dow: 3, period: 2 },
+                { dow: 5, period: 2 }
+            ],
+            teacherRequirementType: 'either',
+            weeklyFrequency: 3
+        }],
+        teacherProfiles: [],
+        rooms: [],
+        plannerDrafts: [],
+        plannerState: null
+    };
+    api.ensurePlannerFields(data);
+    const demands = api.buildDemandsFromAppData(data);
+    assert(demands.length === 1, 'one demand');
+    assert(demands[0].teacherRequirementType === 'either',
+        `explicit either stays either (got ${demands[0].teacherRequirementType})`);
+    assert(demands[0].meetings.length === 3, 'placements drive meetings');
+    assert(demands[0].meetings.map((m) => `${m.dow}:${m.period}`).join(' ') === '1:2 3:2 5:2',
+        'full editor placements are the planner schedule matrix');
+    // Unset → infer Korean from Grammar name (legacy classes).
+    delete data.classes[0].teacherRequirementType;
+    const inferred = api.buildDemandsFromAppData(data)[0];
+    assert(inferred.teacherRequirementType === 'korean', 'unset Grammar still infers korean');
+    console.log('either teacher type + shared placements tests passed');
+}

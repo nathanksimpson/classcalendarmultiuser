@@ -22,7 +22,8 @@
     /**
      * Who may teach a class when nobody set it: Speaking & Writing, Debate and Conversation are native-teacher
      * classes; Grammar, RC, Reading, Phonics, TOEFL, News and Animation are Korean-teacher classes.
-     * An explicit choice on the class always wins.
+     * An explicit choice on the class always wins — including teacherRequirementType: 'either' (any teacher).
+     * Do not delete 'either' on save; otherwise this inference wrongly re-applies Korean/native from the name.
      */
     function inferTeacherRequirement(cls) {
         const type = normalizeStr(cls && cls.classTypeId);

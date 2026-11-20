@@ -37,7 +37,7 @@
             'js/planner/teacher-planner-snapshots.js?v=20261116-planner-snap',
             'js/planner/teacher-planner-auto.js?v=20261117-subject',
             SCRIPT_TMS_SCHEDULE_IMPORT,
-            'js/planner/teacher-planner-ui.js?v=20261118-gen-subjects'
+            'js/planner/teacher-planner-ui.js?v=20261120-class-autosave'
         ],
         drafter: [
             'js/level-progression.js?v=20261117-drafter',
