@@ -83,8 +83,9 @@
             <button type="button" id="viewAsBannerExitBtn" class="btn btn-small view-as-banner-exit" data-view-as-i18n="viewAsExitBtn">Exit View As</button>
         </div>
     </div>
+    <!-- Notice bar lives on <body>, not in the header: the header's blur traps it under popouts. -->
+    <div id="appNoticeRail" class="app-notice-rail" role="status" aria-live="polite" aria-hidden="true"></div>
     <header class="app-top-bar app-top-bar--global" id="appTopBar">
-            <div id="appNoticeRail" class="app-notice-rail" role="status" aria-live="polite" aria-hidden="true"></div>
 
             <div class="app-top-bar-compact">
                 <div class="app-header-unified" id="appHeaderUnified">

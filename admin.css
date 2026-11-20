@@ -533,3 +533,24 @@ html.admin-view-as-readonly .admin-actions-cell {
         min-height: 44px;
     }
 }
+
+/* Monitor › Error log */
+.admin-error-row {
+    cursor: pointer;
+}
+.admin-error-row:hover td {
+    background: var(--bg-secondary, rgba(148, 163, 184, 0.12));
+}
+.admin-error-row strong {
+    color: var(--danger, #b91c1c);
+    font-weight: 600;
+}
+.admin-error-pre {
+    margin: 0;
+    max-height: 18rem;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 0.75rem;
+    line-height: 1.45;
+}

@@ -1127,6 +1127,32 @@ app.get('/api/admin/activity', requireAdminUser, requirePermission(Auth.PERMS.VI
     res.json(ActivityLog.listActivity({ limit, calendarId }));
 });
 
+// Browser error log (Admin › Monitor › Error log). Same routes as the Worker.
+app.post(
+    '/api/client-errors',
+    rateLimit.rateLimitMiddleware('client_errors', 30, 10 * 60 * 1000),
+    requireUser,
+    (req, res) => {
+        const saved = ActivityLog.recordClientErrors(req.user, req.body && req.body.errors);
+        res.json({ ok: true, saved });
+    }
+);
+
+app.get('/api/admin/client-errors', requireAdminUser, requirePermission(Auth.PERMS.VIEW_AUDIT), (req, res) => {
+    res.json(ActivityLog.listActivity({ limit: req.query.limit || 200, action: 'client_error' }));
+});
+
+app.delete(
+    '/api/admin/client-errors',
+    requireAdminUser,
+    rejectViewAsWrites,
+    requirePermission(Auth.PERMS.VIEW_AUDIT),
+    (_req, res) => {
+        ActivityLog.clearClientErrors();
+        res.json({ ok: true });
+    }
+);
+
 app.get('/api/admin/presence', requireAdminUser, requirePermission(Auth.PERMS.VIEW_PRESENCE), (_req, res) => {
     res.json(Presence.listOnlinePresence());
 });

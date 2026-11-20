@@ -1233,6 +1233,35 @@ export default {
             }
         }
 
+        // Browser error log (Admin › Monitor › Error log). Any signed-in account; rate limited.
+        if (path === '/api/client-errors' && request.method === 'POST') {
+            const errUser = await requireCookieUser(request, env);
+            if (!errUser) {
+                return json({ error: 'Not signed in' }, 401);
+            }
+            const limited = await rateLimitByKeyOr429(
+                env,
+                `client_errors:user:${errUser.id}`,
+                30,
+                10 * 60 * 1000
+            );
+            if (limited) {
+                return limited;
+            }
+            const text = await request.text();
+            if (text.length > 64 * 1024) {
+                return json({ error: 'Too large' }, 413);
+            }
+            let body = null;
+            try {
+                body = JSON.parse(text || '{}');
+            } catch (_) {
+                return json({ error: 'Invalid JSON' }, 400);
+            }
+            const saved = await ActivityLog.recordClientErrors(env, errUser, body && body.errors);
+            return json({ ok: true, saved });
+        }
+
         if (path === '/api/auth/me' && request.method === 'GET') {
             const ctx = await resolveRequestContext(env, request);
             if (!ctx || !ctx.effective) {
@@ -2774,6 +2803,31 @@ export default {
                     calendarId: url.searchParams.get('calendarId')
                 })
             );
+        }
+
+        if (path === '/api/admin/client-errors' && request.method === 'GET') {
+            if (!Auth.hasPermission(user, Auth.PERMS.VIEW_AUDIT)) {
+                return json({ error: 'Forbidden' }, 403);
+            }
+            const url = new URL(request.url);
+            return json(
+                await ActivityLog.listActivity(env, {
+                    limit: url.searchParams.get('limit') || 200,
+                    action: 'client_error'
+                })
+            );
+        }
+
+        if (path === '/api/admin/client-errors' && request.method === 'DELETE') {
+            const blocked = rejectViewAsJson();
+            if (blocked) {
+                return blocked;
+            }
+            if (!Auth.hasPermission(user, Auth.PERMS.VIEW_AUDIT)) {
+                return json({ error: 'Forbidden' }, 403);
+            }
+            await ActivityLog.clearClientErrors(env);
+            return json({ ok: true });
         }
 
         if (path === '/api/admin/presence' && request.method === 'GET') {

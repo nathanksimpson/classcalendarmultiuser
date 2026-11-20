@@ -34,7 +34,18 @@
     }
 
     function getNoticeRail() {
-        return document.getElementById('appNoticeRail');
+        const el = document.getElementById('appNoticeRail');
+        // Inside a blurred/positioned parent (e.g. an old cached header) the bar sits under
+        // popouts and gets blurred with the page. Keep it a direct child of <body>.
+        if (el && el.parentElement && el.parentElement !== document.body && document.body) {
+            document.body.insertBefore(el, document.body.firstChild);
+        }
+        return el;
+    }
+
+    /** A popout (modal) is open: errors stay until dismissed so they can be read. */
+    function modalIsOpen() {
+        return Boolean(document.querySelector('.modal.active, .modal[aria-hidden="false"]:not([hidden])'));
     }
 
     function getDismissLabel() {
@@ -140,6 +151,9 @@
     }
 
     function resolveDuration(type, options) {
+        if (type === 'error' && modalIsOpen()) {
+            return 0;
+        }
         if (typeof options.duration === 'number') {
             return options.duration;
         }
@@ -150,6 +164,9 @@
     }
 
     function shouldShowDismiss(type, options) {
+        if (type === 'error' && modalIsOpen()) {
+            return true;
+        }
         if (typeof options.dismissible === 'boolean') {
             return options.dismissible;
         }
@@ -412,6 +429,128 @@
         NOTICE_DURATIONS
     };
     global.CCPNotice = { show: showNotice, dismiss: dismissNotice };
+
+    /*
+     * Error log: error notices, uncaught errors and rejected promises go to
+     * Admin › Monitor › Error log (POST /api/client-errors). Batched, de-duplicated, capped.
+     */
+    const ERROR_LOG_FLUSH_MS = 2500;
+    const ERROR_LOG_MAX_PER_PAGE = 60;
+    let errorQueue = [];
+    let errorFlushTimer = null;
+    let errorSentCount = 0;
+    const recentErrors = new Map();
+
+    function errorContext() {
+        const parts = [];
+        const modal = document.querySelector('.modal.active, .modal[aria-hidden="false"]:not([hidden])');
+        if (modal && modal.id) {
+            parts.push('popout:' + modal.id);
+        }
+        const tab = document.querySelector('.app-tab-panel:not([hidden])');
+        if (tab && tab.id) {
+            parts.push('tab:' + tab.id.replace(/^panel-/, ''));
+        }
+        return parts.join(' ');
+    }
+
+    function buildStamp() {
+        const script = document.querySelector('script[src*="app.js"]');
+        const m = script && /[?&]v=([^&]+)/.exec(script.getAttribute('src') || '');
+        return m ? m[1] : '';
+    }
+
+    function flushErrors() {
+        errorFlushTimer = null;
+        if (!errorQueue.length || typeof fetch !== 'function') {
+            return;
+        }
+        const batch = errorQueue.splice(0, 10);
+        try {
+            fetch('/api/client-errors', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ errors: batch }),
+                keepalive: true
+            }).catch(() => {});
+        } catch (_) {
+            /* never let logging throw */
+        }
+        if (errorQueue.length) {
+            errorFlushTimer = global.setTimeout(flushErrors, ERROR_LOG_FLUSH_MS);
+        }
+    }
+
+    function reportError(info) {
+        try {
+            const message = String((info && info.message) || '').trim();
+            if (!message || errorSentCount >= ERROR_LOG_MAX_PER_PAGE) {
+                return;
+            }
+            // Our own logging request failing must not log itself.
+            if (/\/api\/client-errors/.test(message)) {
+                return;
+            }
+            const key = (info.kind || '') + '|' + message;
+            const now = Date.now();
+            const prev = recentErrors.get(key);
+            if (prev && now - prev.at < 60000) {
+                prev.entry.count = (prev.entry.count || 1) + 1;
+                return;
+            }
+            const entry = {
+                message: message.slice(0, 500),
+                kind: info.kind || 'error',
+                context: info.context || errorContext(),
+                stack: String(info.stack || '').slice(0, 4000),
+                page: location.pathname + location.hash,
+                build: buildStamp(),
+                userAgent: navigator.userAgent,
+                at: new Date().toISOString(),
+                count: 1
+            };
+            recentErrors.set(key, { at: now, entry });
+            errorQueue.push(entry);
+            errorSentCount += 1;
+            if (!errorFlushTimer) {
+                errorFlushTimer = global.setTimeout(flushErrors, ERROR_LOG_FLUSH_MS);
+            }
+        } catch (_) {
+            /* ignore */
+        }
+    }
+
+    global.CCPErrorLog = { report: reportError };
+
+    const baseShowNotice = global.CCPNotice.show;
+    global.CCPNotice.show = function (message, opts) {
+        if (opts && opts.type === 'error') {
+            reportError({ message: String(message || ''), kind: 'notice' });
+        }
+        return baseShowNotice(message, opts);
+    };
+    global.addEventListener('error', (event) => {
+        if (!event || !event.message) {
+            return; // resource load errors have no message
+        }
+        reportError({
+            message: event.message,
+            kind: 'uncaught',
+            stack:
+                (event.error && event.error.stack) ||
+                `${event.filename || ''}:${event.lineno || ''}:${event.colno || ''}`
+        });
+    });
+    global.addEventListener('unhandledrejection', (event) => {
+        const reason = event && event.reason;
+        reportError({
+            message: (reason && (reason.message || String(reason))) || 'Unhandled promise rejection',
+            kind: 'promise',
+            stack: reason && reason.stack
+        });
+    });
+    global.addEventListener('pagehide', flushErrors);
 
     if (typeof document !== 'undefined') {
         if (document.readyState === 'loading') {

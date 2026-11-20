@@ -257,6 +257,10 @@ function applyAdminTabVisibility() {
     if (monActivity) {
         monActivity.hidden = !adminHasPerm('view_audit');
     }
+    const monErrors = document.getElementById('monitorErrorsBlock');
+    if (monErrors) {
+        monErrors.hidden = !adminHasPerm('view_audit');
+    }
     if (anyTab && !adminTabVisible(activeAdminTab)) {
         const first = firstVisibleAdminTab();
         if (first) {
@@ -1930,6 +1934,77 @@ async function loadActivity() {
     });
 }
 
+/** Admin › Monitor › Error log: browser errors sent by js/page-chrome.js. */
+async function loadClientErrors() {
+    if (!adminHasPerm('view_audit')) {
+        return;
+    }
+    const body = document.getElementById('errorLogBody');
+    if (!body) {
+        return;
+    }
+    let rows = [];
+    try {
+        rows = await api('/admin/client-errors?limit=200');
+    } catch (_) {
+        rows = [];
+    }
+    body.innerHTML = '';
+    if (!Array.isArray(rows) || !rows.length) {
+        renderEmptyRow(body, 4, 'errorLogEmpty');
+        return;
+    }
+    rows.forEach((row) => {
+        const d = row.detail || {};
+        const tr = document.createElement('tr');
+        tr.className = 'admin-error-row';
+        const when = row.createdAt ? new Date(row.createdAt).toLocaleString() : '—';
+        const where = [d.context, d.page].filter(Boolean).join(' · ') || '—';
+        const repeated = d.count > 1 ? ' ' + t('errorLogRepeated', { count: d.count }) : '';
+        tr.innerHTML =
+            '<td>' + escapeHtml(when) + '</td>' +
+            '<td>' + escapeHtml(row.actorName || '—') + '</td>' +
+            '<td>' + escapeHtml(where) + '</td>' +
+            '<td><strong>' + escapeHtml(row.summary || '—') + '</strong>' + escapeHtml(repeated) + '</td>';
+        const detailTr = document.createElement('tr');
+        detailTr.className = 'admin-error-detail';
+        detailTr.hidden = true;
+        const lines = [
+            'Kind: ' + (d.kind || ''),
+            'Calendar: ' + (row.calendarName || row.calendarId || ''),
+            'Page: ' + (d.page || ''),
+            'Build: ' + (d.build || ''),
+            'Browser: ' + (d.userAgent || ''),
+            '',
+            d.stack || ''
+        ];
+        detailTr.innerHTML =
+            '<td colspan="4"><pre class="admin-error-pre">' + escapeHtml(lines.join('\n').trim()) + '</pre></td>';
+        tr.addEventListener('click', () => {
+            detailTr.hidden = !detailTr.hidden;
+        });
+        body.appendChild(tr);
+        body.appendChild(detailTr);
+    });
+}
+
+function bindErrorLog() {
+    document.getElementById('errorLogRefreshBtn')?.addEventListener('click', () => {
+        void loadClientErrors();
+    });
+    document.getElementById('errorLogClearBtn')?.addEventListener('click', async () => {
+        if (!confirm(t('errorLogConfirmClear'))) {
+            return;
+        }
+        try {
+            await api('/admin/client-errors', { method: 'DELETE' });
+        } catch (_) {
+            /* shown by api() */
+        }
+        void loadClientErrors();
+    });
+}
+
 async function refreshAll() {
     refreshInFlight += 1;
     setSessionStatus(sessionStatusText);
@@ -1953,6 +2028,7 @@ async function refreshAll() {
         if (adminTabVisible('monitor')) {
             await loadPresence();
             await loadActivity();
+            await loadClientErrors();
         }
     } finally {
         refreshInFlight -= 1;
@@ -2251,6 +2327,7 @@ async function init() {
     setupAdminTabs();
     setupAccountsToolbar();
     setupBootstrapForm();
+    bindErrorLog();
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible' && currentAdminId) {
             refreshAll().catch(() => {});

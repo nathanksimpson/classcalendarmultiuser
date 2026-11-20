@@ -14828,7 +14828,8 @@ html[data-viewport="phone"] body.workspace-page .module-list-panel {
     top: 0;
     left: 0;
     right: 0;
-    z-index: var(--z-modal-popover);
+    /* Above popouts and their menus, so it is never under the modal blur. */
+    z-index: var(--z-toast);
     padding: max(var(--space-2), var(--safe-top)) max(var(--space-4), var(--safe-right)) var(--space-2) max(var(--space-4), var(--safe-left));
     font-size: var(--text-body-md, 0.875rem);
     font-weight: 500;
