@@ -695,12 +695,47 @@
         return n;
     }
 
-    function roleCountsFromDebates(debates) {
+    /** Government or opposition, from a bench id (gov/opp, og/oo/cg/co). */
+    function sideOfBench(benchId, benchIndex) {
+        const id = String(benchId || '').toLowerCase();
+        if (id === 'gov' || id === 'og' || id === 'cg' || id === 'aff' || id === 'pro') return 'gov';
+        if (id === 'opp' || id === 'oo' || id === 'co' || id === 'neg' || id === 'con') return 'opp';
+        return benchIndex % 2 === 0 ? 'gov' : 'opp';
+    }
+
+    /**
+     * Speaking slot, the same on both sides: PM and LO are both "o0" (first speaker of an opening
+     * team), DPM/DLO "o1", whips last; closing teams in BP are "c0", "c1".
+     */
+    function slotKey(benchId, indexInBench) {
+        const id = String(benchId || '').toLowerCase();
+        return (id === 'cg' || id === 'co' ? 'c' : 'o') + String(indexInBench);
+    }
+
+    /**
+     * Role history of saved debates. Per student: each role held ("PM": 2), each speaking slot
+     * ("slot:o0"), each side ("side:gov"). With options.markLast it also records the slot and side of
+     * these debates as the student's latest ("last:slot:o0", "last:side:gov").
+     */
+    function roleCountsFromDebates(debates, options) {
+        const markLast = !!(options && options.markLast);
         const counts = {};
         (debates || []).forEach((debate) => {
-            (debate.benches || []).forEach((bench) => {
-                (bench.members || []).forEach((member) => {
-                    addRoleCount(counts, member, roleAbbrOf(member && member.role));
+            (debate.benches || []).forEach((bench, benchIndex) => {
+                (bench.members || []).forEach((member, i) => {
+                    const abbr = roleAbbrOf(member && member.role);
+                    if (!abbr) {
+                        return;
+                    }
+                    const slot = 'slot:' + slotKey(bench.id, i);
+                    const side = 'side:' + sideOfBench(bench.id, benchIndex);
+                    addRoleCount(counts, member, abbr);
+                    addRoleCount(counts, member, slot);
+                    addRoleCount(counts, member, side);
+                    if (markLast) {
+                        addRoleCount(counts, member, 'last:' + slot);
+                        addRoleCount(counts, member, 'last:' + side);
+                    }
                 });
             });
         });
@@ -736,20 +771,30 @@
         const excludePeriodKey = String(options.excludePeriodKey || '').trim();
         const excludeDate = String(options.excludeDate || '').trim();
         const counts = {};
-        (sessions || []).forEach((session) => {
+        const kept = (sessions || []).filter((session) => {
             if (!session || !session.sessionState) {
-                return;
+                return false;
             }
             if (classId && String(session.classId || '') !== classId) {
-                return;
+                return false;
             }
             if (excludePeriodKey && String(session.periodKey || '') === excludePeriodKey) {
-                return;
+                return false;
             }
             if (excludeDate && String(session.date || '') === excludeDate) {
-                return;
+                return false;
             }
-            const part = roleCountsFromDebates(session.sessionState.debates);
+            return true;
+        });
+        // The latest session (by date) is remembered so the next one avoids the same slot and side.
+        let latest = null;
+        kept.forEach((session) => {
+            if (!latest || String(session.date || '') > String(latest.date || '')) {
+                latest = session;
+            }
+        });
+        kept.forEach((session) => {
+            const part = roleCountsFromDebates(session.sessionState.debates, { markLast: session === latest });
             Object.keys(part).forEach((key) => {
                 if (!counts[key]) {
                     counts[key] = {};
@@ -767,7 +812,47 @@
      * When someone has held a role more than the others, that role goes to a
      * student who has held it fewer times.
      */
-    function assignPeopleToSeats(people, seats, counts) {
+    /**
+     * How much this student should not get this seat, from their history: the same role (most), the
+     * same speaking slot on either side (PM after LO), being on the same side again, and above all the
+     * slot and side they had last time.
+     */
+    function seatCost(counts, person, seat) {
+        const abbr = roleAbbrOf(seat.role);
+        if (!abbr) {
+            return 0;
+        }
+        const slot = 'slot:' + seat.slot;
+        const side = 'side:' + seat.side;
+        const other = 'side:' + (seat.side === 'gov' ? 'opp' : 'gov');
+        return 4 * roleCount(counts, person, abbr)
+            + 3 * roleCount(counts, person, slot)
+            + 2 * Math.max(0, roleCount(counts, person, side) - roleCount(counts, person, other))
+            + (roleCount(counts, person, 'last:' + slot) ? 6 : 0)
+            + (roleCount(counts, person, 'last:' + side) ? 3 : 0);
+    }
+
+    /** Give each seat its speaking slot and side (from its bench and its place on that bench). */
+    function tagSeats(seats) {
+        const perBench = {};
+        const benchOrder = [];
+        return seats.map((seat) => {
+            const id = seat.benchId;
+            if (!(id in perBench)) {
+                perBench[id] = 0;
+                benchOrder.push(id);
+            }
+            const i = perBench[id];
+            perBench[id] += 1;
+            return Object.assign({}, seat, {
+                slot: slotKey(id, i),
+                side: sideOfBench(id, benchOrder.indexOf(id))
+            });
+        });
+    }
+
+    function assignPeopleToSeats(people, seatsIn, counts) {
+        const seats = tagSeats(seatsIn);
         const remainingPeople = people.slice();
         const remainingSeats = seats.map((seat, index) => ({ seat, index }));
         const placed = new Array(seats.length);
@@ -779,7 +864,7 @@
                 let min = Infinity;
                 let max = -1;
                 remainingPeople.forEach((person) => {
-                    const n = roleCount(counts, person, abbr);
+                    const n = seatCost(counts, person, wrap.seat);
                     if (n < min) {
                         min = n;
                     }
@@ -798,17 +883,16 @@
             });
             const si = seatChoices[Math.floor(Math.random() * seatChoices.length)];
             const wrap = remainingSeats[si];
-            const abbr = roleAbbrOf(wrap.seat.role);
             let min = Infinity;
             remainingPeople.forEach((person) => {
-                const n = roleCount(counts, person, abbr);
+                const n = seatCost(counts, person, wrap.seat);
                 if (n < min) {
                     min = n;
                 }
             });
             const candidates = [];
             remainingPeople.forEach((person, pi) => {
-                if (roleCount(counts, person, abbr) === min) {
+                if (seatCost(counts, person, wrap.seat) === min) {
                     candidates.push(pi);
                 }
             });
@@ -1032,7 +1116,7 @@
             }
         }
         const past = bridge && typeof bridge.pastRoleCounts === 'function' ? bridge.pastRoleCounts() : null;
-        state.debates = assignDebates(mergeRoleCounts(past, roleCountsFromDebates(state.debates)));
+        state.debates = assignDebates(mergeRoleCounts(past, roleCountsFromDebates(state.debates, { markLast: true })));
         notifySave();
         render();
     }
@@ -1057,7 +1141,7 @@
                 ? options.roleCounts
                 : mergeRoleCounts(
                       bridge && typeof bridge.pastRoleCounts === 'function' ? bridge.pastRoleCounts() : null,
-                      roleCountsFromDebates(state.debates)
+                      roleCountsFromDebates(state.debates, { markLast: true })
                   );
         state.debates = assignDebates(counts);
         if (options.notify !== false) {

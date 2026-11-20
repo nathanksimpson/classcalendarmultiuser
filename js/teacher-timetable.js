@@ -1554,12 +1554,28 @@
             const onClass = item.classData.scheduleBlock === 'secondary' ? 'secondary' : 'primary';
             return onClass === blockId;
         }
-        if (scheduleItems.some((item) => itemUsesBlock(item, 'primary')) || !scheduleItems.length) {
-            resultBlocks.push(blocks.primary);
-        }
+        // One teacher, one week, one grid. Both schedule blocks use the same time slots, so classes on
+        // the secondary block go into the same table (screen and print) instead of a second copy of it.
+        // A primary and a secondary class in the same slot is a real double booking and shows as one.
         if (scheduleItems.some((item) => itemUsesBlock(item, 'secondary'))) {
-            resultBlocks.push(blocks.secondary);
+            blocks.secondary.rows.forEach((srcRow) => {
+                const dest = blocks.primary.rows.find((r) => r.timeSlotId === srcRow.timeSlotId);
+                if (!dest) {
+                    return;
+                }
+                srcRow.cells.forEach((srcCell) => {
+                    const cell = dest.cells.find((c) => c.dow === srcCell.dow);
+                    if (!cell || !srcCell.entries.length) {
+                        return;
+                    }
+                    srcCell.entries.forEach((entry) => {
+                        cell.entries.push(Object.assign({ blockId: 'secondary' }, entry));
+                    });
+                    cell.conflict = cell.entries.length > 1;
+                });
+            });
         }
+        resultBlocks.push(blocks.primary);
 
         const gridForConflicts = {
             teacherName: displayName,
