@@ -1687,6 +1687,42 @@ assert(scheduledFallback[0].date === '2026-05-26', 'fallback first debate date')
 }
 
 {
+    const other = {
+        id: 'es-other',
+        classId: 'cls-b',
+        syllabusRowId: 'row9',
+        records: [{ studentId: 'z1', status: 'complete', note: '' }]
+    };
+    const prev = [
+        {
+            id: 'es1',
+            classId: 'cls-essay',
+            syllabusRowId: 'row1',
+            records: [
+                { studentId: 's1', status: 'submitted', note: '' },
+                { studentId: 's2', status: 'submitted', note: 'keep' }
+            ]
+        },
+        other
+    ];
+    const next = d.setEssayStudentStatus(prev, {
+        classId: 'cls-essay',
+        syllabusRowId: 'row1',
+        studentId: 's1',
+        status: 'complete'
+    }).submissions;
+    const mutations = d.buildEssaySubmissionMutations(prev, next);
+    assert(mutations.length === 1, 'only the changed assignment is sent');
+    assert(mutations[0].entity === 'essaySubmissions' && mutations[0].action === 'upsert', 'status save is an upsert');
+    assert(
+        mutations[0].payload.submission.touchedStudentIds.join(',') === 's1',
+        'only the changed student is touched'
+    );
+    const same = d.buildEssaySubmissionMutations(next, next);
+    assert(same.length === 0, 'unchanged list sends no mutations');
+}
+
+{
     const preview = {
         updates: [
             {

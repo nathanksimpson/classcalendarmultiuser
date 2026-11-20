@@ -2588,6 +2588,56 @@
         return patch;
     }
 
+    /**
+     * Change one student's status on the open draft through the same domain
+     * helper the batch editor uses (setEssayStudentStatus).
+     */
+    function applyEssayStatusToDraft(studentId, nextStatus, extra) {
+        const d = domain();
+        const prev = getRecord(studentId);
+        if (!draftSubmission || !studentId || !nextStatus) {
+            return { changed: false, prev, next: prev };
+        }
+        if (d && typeof d.setEssayStudentStatus === 'function') {
+            const result = d.setEssayStudentStatus([draftSubmission], {
+                classId: draftSubmission.classId || classId,
+                syllabusRowId: draftSubmission.syllabusRowId || syllabusRowId,
+                studentId,
+                status: nextStatus,
+                timing: extra && extra.timing,
+                retestAssigned: extra && extra.retestAssigned,
+                retestPassed: extra && extra.retestPassed,
+                submittedRetest: extra && extra.submittedRetest,
+                lessonDate: draftSubmission.lessonDate || lessonDate,
+                ssDueDate: draftSubmission.ssDueDate,
+                teacherEvalDueDate: draftSubmission.teacherEvalDueDate
+            });
+            if (result.error) {
+                return { changed: false, prev, next: prev };
+            }
+            const nextDraft =
+                (typeof d.findEssaySubmission === 'function'
+                    ? d.findEssaySubmission(
+                        result.submissions,
+                        draftSubmission.classId || classId,
+                        draftSubmission.syllabusRowId || syllabusRowId
+                    )
+                    : null) || (result.submissions && result.submissions[0]) || null;
+            if (!nextDraft) {
+                return { changed: false, prev, next: prev };
+            }
+            draftSubmission = nextDraft;
+            return { changed: true, prev, next: result.record };
+        }
+        const patch = Object.assign(
+            buildStatusPatch(prev ? prev.status : 'not_submitted', nextStatus, extra && extra.timing),
+            extra && extra.retestAssigned != null ? { retestAssigned: extra.retestAssigned } : {},
+            extra && extra.retestPassed != null ? { retestPassed: extra.retestPassed } : {},
+            extra && extra.submittedRetest != null ? { submittedRetest: extra.submittedRetest } : {}
+        );
+        return setRecord(studentId, patch);
+    }
+
     async function applyStatusChange(panel, studentId, nextStatus) {
         const rec = getRecord(studentId);
         const prevStatus = rec ? rec.status : 'not_submitted';
@@ -2602,8 +2652,7 @@
             }
             timing = choice;
         }
-        const patch = buildStatusPatch(prevStatus, nextStatus, timing);
-        const result = setRecord(studentId, patch);
+        const result = applyEssayStatusToDraft(studentId, nextStatus, { timing });
         if (recordAffectsResubmitDayNote(result.prev, result.next)) {
             markResubmitDayNoteDirty();
         }
@@ -4580,8 +4629,10 @@
         selected.forEach((sid) => {
             const rec = getRecord(sid);
             const prevStatus = rec ? rec.status : 'not_submitted';
-            const patch = buildStatusPatch(prevStatus, targetStatus, timing);
-            const result = setRecord(sid, patch);
+            if (prevStatus === targetStatus) {
+                return;
+            }
+            const result = applyEssayStatusToDraft(sid, targetStatus, { timing });
             if (recordAffectsResubmitDayNote(result.prev, result.next)) {
                 markResubmitDayNoteDirty();
             }
@@ -5367,18 +5418,112 @@
         renderFooterHint(panel);
     }
 
+    function essayRecordFingerprint(rec) {
+        const d = domain();
+        const row =
+            d && typeof d.normalizeEssayRecord === 'function' ? d.normalizeEssayRecord(rec) : rec;
+        return row ? JSON.stringify(row) : '';
+    }
+
+    function listTouchedStudentIds(prevRecords, nextRecords) {
+        const prevById = new Map();
+        (Array.isArray(prevRecords) ? prevRecords : []).forEach((row) => {
+            if (row && row.studentId != null) {
+                prevById.set(String(row.studentId), essayRecordFingerprint(row));
+            }
+        });
+        const touched = [];
+        (Array.isArray(nextRecords) ? nextRecords : []).forEach((row) => {
+            if (!row || row.studentId == null) {
+                return;
+            }
+            const nextFp = essayRecordFingerprint(row);
+            const prevFp = prevById.get(String(row.studentId));
+            if (prevFp === undefined) {
+                const emptyFp = essayRecordFingerprint({
+                    studentId: row.studentId,
+                    status: 'not_submitted'
+                });
+                if (nextFp === emptyFp) {
+                    return;
+                }
+            }
+            if (prevFp !== nextFp) {
+                touched.push(String(row.studentId));
+            }
+        });
+        return touched;
+    }
+
+    /**
+     * Copy only this page's edited students (and due dates) onto the calendar list.
+     * Other students on the assignment keep the copy already in appData.
+     */
+    function overlayEssayDraftOnList(prevList, draft, touchedIds) {
+        const d = domain();
+        const prev = Array.isArray(prevList) ? prevList : [];
+        if (!d || !draft || typeof d.upsertEssaySubmission !== 'function') {
+            return prev;
+        }
+        const existing =
+            typeof d.findEssaySubmission === 'function'
+                ? d.findEssaySubmission(prev, draft.classId, draft.syllabusRowId)
+                : null;
+        if (!existing) {
+            return d.upsertEssaySubmission(prev, draft);
+        }
+        const touched = new Set((touchedIds || []).map(String));
+        const byId = new Map();
+        (existing.records || []).forEach((row) => {
+            if (row && row.studentId != null) {
+                byId.set(String(row.studentId), Object.assign({}, row));
+            }
+        });
+        (draft.records || []).forEach((row) => {
+            if (!row || row.studentId == null) {
+                return;
+            }
+            if (!touched.has(String(row.studentId))) {
+                return;
+            }
+            byId.set(String(row.studentId), Object.assign({}, row));
+        });
+        const next = Object.assign({}, existing, {
+            lessonDate: draft.lessonDate,
+            ssDueDate: draft.ssDueDate,
+            teacherEvalDueDate: draft.teacherEvalDueDate,
+            records: Array.from(byId.values())
+        });
+        return d.upsertEssaySubmission(prev, next);
+    }
+
+    function buildEssaySavePayload(prevList, draft, baseline) {
+        const d = domain();
+        const prev = Array.isArray(prevList) ? prevList : [];
+        if (!d || !draft) {
+            return { nextList: prev, mutations: [], touchedStudentIds: [] };
+        }
+        const touched = listTouchedStudentIds(baseline && baseline.records, draft.records);
+        const nextList = overlayEssayDraftOnList(prev, draft, touched);
+        const mutations =
+            typeof d.buildEssaySubmissionMutations === 'function'
+                ? d.buildEssaySubmissionMutations(prev, nextList)
+                : [];
+        return { nextList, mutations, touchedStudentIds: touched };
+    }
+
     async function persistEssays(panel, options) {
         const opt = options || {};
         const editable = access() && access().canEditClass(getClassData());
         if (!editable || !draftSubmission) {
             return;
         }
-        const d = domain();
         const data = getAppData();
         absorbServerEssaySubmission();
         draftSubmission.syllabusRowId = syllabusRowId;
         draftSubmission.lessonDate = lessonDate;
-        const submissions = d.upsertEssaySubmission(data.essaySubmissions, draftSubmission);
+        const prevList = Array.isArray(data.essaySubmissions) ? data.essaySubmissions : [];
+        const payload = buildEssaySavePayload(prevList, draftSubmission, draftBaseline);
         const preSaveSignature = getDraftRenderSignature();
         const saveBtn = panel && panel.querySelector('#classroomEssaysSaveBtn');
 
@@ -5386,12 +5531,18 @@
             saveBtn.disabled = true;
         }
         try {
-            await hooks.saveClassroom({ essaySubmissions: submissions });
+            const didSave = payload.mutations.length > 0;
+            if (didSave) {
+                await hooks.saveClassroom({
+                    essaySubmissions: payload.nextList,
+                    mutations: payload.mutations
+                });
+            }
             if (!opt.silent) {
                 hooks.showToast(t('saved'));
             }
             const draftUnchanged = preSaveSignature === getDraftRenderSignature();
-            if (draftUnchanged) {
+            if (didSave && draftUnchanged) {
                 loadSubmission();
             }
             const panelVisible = panel && !panel.hidden && !isTypingInEssayNote(panel);
@@ -6631,34 +6782,6 @@
         if (!ping || !ping.classId || !ping.syllabusRowId || !ping.studentId || !ping.status) {
             return;
         }
-        const d = domain();
-        const data = getAppData();
-        if (d && data && Array.isArray(data.essaySubmissions) && typeof d.setEssayStudentStatus === 'function') {
-            const result = d.setEssayStudentStatus(data.essaySubmissions, {
-                classId: ping.classId,
-                syllabusRowId: ping.syllabusRowId,
-                studentId: ping.studentId,
-                status: ping.status,
-                timing: ping.submissionLate ? 'late' : 'on_time',
-                retestAssigned: ping.retestAssigned,
-                retestPassed: ping.retestPassed,
-                submittedRetest: ping.submittedRetest
-            });
-            if (!result.error) {
-                data.essaySubmissions = result.submissions;
-            }
-        }
-        if (ping.noteUpdated && d && data && typeof d.setEssayStudentNote === 'function') {
-            const noted = d.setEssayStudentNote(data.essaySubmissions, {
-                classId: ping.classId,
-                syllabusRowId: ping.syllabusRowId,
-                studentId: ping.studentId,
-                note: ping.note
-            });
-            if (!noted.error) {
-                data.essaySubmissions = noted.submissions;
-            }
-        }
         if (
             !draftSubmission ||
             draftSubmission.classId !== ping.classId ||
@@ -6811,6 +6934,8 @@
         applyStagedBatchToRecord,
         applyBatchStatusToRecords,
         mergeEssayDraftFromServer,
+        buildEssaySavePayload,
+        applyEssayStatusToDraft,
         onCalendarDataChanged: absorbServerEssaySubmission,
         essayStatsSegmentFlex,
         recordAffectsResubmitDayNote,

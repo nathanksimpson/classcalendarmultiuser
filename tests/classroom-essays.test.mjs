@@ -637,6 +637,91 @@ const { CCPClassroomEssays } = sandbox.window;
     assert(again.changedIds.length === 0, 'nothing else changed on the second merge');
 }
 
+{
+    const prevList = [
+        {
+            id: 'es1',
+            classId: 'c1',
+            syllabusRowId: 'r1',
+            ssDueDate: '2026-11-20',
+            teacherEvalDueDate: '2026-11-22',
+            records: [
+                { studentId: 's1', status: 'submitted', note: '' },
+                { studentId: 's2', status: 'submitted', note: 'from other class work' }
+            ]
+        },
+        {
+            id: 'es-other',
+            classId: 'c2',
+            syllabusRowId: 'r9',
+            records: [{ studentId: 'z1', status: 'complete', note: '' }]
+        }
+    ];
+    const baseline = {
+        ssDueDate: '2026-11-20',
+        teacherEvalDueDate: '2026-11-22',
+        records: [
+            { studentId: 's1', status: 'submitted', note: '' },
+            { studentId: 's2', status: 'submitted', note: 'from other class work' }
+        ]
+    };
+    const draft = {
+        id: 'es1',
+        classId: 'c1',
+        syllabusRowId: 'r1',
+        ssDueDate: '2026-11-20',
+        teacherEvalDueDate: '2026-11-22',
+        records: [
+            { studentId: 's1', status: 'complete', note: '' },
+            { studentId: 's2', status: 'submitted', note: 'from other class work' },
+            { studentId: 's3', status: 'not_submitted', note: '' }
+        ]
+    };
+    const payload = CCPClassroomEssays.buildEssaySavePayload(prevList, draft, baseline);
+    assert(payload.touchedStudentIds.join(',') === 's1', 'only the student this page changed is touched');
+    assert(payload.mutations.length === 1, 'one assignment mutation');
+    assert(
+        payload.mutations[0].payload.submission.touchedStudentIds.join(',') === 's1',
+        'save mutation names only that student'
+    );
+    const saved = payload.nextList.find((row) => row.id === 'es1');
+    const s2 = saved.records.find((row) => row.studentId === 's2');
+    const s3 = saved.records.find((row) => row.studentId === 's3');
+    assert(s2 && s2.note === 'from other class work', 'untouched classmate keeps the calendar copy');
+    assert(!s3, 'padded empty roster rows are not written');
+    assert(payload.nextList.some((row) => row.id === 'es-other'), 'other assignments stay in the list');
+
+    const pingDraft = {
+        id: 'es1',
+        classId: 'c1',
+        syllabusRowId: 'r1',
+        ssDueDate: '2026-11-20',
+        teacherEvalDueDate: '2026-11-22',
+        records: [
+            { studentId: 's1', status: 'submitted', note: '' },
+            { studentId: 's2', status: 'complete', note: 'from editor' }
+        ]
+    };
+    const pingBaseline = {
+        ssDueDate: '2026-11-20',
+        teacherEvalDueDate: '2026-11-22',
+        records: [
+            { studentId: 's1', status: 'submitted', note: '' },
+            { studentId: 's2', status: 'complete', note: 'from editor' }
+        ]
+    };
+    const painted = CCPClassroomEssays.buildEssaySavePayload(
+        JSON.parse(JSON.stringify(prevList)),
+        pingDraft,
+        pingBaseline
+    );
+    assert(painted.touchedStudentIds.length === 0, 'a ping that was painted in is not treated as this page\'s save');
+    assert(painted.mutations.length === 0, 'paint-only ping does not send a write');
+    const paintedRow = painted.nextList.find((row) => row.id === 'es1');
+    const paintedS2 = paintedRow.records.find((row) => row.studentId === 's2');
+    assert(paintedS2.status === 'submitted', 'paint-only ping leaves the calendar copy until the real save arrives');
+}
+
 console.log('classroom-essays.test.mjs: all passed');
 
 

@@ -912,7 +912,7 @@
     <script src="/js/calendar-mutations.js?v=20261006-essay-list-chips"></script>
     <script src="/js/conflict-merge.js?v=20261027-essay-conflict"></script>
     <script src="/js/calendar-sync.js?v=20261028-essay-batch-draft"></script>
-    <script src="/js/classroom-domain.js?v=20261119-essay-status-sync"></script>
+    <script src="/js/classroom-domain.js?v=20261120-essay-one-write"></script>
     <script src="/js/essay-batch-grader-calendar.js?v=20261119-essay-status-sync"></script>
     <script src="/js/essay-batch-draft-sync.js?v=20261028-essay-batch-draft2"></script>
     <script>
@@ -4538,35 +4538,6 @@ Requirement: "${ruleDescription}"`;
                 return;
             }
             remoteListStatus.set(remoteListStatusKey(ping.classId, ping.syllabusRowId, ping.studentId), ping);
-            const calendar = calendarEssayData();
-            const domainApi = globalThis.CCPClassroomDomain;
-            const calendarApi = globalThis.CCPEssayBatchGraderCalendar;
-            if (calendar && domainApi && typeof domainApi.setEssayStudentStatus === 'function') {
-                const result = domainApi.setEssayStudentStatus(calendar.essaySubmissions || [], {
-                    classId: ping.classId,
-                    syllabusRowId: ping.syllabusRowId,
-                    studentId: ping.studentId,
-                    status: ping.status,
-                    timing: ping.submissionLate ? 'late' : 'on_time',
-                    retestAssigned: ping.retestAssigned,
-                    retestPassed: ping.retestPassed,
-                    submittedRetest: ping.submittedRetest
-                });
-                if (!result.error && calendarApi && typeof calendarApi.setEssaySubmissions === 'function') {
-                    calendarApi.setEssaySubmissions(result.submissions);
-                }
-            }
-            if (ping.noteUpdated && calendar && domainApi && typeof domainApi.setEssayStudentNote === 'function') {
-                const noted = domainApi.setEssayStudentNote(calendar.essaySubmissions || [], {
-                    classId: ping.classId,
-                    syllabusRowId: ping.syllabusRowId,
-                    studentId: ping.studentId,
-                    note: ping.note
-                });
-                if (!noted.error && calendarApi && typeof calendarApi.setEssaySubmissions === 'function') {
-                    calendarApi.setEssaySubmissions(noted.submissions);
-                }
-            }
             document.querySelectorAll('.result-card').forEach((card) => {
                 const resultId = card.dataset.resultId;
                 const data = (appState.results || []).find((row) => row && row.resultId === resultId);
@@ -4721,18 +4692,12 @@ Requirement: "${ruleDescription}"`;
             return Boolean(err && (err.status === 409 || /conflict/i.test(String(err.message || ''))));
         }
 
-        async function saveEssayListStudent(submission, studentId) {
-            const record = (submission.records || []).find(
-                (row) => row && String(row.studentId) === String(studentId)
-            );
-            const mutations = globalThis.CCPCalendarMutations.classroomFieldsToMutations({
-                essaySubmissions: [
-                    Object.assign({}, submission, {
-                        records: record ? [record] : [],
-                        touchedStudentIds: [studentId]
-                    })
-                ]
-            });
+        async function saveEssayListStudent(prevList, nextList) {
+            const domainApi = globalThis.CCPClassroomDomain;
+            const mutations =
+                domainApi && typeof domainApi.buildEssaySubmissionMutations === 'function'
+                    ? domainApi.buildEssaySubmissionMutations(prevList, nextList)
+                    : [];
             if (!mutations.length) {
                 throw new Error('Could not save this change to the Essays list');
             }
@@ -4756,7 +4721,8 @@ Requirement: "${ruleDescription}"`;
                 data.listNoteDirty = false;
                 return;
             }
-            const result = domainApi.setEssayStudentNote(calendar.essaySubmissions || [], {
+            const sourceList = calendar.essaySubmissions || [];
+            const result = domainApi.setEssayStudentNote(sourceList, {
                 classId: link.classId,
                 syllabusRowId: link.syllabusRowId,
                 studentId: link.studentId,
@@ -4765,19 +4731,13 @@ Requirement: "${ruleDescription}"`;
             if (result.error || !result.record) {
                 return;
             }
-            const submission = (result.submissions || []).find((row) =>
-                row && row.classId === link.classId && row.syllabusRowId === link.syllabusRowId
-            );
-            if (!submission) {
-                return;
-            }
             if (typeof calendarApi.setEssaySubmissions === 'function') {
                 calendarApi.setEssaySubmissions(result.submissions);
             }
             data.listNoteSaved = result.record.note;
             pingEssayListStatus(link, result.record, { noteUpdated: true, note: result.record.note });
             try {
-                await saveEssayListStudent(submission, link.studentId);
+                await saveEssayListStudent(sourceList, result.submissions);
             } catch (err) {
                 if (allowRetry && isSaveConflict(err)) {
                     data.listNoteSaved = '';
@@ -4905,10 +4865,9 @@ Requirement: "${ruleDescription}"`;
             if (result.error) {
                 return { ok: false, reason: result.error };
             }
-            const submission = (result.submissions || []).find((row) =>
+            if (!(result.submissions || []).some((row) =>
                 row && row.classId === link.classId && row.syllabusRowId === link.syllabusRowId
-            );
-            if (!submission) {
+            )) {
                 return { ok: false, reason: 'missing' };
             }
             if (typeof calendarApi.setEssaySubmissions === 'function') {
@@ -4917,7 +4876,7 @@ Requirement: "${ruleDescription}"`;
             if (!listStatusStillCurrent(data, generation)) {
                 return { ok: false, reason: 'stale' };
             }
-            await saveEssayListStudent(submission, link.studentId);
+            await saveEssayListStudent(sourceList, result.submissions);
             if (!listStatusStillCurrent(data, generation)) {
                 return { ok: false, reason: 'stale' };
             }

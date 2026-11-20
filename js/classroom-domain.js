@@ -4242,6 +4242,74 @@
         };
     }
 
+    function essaySubmissionMetaEqual(a, b) {
+        if (!a || !b) {
+            return a === b;
+        }
+        return (
+            normalizeStr(a.classId) === normalizeStr(b.classId) &&
+            normalizeStr(a.syllabusRowId) === normalizeStr(b.syllabusRowId) &&
+            normalizeStr(a.lessonDate) === normalizeStr(b.lessonDate) &&
+            normalizeStr(a.ssDueDate) === normalizeStr(b.ssDueDate) &&
+            normalizeStr(a.teacherEvalDueDate) === normalizeStr(b.teacherEvalDueDate) &&
+            normalizeStr(a.debateRecCheckedAt) === normalizeStr(b.debateRecCheckedAt) &&
+            normalizeStr(a.debateRecTmsOldest) === normalizeStr(b.debateRecTmsOldest)
+        );
+    }
+
+    function touchedEssayStudentIds(prevSub, nextSub) {
+        const prevRecs = new Map();
+        ((prevSub && prevSub.records) || []).forEach((row) => {
+            const rec = normalizeEssayRecord(row);
+            if (rec && rec.studentId) {
+                prevRecs.set(String(rec.studentId), JSON.stringify(rec));
+            }
+        });
+        return ((nextSub && nextSub.records) || [])
+            .map((row) => normalizeEssayRecord(row))
+            .filter((rec) => rec && JSON.stringify(rec) !== prevRecs.get(String(rec.studentId)))
+            .map((rec) => String(rec.studentId));
+    }
+
+    /**
+     * PATCH mutations for only the essay submissions that changed. Each payload
+     * lists the students whose records changed so the server merges just those.
+     */
+    function buildEssaySubmissionMutations(prevList, nextList) {
+        const prevById = new Map();
+        (prevList || []).forEach((sub) => {
+            if (sub && sub.id != null) {
+                prevById.set(String(sub.id), sub);
+            }
+        });
+        const ts = Date.now();
+        const mutations = [];
+        (nextList || []).forEach((sub) => {
+            if (!sub || sub.id == null) {
+                return;
+            }
+            const prev = prevById.get(String(sub.id));
+            if (prev === sub) {
+                return;
+            }
+            const touched = prev ? touchedEssayStudentIds(prev, sub) : [];
+            if (prev && essaySubmissionMetaEqual(prev, sub) && !touched.length) {
+                return;
+            }
+            const payload = Object.assign({}, sub);
+            if (prev && touched.length) {
+                payload.touchedStudentIds = touched;
+            }
+            mutations.push({
+                entity: 'essaySubmissions',
+                action: 'upsert',
+                payload: { submission: payload },
+                timestamp: ts
+            });
+        });
+        return mutations;
+    }
+
     function ensureEssayRecordsForStudents(submission, studentEntries) {
         const base = submission
             ? Object.assign({}, submission, {
@@ -11256,11 +11324,13 @@
         upsertHomeworkCompletion,
         getHomeworkRecordForStudent,
         normalizeEssaySubmission,
+        normalizeEssayRecord,
         findEssaySubmission,
         upsertEssaySubmission,
         getEssayRecordForStudent,
         setEssayStudentStatus,
         setEssayStudentNote,
+        buildEssaySubmissionMutations,
         lookupEssayListLink,
         findUniqueEssayListLink,
         ensureEssayRecordsForStudents,
