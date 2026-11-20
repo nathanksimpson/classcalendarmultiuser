@@ -341,14 +341,76 @@ function escHtml(str) {
     return String(str).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 }
 
+const COMMIT_TRAILER = /^(co-authored-by|signed-off-by|claude-session|reviewed-by)\s*:/i;
+
+/** One line of a commit message, without a trailing PR number. */
+function cleanNoteLine(line) {
+    return String(line || '').replace(/\s+/g, ' ').replace(/\s*\(#\d+\)\s*$/, '').trim();
+}
+
+/**
+ * The sentence a person should read for this commit.
+ * A GitHub merge commit's subject is "Merge pull request #N from …"; the note is the
+ * title under it. A branch-sync merge ("Merge remote-tracking branch…") has no note.
+ * Squash merges and ordinary commits use their subject. Author does not matter.
+ */
+function noteFromCommitMessage(message) {
+    const lines = String(message || '')
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line && !COMMIT_TRAILER.test(line) && line !== '---------' && !/^-{3,}$/.test(line));
+    if (!lines.length) {
+        return '';
+    }
+    const first = lines[0];
+    if (/^merge pull request #\d+\b/i.test(first)) {
+        const title = lines.slice(1).find((line) => !/^merge pull request #\d+\b/i.test(line));
+        return cleanNoteLine(title || '');
+    }
+    if (/^merge (remote-tracking branch|branch )\b/i.test(first)) {
+        return '';
+    }
+    return cleanNoteLine(first);
+}
+
+/** First useful note in a newest-first list of commit messages. Capped for the top bar. */
+function pickUpdateNote(messages) {
+    const list = Array.isArray(messages) ? messages : [messages];
+    for (const message of list) {
+        const note = noteFromCommitMessage(message);
+        if (note) {
+            return note.length > 90 ? `${note.slice(0, 89).trimEnd()}…` : note;
+        }
+    }
+    return '';
+}
+
+/** Newest-first commit messages: an explicit note, else git log (any author, any merge). */
+function readCommitMessages() {
+    const forced = process.env.BUILD_STAMP_NOTE || '';
+    if (forced.trim()) {
+        return [forced];
+    }
+    try {
+        return execSync('git log -12 --format=%B%x1e', { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] })
+            .toString()
+            .split('\x1e')
+            .map((message) => message.trim())
+            .filter(Boolean);
+    } catch {
+        return [];
+    }
+}
+
 /** Visible top-left label plus the longer account-menu line. */
-function formatBuildStamp(now, commit) {
+function formatBuildStamp(now, commit, note) {
     const t = kstParts(now);
     const hash = String(commit || '').trim().slice(0, 7);
     const when = `${t.mo}/${t.d} ${t.h}:${t.mi}`;
-    const full = `${t.y}-${t.mo}-${t.d} ${t.h}:${t.mi} KST` + (hash ? ` · ${hash}` : '');
+    const clean = String(note || '').replace(/\s+/g, ' ').trim();
+    const full = `${t.y}-${t.mo}-${t.d} ${t.h}:${t.mi} KST` + (hash ? ` · ${hash}` : '') + (clean ? ` · ${clean}` : '');
     return {
-        short: hash ? `${when} · ${hash}` : when,
+        short: clean ? `${when} · ${clean}` : (hash ? `${when} · ${hash}` : when),
         full,
         title: `Last update: ${full}`
     };
@@ -357,7 +419,8 @@ function formatBuildStamp(now, commit) {
 /** Rewrite data-build-stamp spans (text + title) in every dist HTML file. */
 function stampBuildInfo(now = new Date()) {
     const commit = buildCommit();
-    const { short, full, title } = formatBuildStamp(now, commit);
+    const note = pickUpdateNote(readCommitMessages());
+    const { short, full, title } = formatBuildStamp(now, commit, note);
     const spanRe = /<span\b([^>]*\bdata-build-stamp="(short|full)"[^>]*)>[^<]*<\/span>/g;
     let count = 0;
     for (const f of listDistFiles(dist, /\.html$/i)) {
@@ -469,4 +532,4 @@ if (isDirectRun) {
     });
 }
 
-export { formatBuildStamp, kstParts };
+export { formatBuildStamp, kstParts, noteFromCommitMessage, pickUpdateNote };
