@@ -4,13 +4,13 @@
 (function (global) {
     const SCRIPT_FEEDBACK_TEMPLATES = 'js/debate/feedback-templates.js?v=20260710-debate-v2';
     const SCRIPT_DEBATE_SCORESHEET_EXPORT = 'js/debate/debate-scoresheet-export.js?v=20261117-one-page-blocks';
-    const SCRIPT_DEBATE_TEAMS_V2 = 'js/debate/debate-teams-v2.js?v=20261113-role-balance';
+    const SCRIPT_DEBATE_TEAMS_V2 = 'js/debate/debate-teams-v2.js?v=20261120-slot-side';
     const SCRIPT_DEBATE_DUTIES_PPTX = 'js/debate/debate-duties-pptx.js?v=20260915-name-first';
     const SCRIPT_PPTXGENJS = 'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js';
     const SCRIPT_CLASS_CURRICULUM_SLICES = 'js/class-curriculum-slices.js?v=20260603-curriculum-pipeline';
     const SCRIPT_ROSTER_IMPORT = 'js/roster-import.js?v=20260806-name-marks';
-    const SCRIPT_TEACHER_TIMETABLE = 'js/teacher-timetable.js?v=20260909-period8';
-    const SCRIPT_PLANNER_CORE = 'js/planner/teacher-planner-core.js?v=20261117-subject';
+    const SCRIPT_TEACHER_TIMETABLE = 'js/teacher-timetable.js?v=20261120-one-grid';
+    const SCRIPT_PLANNER_CORE = 'js/planner/teacher-planner-core.js?v=20261120-plan-apply';
     const SCRIPT_TMS_SCHEDULE_IMPORT = 'js/planner/tms-schedule-import.js?v=20261118-gen-subjects';
 
     const TAB_SCRIPTS = {
@@ -37,7 +37,7 @@
             'js/planner/teacher-planner-snapshots.js?v=20261116-planner-snap',
             'js/planner/teacher-planner-auto.js?v=20261117-subject',
             SCRIPT_TMS_SCHEDULE_IMPORT,
-            'js/planner/teacher-planner-ui.js?v=20261120-class-autosave'
+            'js/planner/teacher-planner-ui.js?v=20261120-plan-apply'
         ],
         drafter: [
             'js/level-progression.js?v=20261117-drafter',

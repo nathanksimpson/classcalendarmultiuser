@@ -847,13 +847,184 @@
     /**
      * Build a draft from live classTeachers + meeting slots (calendar schedule).
      */
-    /** Real classes plus the draft classes of the active plan (made by a TMS pull; real only after Apply to calendar). */
-    function allClasses(appData) {
-        const base = Array.isArray(appData && appData.classes) ? appData.classes : [];
+    function activeDraftOf(appData) {
         const st = appData && appData.plannerState;
-        const draft = st && (appData.plannerDrafts || []).find((d) => d && d.id === st.activeDraftId);
+        return (st && (appData.plannerDrafts || []).find((d) => d && d.id === st.activeDraftId)) || null;
+    }
+
+    /**
+     * The classes as the plan sees them: the real classes with the plan's pending edits laid over them
+     * (draft.classEdits), minus classes the plan deletes (draft.removedClassIds), plus the plan's own new
+     * classes (draft.draftClasses). Nothing here touches the calendar: Apply to calendar writes it.
+     * opts.raw gives the calendar's own classes plus the draft classes, without the pending edits.
+     */
+    function allClasses(appData, opts) {
+        const base = Array.isArray(appData && appData.classes) ? appData.classes : [];
+        const draft = activeDraftOf(appData);
         const extra = draft && Array.isArray(draft.draftClasses) ? draft.draftClasses : [];
-        return extra.length ? base.concat(extra) : base;
+        if (opts && opts.raw) return extra.length ? base.concat(extra) : base;
+        const edits = (draft && draft.classEdits) || {};
+        const removed = new Set((draft && draft.removedClassIds) || []);
+        const hasEdits = Object.keys(edits).length > 0;
+        if (!hasEdits && !removed.size) return extra.length ? base.concat(extra) : base;
+        const out = [];
+        base.forEach((c) => {
+            if (!c || removed.has(c.id)) return;
+            const e = edits[c.id];
+            out.push(e ? overlayClass(c, e) : c);
+        });
+        return out.concat(extra);
+    }
+
+    function overlayClass(cls, edit) {
+        const copy = Object.assign({}, cls, JSON.parse(JSON.stringify(edit.set || {})));
+        (edit.del || []).forEach((k) => { delete copy[k]; });
+        return copy;
+    }
+
+    /**
+     * Change a class in the plan only. fn(cls) edits a working copy; what differs from the calendar's
+     * class is kept on the draft until Apply. The plan's own new classes are changed in place.
+     */
+    function editClassInDraft(appData, classId, fn) {
+        const draft = activeDraftOf(appData);
+        if (!draft) return false;
+        const own = (draft.draftClasses || []).find((c) => c && c.id === classId);
+        if (own) {
+            fn(own);
+            return true;
+        }
+        const real = (appData.classes || []).find((c) => c && c.id === classId);
+        if (!real) return false;
+        const current = (draft.classEdits && draft.classEdits[classId])
+            ? overlayClass(real, draft.classEdits[classId]) : Object.assign({}, real);
+        const work = JSON.parse(JSON.stringify(current));
+        fn(work);
+        const set = {};
+        const del = [];
+        new Set(Object.keys(real).concat(Object.keys(work))).forEach((k) => {
+            const inWork = Object.prototype.hasOwnProperty.call(work, k) && work[k] !== undefined;
+            const inReal = Object.prototype.hasOwnProperty.call(real, k) && real[k] !== undefined;
+            if (!inWork) {
+                if (inReal) del.push(k);
+                return;
+            }
+            if (!inReal || JSON.stringify(work[k]) !== JSON.stringify(real[k])) set[k] = work[k];
+        });
+        if (!draft.classEdits) draft.classEdits = {};
+        if (Object.keys(set).length || del.length) draft.classEdits[classId] = { set, del };
+        else delete draft.classEdits[classId];
+        return true;
+    }
+
+    /** Add a new class to the plan only (it becomes a real class on Apply). */
+    function addClassToDraft(appData, cls) {
+        const draft = activeDraftOf(appData);
+        if (!draft) return false;
+        if (!Array.isArray(draft.draftClasses)) draft.draftClasses = [];
+        cls.plannerDraftClass = true;
+        draft.draftClasses.push(cls);
+        return true;
+    }
+
+    /** Delete a class in the plan only (removed from the calendar on Apply). */
+    function removeClassInDraft(appData, classId) {
+        const draft = activeDraftOf(appData);
+        if (!draft) return false;
+        const own = (draft.draftClasses || []).findIndex((c) => c && c.id === classId);
+        if (own >= 0) {
+            draft.draftClasses.splice(own, 1);
+        } else {
+            if (!Array.isArray(draft.removedClassIds)) draft.removedClassIds = [];
+            if (!draft.removedClassIds.includes(classId)) draft.removedClassIds.push(classId);
+            if (draft.classEdits) delete draft.classEdits[classId];
+        }
+        draft.assignments = (draft.assignments || []).filter((a) => a.classId !== classId && a.demandId !== `demand:${classId}`);
+        return true;
+    }
+
+    /** Rooms as the plan sees them: the calendar's rooms minus the ones the plan deletes. */
+    function plannerRooms(appData) {
+        const draft = activeDraftOf(appData);
+        const gone = new Set((draft && draft.removedRoomIds) || []);
+        const rooms = Array.isArray(appData && appData.rooms) ? appData.rooms : [];
+        return gone.size ? rooms.filter((r) => r && !gone.has(r.id)) : rooms;
+    }
+
+    /** Delete a room in the plan only (removed from the calendar and its classes on Apply). */
+    function removeRoomInDraft(appData, roomId) {
+        const draft = activeDraftOf(appData);
+        if (!draft) return false;
+        if (!Array.isArray(draft.removedRoomIds)) draft.removedRoomIds = [];
+        if (!draft.removedRoomIds.includes(roomId)) draft.removedRoomIds.push(roomId);
+        return true;
+    }
+
+    /** How many class and room changes the plan holds that Apply would write. */
+    function pendingDraftChanges(appData) {
+        const draft = activeDraftOf(appData);
+        if (!draft) return { classEdits: 0, removedClasses: 0, newClasses: 0, removedRooms: 0, total: 0 };
+        const out = {
+            classEdits: Object.keys(draft.classEdits || {}).length,
+            removedClasses: (draft.removedClassIds || []).length,
+            newClasses: (draft.draftClasses || []).length,
+            removedRooms: (draft.removedRoomIds || []).length
+        };
+        out.total = out.classEdits + out.removedClasses + out.newClasses + out.removedRooms;
+        return out;
+    }
+
+    /**
+     * Write the plan's pending class and room changes to the calendar (part of Apply to calendar).
+     * Keeps each cohort's class list in step with the classes' cohorts. Draft classes are not handled here.
+     */
+    function applyDraftClassChanges(appData, draft) {
+        const d = draft || activeDraftOf(appData);
+        if (!d) return { edited: 0, removed: 0, roomsRemoved: 0 };
+        const cohorts = appData.cohorts || [];
+        const linkClass = (cls) => {
+            const ids = getClassCohortIds(cls);
+            cohorts.forEach((co) => {
+                if (!Array.isArray(co.classIds)) return;
+                const has = co.classIds.includes(cls.id);
+                if (ids.includes(co.id) && !has) co.classIds.push(cls.id);
+                else if (!ids.includes(co.id) && has) co.classIds = co.classIds.filter((x) => x !== cls.id);
+            });
+        };
+        let edited = 0;
+        Object.keys(d.classEdits || {}).forEach((id) => {
+            const real = (appData.classes || []).find((c) => c && c.id === id);
+            if (!real) return;
+            const e = d.classEdits[id];
+            Object.assign(real, JSON.parse(JSON.stringify(e.set || {})));
+            (e.del || []).forEach((k) => { delete real[k]; });
+            if (Object.prototype.hasOwnProperty.call(e.set || {}, 'cohortIds') || (e.del || []).includes('cohortIds')) linkClass(real);
+            edited += 1;
+        });
+        const removed = new Set(d.removedClassIds || []);
+        if (removed.size) {
+            appData.classes = (appData.classes || []).filter((c) => !c || !removed.has(c.id));
+            cohorts.forEach((co) => {
+                if (Array.isArray(co.classIds)) co.classIds = co.classIds.filter((x) => !removed.has(x));
+            });
+        }
+        const gone = new Set(d.removedRoomIds || []);
+        if (gone.size) {
+            appData.rooms = (appData.rooms || []).filter((r) => r && !gone.has(r.id));
+            (appData.classes || []).forEach((c) => {
+                if (gone.has(c.roomId)) c.roomId = '';
+                if (c.roomIdByWeekday) {
+                    Object.keys(c.roomIdByWeekday).forEach((k) => {
+                        if (gone.has(c.roomIdByWeekday[k])) delete c.roomIdByWeekday[k];
+                    });
+                    if (!Object.keys(c.roomIdByWeekday).length) delete c.roomIdByWeekday;
+                }
+            });
+        }
+        d.classEdits = {};
+        d.removedClassIds = [];
+        d.removedRoomIds = [];
+        return { edited, removed: removed.size, roomsRemoved: gone.size };
     }
 
     function seedDraftFromCalendar(appData, options) {
@@ -2519,7 +2690,7 @@
         localImproveSwaps(assignments, demands, teachers, globalBlockouts);
 
         // Soft room recommendation (never undoes teacher placement)
-        const rooms = Array.isArray(appData.rooms) ? appData.rooms : [];
+        const rooms = plannerRooms(appData);
         recommendRooms(assignments, demands, rooms, issues);
 
         const draft = {
@@ -2887,7 +3058,7 @@
     function applyDraftToAppData(appData, draft, options) {
         const opts = options || {};
         ensurePlannerFields(appData);
-        const classes = allClasses(appData);
+        const classes = allClasses(appData, { raw: true });
         const applied = [];
         const failed = [];
 
@@ -3019,6 +3190,13 @@
         swapAssignmentRooms,
         roomConflictsFor,
         applyDraftToAppData,
+        applyDraftClassChanges,
+        editClassInDraft,
+        addClassToDraft,
+        removeClassInDraft,
+        removeRoomInDraft,
+        plannerRooms,
+        pendingDraftChanges,
         recordLearningFromDraft,
         setTeacherBlockoutSlot,
         setGlobalBlockoutSlot,

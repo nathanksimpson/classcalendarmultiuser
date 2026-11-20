@@ -523,3 +523,40 @@ await import(pathToFileURL(path.join(root, 'js', 'timetable-periods.js')).href);
     assert(inferred.teacherRequirementType === 'korean', 'unset Grammar still infers korean');
     console.log('either teacher type + shared placements tests passed');
 }
+
+// Planner edits stay on the plan until Apply to calendar.
+{
+    const data = {
+        classes: [
+            { id: 'k1', name: 'Blue M · Grammar', cohortIds: ['co1'], cohortId: 'co1', weeklyFrequency: 2, roomId: 'r1' },
+            { id: 'k2', name: 'Blue M · News', cohortIds: ['co1'], cohortId: 'co1', weeklyFrequency: 1 }
+        ],
+        cohorts: [{ id: 'co1', name: 'Blue M', classIds: ['k1', 'k2'] }, { id: 'co2', name: 'Navy M', classIds: [] }],
+        rooms: [{ id: 'r1', name: 'Room 1' }, { id: 'r2', name: 'Room 2' }],
+        plannerDrafts: [{ id: 'd1', assignments: [] }],
+        plannerState: { activeDraftId: 'd1' }
+    };
+    const before = JSON.stringify({ classes: data.classes, cohorts: data.cohorts, rooms: data.rooms });
+    api.editClassInDraft(data, 'k1', (c) => { c.name = 'Blue M · Grammar+'; c.cohortIds = ['co1', 'co2']; c.cohortId = 'co1'; });
+    api.editClassInDraft(data, 'k2', (c) => { c.plannerExcluded = true; });
+    api.addClassToDraft(data, { id: 'k3', name: 'Special', cohortIds: [], plannerSpecial: true });
+    api.removeRoomInDraft(data, 'r1');
+    assert(JSON.stringify({ classes: data.classes, cohorts: data.cohorts, rooms: data.rooms }) === before, 'calendar untouched before Apply');
+    const seen = api.allClasses(data);
+    assert(seen.find((c) => c.id === 'k1').name === 'Blue M · Grammar+', 'plan sees its edit');
+    assert(seen.some((c) => c.id === 'k3'), 'plan sees its new class');
+    assert(api.plannerRooms(data).length === 1, 'plan hides its deleted room');
+    assert(api.pendingDraftChanges(data).total === 4, 'four pending changes');
+    api.removeClassInDraft(data, 'k2');
+    assert(!api.allClasses(data).some((c) => c.id === 'k2'), 'plan hides its deleted class');
+    assert(data.classes.some((c) => c.id === 'k2'), 'calendar keeps it until Apply');
+    const res = api.applyDraftClassChanges(data, data.plannerDrafts[0]);
+    assert(res.edited === 1 && res.removed === 1 && res.roomsRemoved === 1, 'apply counts');
+    assert(data.classes.find((c) => c.id === 'k1').name === 'Blue M · Grammar+', 'edit written on Apply');
+    assert(data.classes.find((c) => c.id === 'k1').roomId === '', 'deleted room cleared from class on Apply');
+    assert(data.cohorts[1].classIds.includes('k1'), 'new cohort link written on Apply');
+    assert(!data.classes.some((c) => c.id === 'k2') && !data.cohorts[0].classIds.includes('k2'), 'class deleted on Apply');
+    assert(data.rooms.length === 1, 'room deleted on Apply');
+    assert(api.pendingDraftChanges(data).total === 1, 'only the new class (made real by the UI Apply) is left');
+    console.log('plan-only class edits tests passed');
+}

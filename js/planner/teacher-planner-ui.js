@@ -245,7 +245,7 @@
                 || a.name.localeCompare(b.name, undefined, { numeric: true }));
         const cohortById = new Map(cohorts.map((c) => [c.id, c]));
 
-        const rooms = (data.rooms || []).slice()
+        const rooms = api().plannerRooms(data).slice()
             .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
         const roomById = new Map(rooms.map((r) => [r.id, r]));
         let periods = periodRows(data);
@@ -905,13 +905,9 @@ ${classEditHtml(demand)}`;
         const students = Math.round(Number(val('students')));
         const type = val('type');
         const id = newClassId();
+        // A new class lives in the plan until Apply to calendar (which also links it to its cohorts).
         setupEdit((data) => {
-            data.classes = data.classes || [];
-            data.classes.push(specialClassRecord({ id, name, type, students, cohortIds, start, end }));
-            cohortIds.forEach((cid) => {
-                const c = (data.cohorts || []).find((x) => x.id === cid);
-                if (c && Array.isArray(c.classIds) && !c.classIds.includes(id)) c.classIds.push(id);
-            });
+            api().addClassToDraft(data, specialClassRecord({ id, name, type, students, cohortIds, start, end }));
         });
         state.addSpecial = false;
         state.selected = `demand:${id}`;
@@ -953,7 +949,7 @@ ${classEditHtml(demand)}`;
         if (!src) return;
         const id = newClassId();
         setupEdit((data) => {
-            data.classes.push(specialClassRecord({
+            api().addClassToDraft(data, specialClassRecord({
                 id,
                 name: src.name,
                 type: src.teacherRequirementType,
@@ -962,10 +958,6 @@ ${classEditHtml(demand)}`;
                 start: src.startDate,
                 end: src.endDate
             }));
-            api().getClassCohortIds(src).forEach((cid) => {
-                const c = (data.cohorts || []).find((x) => x.id === cid);
-                if (c && Array.isArray(c.classIds) && !c.classIds.includes(id)) c.classIds.push(id);
-            });
         });
         state.selected = `demand:${id}`;
         state.editClass = null;
@@ -979,13 +971,9 @@ ${classEditHtml(demand)}`;
         if (!cls || cls.plannerSpecial !== true) return;
         confirmBox(t('spSpecialDeleteConfirm', 'Delete {name}? It is removed from the calendar too.', { name: cls.name }), t('spDelete', 'Delete')).then((yes) => {
             if (!yes) return;
-            const draft = M.draft;
+            // Deleted in the plan; Apply to calendar removes it from the calendar.
             setupEdit((data) => {
-                data.classes = (data.classes || []).filter((c) => c.id !== classId);
-                (data.cohorts || []).forEach((c) => {
-                    if (Array.isArray(c.classIds)) c.classIds = c.classIds.filter((x) => x !== classId);
-                });
-                if (draft) draft.assignments = (draft.assignments || []).filter((a) => a.classId !== classId && a.demandId !== `demand:${classId}`);
+                api().removeClassInDraft(data, classId);
             });
             state.selected = null;
             state.editClass = null;
@@ -1059,9 +1047,7 @@ ${classEditHtml(demand)}`;
         const box = el.closest('[data-class]');
         if (!box || readOnly()) return;
         const id = box.getAttribute('data-class');
-        setupEdit((data) => {
-            const cls = api().allClasses(data).find((c) => c.id === id);
-            if (!cls) return;
+        setupEdit((data) => api().editClassInDraft(data, id, (cls) => {
             if (kind === 'edit-class-name') {
                 const v = String(el.value || '').trim();
                 if (v) cls.name = v;
@@ -1101,7 +1087,7 @@ ${classEditHtml(demand)}`;
                 cls.cohortIds = ticked;
                 cls.cohortId = ticked[0];
             }
-        });
+        }));
         render();
     }
 
@@ -2697,7 +2683,7 @@ ${by.get(cid).map((d) => `
         return groups.map((g) => {
             const found = [];
             g.cohortIds.forEach((cid) => {
-                (data.classes || []).forEach((k) => {
+                A.allClasses(data).forEach((k) => {
                     if (k.plannerSpecial === true || found.includes(k)) return;
                     if (!A.getClassCohortIds(k).includes(cid)) return;
                     if (A.subjectOfName(k.name) !== g.subjectKey) return;
@@ -2765,35 +2751,26 @@ ${by.get(cid).map((d) => `
      */
     function applyTmsMerges(plans) {
         const at = new Date().toISOString();
+        // Merges are plan changes: the calendar's classes and cohorts change only on Apply to calendar.
         setupEdit((data) => {
             const A = api();
             plans.forEach((p) => {
-                const primary = (data.classes || []).find((k) => k.id === p.primary.id);
+                const primary = A.allClasses(data).find((k) => k.id === p.primary.id);
                 if (!primary) return;
-                const all = Array.from(new Set(p.g.cohortIds.concat(A.getClassCohortIds(primary))));
-                const record = {
-                    at,
-                    cohortIds: A.getClassCohortIds(primary).slice(),
-                    cohortId: primary.cohortId || '',
-                    extras: [],
-                    linkedCohorts: []
-                };
-                primary.cohortIds = all;
-                primary.cohortId = all[0];
+                const before = A.getClassCohortIds(primary).slice();
+                const all = Array.from(new Set(p.g.cohortIds.concat(before)));
+                const record = { at, cohortIds: before, cohortId: primary.cohortId || '', extras: [] };
                 p.extras.forEach((x) => {
-                    const k = (data.classes || []).find((c) => c.id === x.id);
+                    const k = A.allClasses(data).find((c) => c.id === x.id);
                     if (!k) return;
                     record.extras.push({ id: k.id, wasExcluded: k.plannerExcluded === true });
-                    k.plannerExcluded = true;
+                    A.editClassInDraft(data, k.id, (cls) => { cls.plannerExcluded = true; });
                 });
-                all.forEach((cid) => {
-                    const c = (data.cohorts || []).find((x) => x.id === cid);
-                    if (c && Array.isArray(c.classIds) && !c.classIds.includes(primary.id)) {
-                        c.classIds.push(primary.id);
-                        record.linkedCohorts.push(cid);
-                    }
+                A.editClassInDraft(data, primary.id, (cls) => {
+                    cls.cohortIds = all;
+                    cls.cohortId = all[0];
+                    cls.tmsMerge = record;
                 });
-                primary.tmsMerge = record;
             });
         });
     }
@@ -2801,7 +2778,7 @@ ${by.get(cid).map((d) => `
     /** Undo every TMS merge recorded on the calendar's classes. */
     async function undoTmsMerge() {
         if (readOnly() || !freshModel()) return;
-        const merged = (M.data.classes || []).filter((k) => k && k.tmsMerge);
+        const merged = api().allClasses(M.data).filter((k) => k && k.tmsMerge);
         if (!merged.length) {
             notice(t('spTmsUndoNone', 'No TMS merge to undo.'), 'info');
             return;
@@ -2809,21 +2786,19 @@ ${by.get(cid).map((d) => `
         const names = merged.map((k) => k.name).join(', ');
         const yes = await confirmBox(t('spTmsUndoAsk', 'Undo the TMS merge of {names}? The classes go back to how they were before.', { names }), t('spTmsUndoDo', 'Undo merge'));
         if (!yes) return;
+        // Undone in the plan; Apply to calendar writes it (and fixes the cohorts' class lists).
         setupEdit((data) => {
-            (data.classes || []).forEach((k) => {
+            const A = api();
+            A.allClasses(data).filter((k) => k && k.tmsMerge).forEach((k) => {
                 const r = k.tmsMerge;
-                if (!r) return;
-                k.cohortIds = (r.cohortIds || []).slice();
-                k.cohortId = r.cohortId || (k.cohortIds[0] || '');
                 (r.extras || []).forEach((x) => {
-                    const e = (data.classes || []).find((c) => c.id === x.id);
-                    if (e && !x.wasExcluded) delete e.plannerExcluded;
+                    if (!x.wasExcluded) A.editClassInDraft(data, x.id, (cls) => { delete cls.plannerExcluded; });
                 });
-                (r.linkedCohorts || []).forEach((cid) => {
-                    const c = (data.cohorts || []).find((y) => y.id === cid);
-                    if (c && Array.isArray(c.classIds)) c.classIds = c.classIds.filter((id) => id !== k.id);
+                A.editClassInDraft(data, k.id, (cls) => {
+                    cls.cohortIds = (r.cohortIds || []).slice();
+                    cls.cohortId = r.cohortId || (cls.cohortIds[0] || '');
+                    delete cls.tmsMerge;
                 });
-                delete k.tmsMerge;
             });
         });
         notice(t('spTmsUndoDone', 'TMS merge undone. Pull from TMS again to refresh the plan.'), 'success');
@@ -3371,12 +3346,19 @@ ${by.get(cid).map((d) => `
         }
         const placed = M.draft.assignments.filter((a) => (a.meetings || []).length && M.demandById.get(a.demandId)
             && M.demandById.get(a.demandId).includedInDraft !== false);
-        if (!placed.length) {
+        const pending = api().pendingDraftChanges(M.data);
+        if (!placed.length && !pending.total) {
             notice(t('spApplyNothing', 'Nothing is on the board yet.'), 'info');
             return;
         }
         const clashes = groupedIssues(M)[0].items.length;
+        const changeBits = [];
+        if (pending.classEdits) changeBits.push(t('spApplyEdits', '{n} class settings changed', { n: pending.classEdits }));
+        if (pending.newClasses) changeBits.push(t('spApplyNew', '{n} new classes', { n: pending.newClasses }));
+        if (pending.removedClasses) changeBits.push(t('spApplyRemoved', '{n} classes deleted', { n: pending.removedClasses }));
+        if (pending.removedRooms) changeBits.push(t('spApplyRoomsRemoved', '{n} rooms deleted', { n: pending.removedRooms }));
         const msg = t('spConfirmApply', 'Write the days, periods, teachers and rooms of {n} classes to the calendar?', { n: placed.length })
+            + (changeBits.length ? ` ${t('spConfirmApplyAlso', 'Also from this plan: {list}.', { list: changeBits.join(', ') })}` : '')
             + (clashes ? ` ${t('spConfirmApplyClashes', '{n} clashes are still on the board.', { n: clashes })}` : '');
         const pendingBlocks = api().pendingCohortBlocks(M.data);
         const fullMsg = pendingBlocks.length
@@ -3405,6 +3387,8 @@ ${by.get(cid).map((d) => `
             const d = M.demandById.get(a.demandId);
             return !d || d.includedInDraft === false;
         });
+        // Class settings, deletions and room deletions made in the plan go to the calendar now.
+        api().applyDraftClassChanges(data, draft);
         const view = Object.assign({}, draft, { assignments: draft.assignments.filter((a) => !excluded.includes(a)) });
         const result = api().applyDraftToAppData(data, view, { allowMissingUserId: true, replaceFirstTeacher: true });
         draft.status = 'applied';
@@ -3906,13 +3890,13 @@ ${by.get(cid).map((d) => `
             break;
         case 'remove-room': {
             const id = row && row.getAttribute('data-room');
+            // Gone from the plan now; Apply to calendar removes the room and clears it from classes.
             setupEdit((data) => {
-                data.rooms = data.rooms.filter((r) => r.id !== id);
+                api().removeRoomInDraft(data, id);
                 M.draft.assignments.forEach((a) => {
                     if (a.roomId === id) a.roomId = null;
                     (a.meetings || []).forEach((m) => { if (m.roomId === id) delete m.roomId; });
                 });
-                (data.classes || []).forEach((c) => { if (c.roomId === id) c.roomId = ''; });
             });
             M = buildModel();
             renderSetup();
