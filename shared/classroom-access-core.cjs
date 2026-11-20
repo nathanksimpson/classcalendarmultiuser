@@ -176,85 +176,92 @@ function collectClassIdsFromSessions(sessions) {
     return ids;
 }
 
-function validateSessionsChange(user, calendarData, prevSessions, nextSessions) {
-    const prev = Array.isArray(prevSessions) ? prevSessions : [];
-    const next = Array.isArray(nextSessions) ? nextSessions : [];
-    const prevByKey = new Map(prev.filter(Boolean).map((s) => [`${s.classId}|${s.date}`, s]));
-    const nextByKey = new Map(next.filter(Boolean).map((s) => [`${s.classId}|${s.date}`, s]));
+/** Save metadata. Completing one student restamps every row in the PATCH payload; ignore these. */
+function withoutSaveStamps(row) {
+    if (!row || typeof row !== 'object') {
+        return row == null ? null : row;
+    }
+    const copy = Object.assign({}, row);
+    delete copy.updatedAt;
+    delete copy.authorUserId;
+    delete copy.touchedStudentIds;
+    return copy;
+}
 
-    const touchedClassIds = new Set();
+function classroomRowContentEqual(a, b) {
+    if (a === b) {
+        return true;
+    }
+    if (!a || !b) {
+        return !a && !b;
+    }
+    return JSON.stringify(withoutSaveStamps(a)) === JSON.stringify(withoutSaveStamps(b));
+}
+
+function touchedClassIdsFromLists(prevList, nextList, keyFn) {
+    const prev = Array.isArray(prevList) ? prevList : [];
+    const next = Array.isArray(nextList) ? nextList : [];
+    const prevByKey = new Map();
+    prev.filter(Boolean).forEach((row) => {
+        const key = keyFn(row);
+        if (key) {
+            prevByKey.set(key, row);
+        }
+    });
+    const nextByKey = new Map();
+    next.filter(Boolean).forEach((row) => {
+        const key = keyFn(row);
+        if (key) {
+            nextByKey.set(key, row);
+        }
+    });
+    const ids = new Set();
     for (const key of new Set([...prevByKey.keys(), ...nextByKey.keys()])) {
         const was = prevByKey.get(key);
-        const now = nextByKey.get(key);
-        if (JSON.stringify(was) !== JSON.stringify(now)) {
-            const classId = (now && now.classId) || (was && was.classId);
-            if (classId) {
-                touchedClassIds.add(classId);
-            }
+        const nowRow = nextByKey.get(key);
+        if (classroomRowContentEqual(was, nowRow)) {
+            continue;
+        }
+        const classId = normalizeStr((nowRow && nowRow.classId) || (was && was.classId) || '');
+        if (classId) {
+            ids.add(classId);
         }
     }
+    return ids;
+}
 
-    for (const classId of touchedClassIds) {
+function assertTouchedClasses(user, calendarData, classIds) {
+    for (const classId of classIds) {
         const err = assertCanEditClass(user, calendarData, classId);
         if (err) {
             return err;
         }
     }
     return null;
+}
+
+function validateSessionsChange(user, calendarData, prevSessions, nextSessions) {
+    return assertTouchedClasses(
+        user,
+        calendarData,
+        touchedClassIdsFromLists(prevSessions, nextSessions, (s) => `${s.classId}|${s.date}`)
+    );
 }
 
 function validateHomeworkChange(user, calendarData, prevList, nextList) {
-    const prev = Array.isArray(prevList) ? prevList : [];
-    const next = Array.isArray(nextList) ? nextList : [];
-    const prevByKey = new Map(prev.filter(Boolean).map((h) => [`${h.classId}|${h.syllabusRowId}`, h]));
-    const nextByKey = new Map(next.filter(Boolean).map((h) => [`${h.classId}|${h.syllabusRowId}`, h]));
-
-    const touchedClassIds = new Set();
-    for (const key of new Set([...prevByKey.keys(), ...nextByKey.keys()])) {
-        const was = prevByKey.get(key);
-        const now = nextByKey.get(key);
-        if (JSON.stringify(was) !== JSON.stringify(now)) {
-            const classId = (now && now.classId) || (was && was.classId);
-            if (classId) {
-                touchedClassIds.add(classId);
-            }
-        }
-    }
-
-    for (const classId of touchedClassIds) {
-        const err = assertCanEditClass(user, calendarData, classId);
-        if (err) {
-            return err;
-        }
-    }
-    return null;
+    return assertTouchedClasses(
+        user,
+        calendarData,
+        touchedClassIdsFromLists(prevList, nextList, (h) => `${h.classId}|${h.syllabusRowId}`)
+    );
 }
 
 function validateEssayChange(user, calendarData, prevList, nextList) {
-    const prev = Array.isArray(prevList) ? prevList : [];
-    const next = Array.isArray(nextList) ? nextList : [];
-    const prevByKey = new Map(prev.filter(Boolean).map((e) => [`${e.classId}|${e.syllabusRowId}`, e]));
-    const nextByKey = new Map(next.filter(Boolean).map((e) => [`${e.classId}|${e.syllabusRowId}`, e]));
-
-    const touchedClassIds = new Set();
-    for (const key of new Set([...prevByKey.keys(), ...nextByKey.keys()])) {
-        const was = prevByKey.get(key);
-        const now = nextByKey.get(key);
-        if (JSON.stringify(was) !== JSON.stringify(now)) {
-            const classId = (now && now.classId) || (was && was.classId);
-            if (classId) {
-                touchedClassIds.add(classId);
-            }
-        }
-    }
-
-    for (const classId of touchedClassIds) {
-        const err = assertCanEditClass(user, calendarData, classId);
-        if (err) {
-            return err;
-        }
-    }
-    return null;
+    return assertTouchedClasses(
+        user,
+        calendarData,
+        touchedClassIdsFromLists(prevList, nextList, (e) => `${e.classId}|${e.syllabusRowId}`)
+    );
 }
 
 function validateEssayGroupsChange(user, calendarData, prevList, nextList) {
@@ -295,58 +302,26 @@ function stampEssay(submissions, userId) {
 }
 
 function validatePointsChange(user, calendarData, prevList, nextList) {
-    const prev = Array.isArray(prevList) ? prevList : [];
-    const next = Array.isArray(nextList) ? nextList : [];
-    const prevById = new Map(prev.filter(Boolean).map((p) => [p.id, p]));
-    const nextById = new Map(next.filter(Boolean).map((p) => [p.id, p]));
-    const touchedClassIds = new Set();
-    for (const id of new Set([...prevById.keys(), ...nextById.keys()])) {
-        if (JSON.stringify(prevById.get(id)) !== JSON.stringify(nextById.get(id))) {
-            const classId =
-                (nextById.get(id) && nextById.get(id).classId) ||
-                (prevById.get(id) && prevById.get(id).classId);
-            if (classId) {
-                touchedClassIds.add(classId);
-            }
-        }
-    }
-    for (const classId of touchedClassIds) {
-        const err = assertCanEditClass(user, calendarData, classId);
-        if (err) {
-            return err;
-        }
-    }
-    return null;
+    return assertTouchedClasses(
+        user,
+        calendarData,
+        touchedClassIdsFromLists(prevList, nextList, (p) => p && p.id != null ? String(p.id) : '')
+    );
 }
 
 function validateTestsChange(user, calendarData, prevList, nextList) {
-    const prev = Array.isArray(prevList) ? prevList : [];
-    const next = Array.isArray(nextList) ? nextList : [];
-    const testKey = (t) =>
-        t ? `${normalizeStr(t.classId)}|${normalizeStr(t.testName)}|${normalizeStr(t.testDate)}` : '';
-    const prevByKey = new Map(prev.filter(Boolean).map((t) => [testKey(t), t]));
-    const nextByKey = new Map(next.filter(Boolean).map((t) => [testKey(t), t]));
-    const touchedClassIds = new Set();
-    for (const key of new Set([...prevByKey.keys(), ...nextByKey.keys()])) {
-        if (!key) {
-            continue;
-        }
-        if (JSON.stringify(prevByKey.get(key)) !== JSON.stringify(nextByKey.get(key))) {
-            const classId =
-                (nextByKey.get(key) && nextByKey.get(key).classId) ||
-                (prevByKey.get(key) && prevByKey.get(key).classId);
-            if (classId) {
-                touchedClassIds.add(classId);
-            }
-        }
-    }
-    for (const classId of touchedClassIds) {
-        const err = assertCanEditClass(user, calendarData, classId);
-        if (err) {
-            return err;
-        }
-    }
-    return null;
+    return assertTouchedClasses(
+        user,
+        calendarData,
+        touchedClassIdsFromLists(
+            prevList,
+            nextList,
+            (t) =>
+                t
+                    ? `${normalizeStr(t.classId)}|${normalizeStr(t.testName)}|${normalizeStr(t.testDate)}`
+                    : ''
+        )
+    );
 }
 
 function stampPoints(points, userId) {
@@ -365,28 +340,11 @@ function stampTests(tests, userId) {
 }
 
 function validateDebateSessionsChange(user, calendarData, prevList, nextList) {
-    const prev = Array.isArray(prevList) ? prevList : [];
-    const next = Array.isArray(nextList) ? nextList : [];
-    const prevByKey = new Map(prev.filter(Boolean).map((s) => [`${s.classId}|${s.date}`, s]));
-    const nextByKey = new Map(next.filter(Boolean).map((s) => [`${s.classId}|${s.date}`, s]));
-    const touchedClassIds = new Set();
-    for (const key of new Set([...prevByKey.keys(), ...nextByKey.keys()])) {
-        if (JSON.stringify(prevByKey.get(key)) !== JSON.stringify(nextByKey.get(key))) {
-            const classId =
-                (nextByKey.get(key) && nextByKey.get(key).classId) ||
-                (prevByKey.get(key) && prevByKey.get(key).classId);
-            if (classId) {
-                touchedClassIds.add(classId);
-            }
-        }
-    }
-    for (const classId of touchedClassIds) {
-        const err = assertCanEditClass(user, calendarData, classId);
-        if (err) {
-            return err;
-        }
-    }
-    return null;
+    return assertTouchedClasses(
+        user,
+        calendarData,
+        touchedClassIdsFromLists(prevList, nextList, (s) => `${s.classId}|${s.date}`)
+    );
 }
 
 function stampDebateSessions(sessions, userId) {
@@ -402,26 +360,11 @@ function stampDebateFormats(formats, userId) {
 }
 
 function validateSpeakingTestRecordsChange(user, calendarData, prevList, nextList) {
-    const prev = Array.isArray(prevList) ? prevList : [];
-    const next = Array.isArray(nextList) ? nextList : [];
-    const prevByKey = new Map(prev.filter(Boolean).map((r) => [normalizeStr(r.classId), r]));
-    const nextByKey = new Map(next.filter(Boolean).map((r) => [normalizeStr(r.classId), r]));
-    const touchedClassIds = new Set();
-    for (const key of new Set([...prevByKey.keys(), ...nextByKey.keys()])) {
-        if (!key) {
-            continue;
-        }
-        if (JSON.stringify(prevByKey.get(key)) !== JSON.stringify(nextByKey.get(key))) {
-            touchedClassIds.add(key);
-        }
-    }
-    for (const classId of touchedClassIds) {
-        const err = assertCanEditClass(user, calendarData, classId);
-        if (err) {
-            return err;
-        }
-    }
-    return null;
+    return assertTouchedClasses(
+        user,
+        calendarData,
+        touchedClassIdsFromLists(prevList, nextList, (r) => normalizeStr(r.classId))
+    );
 }
 
 function stampSpeakingTestRecords(records, userId) {
@@ -429,35 +372,15 @@ function stampSpeakingTestRecords(records, userId) {
 }
 
 function validateDebateBookDistributionsChange(user, calendarData, prevList, nextList) {
-    const prev = Array.isArray(prevList) ? prevList : [];
-    const next = Array.isArray(nextList) ? nextList : [];
-    const prevByKey = new Map(
-        prev.filter(Boolean).map((r) => [`${normalizeStr(r.classId)}|${normalizeStr(r.periodKey)}`, r])
+    return assertTouchedClasses(
+        user,
+        calendarData,
+        touchedClassIdsFromLists(
+            prevList,
+            nextList,
+            (r) => `${normalizeStr(r.classId)}|${normalizeStr(r.periodKey)}`
+        )
     );
-    const nextByKey = new Map(
-        next.filter(Boolean).map((r) => [`${normalizeStr(r.classId)}|${normalizeStr(r.periodKey)}`, r])
-    );
-    const touchedClassIds = new Set();
-    for (const key of new Set([...prevByKey.keys(), ...nextByKey.keys()])) {
-        if (!key) {
-            continue;
-        }
-        if (JSON.stringify(prevByKey.get(key)) !== JSON.stringify(nextByKey.get(key))) {
-            const classId =
-                (nextByKey.get(key) && nextByKey.get(key).classId) ||
-                (prevByKey.get(key) && prevByKey.get(key).classId);
-            if (classId) {
-                touchedClassIds.add(classId);
-            }
-        }
-    }
-    for (const classId of touchedClassIds) {
-        const err = assertCanEditClass(user, calendarData, classId);
-        if (err) {
-            return err;
-        }
-    }
-    return null;
 }
 
 function stampDebateBookDistributions(distributions, userId) {

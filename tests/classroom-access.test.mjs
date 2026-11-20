@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ClassroomAccess = require(path.join(__dirname, '..', 'server', 'classroom-access.js'));
+const CalendarMutations = require(path.join(__dirname, '..', 'shared', 'calendar-mutations.cjs'));
 
 function assert(cond, msg) {
     if (!cond) {
@@ -225,5 +226,68 @@ assert(
     ClassroomAccess.assertCanEditClass({ id: 'nobody', role: 'teacher' }, groupData, 'grp1'),
     'teacher with no editable class is blocked from essay groups'
 );
+
+{
+    const twoClassEssays = {
+        classes: [
+            {
+                id: 'class1',
+                classTeachers: [{ userId: 'teacher1', category: 'RC' }],
+                cohortIds: ['cohort1']
+            },
+            {
+                id: 'class2',
+                classTeachers: [{ userId: 'other-teacher', category: 'RC' }],
+                cohortIds: ['cohort1']
+            }
+        ],
+        cohorts: calendarData.cohorts,
+        essaySubmissions: [
+            {
+                id: 'e1',
+                classId: 'class1',
+                syllabusRowId: 'row1',
+                authorUserId: 'teacher1',
+                updatedAt: '2026-01-01T00:00:00.000Z',
+                records: [{ studentId: 's1', status: 'submitted' }]
+            },
+            {
+                id: 'e2',
+                classId: 'class2',
+                syllabusRowId: 'row2',
+                authorUserId: 'other-teacher',
+                updatedAt: '2026-01-01T00:00:00.000Z',
+                records: [{ studentId: 's2', status: 'submitted' }]
+            }
+        ]
+    };
+    const payload = CalendarMutations.classroomMutationsToPayload(
+        [
+            {
+                entity: 'essaySubmissions',
+                action: 'upsert',
+                payload: {
+                    submission: {
+                        id: 'e1',
+                        classId: 'class1',
+                        syllabusRowId: 'row1',
+                        records: [{ studentId: 's1', status: 'complete' }],
+                        touchedStudentIds: ['s1']
+                    }
+                }
+            }
+        ],
+        twoClassEssays
+    );
+    const completeOwn = ClassroomAccess.prepareClassroomForSave(teacher, twoClassEssays, payload);
+    assert(!completeOwn.error, 'teacher can mark Complete on their class while other classes have essays');
+    const own = completeOwn.merged.essaySubmissions.find((row) => row.id === 'e1');
+    const otherEssay = completeOwn.merged.essaySubmissions.find((row) => row.id === 'e2');
+    assert(own && own.records[0].status === 'complete', 'own student is complete');
+    assert(
+        otherEssay && otherEssay.records[0].status === 'submitted',
+        'other class essay is left as it was'
+    );
+}
 
 console.log('classroom-access.test.mjs: all passed');

@@ -1702,7 +1702,7 @@
             }
         }
 
-        function findStoredListLink(studentName, className) {
+        function findStoredListLink(studentName, className, title) {
             const hits = (appState.listLinks || []).filter((link) =>
                 link &&
                 link.studentName === studentName &&
@@ -1711,6 +1711,12 @@
                 link.syllabusRowId &&
                 link.studentId
             );
+            if (title) {
+                const titled = hits.filter((link) => (link.title || '') === title);
+                if (titled.length === 1) {
+                    return titled[0];
+                }
+            }
             return hits.length === 1 ? hits[0] : null;
         }
 
@@ -4428,7 +4434,9 @@ Requirement: "${ruleDescription}"`;
             if (data && data.classId && data.syllabusRowId && data.studentId) {
                 return data;
             }
-            const stored = data ? findStoredListLink(data.studentName, data.className) : null;
+            const stored = data
+                ? findStoredListLink(data.studentName, data.className, data.essayTitle || data.title || '')
+                : null;
             if (stored) {
                 data.classId = stored.classId;
                 data.syllabusRowId = stored.syllabusRowId;
@@ -4713,6 +4721,24 @@ Requirement: "${ruleDescription}"`;
             return Boolean(err && (err.status === 409 || /conflict/i.test(String(err.message || ''))));
         }
 
+        async function saveEssayListStudent(submission, studentId) {
+            const record = (submission.records || []).find(
+                (row) => row && String(row.studentId) === String(studentId)
+            );
+            const mutations = globalThis.CCPCalendarMutations.classroomFieldsToMutations({
+                essaySubmissions: [
+                    Object.assign({}, submission, {
+                        records: record ? [record] : [],
+                        touchedStudentIds: [studentId]
+                    })
+                ]
+            });
+            if (!mutations.length) {
+                throw new Error('Could not save this change to the Essays list');
+            }
+            return globalThis.CalendarSync.saveClassroomMutations(mutations);
+        }
+
         async function saveListNote(data, noteText) {
             return enqueueEssayListWrite(() => saveListNoteNow(data, noteText, true));
         }
@@ -4751,9 +4777,7 @@ Requirement: "${ruleDescription}"`;
             data.listNoteSaved = result.record.note;
             pingEssayListStatus(link, result.record, { noteUpdated: true, note: result.record.note });
             try {
-                await globalThis.CalendarSync.saveClassroomData({
-                    essaySubmissions: [Object.assign({}, submission, { touchedStudentIds: [link.studentId] })]
-                });
+                await saveEssayListStudent(submission, link.studentId);
             } catch (err) {
                 if (allowRetry && isSaveConflict(err)) {
                     data.listNoteSaved = '';
@@ -4893,9 +4917,7 @@ Requirement: "${ruleDescription}"`;
             if (!listStatusStillCurrent(data, generation)) {
                 return { ok: false, reason: 'stale' };
             }
-            await globalThis.CalendarSync.saveClassroomData({
-                essaySubmissions: [Object.assign({}, submission, { touchedStudentIds: [link.studentId] })]
-            });
+            await saveEssayListStudent(submission, link.studentId);
             if (!listStatusStillCurrent(data, generation)) {
                 return { ok: false, reason: 'stale' };
             }
@@ -6152,7 +6174,11 @@ Requirement: "${ruleDescription}"`;
 
             for (let i = essays.length - 1; i >= 0; i--) {
                 const resultId = generateId();
-                const storedLink = findStoredListLink(essays[i].studentName, essays[i].className);
+                const storedLink = findStoredListLink(
+                    essays[i].studentName,
+                    essays[i].className,
+                    essays[i].title || essays[i].essayTitle || ''
+                );
                 if (storedLink) {
                     essays[i].classId = storedLink.classId;
                     essays[i].syllabusRowId = storedLink.syllabusRowId;
