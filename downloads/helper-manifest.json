@@ -1,7 +1,7 @@
 {
-  "version": "1.1.5",
+  "version": "1.1.6",
   "protocol": 2,
   "url": "https://github.com/nathanksimpson/classcalendarmultiuser/releases/download/sync-helper-latest/ClassManagerSyncSetup.exe",
-  "sha256": "816c3874745882ca531f2a931a22143511add8e09b0efb2c076b368fec72c726",
-  "releasedAt": "2026-11-18"
+  "sha256": "d271b85b36969560ee2b4f959e688326f2f513f0c36cf66d30326eb6f044ee86",
+  "releasedAt": "2026-11-20"
 }
