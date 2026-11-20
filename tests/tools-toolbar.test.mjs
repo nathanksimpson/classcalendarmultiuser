@@ -35,9 +35,12 @@ function menuItems(section, labelKey) {
     const tms = menuItems(s, 'toolsMenuTms');
     assert(tms.includes('id="classroomEssaysTmsSyncBtn"') && tms.includes('id="classroomEssaysTmsSyncAllBtn"'), 'Essays TMS menu has both syncs');
     const actions = menuItems(s, 'toolsMenuActions');
-    ['classroomEssaysOpenSavedEditorBtn', 'classroomEssaysScrapeEditorBtn', 'classroomEssaysNewGroupBtn', 'classroomEssaysEditGroupBtn'].forEach((id) => {
+    ['classroomEssaysOpenSavedEditorBtn', 'classroomEssaysNewGroupBtn', 'classroomEssaysEditGroupBtn'].forEach((id) => {
         assert(actions.includes(`id="${id}"`), `Essays Actions menu has ${id}`);
     });
+    // Scrape & open editor is its own toolbar button, not hidden in a menu.
+    assert(s.includes('id="classroomEssaysScrapeEditorBtn"'), 'Essays has Scrape & open editor button');
+    assert(!actions.includes('id="classroomEssaysScrapeEditorBtn"') && !tms.includes('id="classroomEssaysScrapeEditorBtn"'), 'Scrape & open editor is not inside a menu');
     assert(s.includes('id="classroomEssaysReportsWrap"'), 'Essays keeps Reports');
     assert(s.includes('id="classroomEssaysSaveBtn"') && s.includes('data-i18n="classroomSaveNow"'), 'Essays save button says Save now');
 }
