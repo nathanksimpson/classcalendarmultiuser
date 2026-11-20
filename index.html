@@ -2659,7 +2659,7 @@
             </div>
             <div class="modal-body-scroll roster-import-modal-body">
                 <p class="section-hint" data-i18n="classroomEssayScrapeEditorHint">
-                    Load the TMS Writing list, filter the batch you want to grade, fetch essay text for selected students, then open the Batch Essay Editor. Paste feedback back into TMS yourself — ClassManager does not write to TMS.
+                    Load the TMS Writing list, filter the batch you want to grade, tick the essays you want (text loads automatically), then open the Batch Essay Editor. Paste feedback back into TMS yourself — ClassManager does not write to TMS.
                 </p>
                 <form class="roster-tms-cred-form credential-form" autocomplete="on" onsubmit="return false">
                     <div class="form-row">
@@ -2730,8 +2730,6 @@
                     <div class="module-toolbar classroom-tab-toolbar">
                         <p id="essayScrapeResultsCount" class="section-hint" role="status"></p>
                         <div class="toolbar-actions">
-                            <button type="button" id="essayScrapeSelectAllBtn" class="btn btn-outline btn-small" data-i18n="classroomEssayScrapeSelectAll">Select filtered</button>
-                            <button type="button" id="essayScrapeClearSelectionBtn" class="btn btn-outline btn-small" data-i18n="classroomEssayScrapeClearSelection">Clear selection</button>
                             <button type="button" id="essayScrapeFetchBodiesBtn" class="btn btn-secondary btn-small" disabled data-i18n="classroomEssayScrapeFetchBodies">Fetch essay text</button>
                         </div>
                     </div>
@@ -2739,7 +2737,9 @@
                         <table class="classroom-sheet">
                             <thead>
                                 <tr>
-                                    <th scope="col"></th>
+                                    <th scope="col">
+                                        <input type="checkbox" id="essayScrapeCheckAll" disabled aria-label="Select all shown" data-i18n-aria-label="classroomEssayScrapeCheckAll" />
+                                    </th>
                                     <th scope="col" data-i18n="classroomColStudent">Student</th>
                                     <th scope="col" data-i18n="classroomEssayScrapeColClass">Class</th>
                                     <th scope="col" data-i18n="classroomEssayScrapeColTeacher">Teacher</th>

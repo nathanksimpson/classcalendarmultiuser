@@ -7,6 +7,10 @@
     const SESSION_BATCH_KEY = 'ccmu_essay_batch';
     const BRIDGE_TIMEOUT_MS = 120000;
     const STILL_LOADING_MS = 15000;
+    /** Essay pages fetched per bridge call, so progress shows and a big list cannot time out. */
+    const FETCH_CHUNK_SIZE = 15;
+    /** Wait after a filter change before auto-fetching, so clicking several chips is one fetch. */
+    const AUTO_FETCH_DELAY_MS = 900;
 
     let hooks = null;
     let bound = false;
@@ -25,6 +29,11 @@
     };
     let loading = false;
     let fetchingBodies = false;
+    /** Auto-fetch essay text only after a list load in this page (credentials are known then). */
+    let autoFetchEnabled = false;
+    /** Rows the auto-fetch already tried; failures are not retried until the button is pressed. */
+    let fetchAttempted = new Set();
+    let autoFetchTimer = null;
 
     function t(key) {
         if (hooks && typeof hooks.t === 'function') {
@@ -418,7 +427,7 @@
                 } else {
                     filterState[f].delete(val);
                 }
-                applyFilters();
+                onFiltersChanged();
             });
         });
     }
@@ -565,11 +574,35 @@
             searchEl.value = '';
         }
         rebuildFilterUi();
-        applyFilters();
+        onFiltersChanged();
     }
 
-    function renderTable() {
-        const tbody = document.getElementById('essayScrapeTableBody');
+    /** Filtered rows are selected by default: a filter change selects exactly what is shown. */
+    function selectFilteredRows() {
+        selectedKeys = new Set(filteredRows.map((r) => r.key));
+    }
+
+    function onFiltersChanged() {
+        applyFilters();
+        selectFilteredRows();
+        syncSelectionUi();
+        scheduleAutoFetch();
+    }
+
+    function scheduleAutoFetch() {
+        if (!autoFetchEnabled) {
+            return;
+        }
+        if (autoFetchTimer) {
+            clearTimeout(autoFetchTimer);
+        }
+        autoFetchTimer = setTimeout(() => {
+            autoFetchTimer = null;
+            void fetchBodies({ auto: true });
+        }, AUTO_FETCH_DELAY_MS);
+    }
+
+    function updateResultsCount() {
         const countEl = document.getElementById('essayScrapeResultsCount');
         if (countEl) {
             countEl.textContent = t('classroomEssayScrapeResultsCount')
@@ -577,6 +610,35 @@
                 .replace('{total}', String(allRows.length))
                 .replace('{selected}', String(selectedKeys.size));
         }
+    }
+
+    /** Header check-all box: checked when every shown row is selected, dash when some are. */
+    function syncCheckAll() {
+        const box = document.getElementById('essayScrapeCheckAll');
+        if (!box) {
+            return;
+        }
+        const shown = filteredRows.length;
+        const picked = filteredRows.filter((r) => selectedKeys.has(r.key)).length;
+        box.disabled = shown === 0;
+        box.checked = shown > 0 && picked === shown;
+        box.indeterminate = picked > 0 && picked < shown;
+    }
+
+    /** Row checkboxes, header box, count and buttons all follow selectedKeys. */
+    function syncSelectionUi() {
+        document.querySelectorAll('#essayScrapeTableBody .essay-scrape-row-check').forEach((input) => {
+            input.checked = selectedKeys.has(input.getAttribute('data-key'));
+        });
+        syncCheckAll();
+        updateResultsCount();
+        updateActionButtons();
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('essayScrapeTableBody');
+        updateResultsCount();
+        syncCheckAll();
         if (!tbody) {
             return;
         }
@@ -612,12 +674,9 @@
                 } else {
                     selectedKeys.delete(key);
                 }
-                updateActionButtons();
-                if (countEl) {
-                    countEl.textContent = t('classroomEssayScrapeResultsCount')
-                        .replace('{shown}', String(filteredRows.length))
-                        .replace('{total}', String(allRows.length))
-                        .replace('{selected}', String(selectedKeys.size));
+                syncSelectionUi();
+                if (input.checked) {
+                    scheduleAutoFetch();
                 }
             });
         });
@@ -637,7 +696,10 @@
                 } else {
                     selectedKeys.delete(key);
                 }
-                updateActionButtons();
+                syncSelectionUi();
+                if (input.checked) {
+                    scheduleAutoFetch();
+                }
             });
         });
     }
@@ -647,24 +709,27 @@
         const openBtn = document.getElementById('essayScrapeOpenEditorBtn');
         const selected = allRows.filter((r) => selectedKeys.has(r.key));
         const withBody = selected.filter((r) => r.bodyOk && r.body);
+        const missing = selected.length - withBody.length;
         if (fetchBtn) {
-            fetchBtn.disabled = loading || fetchingBodies || selected.length === 0;
+            fetchBtn.disabled = loading || fetchingBodies || missing === 0;
         }
         if (openBtn) {
             openBtn.disabled = loading || fetchingBodies || withBody.length === 0;
         }
     }
 
-    function selectAllFiltered() {
-        filteredRows.forEach((r) => selectedKeys.add(r.key));
-        renderTable();
-        updateActionButtons();
-    }
-
-    function clearSelection() {
-        selectedKeys.clear();
-        renderTable();
-        updateActionButtons();
+    function setAllFilteredSelected(on) {
+        filteredRows.forEach((r) => {
+            if (on) {
+                selectedKeys.add(r.key);
+            } else {
+                selectedKeys.delete(r.key);
+            }
+        });
+        syncSelectionUi();
+        if (on) {
+            scheduleAutoFetch();
+        }
     }
 
     async function loadList() {
@@ -687,6 +752,7 @@
         }
         let stillTimer = null;
         let abortTimer = null;
+        let loadedOk = false;
         const controller =
             typeof AbortController !== 'undefined' ? new AbortController() : null;
         try {
@@ -706,6 +772,7 @@
             });
             allRows = normalizeFlatRows(body);
             selectedKeys.clear();
+            fetchAttempted = new Set();
             filterState = {
                 classes: new Set(),
                 titles: new Set(),
@@ -730,6 +797,10 @@
             setStatus(
                 t('classroomEssayScrapeLoaded').replace('{count}', String(allRows.length))
             );
+            selectFilteredRows();
+            syncSelectionUi();
+            autoFetchEnabled = true;
+            loadedOk = true;
         } catch (err) {
             if (err && err.name === 'AbortError') {
                 setError(t('classroomEssayTmsBridgeTimeout'));
@@ -750,103 +821,139 @@
             }
             updateActionButtons();
         }
+        if (loadedOk && allRows.length) {
+            void fetchBodies({ auto: true });
+        }
     }
 
-    async function fetchBodies() {
+    function pendingBodyRows(auto) {
+        return allRows.filter(
+            (r) =>
+                selectedKeys.has(r.key) &&
+                !(r.bodyOk && r.body) &&
+                !(auto && fetchAttempted.has(r.key))
+        );
+    }
+
+    /**
+     * Fetch essay text for selected rows that have none yet, a chunk at a time.
+     * Each chunk re-reads the selection, so a filter change mid-fetch redirects it.
+     * auto: skip rows already tried (failures wait for the Fetch essay text button).
+     */
+    async function fetchBodies(opts) {
+        const auto = Boolean(opts && opts.auto);
         if (fetchingBodies || loading || !hooks) {
             return;
         }
-        const selected = allRows.filter((r) => selectedKeys.has(r.key));
-        if (!selected.length) {
-            setError(t('classroomEssayScrapeSelectFirst'));
+        if (!auto) {
+            // Manual retry: try failed rows again.
+            allRows.forEach((r) => {
+                if (selectedKeys.has(r.key)) {
+                    fetchAttempted.delete(r.key);
+                }
+            });
+        }
+        if (!pendingBodyRows(auto).length) {
+            if (!auto && !allRows.some((r) => selectedKeys.has(r.key))) {
+                setError(t('classroomEssayScrapeSelectFirst'));
+            }
             return;
         }
         const creds = readCreds();
         global.CCPTmsSync.setSavedUsername(creds.username, creds.rememberUser);
         fetchingBodies = true;
         setError('');
-        setStatus(
-            t('classroomEssayScrapeFetchingBodies').replace('{count}', String(selected.length))
-        );
         updateActionButtons();
+        let okCount = 0;
+        let failCount = 0;
+        let receivedCount = 0;
+        let firstErr = null;
         let stillTimer = null;
-        let abortTimer = null;
-        const controller =
-            typeof AbortController !== 'undefined' ? new AbortController() : null;
         try {
-            const payload = {
-                rows: selected.map((r) => ({
-                    mpidx: r.mpidx,
-                    tmsClassId: r.tmsClassId,
-                    homeworkItemIdx: r.homeworkItemIdx,
-                    lessonDate: r.lessonDate,
-                    name: r.name,
-                    displayName: r.displayName,
-                    className: r.className,
-                    title: r.title
-                }))
-            };
-            if (creds.username || creds.password) {
-                payload.username = creds.username;
-                payload.password = creds.password;
-            }
-            stillTimer = setTimeout(() => {
-                if (fetchingBodies) {
-                    setStatus(t('classroomEssayScrapeFetchingStill'));
+            for (;;) {
+                const pending = pendingBodyRows(true);
+                if (!pending.length) {
+                    break;
                 }
-            }, STILL_LOADING_MS);
-            const body = await global.CCPTmsSync.run('essayContent', payload, {
-                timeoutMs: BRIDGE_TIMEOUT_MS,
-                signal: controller ? controller.signal : undefined
-            });
-            const essays = Array.isArray(body && body.essays) ? body.essays : [];
-            const byKey = new Map();
-            essays.forEach((e) => {
-                byKey.set(
-                    rowKey({
-                        mpidx: e.mpidx,
-                        tmsClassId: e.tmsClassId,
-                        homeworkItemIdx: e.homeworkItemIdx,
-                        lessonDate: e.lessonDate,
-                        name: e.name
-                    }),
-                    e
+                const chunk = pending.slice(0, FETCH_CHUNK_SIZE);
+                chunk.forEach((r) => fetchAttempted.add(r.key));
+                setStatus(
+                    t('classroomEssayScrapeFetchingBodies').replace('{count}', String(pending.length))
                 );
-            });
-            let okCount = 0;
-            let failCount = 0;
-            allRows = allRows.map((r) => {
-                if (!selectedKeys.has(r.key)) {
-                    return r;
+                const payload = {
+                    rows: chunk.map((r) => ({
+                        mpidx: r.mpidx,
+                        tmsClassId: r.tmsClassId,
+                        homeworkItemIdx: r.homeworkItemIdx,
+                        lessonDate: r.lessonDate,
+                        name: r.name,
+                        displayName: r.displayName,
+                        className: r.className,
+                        title: r.title
+                    }))
+                };
+                if (creds.username || creds.password) {
+                    payload.username = creds.username;
+                    payload.password = creds.password;
                 }
-                const hit = byKey.get(r.key);
-                if (hit && hit.ok && hit.body) {
-                    okCount += 1;
-                    return Object.assign({}, r, {
-                        body: hit.body,
-                        bodyOk: true,
-                        teacherFeedback: hit.teacherFeedback || ''
-                    });
+                if (stillTimer) {
+                    clearTimeout(stillTimer);
                 }
-                failCount += 1;
-                return Object.assign({}, r, {
-                    body: '',
-                    bodyOk: false
+                stillTimer = setTimeout(() => {
+                    if (fetchingBodies) {
+                        setStatus(t('classroomEssayScrapeFetchingStill'));
+                    }
+                }, STILL_LOADING_MS);
+                const controller =
+                    typeof AbortController !== 'undefined' ? new AbortController() : null;
+                const body = await global.CCPTmsSync.run('essayContent', payload, {
+                    timeoutMs: BRIDGE_TIMEOUT_MS,
+                    signal: controller ? controller.signal : undefined
                 });
-            });
-            persistSessionRows();
-            applyFilters();
-
-            let receivedCount = 0;
-            if (okCount > 0) {
-                const fetchedOk = allRows.filter(
-                    (r) => selectedKeys.has(r.key) && r.bodyOk && r.body
-                );
-                try {
-                    receivedCount = await markReceivedForFetchedRows(fetchedOk);
-                } catch (markErr) {
-                    if (typeof console !== 'undefined' && console.warn) {
-                        console.warn('[essay scrape] mark Received failed', markErr);
+                const essays = Array.isArray(body && body.essays) ? body.essays : [];
+                const byKey = new Map();
+                essays.forEach((e) => {
+                    byKey.set(
+                        rowKey({
+                            mpidx: e.mpidx,
+                            tmsClassId: e.tmsClassId,
+                            homeworkItemIdx: e.homeworkItemIdx,
+                            lessonDate: e.lessonDate,
+                            name: e.name
+                        }),
+                        e
+                    );
+                });
+                if (!firstErr) {
+                    firstErr = essays.find((e) => !e.ok || !e.body) || null;
+                }
+                const chunkKeys = new Set(chunk.map((r) => r.key));
+                allRows = allRows.map((r) => {
+                    if (!chunkKeys.has(r.key)) {
+                        return r;
+                    }
+                    const hit = byKey.get(r.key);
+                    if (hit && hit.ok && hit.body) {
+                        okCount += 1;
+                        return Object.assign({}, r, {
+                            body: hit.body,
+                            bodyOk: true,
+                            teacherFeedback: hit.teacherFeedback || ''
+                        });
+                    }
+                    failCount += 1;
+                    return Object.assign({}, r, { body: '', bodyOk: false });
+                });
+                persistSessionRows();
+                applyFilters();
+                const fetchedOk = allRows.filter((r) => chunkKeys.has(r.key) && r.bodyOk && r.body);
+                if (fetchedOk.length) {
+                    try {
+                        receivedCount += await markReceivedForFetchedRows(fetchedOk);
+                    } catch (markErr) {
+                        if (typeof console !== 'undefined' && console.warn) {
+                            console.warn('[essay scrape] mark Received failed', markErr);
+                        }
                     }
                 }
             }
@@ -874,14 +981,13 @@
                 );
             }
             if (failCount) {
-                const firstErr = essays.find((e) => !e.ok || !e.body);
                 const detail = firstErr
                     ? `${firstErr.error || firstErr.code || 'empty'}${
                           firstErr.url ? ` · ${firstErr.url}` : ''
                       }`
                     : '';
                 setError(
-                    failCount && !okCount
+                    !okCount
                         ? `${t('classroomEssayScrapeFetchFailed')}${detail ? ` (${detail})` : ''}`
                         : t('classroomEssayScrapeFetchPartial')
                               .replace('{ok}', String(okCount))
@@ -899,9 +1005,6 @@
         } finally {
             if (stillTimer) {
                 clearTimeout(stillTimer);
-            }
-            if (abortTimer) {
-                clearTimeout(abortTimer);
             }
             fetchingBodies = false;
             updateActionButtons();
@@ -1074,6 +1177,10 @@
         if (allRows.length) {
             rebuildFilterUi();
             applyFilters();
+            if (!selectedKeys.size) {
+                selectFilteredRows();
+            }
+            syncSelectionUi();
             const filtersEl = document.getElementById('essayScrapeFilters');
             const resultsEl = document.getElementById('essayScrapeResults');
             if (filtersEl) {
@@ -1128,16 +1235,13 @@
             }
         });
         document.getElementById('essayScrapeFetchBodiesBtn')?.addEventListener('click', () => {
-            void fetchBodies();
+            void fetchBodies({ auto: false });
         });
         document.getElementById('essayScrapeOpenEditorBtn')?.addEventListener('click', () => {
             openBatchEditor();
         });
-        document.getElementById('essayScrapeSelectAllBtn')?.addEventListener('click', () => {
-            selectAllFiltered();
-        });
-        document.getElementById('essayScrapeClearSelectionBtn')?.addEventListener('click', () => {
-            clearSelection();
+        document.getElementById('essayScrapeCheckAll')?.addEventListener('change', (e) => {
+            setAllFilteredSelected(Boolean(e.target.checked));
         });
         document.getElementById('essayScrapeClearFiltersBtn')?.addEventListener('click', () => {
             clearFilters();
@@ -1150,15 +1254,15 @@
         });
         document.getElementById('essayScrapeMonth')?.addEventListener('change', (e) => {
             filterState.month = e.target.value || '';
-            applyFilters();
+            onFiltersChanged();
         });
         document.getElementById('essayScrapeFromDate')?.addEventListener('change', (e) => {
             filterState.fromDate = e.target.value || '';
-            applyFilters();
+            onFiltersChanged();
         });
         document.getElementById('essayScrapeToDate')?.addEventListener('change', (e) => {
             filterState.toDate = e.target.value || '';
-            applyFilters();
+            onFiltersChanged();
         });
         document.getElementById('essayScrapeFilterSearch')?.addEventListener('input', (e) => {
             filterChipQuery = e.target.value || '';
