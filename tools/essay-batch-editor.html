@@ -345,7 +345,7 @@
                     <div class="p-1 bg-green-50 rounded shadow-sm border border-green-100">
                         <i data-lucide="check-circle-2" class="h-3.5 w-3.5 text-green-600"></i>
                     </div>
-                    <span class="font-medium text-xs uppercase tracking-wide text-slate-400">Done</span>
+                    <span class="font-medium text-xs uppercase tracking-wide text-slate-400">Complete</span>
                     <span id="statGraded" class="font-bold text-slate-800 text-base">0</span>
                 </div>
 
@@ -472,7 +472,7 @@
                     <select id="outputStatusFilter" class="sm:w-44 bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2">
                         <option value="all">All statuses</option>
                         <option value="open">Open</option>
-                        <option value="done">Done</option>
+                        <option value="complete">Complete</option>
                         <option value="resubmit">Resubmit</option>
                         <option value="failed">API failure</option>
                     </select>
@@ -481,7 +481,7 @@
                         <option value="studentName">Student A–Z</option>
                         <option value="className">Class A–Z</option>
                         <option value="score">Score (high → low)</option>
-                        <option value="doneStatus">Not done first</option>
+                        <option value="doneStatus">Still to do first</option>
                     </select>
                 </div>
                 <div class="flex flex-col items-start lg:items-end gap-1 shrink-0">
@@ -782,10 +782,13 @@
                         <span data-role="studentName">Student Name</span>
                         <span data-role="className" class="text-xs font-normal px-2 py-0.5 bg-white border border-slate-200 rounded-full text-slate-500">Class</span>
                         <span data-role="doneBadge" class="hidden text-xs font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full border border-green-200 flex items-center gap-1">
-                            <i data-lucide="check" class="h-3 w-3"></i> Done
+                            <i data-lucide="check" class="h-3 w-3"></i> Complete
                         </span>
                         <span data-role="resubmitBadge" class="hidden text-xs font-bold text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full border border-orange-200 flex items-center gap-1">
                             <i data-lucide="rotate-ccw" class="h-3 w-3"></i> Resubmit
+                        </span>
+                        <span data-role="demeritBadge" class="hidden text-xs font-bold text-orange-700 bg-orange-100 px-2 py-0.5 rounded-full border border-orange-200 flex items-center gap-1">
+                            Demerit
                         </span>
                     </h3>
                 </div>
@@ -857,15 +860,7 @@
                             <span class="block text-[10px] font-bold uppercase tracking-wide text-slate-400 mb-1">Notes</span>
                             <textarea data-role="listNote" rows="2" placeholder="A sentence or two" class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-slate-400 resize-y disabled:bg-slate-50 disabled:text-slate-400"></textarea>
                         </label>
-                        <label class="flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer select-none border border-transparent has-[:checked]:bg-green-100 has-[:checked]:text-green-800 has-[:checked]:border-green-200">
-                            <input type="checkbox" data-role="doneCheckbox" class="w-3.5 h-3.5 rounded text-green-600 focus:ring-green-500 border-gray-300">
-                            <span>Done</span>
-                        </label>
-                        <label class="flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer select-none border border-transparent has-[:checked]:bg-orange-100 has-[:checked]:text-orange-800 has-[:checked]:border-orange-200">
-                            <input type="checkbox" data-role="resubmitCheckbox" class="w-3.5 h-3.5 rounded text-orange-600 focus:ring-orange-500 border-gray-300">
-                            <span>Resubmit</span>
-                        </label>
-                         <button data-role="toggleLockBtn" class="text-xs font-bold px-3 py-1.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors flex items-center gap-1">
+                        <button data-role="toggleLockBtn" class="text-xs font-bold px-3 py-1.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors flex items-center gap-1">
                             <i data-lucide="lock" class="h-3 w-3"></i> Lock
                         </button>
                         <button data-role="copyBtn" class="text-xs font-bold px-3 py-1.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors flex items-center gap-1" title="Copy using the header Copy options">
@@ -913,6 +908,7 @@
     <script src="/js/conflict-merge.js?v=20261027-essay-conflict"></script>
     <script src="/js/calendar-sync.js?v=20261028-essay-batch-draft"></script>
     <script src="/js/classroom-domain.js?v=20261120-essay-one-write"></script>
+    <script src="/js/essay-batch-list-status.js?v=20261120-essay-one-status"></script>
     <script src="/js/essay-batch-grader-calendar.js?v=20261119-essay-status-sync"></script>
     <script src="/js/essay-batch-draft-sync.js?v=20261028-essay-batch-draft2"></script>
     <script>
@@ -1300,6 +1296,9 @@
         }
 
         let viewState = loadViewStateFromStorage();
+        if (viewState.filterStatus === 'done') {
+            viewState.filterStatus = 'complete';
+        }
 
         function saveViewState() {
             try { localStorage.setItem('bg_outputView', JSON.stringify(viewState)); } catch (e) {}
@@ -1462,15 +1461,27 @@
         function migrateResults(results) {
             if (!Array.isArray(results)) return [];
             const legacyBatchId = 'legacy-' + Date.now();
+            const listStatusApi = globalThis.CCPEssayBatchListStatus;
             return results
                 .filter(r => r && !r._pending)
-                .map((r, i) => ({
-                    ...r,
-                    resultId: r.resultId || generateId(),
-                    batchId: r.batchId || legacyBatchId,
-                    batchOrder: r.batchOrder ?? i,
-                    batchCreatedAt: r.batchCreatedAt ?? 0
-                }));
+                .map((r, i) => {
+                    const next = {
+                        ...r,
+                        resultId: r.resultId || generateId(),
+                        batchId: r.batchId || legacyBatchId,
+                        batchOrder: r.batchOrder ?? i,
+                        batchCreatedAt: r.batchCreatedAt ?? 0
+                    };
+                    if (!next.listStatus && listStatusApi && typeof listStatusApi.statusFromLegacyChecklist === 'function') {
+                        const seeded = listStatusApi.statusFromLegacyChecklist(r);
+                        if (seeded) {
+                            next.listStatus = seeded;
+                        }
+                    }
+                    delete next.isDone;
+                    delete next.isResubmit;
+                    return next;
+                });
         }
 
         function loadResultsFromStorage() {
@@ -1503,14 +1514,22 @@
                 || essaySnippet.includes(q);
         }
 
+        function listStatusApi() {
+            return globalThis.CCPEssayBatchListStatus || null;
+        }
+
+        function cardMatchesStatusFilter(result, filter) {
+            const api = listStatusApi();
+            if (api && typeof api.matchesFilter === 'function') {
+                return api.matchesFilter(result, filter);
+            }
+            return true;
+        }
+
         function getFilteredResults() {
             return getValidResults().filter(r => {
                 if (viewState.filterClass !== 'all' && r.className !== viewState.filterClass) return false;
-                const status = viewState.filterStatus || 'all';
-                if (status === 'open' && (r.isDone || r.isResubmit || r.isFailed)) return false;
-                if (status === 'done' && !r.isDone) return false;
-                if (status === 'resubmit' && !r.isResubmit) return false;
-                if (status === 'failed' && !r.isFailed) return false;
+                if (!cardMatchesStatusFilter(r, viewState.filterStatus || 'all')) return false;
                 return resultMatchesSearch(r, viewState.searchQuery);
             });
         }
@@ -1537,7 +1556,9 @@
                     break;
                 case 'doneStatus':
                     sorted.sort((a, b) => {
-                        const d = (a.isDone ? 1 : 0) - (b.isDone ? 1 : 0);
+                        const api = listStatusApi();
+                        const settled = (row) => Boolean(api && api.isSettled(row));
+                        const d = (settled(a) ? 1 : 0) - (settled(b) ? 1 : 0);
                         return d !== 0 ? d : compareBatchOrder(a, b);
                     });
                     break;
@@ -2098,10 +2119,12 @@
                 : validResults.filter(r => !r.isFailed);
 
             const total = validResults.length;
-            const doneCount = validResults.filter(r => r.isDone).length;
-            const resubmitCount = validResults.filter(r => r.isResubmit).length;
+            const api = listStatusApi();
+            const doneCount = validResults.filter(r => api && api.isComplete(r)).length;
+            const resubmitCount = validResults.filter(r => api && api.isResubmit(r)).length;
+            const demeritCount = validResults.filter(r => api && api.isDemerit(r)).length;
             const failedCount = validResults.filter(r => r.isFailed).length;
-            const remaining = Math.max(0, total - doneCount - resubmitCount - failedCount);
+            const remaining = Math.max(0, total - doneCount - resubmitCount - demeritCount - failedCount);
 
             let totalScore = 0;
             avgPool.forEach(r => { totalScore += getTotalScore(r); });
@@ -4333,88 +4356,7 @@ Requirement: "${ruleDescription}"`;
             card.querySelector('[data-role="className"]').innerText = data.className || 'No Class';
             card.dataset.resultId = resultId;
 
-            const doneCheckbox = card.querySelector('[data-role="doneCheckbox"]');
-            const resubmitCheckbox = card.querySelector('[data-role="resubmitCheckbox"]');
-            const cardHeader = card.querySelector('[data-role="cardHeader"]');
-            const doneBadge = card.querySelector('[data-role="doneBadge"]');
-            const resubmitBadge = card.querySelector('[data-role="resubmitBadge"]');
-
-            // Mutual exclusivity: prefer Done if both were somehow set
-            if (data.isDone && data.isResubmit) data.isResubmit = false;
-
-            doneCheckbox.checked = !!data.isDone;
-            resubmitCheckbox.checked = !!data.isResubmit;
-
-            function clearStatusVisuals() {
-                card.classList.remove('bg-green-50', 'border-green-400', 'bg-orange-50', 'border-orange-400', 'bg-red-50', 'border-red-400');
-                cardHeader.classList.remove('bg-green-100', 'border-green-200', 'bg-orange-100', 'border-orange-200', 'bg-red-100', 'border-red-200');
-                doneBadge.classList.add('hidden');
-                resubmitBadge.classList.add('hidden');
-            }
-
-            function updateStatusVisuals() {
-                clearStatusVisuals();
-                if (data.isFailed) {
-                    card.classList.add('border-red-400', 'bg-red-50');
-                    cardHeader.classList.add('bg-red-100', 'border-red-200');
-                    doneCheckbox.disabled = true;
-                    resubmitCheckbox.disabled = true;
-                    return;
-                }
-                doneCheckbox.disabled = false;
-                resubmitCheckbox.disabled = false;
-                if (doneCheckbox.checked) {
-                    card.classList.remove('bg-white', 'border-slate-200');
-                    card.classList.add('bg-green-50', 'border-green-400');
-                    cardHeader.classList.remove('bg-slate-50', 'border-slate-100');
-                    cardHeader.classList.add('bg-green-100', 'border-green-200');
-                    doneBadge.classList.remove('hidden');
-                } else if (resubmitCheckbox.checked) {
-                    card.classList.remove('bg-white', 'border-slate-200');
-                    card.classList.add('bg-orange-50', 'border-orange-400');
-                    cardHeader.classList.remove('bg-slate-50', 'border-slate-100');
-                    cardHeader.classList.add('bg-orange-100', 'border-orange-200');
-                    resubmitBadge.classList.remove('hidden');
-                } else {
-                    card.classList.add('bg-white', 'border-slate-200');
-                    cardHeader.classList.add('bg-slate-50', 'border-slate-100');
-                }
-            }
-
-            function persistStatusAndRefresh() {
-                debouncedSaveState();
-                updateStats();
-                if (viewState.filterStatus && viewState.filterStatus !== 'all') applyOutputView();
-            }
-
-            doneCheckbox.addEventListener('change', (e) => {
-                data.isDone = e.target.checked;
-                if (data.isDone) {
-                    data.isResubmit = false;
-                    resubmitCheckbox.checked = false;
-                }
-                updateStatusVisuals();
-                persistStatusAndRefresh();
-                if (!checklistSyncing) {
-                    queueChecklistListStatus(card, data);
-                }
-            });
-
-            resubmitCheckbox.addEventListener('change', (e) => {
-                data.isResubmit = e.target.checked;
-                if (data.isResubmit) {
-                    data.isDone = false;
-                    doneCheckbox.checked = false;
-                }
-                updateStatusVisuals();
-                persistStatusAndRefresh();
-                if (!checklistSyncing) {
-                    queueChecklistListStatus(card, data);
-                }
-            });
-
-            if (!data.isDone && !data.isResubmit && !data.isFailed) card.classList.add('bg-white', 'border-slate-200');
-            updateStatusVisuals();
+            paintCardListStatus(card, data);
             const noteBox = card.querySelector('[data-role="listNote"]');
             if (noteBox) {
                 noteBox.addEventListener('input', () => {
@@ -4423,6 +4365,64 @@ Requirement: "${ruleDescription}"`;
                 });
             }
             bindListStatus(card, data);
+        }
+
+        function paintCardListStatus(card, data) {
+            if (!card || !data) {
+                return;
+            }
+            const cardHeader = card.querySelector('[data-role="cardHeader"]');
+            const doneBadge = card.querySelector('[data-role="doneBadge"]');
+            const resubmitBadge = card.querySelector('[data-role="resubmitBadge"]');
+            const demeritBadge = card.querySelector('[data-role="demeritBadge"]');
+            const status = listStatusApi() ? listStatusApi().statusOf(data) : (data.listStatus || '');
+            card.classList.remove('bg-green-50', 'border-green-400', 'bg-orange-50', 'border-orange-400', 'bg-amber-50', 'border-amber-400', 'bg-red-50', 'border-red-400', 'bg-white', 'border-slate-200');
+            if (cardHeader) {
+                cardHeader.classList.remove('bg-green-100', 'border-green-200', 'bg-orange-100', 'border-orange-200', 'bg-amber-100', 'border-amber-200', 'bg-red-100', 'border-red-200', 'bg-slate-50', 'border-slate-100');
+            }
+            if (doneBadge) doneBadge.classList.add('hidden');
+            if (resubmitBadge) resubmitBadge.classList.add('hidden');
+            if (demeritBadge) demeritBadge.classList.add('hidden');
+            if (data.isFailed) {
+                card.classList.add('border-red-400', 'bg-red-50');
+                if (cardHeader) cardHeader.classList.add('bg-red-100', 'border-red-200');
+                return;
+            }
+            if (status === 'complete') {
+                card.classList.add('bg-green-50', 'border-green-400');
+                if (cardHeader) cardHeader.classList.add('bg-green-100', 'border-green-200');
+                if (doneBadge) doneBadge.classList.remove('hidden');
+                return;
+            }
+            if (status === 'resubmit_required') {
+                card.classList.add('bg-orange-50', 'border-orange-400');
+                if (cardHeader) cardHeader.classList.add('bg-orange-100', 'border-orange-200');
+                if (resubmitBadge) resubmitBadge.classList.remove('hidden');
+                return;
+            }
+            if (status === 'demerit') {
+                card.classList.add('bg-amber-50', 'border-amber-400');
+                if (cardHeader) cardHeader.classList.add('bg-amber-100', 'border-amber-200');
+                if (demeritBadge) demeritBadge.classList.remove('hidden');
+                return;
+            }
+            card.classList.add('bg-white', 'border-slate-200');
+            if (cardHeader) cardHeader.classList.add('bg-slate-50', 'border-slate-100');
+        }
+
+        function refreshListStatusViews() {
+            updateStats();
+            if (!viewState.filterStatus || viewState.filterStatus === 'all') {
+                return;
+            }
+            const shown = new Set(getFilteredResults().map((row) => row.resultId));
+            getValidResults().forEach((row) => {
+                const wrapper = document.getElementById(getWrapperId(row.resultId));
+                if (wrapper) {
+                    wrapper.classList.toggle('hidden', !shown.has(row.resultId));
+                }
+            });
+            updateOutputToolbar();
         }
 
         function calendarEssayData() {
@@ -4913,63 +4913,6 @@ Requirement: "${ruleDescription}"`;
             return wrap;
         }
 
-        function setLocalChecklistBox(card, role, checked) {
-            const box = card && card.querySelector(`[data-role="${role}"]`);
-            if (!box || box.disabled || box.checked === checked) {
-                return;
-            }
-            box.checked = checked;
-            box.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-
-        let checklistSyncing = false;
-
-        function syncLocalChecklist(card, status) {
-            if (!card) {
-                return;
-            }
-            checklistSyncing = true;
-            try {
-                if (status === 'resubmit_required') {
-                    setLocalChecklistBox(card, 'doneCheckbox', false);
-                    setLocalChecklistBox(card, 'resubmitCheckbox', true);
-                    return;
-                }
-                if (status === 'complete' || status === 'demerit') {
-                    setLocalChecklistBox(card, 'resubmitCheckbox', false);
-                    setLocalChecklistBox(card, 'doneCheckbox', true);
-                    return;
-                }
-                setLocalChecklistBox(card, 'doneCheckbox', false);
-                setLocalChecklistBox(card, 'resubmitCheckbox', false);
-            } finally {
-                checklistSyncing = false;
-            }
-        }
-
-        function queueChecklistListStatus(card, data) {
-            const link = resolveCardListLink(data);
-            if (!link || !calendarEssayData() || !data) {
-                return;
-            }
-            let next = '';
-            if (data.isResubmit) {
-                next = 'resubmit_required';
-            } else if (data.isDone) {
-                next = data.listStatus === 'demerit' ? 'demerit' : 'complete';
-            } else if (
-                data.listStatus === 'complete' ||
-                data.listStatus === 'resubmit_required' ||
-                data.listStatus === 'demerit'
-            ) {
-                next = 'submitted';
-            }
-            if (!next || next === data.listStatus) {
-                return;
-            }
-            void applyListStatusChoice(card, data, next, null);
-        }
-
         function bindListStatus(card, data) {
             const chipsEl = card.querySelector('[data-role="listStatusChips"]');
             const noteEl = card.querySelector('[data-role="listStatusNote"]');
@@ -5006,11 +4949,7 @@ Requirement: "${ruleDescription}"`;
                     button.classList.add('opacity-50', 'cursor-not-allowed');
                 }
                 button.addEventListener('click', () => {
-                    if (!linked) {
-                        return;
-                    }
-                    if (data.listStatus === chip.id) {
-                        syncLocalChecklist(card, chip.id);
+                    if (!linked || data.listStatus === chip.id) {
                         return;
                     }
                     void applyListStatusChoice(card, data, chip.id, null);
@@ -5038,9 +4977,8 @@ Requirement: "${ruleDescription}"`;
                 flagsEl.classList.add('hidden');
             }
             syncListNoteBox(card, data, linked ? link : null);
-            if (linked) {
-                syncLocalChecklist(card, data.listStatus || 'not_submitted');
-            }
+            paintCardListStatus(card, data);
+            refreshListStatusViews();
         }
 
         function snapshotListStatus(data) {
@@ -5049,9 +4987,7 @@ Requirement: "${ruleDescription}"`;
                 retestAssigned: data.retestAssigned,
                 retestPassed: data.retestPassed,
                 submissionLate: data.submissionLate,
-                overdueDismissed: data.overdueDismissed,
-                isDone: data.isDone,
-                isResubmit: data.isResubmit
+                overdueDismissed: data.overdueDismissed
             };
         }
 
@@ -5061,11 +4997,8 @@ Requirement: "${ruleDescription}"`;
             data.retestPassed = snap.retestPassed;
             data.submissionLate = snap.submissionLate;
             data.overdueDismissed = snap.overdueDismissed;
-            data.isDone = snap.isDone;
-            data.isResubmit = snap.isResubmit;
             bindListStatus(card, data);
-            setLocalChecklistBox(card, 'doneCheckbox', Boolean(snap.isDone));
-            setLocalChecklistBox(card, 'resubmitCheckbox', Boolean(snap.isResubmit));
+            debouncedSaveState();
         }
 
         async function applyListStatusChoice(card, data, status, flags) {
@@ -5109,10 +5042,8 @@ Requirement: "${ruleDescription}"`;
                 data.retestAssigned = false;
                 data.retestPassed = false;
             }
+            debouncedSaveState();
             bindListStatus(card, data);
-            if (!flags) {
-                syncLocalChecklist(card, status);
-            }
             const stillThisClick = () => listStatusStillCurrent(data, generation);
             try {
                 const saved = await saveListStatus(data, status, flags, generation);
