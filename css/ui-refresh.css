@@ -85,10 +85,26 @@ html[data-nav-tabs-collapsed="1"] {
 
 #appHeaderUnified .app-brand {
     grid-area: brand;
+    display: grid;
+    grid-template-columns: auto auto;
+    grid-template-rows: auto auto;
+    align-items: center;
+    column-gap: var(--space-2, 8px);
+    row-gap: 1px;
     margin: 0;
     padding: 0;
-    gap: var(--space-2, 8px);
-    min-width: 0;
+    min-width: max-content;
+}
+
+#appHeaderUnified .app-brand-icon,
+#appHeaderUnified .app-brand-name {
+    grid-row: 1;
+}
+
+#appHeaderUnified .app-build-stamp {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: start;
 }
 
 /* ---------- Calendar ▾ (shows which calendar you are in) ---------- */
@@ -772,11 +788,18 @@ html[data-nav-dock="bottom"] #appHeaderUnified #teamCalendarMenuBtn {
     max-width: 10rem;
 }
 
-/* Phones: no logo, no PC-only Sync Helper, Print moves to the avatar menu. */
-html[data-viewport="phone"] #appHeaderUnified .app-brand,
+/* Phones: hide the logo, keep the deploy stamp in the top-left corner.
+   Sync Helper is PC-only. Print moves to the avatar menu. */
+html[data-viewport="phone"] #appHeaderUnified .app-brand-icon,
+html[data-viewport="phone"] #appHeaderUnified .app-brand-name,
 html[data-viewport="phone"] #appHeaderUnified #headerStatusGroup #tmsHelperToggle,
 html[data-viewport="phone"] #appHeaderUnified #openPrintBtn {
     display: none;
+}
+
+html[data-viewport="phone"] #appHeaderUnified .app-build-stamp {
+    grid-row: 1;
+    grid-column: 1;
 }
 
 html[data-viewport="phone"] #teamAccountPopover .account-print-item {
@@ -1564,11 +1587,11 @@ details.toolbar-menu .classroom-essay-reports-item:disabled {
 
 #appHeaderUnified .app-build-stamp,
 .app-build-stamp {
-    font-size: 10px;
-    font-weight: 500;
-    line-height: 1;
-    color: var(--text-muted, var(--text-secondary));
-    opacity: 0.7;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--text-secondary);
+    opacity: 1;
     letter-spacing: 0.01em;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;

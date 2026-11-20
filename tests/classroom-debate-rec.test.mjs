@@ -632,7 +632,7 @@ const PRESENT = [{ date: '2026-08-01', status: '출석' }];
     zoneData.classes.push(plain);
     zoneData.ui = {};
     const L = { classroomEssayAlertNv: 'NV:{count}', debateRecAlertNc: 'NC:{count}', debateRecAlertCf: 'CF:{count}' };
-    Z.init({ getAppData: () => zoneData, t: (k) => L[k] || k });
+    Z.init({ getAppData: () => zoneData, t: (k) => L[k] || k, todayIso: () => TODAY });
     Z.syncVisibility('debate-rec');
     const html = Z.buildDebateRecAlertBadgesHtml(zoneData.classes[0]);
     assert(html.includes('debate-rec-alert--high') && html.includes('NC:3'), 'NC pill is red (high) before a check');

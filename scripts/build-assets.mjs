@@ -341,13 +341,23 @@ function escHtml(str) {
     return String(str).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 }
 
+/** Visible top-left label plus the longer account-menu line. */
+function formatBuildStamp(now, commit) {
+    const t = kstParts(now);
+    const hash = String(commit || '').trim().slice(0, 7);
+    const when = `${t.mo}/${t.d} ${t.h}:${t.mi}`;
+    const full = `${t.y}-${t.mo}-${t.d} ${t.h}:${t.mi} KST` + (hash ? ` · ${hash}` : '');
+    return {
+        short: hash ? `${when} · ${hash}` : when,
+        full,
+        title: `Last update: ${full}`
+    };
+}
+
 /** Rewrite data-build-stamp spans (text + title) in every dist HTML file. */
 function stampBuildInfo(now = new Date()) {
-    const t = kstParts(now);
     const commit = buildCommit();
-    const short = `${t.mo}/${t.d} ${t.h}:${t.mi}`;
-    const full = `${t.y}-${t.mo}-${t.d} ${t.h}:${t.mi} KST` + (commit ? ` · ${commit}` : '');
-    const title = `Last update: ${full}`;
+    const { short, full, title } = formatBuildStamp(now, commit);
     const spanRe = /<span\b([^>]*\bdata-build-stamp="(short|full)"[^>]*)>[^<]*<\/span>/g;
     let count = 0;
     for (const f of listDistFiles(dist, /\.html$/i)) {
@@ -451,7 +461,12 @@ async function main() {
     console.log('Built dist/ — minified core assets ~' + Math.round(bytes / 1024) + ' KB');
 }
 
-main().catch((err) => {
-    console.error(err);
-    process.exit(1);
-});
+const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isDirectRun) {
+    main().catch((err) => {
+        console.error(err);
+        process.exit(1);
+    });
+}
+
+export { formatBuildStamp, kstParts };

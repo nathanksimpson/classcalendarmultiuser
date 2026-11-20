@@ -142,7 +142,7 @@
         } else if (activeTabId === 'debate-rec') {
             const d = domain();
             if (d && d.listDebateRecWarnMonths) {
-                d.listDebateRecWarnMonths(getAppData(), getBaseAccessibleClasses()).forEach((m) => set.add(m));
+                d.listDebateRecWarnMonths(getAppData(), getBaseAccessibleClasses(), { todayIso: todayISO() }).forEach((m) => set.add(m));
             }
         } else if (global.CCPAssignments && global.CCPAssignments.months) {
             const data = getAppData();
@@ -321,6 +321,12 @@
     }
 
     function todayISO() {
+        if (hooks && typeof hooks.todayIso === 'function') {
+            const fixed = hooks.todayIso();
+            if (fixed) {
+                return String(fixed);
+            }
+        }
         const d = domain();
         if (d && d.todayISO) {
             return d.todayISO();
@@ -501,7 +507,11 @@
             return '';
         }
         const month = getUiToggles().debateRecMonth || '';
-        const c = d.debateRecAlertCountsForClass(getAppData(), classData, month ? { month } : undefined);
+        const countOpts = { todayIso: todayISO() };
+        if (month) {
+            countOpts.month = month;
+        }
+        const c = d.debateRecAlertCountsForClass(getAppData(), classData, countOpts);
         // Ordered and coloured by importance: absent / not verified (red) → needs confirmation (amber).
         const pill = (level, title, text) =>
             `<span class="classroom-essay-alert-badge debate-rec-alert debate-rec-alert--${level}" title="${escapeAttr(title)}">${escapeHtml(text)}</span>`;
@@ -552,9 +562,9 @@
             if (!d.debateRecAlertCountsForClass || !d.listDebateRecWarnMonths) {
                 return none;
             }
-            months = d.listDebateRecWarnMonths(data, [classData]);
+            months = d.listDebateRecWarnMonths(data, [classData], { todayIso: todayISO() });
             countFor = (m) => {
-                const c = d.debateRecAlertCountsForClass(data, classData, { month: m });
+                const c = d.debateRecAlertCountsForClass(data, classData, { month: m, todayIso: todayISO() });
                 return (c.nv || 0) + (c.cf || 0) + (c.nc || 0);
             };
         } else if (activeTabId === 'debate-books') {
