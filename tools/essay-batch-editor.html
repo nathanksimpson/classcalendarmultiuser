@@ -5873,7 +5873,8 @@ Requirement: "${ruleDescription}"`;
                 totalStudents,
                 sections,
                 focus,
-                collapsed: false
+                // Collapsed by default; the Expand button opens it (state is saved with the batch).
+                collapsed: true
             };
         }
 
