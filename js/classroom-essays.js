@@ -13,6 +13,102 @@
     let syllabusRowId = '';
     let lessonDate = '';
     let draftSubmission = null;
+    /** Last server copy of the open essay, so a later save does not undo fields this page did not change. */
+    let draftBaseline = null;
+    const ESSAY_RECORD_SYNC_FIELDS = [
+        'status',
+        'submittedRetest',
+        'retestAssigned',
+        'retestPassed',
+        'debateVideoMissing',
+        'note',
+        'submissionLate',
+        'overdueDismissed',
+        'submittedAt'
+    ];
+
+    function essaySyncFieldValue(rec, field) {
+        if (field === 'status') {
+            return (rec && rec.status) || 'not_submitted';
+        }
+        if (field === 'note' || field === 'submittedAt') {
+            return (rec && rec[field]) || '';
+        }
+        return Boolean(rec && rec[field]);
+    }
+
+    /**
+     * Copy server record fields onto the open draft only where this page has not edited them.
+     * A local note stays put while another window's completion status comes in, and the reverse.
+     */
+    function mergeEssayDraftFromServer(localRecords, baselineRecords, serverRecords) {
+        const localById = new Map();
+        (Array.isArray(localRecords) ? localRecords : []).forEach((rec) => {
+            if (rec && rec.studentId != null) {
+                localById.set(String(rec.studentId), rec);
+            }
+        });
+        const baseById = new Map();
+        (Array.isArray(baselineRecords) ? baselineRecords : []).forEach((rec) => {
+            if (rec && rec.studentId != null) {
+                baseById.set(String(rec.studentId), rec);
+            }
+        });
+        const serverById = new Map();
+        (Array.isArray(serverRecords) ? serverRecords : []).forEach((rec) => {
+            if (rec && rec.studentId != null) {
+                serverById.set(String(rec.studentId), rec);
+            }
+        });
+        const ids = new Set([...localById.keys(), ...serverById.keys()]);
+        const records = [];
+        const baselineOut = [];
+        const changedIds = [];
+        ids.forEach((id) => {
+            const local = localById.get(id) || null;
+            const base = baseById.get(id) || null;
+            const server = serverById.get(id) || null;
+            if (!local && server) {
+                const copy = Object.assign({}, server);
+                records.push(copy);
+                baselineOut.push(Object.assign({}, copy));
+                changedIds.push(id);
+                return;
+            }
+            const merged = Object.assign({}, local);
+            const baseNext = Object.assign({}, base || local || { studentId: id });
+            let changed = false;
+            ESSAY_RECORD_SYNC_FIELDS.forEach((field) => {
+                const localVal = essaySyncFieldValue(local, field);
+                const baseVal = essaySyncFieldValue(base, field);
+                const serverVal = essaySyncFieldValue(server, field);
+                if (localVal !== baseVal || localVal === serverVal) {
+                    return;
+                }
+                if (field === 'status') {
+                    merged[field] = serverVal;
+                } else if (field === 'note' || field === 'submittedAt') {
+                    merged[field] = server ? server[field] || '' : '';
+                } else {
+                    merged[field] = server ? Boolean(server[field]) : false;
+                }
+                baseNext[field] = merged[field];
+                changed = true;
+            });
+            if (!merged.studentId) {
+                merged.studentId = id;
+            }
+            if (!baseNext.studentId) {
+                baseNext.studentId = merged.studentId;
+            }
+            records.push(merged);
+            baselineOut.push(baseNext);
+            if (changed) {
+                changedIds.push(id);
+            }
+        });
+        return { records, baselineRecords: baselineOut, changedIds };
+    }
     let currentFilter = 'all';
     const selectedStudentIds = new Set();
     let panelRef = null;
@@ -2184,6 +2280,103 @@
             }
         }
         draftSubmission = d.ensureEssayRecordsForStudents(base, students);
+        captureDraftBaseline();
+    }
+
+    function captureDraftBaseline() {
+        if (!draftSubmission) {
+            draftBaseline = null;
+            return;
+        }
+        draftBaseline = {
+            ssDueDate: draftSubmission.ssDueDate || '',
+            teacherEvalDueDate: draftSubmission.teacherEvalDueDate || '',
+            records: (draftSubmission.records || []).map((rec) => Object.assign({}, rec))
+        };
+    }
+
+    function adoptDraftBaselineFields(studentId, fields) {
+        if (!draftBaseline || !draftSubmission || studentId == null) {
+            return;
+        }
+        const rec = (draftSubmission.records || []).find((row) => row && String(row.studentId) === String(studentId));
+        if (!rec) {
+            return;
+        }
+        const records = Array.isArray(draftBaseline.records) ? draftBaseline.records.slice() : [];
+        const idx = records.findIndex((row) => row && String(row.studentId) === String(studentId));
+        const base = Object.assign({}, idx >= 0 ? records[idx] : rec);
+        (Array.isArray(fields) ? fields : []).forEach((field) => {
+            if (Object.prototype.hasOwnProperty.call(rec, field)) {
+                base[field] = rec[field];
+            }
+        });
+        base.studentId = rec.studentId;
+        if (idx >= 0) {
+            records[idx] = base;
+        } else {
+            records.push(base);
+        }
+        draftBaseline.records = records;
+    }
+
+    function absorbServerEssaySubmission() {
+        const d = domain();
+        const data = getAppData();
+        if (!d || !draftSubmission || !classId || !syllabusRowId) {
+            return false;
+        }
+        if (!draftBaseline) {
+            captureDraftBaseline();
+        }
+        const server = d.findEssaySubmission(data.essaySubmissions, classId, syllabusRowId);
+        const merged = mergeEssayDraftFromServer(
+            draftSubmission.records,
+            draftBaseline && draftBaseline.records,
+            server && server.records
+        );
+        let changed = merged.changedIds.length > 0;
+        draftSubmission.records = merged.records;
+        draftBaseline.records = merged.baselineRecords;
+        if (server) {
+            if (
+                (draftSubmission.ssDueDate || '') === (draftBaseline.ssDueDate || '') &&
+                (server.ssDueDate || '') !== (draftSubmission.ssDueDate || '')
+            ) {
+                draftSubmission.ssDueDate = server.ssDueDate || '';
+                draftBaseline.ssDueDate = draftSubmission.ssDueDate || '';
+                changed = true;
+            }
+            if (
+                (draftSubmission.teacherEvalDueDate || '') === (draftBaseline.teacherEvalDueDate || '') &&
+                (server.teacherEvalDueDate || '') !== (draftSubmission.teacherEvalDueDate || '')
+            ) {
+                draftSubmission.teacherEvalDueDate = server.teacherEvalDueDate || '';
+                draftBaseline.teacherEvalDueDate = draftSubmission.teacherEvalDueDate || '';
+                changed = true;
+            }
+        }
+        if (!changed) {
+            return false;
+        }
+        const panel = panelRef || (typeof document !== 'undefined' ? document.getElementById('panel-essays') : null);
+        if (panel && !panel.hidden) {
+            renderStatsBar(panel);
+            renderContextBar(panel);
+            if (isTypingInEssayNote(panel)) {
+                merged.changedIds.forEach((id) => {
+                    updateEssayRow(panel, id);
+                    const rec = (draftSubmission.records || []).find((row) => row && String(row.studentId) === String(id));
+                    if (rec) {
+                        applyEssayNotePingToField(panel, id, rec.note || '');
+                    }
+                });
+            } else {
+                renderRows(panel);
+            }
+            refreshZoneContextBar();
+        }
+        return true;
     }
 
     function getRecord(studentId) {
@@ -5182,6 +5375,7 @@
         }
         const d = domain();
         const data = getAppData();
+        absorbServerEssaySubmission();
         draftSubmission.syllabusRowId = syllabusRowId;
         draftSubmission.lessonDate = lessonDate;
         const submissions = d.upsertEssaySubmission(data.essaySubmissions, draftSubmission);
@@ -6484,6 +6678,7 @@
             patch.note = ping.note == null ? '' : String(ping.note);
         }
         setRecord(ping.studentId, patch);
+        adoptDraftBaselineFields(ping.studentId, Object.keys(patch));
         const panel = document.getElementById('panel-essays');
         if (!panel) {
             return;
@@ -6613,6 +6808,8 @@
         isReceivedStatus,
         applyStagedBatchToRecord,
         applyBatchStatusToRecords,
+        mergeEssayDraftFromServer,
+        onCalendarDataChanged: absorbServerEssaySubmission,
         essayStatsSegmentFlex,
         recordAffectsResubmitDayNote,
         ESSAY_AUTOSAVE_DELAY_MS,
