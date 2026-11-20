@@ -1013,7 +1013,7 @@ ${classEditHtml(demand)}`;
         const need = cls.teacherRequirementType === 'korean' || cls.teacherRequirementType === 'native'
             || cls.teacherRequirementType === 'either'
             ? cls.teacherRequirementType
-            : 'either';
+            : '';
         return `<section class="sp-insp-edit" data-class="${esc(cls.id)}" aria-label="${esc(t('spEditClass', 'Edit class'))}">
   <div class="sp-insp-edit-head">
     <strong>${esc(t('spEditClass', 'Edit class'))}</strong>
@@ -1028,6 +1028,7 @@ ${classEditHtml(demand)}`;
   </div>
   <label class="sp-field"><span>${esc(t('spTeacherTypeNeeded', 'Teacher type'))}</span>
     <select class="field-select" data-change="edit-class-type">
+      <option value=""${need === '' ? ' selected' : ''}>${esc(t('classTeacherTypeAuto', 'Auto (from class name)'))}</option>
       <option value="either"${need === 'either' ? ' selected' : ''}>${esc(t('spTypeEither', 'Any teacher'))}</option>
       <option value="korean"${need === 'korean' ? ' selected' : ''}>${esc(t('spRoleKoreanFull', 'Korean teacher'))}</option>
       <option value="native"${need === 'native' ? ' selected' : ''}>${esc(t('spRoleNativeFull', 'Native teacher'))}</option>

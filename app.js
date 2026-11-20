@@ -30574,10 +30574,11 @@ function renderClassTimesEditor() {
     days.forEach((dow) => {
         // Always give each selected day a period picker value so the row is usable and the planner
         // sees the same schedule matrix (days + periods) once autosave runs.
-        const fallback = classTimesFirstKnownPeriod() ?? hiddenPeriod ?? 1;
+        // Never invent a period (period 1 is the rarely used 14:30 slot): an empty row stays empty.
+        const fallback = classTimesFirstKnownPeriod() ?? hiddenPeriod;
         if (!classTimesDraft[dow]) {
-            classTimesDraft[dow] = { periods: [fallback], roomId: classTimesDefaultRoom() };
-        } else if (!classTimesDraft[dow].periods.length) {
+            classTimesDraft[dow] = { periods: fallback != null ? [fallback] : [], roomId: classTimesDefaultRoom() };
+        } else if (!classTimesDraft[dow].periods.length && fallback != null) {
             classTimesDraft[dow].periods = [fallback];
         }
     });
@@ -30910,6 +30911,7 @@ function classFormHasSavedClassId() {
 }
 
 function setClassFormAutosaveStatus(state) {
+    setClassFormAutosaveStatus._state = state;
     const btn = document.querySelector('#classForm button[type="submit"].editor-header-save-btn')
         || document.querySelector('#classForm button[type="submit"]');
     if (!btn) {
@@ -30929,11 +30931,17 @@ function setClassFormAutosaveStatus(state) {
             btn.textContent = btn.dataset.defaultSaveLabel || t('saveClass');
             btn.classList.remove('is-autosaving');
         }, 1200);
+    } else if (state === 'needs-save') {
+        clearTimeout(setClassFormAutosaveStatus._reset);
+        btn.textContent = t('classAutosaveNeedsSave') || 'Save to confirm';
+        btn.classList.add('is-autosaving');
     } else if (state === 'idle') {
         btn.textContent = btn.dataset.defaultSaveLabel || t('saveClass');
         btn.classList.remove('is-autosaving');
     }
 }
+
+setClassFormAutosaveStatus._needsSave = () => setClassFormAutosaveStatus._state === 'needs-save';
 
 /**
  * Debounced quiet save for an existing class so the planner and full editor stay on the same
@@ -30959,7 +30967,7 @@ async function runClassFormAutosave() {
         const ok = persistClassFormFromEditor({ quiet: true });
         if (ok) {
             setClassFormAutosaveStatus('saved');
-        } else {
+        } else if (!setClassFormAutosaveStatus._needsSave()) {
             setClassFormAutosaveStatus('idle');
         }
     } catch (err) {
@@ -31010,8 +31018,8 @@ function buildClassFormCheckDraft() {
     if (type === 'korean' || type === 'native' || type === 'either') {
         draft.teacherRequirementType = type;
     } else {
-        // Blank option means explicit "any teacher" — same as either.
-        draft.teacherRequirementType = 'either';
+        // Blank = Auto: the planner works it out from the class name.
+        delete draft.teacherRequirementType;
     }
     const cohort = classFormPrimaryCohort();
     if (cohort) {
@@ -31153,8 +31161,8 @@ function populateClassFormSimpleParts(classData) {
     seedClassTimesDraft(classData);
     const typeSel = document.getElementById('classTeacherRequirementType');
     if (typeSel) {
-        // Stored either / blank / missing → "Any teacher" in the form (value "").
-        const need = classData && (classData.teacherRequirementType === 'korean' || classData.teacherRequirementType === 'native')
+        // korean / native / either show as chosen; missing shows Auto (from the class name).
+        const need = classData && ['korean', 'native', 'either'].includes(classData.teacherRequirementType)
             ? classData.teacherRequirementType
             : '';
         typeSel.value = need;
@@ -31256,16 +31264,6 @@ function bindClassFormSimpleListeners() {
         if (e.target === elements.classNotes || e.target === elements.classLevelCustom) {
             refreshClassMoreOptionsStatus();
         }
-        if (e.target === elements.className
-            || e.target === elements.classStartDate
-            || e.target === elements.classEndDate
-            || e.target === elements.classTermMonths
-            || e.target === elements.classTotalLessons
-            || e.target === elements.classLevel
-            || e.target === elements.classLevelCustom
-            || e.target === elements.classNotes) {
-            scheduleClassFormAutosave();
-        }
     });
     const palette = document.getElementById('classColorPaletteGrid');
     if (palette) {
@@ -31307,7 +31305,10 @@ function validateClassTeacherAccountsBeforeSave() {
 
 function handleClassSubmit(e) {
     e.preventDefault();
-    persistClassFormFromEditor({ quiet: false });
+    clearTimeout(classFormAutosaveTimer);
+    if (persistClassFormFromEditor({ quiet: false })) {
+        setClassFormAutosaveStatus('idle');
+    }
 }
 
 /**
@@ -31416,6 +31417,13 @@ function persistClassFormFromEditor(options) {
         scheduleModel,
         customSchedule: isCustomSchedule ? { enabled: true } : null
     };
+    // Autosave never answers a question for you: a curriculum swap or a schedule adjustment
+    // waits for the Save button, which asks as before.
+    if (quiet && (curriculumLinkChanged
+        || (!isCustomSchedule && scheduleAdjustmentsNeedConfirm(draftForConfirm)))) {
+        setClassFormAutosaveStatus('needs-save');
+        return false;
+    }
     if (!quiet && !isCustomSchedule && !maybeConfirmScheduleAdjustments(draftForConfirm)) {
         return false;
     }
@@ -31488,11 +31496,11 @@ function persistClassFormFromEditor(options) {
     // Days and periods (with rooms) are the class's own; one teacher, one curriculum.
     applyClassTimesToClassObject(classData);
     const teacherType = (document.getElementById('classTeacherRequirementType')?.value || '').trim();
-    // Persist "either"/blank so the planner does not re-infer Korean/native from the class name.
-    if (teacherType === 'korean' || teacherType === 'native') {
+    // 'either' (Any teacher) is saved so the planner does not re-infer from the name; blank = Auto.
+    if (teacherType === 'korean' || teacherType === 'native' || teacherType === 'either') {
         classData.teacherRequirementType = teacherType;
     } else {
-        classData.teacherRequirementType = 'either';
+        delete classData.teacherRequirementType;
     }
     const plannerCb = document.getElementById('classPlannerIncluded');
     if (plannerCb && !plannerCb.checked) {
@@ -31506,8 +31514,8 @@ function persistClassFormFromEditor(options) {
     if (curriculumLinkChanged) {
         const editor = window.CCPBooksEditor;
         const skipPush = editor && editor.isNoCurriculum(classData.curriculumId);
-        // Autosave must not pop the curriculum-replace confirm; manual Save still asks.
-        if (!skipPush && !quiet) {
+        // Quiet saves stop before this point when the curriculum changed (see above).
+        if (!skipPush) {
             const pushResult = pushCurriculumToClassSyllabus(classData, {
                 skipConfirm: false,
                 force: true,
@@ -32243,29 +32251,38 @@ function renderSyllabusScheduleAdjustment(classData) {
     }
 }
 
-function maybeConfirmScheduleAdjustments(classSnapshot) {
+/** True when saving this class would stop to ask about combining/skipping lessons. */
+function scheduleAdjustmentsNeedConfirm(classSnapshot) {
     if (!classSnapshot || (classSnapshot.customSchedule && classSnapshot.customSchedule.enabled)) {
-        return true;
+        return false;
     }
     if (!classUsesDebateCompression(classSnapshot)) {
-        return true;
+        return false;
     }
     // Manual and per-book-period merges are user-owned; do not auto-propose.
     if (isManualCompressionMode(classSnapshot.compressionMode)) {
-        return true;
+        return false;
     }
     const gap = getClassScheduleGapStatus(classSnapshot);
     if (!gap.incomplete) {
-        return true;
+        return false;
     }
     const existingSkips = getSkippedLessonsFromClass(classSnapshot, gap.totalLessons);
     const existingMerges = getCompressionMergesFromClass(classSnapshot, gap.totalLessons);
     if (existingSkips.length > 0 || existingMerges.length > 0) {
         const trial = { ...classSnapshot, skippedLessons: existingSkips, compressionMerges: existingMerges };
         if (!getClassScheduleGapStatus(trial).incomplete) {
-            return true;
+            return false;
         }
     }
+    return true;
+}
+
+function maybeConfirmScheduleAdjustments(classSnapshot) {
+    if (!scheduleAdjustmentsNeedConfirm(classSnapshot)) {
+        return true;
+    }
+    const gap = getClassScheduleGapStatus(classSnapshot);
     const proposal = proposeScheduleAdjustments(classSnapshot);
     const name = (classSnapshot.name || '').trim() || t('editClass');
     let body = t('scheduleConfirmBody')
