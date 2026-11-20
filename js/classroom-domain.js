@@ -7910,7 +7910,8 @@
             }
             const rowDate = normalizeStr(row.date);
             if (want && rowDate === want) {
-                score += 25;
+                // Exact lesson date beats any near date (same month +20 and within a week +15).
+                score += 40;
             } else if (want && rowDate) {
                 if (wantMonth && rowDate.slice(0, 7) === wantMonth) {
                     score += 20;
@@ -7992,22 +7993,139 @@
         return Object.assign({}, submission, { records });
     }
 
-    /** Stable key for one TMS Writing assignment (prefer homeworkitemidx). */
+    /**
+     * Stable key for one TMS Writing assignment: TMS class + homework item + lesson date.
+     * TMS reuses a homework item across classes and weeks (its essay page needs classidx,
+     * homeworkitemidx and wdate), so the homework item alone is not one assignment.
+     */
     function normalizeTmsEssayAssignmentKey(assign) {
         if (!assign || typeof assign !== 'object') {
             return '';
         }
         const hw = normalizeStr(assign.homeworkItemIdx);
-        if (hw) {
-            return `hw:${hw}`;
-        }
         const cls = normalizeStr(assign.tmsClassId) || cleanCohortNameForEssayMatch(assign.className);
-        const title = normalizeEssayTitleKey(assign.title);
         const date = normalizeStr(assign.lessonDate);
+        if (hw) {
+            return `hw:${cls}|${hw}|${date}`;
+        }
+        const title = normalizeEssayTitleKey(assign.title);
         if (!cls && !title) {
             return '';
         }
         return `n:${cls}|${title}|${date}`;
+    }
+
+    /** Key saved before Nov 2026 (homework item only). Read-only fallback for remembered links. */
+    function legacyTmsEssayAssignmentKey(assign) {
+        const hw = normalizeStr(assign && assign.homeworkItemIdx);
+        return hw ? `hw:${hw}` : '';
+    }
+
+    /**
+     * Group flat TMS Writing-list rows into assignments, one per
+     * TMS class + homework item + lesson date (see normalizeTmsEssayAssignmentKey).
+     */
+    function groupTmsEssayRowsIntoAssignments(rows) {
+        const byKey = new Map();
+        (Array.isArray(rows) ? rows : []).forEach((row) => {
+            if (!row || !row.name || !row.title) {
+                return;
+            }
+            const key = normalizeTmsEssayAssignmentKey(row);
+            if (!key) {
+                return;
+            }
+            if (!byKey.has(key)) {
+                byKey.set(key, {
+                    tmsClassId: normalizeStr(row.tmsClassId),
+                    className: normalizeStr(row.className),
+                    title: normalizeStr(row.title),
+                    mpidx: normalizeStr(row.mpidx),
+                    homeworkItemIdx: normalizeStr(row.homeworkItemIdx),
+                    lessonDate: normalizeStr(row.lessonDate),
+                    assignedDate: normalizeStr(row.lessonDate),
+                    assignedMonth: '',
+                    portfolioTitle: '',
+                    dueDate: '',
+                    students: [],
+                    _seen: new Set()
+                });
+            }
+            const bucket = byKey.get(key);
+            const studentKey = `${normalizeStr(row.mpidx)}|${normalizeStr(row.name)}`;
+            if (bucket._seen.has(studentKey)) {
+                return;
+            }
+            bucket._seen.add(studentKey);
+            bucket.students.push({
+                name: row.name,
+                nameEn: row.nameEn || '',
+                mpidx: normalizeStr(row.mpidx),
+                statusMarks: row.statusMarks || undefined,
+                parseUncertain: row.parseUncertain === true,
+                submitted: row.submitted !== false,
+                submittedAt: row.submittedAt || ''
+            });
+        });
+        return Array.from(byKey.values()).map((bucket) => {
+            delete bucket._seen;
+            return bucket;
+        });
+    }
+
+    /** Rebuild a bridge/helper essay scrape's assignments from its flat rows (any helper version). */
+    function regroupTmsEssayScrape(body) {
+        if (!body || !Array.isArray(body.rows) || !body.rows.length) {
+            return body;
+        }
+        return Object.assign({}, body, { assignments: groupTmsEssayRowsIntoAssignments(body.rows) });
+    }
+
+    /** Active roster students of a class's cohorts (same list the student match uses). */
+    function rosterStudentsForEssayClass(data, classData) {
+        const cohortList = Array.isArray(data && data.cohorts) ? data.cohorts : [];
+        const out = [];
+        getCohortIdsForClass(classData).forEach((cid) => {
+            const cohort = cohortList.find((c) => c && normalizeStr(c.id) === normalizeStr(cid));
+            normalizeCohortStudents(cohort).forEach((s) => {
+                if (s && s.active !== false) {
+                    out.push(Object.assign({ cohortId: normalizeStr(cid) }, s));
+                }
+            });
+        });
+        return out;
+    }
+
+    /**
+     * How many of a TMS assignment's students are on a class's roster (TMS id or Korean name).
+     * cache: Map classId -> { mpidx:Set, names:Set }.
+     */
+    function tmsEssayRosterOverlap(data, classData, tmsStudents, cache) {
+        const cid = normalizeStr(classData && classData.id);
+        let index = cache && cid ? cache.get(cid) : null;
+        if (!index) {
+            const roster = rosterStudentsForEssayClass(data, classData);
+            index = {
+                mpidx: new Set(roster.map((s) => normalizeStr(s.tmsMpidx || s.mpidx)).filter(Boolean)),
+                names: new Set(roster.map((s) => koreanMatchKey(s.name)).filter(Boolean))
+            };
+            if (cache && cid) {
+                cache.set(cid, index);
+            }
+        }
+        let hits = 0;
+        (Array.isArray(tmsStudents) ? tmsStudents : []).forEach((stu) => {
+            const mp = normalizeStr(stu && (stu.mpidx || stu.tmsMpidx));
+            if (mp && index.mpidx.has(mp)) {
+                hits += 1;
+                return;
+            }
+            const key = koreanMatchKey(stu && stu.name);
+            if (key && index.names.has(key)) {
+                hits += 1;
+            }
+        });
+        return hits;
     }
 
     function normalizeTmsEssayLinkEntry(raw, keyHint) {
@@ -8222,8 +8340,36 @@
         const data = appData || {};
         const key = normalizeTmsEssayAssignmentKey(assign);
         const links = normalizeTmsEssayLinks(data.tmsEssayLinks);
-        const saved = key && links[key] ? links[key] : null;
+        let saved = key && links[key] ? links[key] : null;
+        if (!saved) {
+            // Links saved under the old homework-item-only key: trust them only for the same
+            // TMS class and lesson date, because TMS reuses homework items across both.
+            const legacy = links[legacyTmsEssayAssignmentKey(assign)] || null;
+            const sameClass =
+                legacy &&
+                (!normalizeStr(legacy.tmsClassId) ||
+                    !normalizeStr(assign && assign.tmsClassId) ||
+                    normalizeStr(legacy.tmsClassId) === normalizeStr(assign.tmsClassId));
+            const sameDate =
+                legacy &&
+                (!normalizeStr(legacy.lessonDate) ||
+                    !normalizeStr(assign && assign.lessonDate) ||
+                    normalizeStr(legacy.lessonDate) === normalizeStr(assign.lessonDate));
+            if (sameClass && sameDate) {
+                saved = legacy;
+            }
+        }
         const suggestOpts = options || {};
+        const overlapCache = suggestOpts.overlapCache || new Map();
+        const tmsStudents = (Array.isArray(assign && assign.students) ? assign.students : []).filter(
+            (s) => s && s.name && !isRosterStatusNoiseName(s.name)
+        );
+        const overlapOf = (classData) =>
+            classData ? tmsEssayRosterOverlap(data, classData, tmsStudents, overlapCache) : 0;
+        const findClass = (id) =>
+            (Array.isArray(data.classes) ? data.classes : []).find(
+                (c) => c && normalizeStr(c.id) === normalizeStr(id)
+            ) || null;
         const assignedDate = normalizeStr(assign && (assign.assignedDate || assign.lessonDate));
         const assignedMonth = yearMonthKey(assignedDate);
         const classExists = (id) =>
@@ -8259,9 +8405,17 @@
                 suggestedSyllabusRowId: ''
             };
         }
+        // A remembered class with none of the submitters on its roster is a stale/wrong link
+        // (e.g. saved under the old shared-homework-item key): fall through to a fresh match.
+        const savedRosterOk =
+            !saved ||
+            saved.action !== 'map' ||
+            !tmsStudents.length ||
+            overlapOf(findClass(saved.classId)) > 0;
         if (
             saved &&
             saved.action === 'map' &&
+            savedRosterOk &&
             (!assignedMonth || !yearMonthKey(saved.lessonDate) || yearMonthKey(saved.lessonDate) === assignedMonth) &&
             classExists(saved.classId) &&
             rowExists(saved.classId, saved.syllabusRowId) &&
@@ -8282,33 +8436,59 @@
         let suggestedClassId = '';
         let suggestedSyllabusRowId = '';
         const cohortId = findCohortIdForTmsClass(data, assign.tmsClassId, assign.className);
-        let classes = cohortId ? listClassesForCohort(data, cohortId) : listEssayClasses(data);
-        if (!cohortId) {
-            // No saved roster link: prefer classes of the same level (and M/T) as the TMS class.
-            const sameLevel = essayClassesForTmsLevel(classes, assign && assign.className);
-            if (sameLevel.length) {
-                classes = sameLevel;
+        const allEssayClasses = listEssayClasses(data);
+        let classes = cohortId ? listClassesForCohort(data, cohortId) : allEssayClasses;
+        const matchIn = (list) => {
+            const out = [];
+            list.forEach((classData) => {
+                const hit = matchEssayAssignmentRow(classData, assign.title, assignedDate, {
+                    assignedDate,
+                    termStart: suggestOpts.termStart,
+                    termEnd: suggestOpts.termEnd
+                });
+                if (hit) {
+                    out.push({
+                        classId: normalizeStr(classData.id),
+                        syllabusRowId: hit.syllabusRowId,
+                        score: hit.score,
+                        dateDist: hit.dateDist,
+                        overlap: overlapOf(classData)
+                    });
+                }
+            });
+            return out;
+        };
+        let hits = matchIn(classes);
+        if (cohortId && tmsStudents.length && !hits.some((h) => h.overlap > 0)) {
+            // Roster link points at classes without these students: look at every essay class.
+            const wider = matchIn(allEssayClasses);
+            if (wider.some((h) => h.overlap > 0)) {
+                hits = wider;
             }
         }
-        let best = null;
-        classes.forEach((classData) => {
-            const hit = matchEssayAssignmentRow(classData, assign.title, assignedDate, {
-                assignedDate,
-                termStart: suggestOpts.termStart,
-                termEnd: suggestOpts.termEnd
-            });
-            if (!hit) {
-                return;
+        const maxOverlap = hits.reduce((m, h) => Math.max(m, h.overlap), 0);
+        if (maxOverlap > 0) {
+            // The class whose roster holds these students wins over a title-only match.
+            hits = hits.filter((h) => h.overlap === maxOverlap);
+        } else if (!cohortId) {
+            // No roster evidence: prefer classes of the same level (and M/T) as the TMS class.
+            const sameLevel = new Set(
+                essayClassesForTmsLevel(classes, assign && assign.className).map((c) => normalizeStr(c.id))
+            );
+            if (hits.some((h) => sameLevel.has(h.classId))) {
+                hits = hits.filter((h) => sameLevel.has(h.classId));
             }
-            if (!best || hit.score > best.score) {
-                best = {
-                    classId: normalizeStr(classData.id),
-                    syllabusRowId: hit.syllabusRowId,
-                    score: hit.score
-                };
-            }
-        });
-        if (best) {
+        }
+        hits.sort((a, b) => b.score - a.score || a.dateDist - b.dateDist);
+        const best = hits[0] || null;
+        const second = hits[1] || null;
+        const tied =
+            best &&
+            second &&
+            second.classId !== best.classId &&
+            second.score === best.score &&
+            second.dateDist === best.dateDist;
+        if (best && !tied) {
             suggestedClassId = best.classId;
             suggestedSyllabusRowId = best.syllabusRowId;
         }
@@ -8339,6 +8519,7 @@
         const tEnd = normalizeStr(planOpts.termEnd);
         const rows = [];
         let filteredOutOfTermCount = 0;
+        const overlapCache = new Map();
         assignments.forEach((assign) => {
             if (!assign || !assign.title) {
                 return;
@@ -8353,7 +8534,8 @@
             }
             const resolved = suggestTmsEssayMapping(appData, assign, {
                 termStart: tStart,
-                termEnd: tEnd
+                termEnd: tEnd,
+                overlapCache
             });
             if (filterClassId) {
                 const mappedClass = resolved.userClassId || resolved.suggestedClassId || '';
@@ -8362,12 +8544,34 @@
                 }
                 if (!mappedClass) {
                     const cohortId = findCohortIdForTmsClass(appData, assign.tmsClassId, assign.className);
-                    if (!cohortId) {
+                    const viaCohort =
+                        cohortId &&
+                        listClassesForCohort(appData, cohortId).some(
+                            (c) => normalizeStr(c.id) === filterClassId
+                        );
+                    const filterClass = (Array.isArray(appData && appData.classes) ? appData.classes : []).find(
+                        (c) => c && normalizeStr(c.id) === filterClassId
+                    );
+                    const tmsStudents = (Array.isArray(assign.students) ? assign.students : []).filter(
+                        (st) => st && st.name && !isRosterStatusNoiseName(st.name)
+                    );
+                    const viaRoster =
+                        filterClass &&
+                        tmsEssayRosterOverlap(appData, filterClass, tmsStudents, overlapCache) > 0;
+                    if (!viaCohort && !viaRoster) {
                         return;
                     }
-                    const matchClasses = listClassesForCohort(appData, cohortId);
-                    if (!matchClasses.some((c) => normalizeStr(c.id) === filterClassId)) {
-                        return;
+                    // Syncing one class: suggest its matching assignment when the title fits.
+                    const hit = filterClass
+                        ? matchEssayAssignmentRow(filterClass, assign.title, lessonDate, {
+                              assignedDate: lessonDate,
+                              termStart: tStart,
+                              termEnd: tEnd
+                          })
+                        : null;
+                    if (hit) {
+                        resolved.suggestedClassId = filterClassId;
+                        resolved.suggestedSyllabusRowId = hit.syllabusRowId;
                     }
                 }
             }
@@ -8524,15 +8728,7 @@
                 rememberedResolutions,
                 normalizeTmsStudentResolutions(row.studentResolutions)
             );
-            const rosterStudents = [];
-            cohortIds.forEach((cid) => {
-                const cohort = cohortList.find((c) => c && normalizeStr(c.id) === normalizeStr(cid));
-                normalizeCohortStudents(cohort).forEach((s) => {
-                    if (s && s.active !== false) {
-                        rosterStudents.push(Object.assign({ cohortId: normalizeStr(cid) }, s));
-                    }
-                });
-            });
+            const rosterStudents = rosterStudentsForEssayClass(data, classData);
 
             (Array.isArray(row.students) ? row.students : []).forEach((stu) => {
                 if (!stu || !stu.submitted || !stu.name) {
@@ -8672,7 +8868,8 @@
                         prevStatus,
                         tmsTitle: row.title,
                         tmsClassId: row.tmsClassId || '',
-                        tmsClassName: row.className || ''
+                        tmsClassName: row.className || '',
+                        tmsLessonDate: row.lessonDate || ''
                     });
                     const submittedAt = normalizeEssaySubmittedAt(stu.submittedAt);
                     if (submittedAt && isEssayReceivedStatus(prevStatus)) {
@@ -8745,8 +8942,8 @@
      * Auto-build plan with suggestions applied as provisional maps (for tests / quick path).
      * UI should use buildTmsEssaySyncPlan + user edits + previewTmsEssaySyncPlan instead.
      */
-    function previewTmsEssaySync(appData, scrapeResult) {
-        const built = buildTmsEssaySyncPlan(appData, scrapeResult);
+    function previewTmsEssaySync(appData, scrapeResult, options) {
+        const built = buildTmsEssaySyncPlan(appData, scrapeResult, options);
         const rows = (built.rows || []).map((row) => {
             if (row.userAction === 'skip') {
                 return row;
@@ -8812,6 +9009,12 @@
                 const rowStudent = koreanMatchKey(row.tmsName || row.studentName);
                 const rowTitle = normalizeEssayTitleKey(row.tmsTitle || row.title || row.assignmentLabel);
                 if (rowStudent !== studentKey || rowTitle !== titleKey || !essayListRowsShareTmsClass(query, row)) {
+                    return;
+                }
+                // Same essay title every week: the TMS lesson date says which week.
+                const queryDate = normalizeStr(query && query.lessonDate);
+                const rowDate = normalizeStr(row.tmsLessonDate);
+                if (queryDate && rowDate && queryDate !== rowDate) {
                     return;
                 }
                 hits.push({ classId, syllabusRowId, studentId });
@@ -10987,6 +11190,8 @@
         retconEssayCompletions,
         normalizeEssayTitleKey,
         normalizeTmsEssayAssignmentKey,
+        groupTmsEssayRowsIntoAssignments,
+        regroupTmsEssayScrape,
         normalizeTmsEssayLinks,
         upsertTmsEssayLinks,
         suggestTmsEssayMapping,

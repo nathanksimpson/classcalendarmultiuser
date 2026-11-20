@@ -87,7 +87,7 @@ const WRITING_LIST_PATH = '/lms/Writing_list.aspx';
  */
 const WRITING_DETAIL_PATH = '/recorder/rec_video/recphotopholi.aspx';
 /** Max Writing_list pagination posts after the first page (ctl00… ≈ pages 2+). */
-const MAX_WRITING_LIST_PAGES = 12;
+const MAX_WRITING_LIST_PAGES = 60;
 /** Max concurrent detail fetches when scraping essay bodies. */
 const MAX_ESSAY_DETAIL_CONCURRENCY = 3;
 const ESSAY_BODY_LABELS = ['작성내용', '에세이내용', '본문', '내용', '에세이', '에세이일경우'];
@@ -2397,6 +2397,24 @@ function parseWritingListRows(html) {
     return rows;
 }
 
+/**
+ * Pager links with the page number each one opens (null when the link text is not a number).
+ * ASP.NET postback targets belong to the page they came from, so the walk reads them again
+ * from every page it loads.
+ */
+function extractWritingPagingLinks(html) {
+    const links = [];
+    const decoded = decodeHtmlEntities(String(html || ''));
+    const re = /<a\b[^>]*__doPostBack\s*\(\s*['"](pagingHelper\$ctl\d+)['"][^>]*>([\s\S]*?)<\/a>/gi;
+    let m;
+    while ((m = re.exec(decoded))) {
+        const text = stripTags(m[2] || '').replace(/[\s/|]+/g, ' ').trim();
+        const num = /^\d+$/.test(text) ? parseInt(text, 10) : null;
+        links.push({ target: m[1], page: num });
+    }
+    return links;
+}
+
 function extractWritingPagingTargets(html) {
     const targets = [];
     const seen = new Set();
@@ -2422,9 +2440,11 @@ function groupWritingRowsIntoAssignments(rows) {
         if (!row || !row.name || !row.title) {
             return;
         }
+        // TMS reuses a homework item across classes and weeks: key on class + item + date.
+        const cls = String(row.tmsClassId || row.className || '').toLowerCase();
         const key = row.homeworkItemIdx
-            ? `hw:${row.homeworkItemIdx}`
-            : `n:${String(row.className || '').toLowerCase()}|${String(row.title || '').toLowerCase()}|${row.lessonDate || ''}`;
+            ? `hw:${cls}|${row.homeworkItemIdx}|${row.lessonDate || ''}`
+            : `n:${cls}|${String(row.title || '').toLowerCase()}|${row.lessonDate || ''}`;
         if (!byKey.has(key)) {
             byKey.set(key, {
                 tmsClassId: String(row.tmsClassId || ''),
@@ -2515,8 +2535,27 @@ async function scrapeEssaySubmissions(options) {
     let allRows = parseWritingListRows(page.text);
     pages[0].rowCount = allRows.length;
 
-    const pagingTargets = extractWritingPagingTargets(page.text).slice(0, MAX_WRITING_LIST_PAGES);
-    for (const target of pagingTargets) {
+    // Walk page 2, 3, … by the number on each pager link, read fresh from the current page.
+    // Falls back to page 1's link list when the pager has no numbered links.
+    const firstLinks = extractWritingPagingLinks(page.text);
+    const numbered = firstLinks.some((l) => l.page != null);
+    const fallbackTargets = numbered
+        ? []
+        : extractWritingPagingTargets(page.text).slice(0, MAX_WRITING_LIST_PAGES);
+    let currentPage = 1;
+    let fallbackIdx = 0;
+    const nextTarget = () => {
+        if (!numbered) {
+            return fallbackIdx < fallbackTargets.length ? fallbackTargets[fallbackIdx++] : '';
+        }
+        if (currentPage >= MAX_WRITING_LIST_PAGES) {
+            return '';
+        }
+        const want = currentPage + 1;
+        const hit = extractWritingPagingLinks(page.text).find((l) => l.page === want);
+        return hit ? hit.target : '';
+    };
+    for (let target = nextTarget(); target; target = nextTarget()) {
         try {
             const fields = Object.assign(collectWritingFormFields(page.text), {
                 __EVENTTARGET: target,
@@ -2548,6 +2587,7 @@ async function scrapeEssaySubmissions(options) {
                 rowCount: rows.length
             });
             allRows = allRows.concat(rows);
+            currentPage += 1;
         } catch (e) {
             pages.push({
                 url: listUrl,
@@ -3308,6 +3348,7 @@ module.exports = {
     parseWritingStudentLabel,
     groupWritingRowsIntoAssignments,
     extractWritingPagingTargets,
+    extractWritingPagingLinks,
     extractPhotopoliviewUrlTemplate,
     buildWritingDetailUrl,
     parseEssayDetailMeta,

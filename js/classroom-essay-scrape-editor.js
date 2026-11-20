@@ -77,16 +77,25 @@
         return 'news-response';
     }
 
-    /** Mirror shared/tms-roster-core groupWritingRowsIntoAssignments for browser-side sync. */
+    /** One assignment per TMS class + homework item + lesson date (domain helper when loaded). */
     function groupRowsIntoAssignments(rows) {
+        const d = global.CCPClassroomDomain;
+        if (d && typeof d.groupTmsEssayRowsIntoAssignments === 'function') {
+            return d.groupTmsEssayRowsIntoAssignments(rows);
+        }
+        return legacyGroupRowsIntoAssignments(rows);
+    }
+
+    function legacyGroupRowsIntoAssignments(rows) {
         const byKey = new Map();
         (Array.isArray(rows) ? rows : []).forEach((row) => {
             if (!row || !row.name || !row.title) {
                 return;
             }
+            const cls = String(row.tmsClassId || row.className || '').toLowerCase();
             const key = row.homeworkItemIdx
-                ? `hw:${row.homeworkItemIdx}`
-                : `n:${String(row.className || '').toLowerCase()}|${String(row.title || '').toLowerCase()}|${row.lessonDate || ''}`;
+                ? `hw:${cls}|${row.homeworkItemIdx}|${row.lessonDate || ''}`
+                : `n:${cls}|${String(row.title || '').toLowerCase()}|${row.lessonDate || ''}`;
             if (!byKey.has(key)) {
                 byKey.set(key, {
                     tmsClassId: String(row.tmsClassId || ''),
@@ -1041,7 +1050,8 @@
                 studentName: row.name || row.displayName,
                 className: row.className,
                 title: row.title,
-                tmsClassId: row.tmsClassId
+                tmsClassId: row.tmsClassId,
+                lessonDate: row.lessonDate
             });
             if (link) {
                 links.set(row.key || rowKey(row), link);

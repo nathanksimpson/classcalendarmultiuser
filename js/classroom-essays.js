@@ -6237,7 +6237,9 @@
 
             const d = domain();
             const term = getTermRange();
-            const built = d.buildTmsEssaySyncPlan(getAppData(), body, {
+            // Regroup from flat rows (per TMS class + homework item + date) — works with any helper version.
+            const scrape = typeof d.regroupTmsEssayScrape === 'function' ? d.regroupTmsEssayScrape(body) : body;
+            const built = d.buildTmsEssaySyncPlan(getAppData(), scrape, {
                 filterClassId: essayTmsFilterClassId,
                 termStart: term.start,
                 termEnd: term.end

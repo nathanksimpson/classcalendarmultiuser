@@ -175,9 +175,11 @@ function sampleApp() {
     assert(rec.submissionLate === true, 'late flag');
 
     const links = D.upsertTmsEssayLinks({}, built.rows, app.classes);
-    assert(links['hw:1282873'] && links['hw:1282873'].action === 'map', 'remember map');
-    assert(links['hw:1282873'].classId === 'cls1', 'link class');
-    assert(links['hw:1'] && links['hw:1'].action === 'skip', 'remember skip');
+    // Keys are TMS class + homework item + lesson date (TMS reuses homework items).
+    assert(debateRow.key.startsWith('hw:') && debateRow.key.includes('1282873'), `class+item+date key ${debateRow.key}`);
+    assert(links[debateRow.key] && links[debateRow.key].action === 'map', 'remember map');
+    assert(links[debateRow.key].classId === 'cls1', 'link class');
+    assert(links[unknown.key] && links[unknown.key].action === 'skip', 'remember skip');
 }
 
 {
