@@ -96,7 +96,7 @@
             'js/classroom-header.js?v=20260807-hr-tools',
             'js/classroom-essay-scrape-editor.js?v=20261119-essay-status-sync',
             'js/classroom-parent-messages.js?v=20261024-ko-template',
-            'js/classroom-essays.js?v=20261119-essay-status-sync'
+            'js/classroom-essays.js?v=20261120-essay-one-write'
         ],
         ledger: [
             'js/classroom-access.js?v=20260911-essay-groups',
@@ -147,7 +147,7 @@
             'js/classroom-essay-class-summary-print.js?v=20261005-essay-demerit',
             'js/classroom-parent-messages.js?v=20261024-ko-template',
             'js/classroom-debate-rec-print.js?v=20261024-parent-msg-ko',
-            'js/classroom-debate-rec.js?v=20261024-rec-sev'
+            'js/classroom-debate-rec.js?v=20261120-essay-one-write'
         ],
         'debate-books': [
             'js/classroom-access.js?v=20260911-essay-groups',

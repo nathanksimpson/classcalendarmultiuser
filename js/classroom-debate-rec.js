@@ -190,35 +190,11 @@
      * students whose records changed (the server merges just those students).
      */
     function buildSubmissionMutations(prevList, nextList) {
-        const prevById = new Map();
-        (prevList || []).forEach((sub) => {
-            if (sub && sub.id != null) {
-                prevById.set(String(sub.id), sub);
-            }
-        });
-        const ts = Date.now();
-        const mutations = [];
-        (nextList || []).forEach((sub) => {
-            if (!sub || sub.id == null) {
-                return;
-            }
-            const prev = prevById.get(String(sub.id));
-            if (prev === sub || (prev && JSON.stringify(prev) === JSON.stringify(sub))) {
-                return;
-            }
-            const payload = Object.assign({}, sub);
-            if (prev) {
-                const prevRecs = new Map((prev.records || []).filter(Boolean).map((r) => [String(r.studentId), JSON.stringify(r)]));
-                const touched = (sub.records || [])
-                    .filter((r) => r && JSON.stringify(r) !== prevRecs.get(String(r.studentId)))
-                    .map((r) => String(r.studentId));
-                if (touched.length) {
-                    payload.touchedStudentIds = touched;
-                }
-            }
-            mutations.push({ entity: 'essaySubmissions', action: 'upsert', payload: { submission: payload }, timestamp: ts });
-        });
-        return mutations;
+        const d = domain();
+        if (d && typeof d.buildEssaySubmissionMutations === 'function') {
+            return d.buildEssaySubmissionMutations(prevList, nextList);
+        }
+        return [];
     }
 
     /**
