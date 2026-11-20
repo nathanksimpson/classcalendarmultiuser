@@ -30423,6 +30423,8 @@ function classFormCount(key, n) {
 }
 /** Per weekday while the form is open: { periods: number[], roomId: string }. */
 let classTimesDraft = {};
+/** After the form has been filled, a newly chosen meeting day scrolls its period row into view. */
+let classTimesRevealArmed = false;
 let classTimesHasRoomFields = false;
 let classFormChecksTimer = null;
 let classFormChecksScriptsAsked = false;
@@ -30520,6 +30522,9 @@ function renderClassTimesEditor() {
         }
     });
     mount.hidden = !days.length;
+    const dayKey = days.join(',');
+    const prevDays = mount.dataset.days || '';
+    mount.dataset.days = dayKey;
     const short = t('dayNamesShort');
     const rooms = classFormRooms();
     const maxP = getClassPeriodMax();
@@ -30552,6 +30557,26 @@ function renderClassTimesEditor() {
     syncHiddenPeriodFromClassTimes();
     refreshClassTermSummary();
     scheduleClassFormChecks();
+    if (classTimesRevealArmed && dayKey && dayKey !== prevDays) {
+        revealClassTimesRows(mount);
+    }
+}
+
+/** The period row is drawn under the day chips. Bring it on screen when a day was just chosen. */
+function revealClassTimesRows(mount) {
+    requestAnimationFrame(() => {
+        if (!mount || mount.hidden) {
+            return;
+        }
+        const box = mount.getBoundingClientRect();
+        if (!box.height) {
+            return;
+        }
+        const margin = 16;
+        if (box.top < margin || box.bottom > window.innerHeight - margin) {
+            mount.scrollIntoView({ block: 'nearest' });
+        }
+    });
 }
 
 function bindClassTimesEditor(mount) {
@@ -30991,6 +31016,7 @@ function renderClassFormChecks() {
 
 /** Fills the new parts of the form from a class (or a blank new class). */
 function populateClassFormSimpleParts(classData) {
+    classTimesRevealArmed = false;
     seedClassTimesDraft(classData);
     const typeSel = document.getElementById('classTeacherRequirementType');
     if (typeSel) {
@@ -31009,6 +31035,7 @@ function populateClassFormSimpleParts(classData) {
     }
     bindClassFormSimpleListeners();
     renderClassTimesEditor();
+    classTimesRevealArmed = true;
     refreshClassBlockSummary();
     refreshClassTermSummary();
     syncClassFormDebateUi(classData || null);
