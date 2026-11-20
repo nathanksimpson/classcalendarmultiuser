@@ -23,8 +23,8 @@
         Saemmul: '#d9a3a3',
         Garam: '#16a34a',
         Bada: '#16a34a',
-        Byeolmaru: '#2563eb',
-        Mirinae: '#2563eb'
+        Byeolmaru: '#4f46e5',
+        Mirinae: '#4f46e5'
     };
 
     function normalizeStr(v) {

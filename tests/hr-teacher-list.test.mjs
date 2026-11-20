@@ -99,7 +99,7 @@ assert(rows[2].tHrTeacher === '', 'Byeolmaru T HRT should be empty');
 
 assert(rows[0].accent === api.NAMED_LEVEL_COLORS.Red, 'Red row uses Red default color');
 assert(rows[1].accent === api.NAMED_LEVEL_COLORS.Orange, 'Orange row uses Orange default color');
-assert(rows[2].accent === api.NAMED_LEVEL_COLORS.Byeolmaru, 'Byeolmaru row uses Blue-band default');
+assert(rows[2].accent === api.NAMED_LEVEL_COLORS.Byeolmaru, 'Byeolmaru row uses indigo default');
 
 // Cohort picker color overrides level defaults (MWF preferred over TT).
 const coloredData = {
@@ -208,7 +208,7 @@ assert(
     noHookRows.map((r) => r.levelId).join(',') === ['Navy', `Pre ${YUMA}`, YUMA].join(','),
     `profile order elementary → pre-middle → middle, got ${noHookRows.map((r) => r.levelId).join(',')}`
 );
-assert(noHookRows[2].accent === '#fef08a', 'middle-school row uses the profile grade color');
+assert(noHookRows[2].accent === '#dc2626', 'middle-school row uses the profile per-level color');
 assert(api.fallbackLevelColor('Red').color === api.NAMED_LEVEL_COLORS.Red, 'Red fallback color unchanged');
 
 console.log('hr-teacher-list.test.mjs: all passed');
